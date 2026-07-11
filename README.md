@@ -36,20 +36,19 @@ Skills then fire automatically when relevant or run directly by their `ce-`-pref
 
 ## Week one — eight verbs
 
-Most of the first-week value comes from eight skills. The cost floors below are
-measured in USD per invocation ([full results & costs](./docs/BENCHMARKS.md));
+Most of the first-week value comes from eight skills ([full results & costs](./docs/BENCHMARKS.md));
 everything else routes through [`docs/USAGE-MATRIX.md`](./docs/USAGE-MATRIX.md).
 
-| Verb | Use when | Cost floor (USD) |
-|---|---|---|
-| `/ce-init` | First-run repo bootstrap: profile commands, CI, surfaces; write starter policy | local, no model call |
-| `/ce-ask` | Grounded, `file:line`-cited answer to a codebase question | ~$1 |
-| `/ce-impact` | Blast-radius read of a proposed change or work item before building | ~$1 |
-| `/ce-patch` | One genuinely-small bounded change through the folded patch lane | ~$4 |
-| `/ce-plan` | Decompose a project into an ordered, dependency-aware feature plan | ~$3 |
-| `/ce-spec` | Detail one planned feature into EARS criteria + `tasks.json` | ~$4 |
-| `/ce-implement` | Build one specified feature test-first, task by task | ~$3 |
-| `/ce-review` | Independently code-review a built feature across six lenses | ~$2 |
+| Verb | Use when |
+|---|---|
+| `/ce-init` | First-run repo bootstrap: profile commands, CI, surfaces; write starter policy |
+| `/ce-ask` | Grounded, `file:line`-cited answer to a codebase question |
+| `/ce-impact` | Blast-radius read of a proposed change or work item before building |
+| `/ce-patch` | One genuinely-small bounded change through the folded patch lane |
+| `/ce-plan` | Decompose a project into an ordered, dependency-aware feature plan |
+| `/ce-spec` | Detail one planned feature into EARS criteria + `tasks.json` |
+| `/ce-implement` | Build one specified feature test-first, task by task |
+| `/ce-review` | Independently code-review a built feature across six lenses |
 
 **Measured, with dates:** a 2026-06-27 live batch passed ten scenarios — including grounded Q&A for ~$1, an implementation-ready lint-clean spec for ~$4, and a seeded IDOR caught by review for ~$2. The skills have changed since that batch, so the recency ratchet now labels every current row **design-verified, not live-run** until it is rerun ([results, costs, and caveats](./docs/BENCHMARKS.md); [historical outputs and current goldens](./docs/EXAMPLES.md)). Structural claims are CI-enforced by 138 repo checks, 368 authoring-conformance checks, and 968 tests. Evaluating options? See [the comparison vs. spec-kit / Kiro / aider](./docs/COMPARISON.md); rolling it out to a team, see [the pilot guide](./docs/TEAM-ROLLOUT.md).
 
