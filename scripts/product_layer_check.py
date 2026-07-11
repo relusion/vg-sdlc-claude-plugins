@@ -43,11 +43,6 @@ PRODUCT_DOCS = {
         # below a "Week one — eight verbs" table. This needle drift-guards that
         # week-one section heading so the front door cannot silently lose it.
         "## Week one",
-        # WS1-T9: the 60-second cheat-catch demo GIF — the best-converting proof
-        # the product has. Drift-guard its embed so the front door cannot lose
-        # the visual an evaluator sees before they clone. check_doc_links
-        # additionally verifies the path resolves.
-        "docs/assets/demo-cheat-catch.gif",
         # WS7-T2: the managed-agent surface is frozen as experimental. A reader
         # who stops at the README must not miss the enforcement gap — the caveat
         # anchor is also required in README's cookbook section.

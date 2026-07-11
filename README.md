@@ -21,18 +21,6 @@ changing its committed inputs or the protected policy/workflow. The
 and the [comparison](./docs/COMPARISON.md) places it alongside alternative
 approaches.
 
-### See it catch a cheat — 60 seconds, offline
-
-![The offline merge bar run three times: an honest change passes green, a committed cheat that guts a test file's assertions goes red with test-guard named in the hard failures, and reverting the cheat goes green again.](./docs/assets/demo-cheat-catch.gif)
-
-From a clone of this repo (bash + git + python3 only — no network, no Claude, no plugin):
-
-```bash
-bash scripts/demo-cheat-catch.sh
-```
-
-It builds a throwaway adopter repo from a shipped fixture and runs the merge bar three times: an honest change passes green, a committed "cheat" that guts a test file's assertions goes **red with `test-guard` named in the hard failures**, and reverting the cheat goes green again. That is the whole wedge in one command.
-
 > [!IMPORTANT]
 > These tools generate code, specifications, and review feedback. They do not push to production, merge PRs, deploy services, or rotate credentials on their own — every output is staged for human review. You are responsible for verifying outputs and for the security and correctness of code that ships from your repos.
 
