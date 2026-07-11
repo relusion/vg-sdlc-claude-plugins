@@ -1,17 +1,21 @@
 # Contributing
 
-Everything here is markdown, JSON, and stdlib-only Python — no build step, no
-package installs for the core gates. This page is for people changing the
-framework itself; if you just want to *use* the plugins, start at
+The shipped hooks and gates are markdown, JSON, and stdlib-only Python, with no
+build step. Maintainer validation uses two small Python development
+dependencies. This page is for people changing the framework itself; if you
+just want to *use* the plugins, start at
 [docs/GETTING-STARTED.md](./docs/GETTING-STARTED.md).
 
 ## Prerequisites
 
-- `git` and `python3` (3.10+). Every repo gate runs on the standard library.
+- `git` and `python3` (3.10+).
+- Python `pyyaml` for the umbrella validator and `jsonschema` for the complete
+  test suite (`python3 -m pip install pyyaml jsonschema`). The gates shipped to
+  adopters remain standard-library-only.
 - Claude Code CLI — only needed for `claude plugin validate --strict` and for
   executing live evals; all other checks run without it (that's the
   portability guarantee, proven by `scripts/portability_check.py`).
-- `jq` + Python `pyyaml` — only if you work on the managed-agent deploy path.
+- `jq` — only if you work on the managed-agent deploy path.
 
 ## The validation battery
 
