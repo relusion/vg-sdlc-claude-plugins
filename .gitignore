@@ -1,0 +1,85 @@
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Dependencies
+node_modules/
+vendor/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+secrets.env
+*.key
+*.pem
+id_rsa
+id_ed25519
+*.p12
+*.pfx
+*.jks
+*.keystore
+.npmrc
+.pypirc
+.netrc
+*credentials*.json
+*service-account*.json
+*.tfvars
+*.tfvars.json
+*.tfstate
+*.tfstate.*
+kubeconfig
+.docker/config.json
+
+# Testing
+coverage/
+.coverage
+*.cover
+.pytest_cache/
+evals/runs/
+
+# Package files
+*.egg-info/
+.eggs/
+
+# test-guard red-test snapshots — transient TDD-loop baseline (see feature-implement)
+.test-guard/
+
+# Personal files
+TASKS.md
+MEMORY.md
+.claude/worktrees/
+
+# Claude Code user-specific configuration — personal permission allowlists and
+# machine paths must never ship with the repo (CLAUDE.md documents these as
+# gitignored; make that true for every contributor, not just this machine)
+.claude/settings.json
+.claude/settings.local.json
+*.local.md
+
+# Runtime guard/session state (local policy, lease ownership, decisions, and
+# model attestation; none of these are repository content)
+.claude/ce-write-scope.json
+.claude/ce-write-scope.session.json
+.claude/ce-guard-log.jsonl
+.claude/ce-session-model.json
+.claude/ce-net-policy.json

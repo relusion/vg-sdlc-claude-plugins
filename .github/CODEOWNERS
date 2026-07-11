@@ -1,0 +1,9 @@
+# Default ownership keeps public contributions reviewable by the maintainer.
+* @relusion
+
+# Changes to trust and release surfaces require explicit maintainer review.
+/.github/ @relusion
+/action/ @relusion
+/plugins/*/hooks/ @relusion
+/plugins/*/merge-policy.json @relusion
+/scripts/gate_runner.py @relusion

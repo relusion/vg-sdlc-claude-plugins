@@ -1,0 +1,9 @@
+{
+  "plans": [
+    {
+      "slug": "team-invitations",
+      "description": "Add team invitations with role-based access.",
+      "relates_to": []
+    }
+  ]
+}

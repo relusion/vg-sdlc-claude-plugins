@@ -1,0 +1,28 @@
+{
+  "status": "blocked",
+  "feature_id": "order-cancellation",
+  "plan_slug": null,
+  "mode": "advisory",
+  "reviewed_at": "2026-06-27",
+  "findings_total": 1,
+  "blocking_high": 1,
+  "suppressed": 0,
+  "by_severity": {
+    "high":   { "total": 1, "confirmed": 1, "suspected": 0 },
+    "medium": { "total": 0 },
+    "low":    { "total": 0 }
+  },
+  "by_lens": {
+    "correctness": 0, "security": 1, "performance": 0,
+    "maintainability": 0, "conformance": 0, "simplicity": 0
+  },
+  "findings": [
+    {
+      "id": "CR-1", "lens": "security", "severity": "high",
+      "confidence": "confirmed", "reproduced": true,
+      "file": "service.py:8",
+      "observation": "cancel_order accepts actor_id but never checks it against order.owner_id; any actor can cancel any order (IDOR / broken access control)",
+      "suggested_escalation": "/core-engineering:implement order-cancellation"
+    }
+  ]
+}

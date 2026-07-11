@@ -1,0 +1,19 @@
+{
+  "feature_id": "01-invite-user",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "Implement invitation creation and authorization checks",
+      "status": "todo",
+      "files": ["src/invitations.py"],
+      "verifies": ["TC-001", "TC-002"]
+    },
+    {
+      "id": "T-002",
+      "title": "Render pending invitations in the team member list",
+      "status": "todo",
+      "files": ["src/team_members.py"],
+      "verifies": ["TC-003"]
+    }
+  ]
+}

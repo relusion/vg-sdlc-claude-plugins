@@ -1,0 +1,27 @@
+# Release Coordinator — managed-agent cookbook
+
+name: release-coordinator
+model: claude-opus-4-8
+
+system:
+  file: ./system.md
+  append: "You are running headless against a sandboxed checkout. Prepare delivery, release, and documentation artifacts only. Never push, open a PR, tag, deploy, publish, or modify protected branches. If a skill requires human consent, record the pending decision and stop that write unless the steering event explicitly includes the consent phrase required for that action."
+
+tools:
+  - type: agent_toolset_20260401
+    default_config: { enabled: false }
+    configs:
+      - { name: read,  enabled: true }
+      - { name: grep,  enabled: true }
+      - { name: glob,  enabled: true }
+      - { name: write, enabled: true }
+      - { name: bash,  enabled: true }
+
+mcp_servers: []
+
+skills:
+  - { path: ../../plugins/core-engineering/skills/ce-ship-deliver }
+  - { path: ../../plugins/core-engineering/skills/ce-ship-release }
+  - { path: ../../plugins/core-engineering/skills/ce-ship-document }
+
+callable_agents: []

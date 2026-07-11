@@ -1,0 +1,147 @@
+# test-integrity — the standalone genie-catcher as a composite GitHub Action.
+#
+# Runs plugins/core-engineering/skills/ce-implement/scripts/test-guard.py in its
+# cross-task (--base) mode over a pull request: it diffs the test files between
+# the base ref and HEAD and fails the check when a test was DELETED, EMPTIED,
+# stripped of assertions, skipped, or stubbed trivially-true between them — the
+# single best-documented failure mode of a coding agent in a red->green loop
+# ("told to make a failing test pass, it edits the TEST to pass instead of the
+# CODE"). This is the merge bar's test-integrity conjunct, unbundled: teams that
+# want the genie-catch without adopting specs, plans, or the full merge policy
+# pin this one action.
+#
+# It REFERENCES the toolkit's canonical test-guard.py — it is never forked into
+# this action dir. A `uses:` pin fetches this WHOLE repository at one immutable
+# commit, so the action and the gate script it runs arrive atomically under a
+# single SHA; there is nothing to checksum beyond the pin.
+#
+# SCOPE — integrity, NEVER sufficiency (same honesty discipline as merge-bar):
+#   * It proves the test files were not WEAKENED between base and head. It does
+#     NOT prove the suite is strong (a weak-but-unweakened suite passes), and it
+#     NEVER builds the project or runs the tests. Keep your own build/test job as
+#     a separate required status check — this action is not a replacement for
+#     running the suite.
+#   * The heuristics are high-recall, low-precision and language-naive: a hit is
+#     a MATERIAL FINDING to adjudicate, not an automatic verdict. Out of scope by
+#     construction: logical inversions, threshold loosening, mock-strength
+#     erosion. See action/test-integrity/README.md.
+#
+# THREAT MODEL — the PR must not grade itself:
+#   * --head defaults to HEAD (committed state), so nothing untracked in the
+#     runner can leak into the diff.
+#   * the action ref is rejected at run time unless it is a full 40-hex commit
+#     SHA — a movable tag/branch pin fails loudly, never drifts.
+#   * NOT covered here: on pull_request the CALLING workflow file runs from the
+#     PR merge ref, so a PR can still edit the workflow that invokes this action.
+#     Protect .github/** with CODEOWNERS or a repository ruleset (required
+#     companion control — see docs/TEAM-ROLLOUT.md).
+
+name: test-integrity
+description: >-
+  Standalone test-integrity gate: run test-guard.py against a pull request and
+  fail when a test was deleted, emptied, stripped of assertions, skipped, or
+  stubbed trivially-true between the base ref and HEAD — the agent "genie" that
+  makes tests pass by weakening tests. Proves integrity, not sufficiency; never
+  builds or runs the suite. Keep your own build/test job as a second check.
+
+inputs:
+  base-ref:
+    description: >-
+      Base branch the test diff compares against, resolved as origin/<base-ref>.
+      Set explicitly for non-pull_request events.
+    default: ${{ github.base_ref }}
+  repo-path:
+    description: >-
+      Root of the repository under judgment. Override when your checkout step
+      used `path:` (or, as in this repo's action-selftest workflow, to judge a
+      fixture repo).
+    default: ${{ github.workspace }}
+  test-glob:
+    description: >-
+      Optional override for the test-file heuristic (one glob, e.g.
+      `spec/**/*.rb`). Set it when your repo names tests unconventionally and a
+      green run reports "no test files changed"; empty (the default) uses the
+      built-in multi-language heuristic.
+    default: ''
+
+outputs:
+  status:
+    description: The verdict status — pass, fail, or error.
+    value: ${{ steps.guard.outputs.status }}
+  verdict-path:
+    description: >-
+      Absolute path of the test-integrity-verdict.json the run produced (upload
+      it as evidence with actions/upload-artifact).
+    value: ${{ steps.guard.outputs.verdict-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Refuse a movable action ref
+      shell: bash
+      env:
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        # A tag or branch name is movable — the pin must be an immutable
+        # commit SHA or this action's own bytes are a moving target. Local
+        # `uses: ./action/test-integrity` (this repo's self-test) is exempt: it
+        # has no action ref and resolves inside the workspace, and its bytes
+        # are the PR's own reviewed checkout.
+        case "$ACTION_PATH" in
+          "$GITHUB_WORKSPACE"/*) exit 0 ;;
+        esac
+        if [ -z "$ACTION_REF" ]; then
+          exit 0
+        fi
+        if ! printf '%s' "$ACTION_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+          echo "::error::test-integrity must be pinned to a full 40-hex commit" \
+            "SHA, got '@$ACTION_REF'. Resolve the release tag you trust with" \
+            "git rev-parse '<tag>^{commit}' and pin that SHA."
+          exit 1
+        fi
+
+    - name: Run test-integrity gate
+      id: guard
+      shell: bash
+      env:
+        # Passed via env, never interpolated into the script (the GitHub
+        # Actions script-injection anti-pattern).
+        BASE_REF: ${{ inputs.base-ref }}
+        REPO_PATH: ${{ inputs.repo-path }}
+        TEST_GLOB: ${{ inputs.test-glob }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -o pipefail
+        if [ -z "$BASE_REF" ]; then
+          echo "::error::no base ref — github.base_ref is empty outside" \
+            "pull_request events; set the base-ref input explicitly."
+          exit 2
+        fi
+        base="origin/${BASE_REF}"
+        if ! git -C "$REPO_PATH" rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+          echo "::error::${base} does not resolve in ${REPO_PATH} — the diff" \
+            "gate needs real history: checkout with 'fetch-depth: 0'."
+          exit 2
+        fi
+        GLOB_ARGS=()
+        if [ -n "$TEST_GLOB" ]; then
+          GLOB_ARGS=(--test-glob "$TEST_GLOB")
+        fi
+        verdict="${GITHUB_WORKSPACE}/test-integrity-verdict.json"
+        # --head HEAD judges committed state only — nothing untracked leaks into
+        # the diff. rc is captured, the verdict is written even on a red gate,
+        # and the step then exits with rc so a weakened-test gate fails the check
+        # (test-guard's contract: 0 pass, 1 fail, 2 error — the caller gates the
+        # same way for both non-zero codes).
+        rc=0
+        python3 "${ACTION_PATH}/../../plugins/core-engineering/skills/ce-implement/scripts/test-guard.py" \
+          --base "$base" \
+          --head HEAD \
+          --repo "$REPO_PATH" \
+          "${GLOB_ARGS[@]}" \
+          --json | tee "$verdict" || rc=$?
+        status="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("status", "error"))' "$verdict" 2>/dev/null || echo error)"
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        echo "verdict-path=$verdict" >> "$GITHUB_OUTPUT"
+        exit "$rc"

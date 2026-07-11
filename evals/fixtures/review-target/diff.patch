@@ -1,0 +1,6 @@
+diff --git a/service.py b/service.py
+@@
++def cancel_order(order: Order, actor_id: str) -> Order:
++    order.cancelled = True
++    return order
+

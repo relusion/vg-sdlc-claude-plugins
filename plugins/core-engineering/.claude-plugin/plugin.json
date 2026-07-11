@@ -1,0 +1,18 @@
+{
+  "name": "core-engineering",
+  "version": "0.9.9",
+  "description": "Core engineering namespaced skills and custom agents for the full SDLC",
+  "author": {
+    "name": "Vladimir Gondarev"
+  },
+  "homepage": "https://github.com/relusion/vg-sdlc-claude-plugins",
+  "repository": "https://github.com/relusion/vg-sdlc-claude-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "sdlc",
+    "spec-driven",
+    "merge-gate",
+    "code-review",
+    "security"
+  ]
+}

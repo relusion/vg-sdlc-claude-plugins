@@ -1,0 +1,14 @@
+{
+  "name": "ci-fixture",
+  "private": true,
+  "scripts": {
+    "lint": "eslint src --max-warnings=0",
+    "test": "vitest run",
+    "prepackage": "npm run lint && npm test",
+    "package": "node scripts/package.js"
+  },
+  "devDependencies": {
+    "eslint": "9.7.0",
+    "vitest": "2.0.5"
+  }
+}

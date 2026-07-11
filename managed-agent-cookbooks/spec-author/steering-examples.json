@@ -1,0 +1,5 @@
+[
+  { "event": "Draft spec: a CLI tool that watches a directory and rebuilds documentation when markdown files change", "description": "Greenfield single-feature spec from a one-line idea" },
+  { "event": "Draft spec: add OAuth login to the existing user-service, constraints: keep current session cookie format", "description": "Brownfield spec with an explicit constraint" },
+  { "event": "Refresh spec for feature 'docs-watcher' after the maintainer rejected the inotify approach", "description": "Iteration on an existing spec after stakeholder feedback" }
+]

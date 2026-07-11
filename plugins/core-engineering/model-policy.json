@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "description": "Machine-readable model-tier policy for the core-engineering skill corpus. This is a REVIEWABLE POLICY, never automatic routing: every skill runs on the user's loaded model unless the user explicitly opts a stage down. tier 'strong' = judgment/gate/escalation/evidence work that must never be routed down; tier 'cheap-ok' = a mechanical, human-reviewed transform that feeds nothing downstream. A skill may carry binding model:/effort: frontmatter ONLY if its entry here says down_routable: true. scripts/check.py \u00a77 enforces two-way completeness against skills/ (every skill has an entry, every entry names a real skill) plus the frontmatter-binding rule, so this file and the frontmatter can never silently disagree.",
+  "defaults": {
+    "tier": "strong",
+    "down_routable": false
+  },
+  "tier_patterns": {
+    "_comment": "Runtime attestation buckets: substrings matched (case-insensitively) against the model id hooks/model-attest.py records into .claude/ce-session-model.json. Every tier a skill entry uses must appear here (check.py §7 enforces both directions); a recorded model matching the 'strong' list ran on policy, one matching a below-'strong' list is an accepted degradation, one matching nothing is 'unattested' (ce-retro surfacing). Keys are the closed tier vocabulary (strong / cheap-ok) only.",
+    "strong": ["opus", "fable"],
+    "cheap-ok": ["haiku"]
+  },
+  "skills": {
+    "ce-ask": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-doc-audit": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "role-impersonation doc audit; the ignorance-boundary read, evidence-tiering, severity-by-position, and finding triage are judgment/evidence work (the sandbox execution is the mechanical half, the audit is not); human-initiated, feeds nothing downstream, never route down"
+    },
+    "ce-auto-build": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "never couples model tier to its token budget; any future per-subagent hint must be a consented Stage-0 choice, ledger-recorded, surfaced at end-review as an accepted degradation"
+    },
+    "ce-brief": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-debug": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-decide": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "verdict-rendering engineering-decision scorer; situation-weighting + gate-then-weight + recommendation is judgment work \u2014 never route down"
+    },
+    "ce-go": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "front-door router; deciding which skill owns a request from repo-state signals (plans.json/spec-dir presence, symptom-vs-question, running target) is repo-state judgment — never route down"
+    },
+    "ce-humanize": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "prose editorial transform, but voice/credibility/faithfulness is judgment — no deterministic script does the rewriting, and a careless rewrite silently distorts meaning; it feeds nothing downstream yet is NOT the mechanical transform the cheap tier is for, so it stays on the strong model"
+    },
+    "ce-impact": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "evidence/judgment work \u2014 grounds a proposed change against the codebase (reachability + blast-radius trace, risk read, sizing); file:line-cited findings a human acts on, never a mechanical transform"
+    },
+    "ce-implement": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-init": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "first-run repository bootstrap; the scanner is mechanical, but policy defaults and missing setup decisions feed downstream planning, implementation, review, and auto-build"
+    },
+    "ce-domain": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "interpretive domain reconstruction \u2014 types every claim (recorded/enforced/inferred), separates evidence from invention, runs comprehension checks; judgment, never a mechanical transform"
+    },
+    "ce-onboard": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "interpretive teaching/evidence work \u2014 narrates as-built rationale from artifacts + code, runs comprehension checks; judgment, never a mechanical transform"
+    },
+    "ce-patch": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-plan": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "incl. Stage 1.2 codebase profile \u2014 an interpretive evidence-builder feeding shared-context.md, not a mechanical transform"
+    },
+    "ce-plan-audit": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-probe-deps": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "the floor is deterministic (sca-guard.py), but finding triage, usage-context reads, and fix routing are judgment \u2014 stays on the strong model"
+    },
+    "ce-probe-infra": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "static IaC/k8s/cloud-manifest audit; severity grading, cross-manifest reasoning, and finding triage are judgment/evidence work \u2014 never route down (the deterministic infra-lint.py floor is the mechanical half, the model judgment is not)"
+    },
+    "ce-probe-perf": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-probe-sec": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-retro": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-review": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-ship-backlog": {
+      "tier": "cheap-ok",
+      "down_routable": true,
+      "note": "the one sanctioned cheap-tier candidate, now more mechanical: the model only maps the spec into a neutral backlog.json (verbatim EARS) and a stdlib emitter renders every format; human-reviewed, feeds nothing downstream"
+    },
+    "ce-ship-deliver": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-ship-document": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-ship-release": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-spec": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-ux-audit": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-verify": {
+      "tier": "strong",
+      "down_routable": false
+    }
+  }
+}

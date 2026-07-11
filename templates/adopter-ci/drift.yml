@@ -1,0 +1,177 @@
+# drift-monitor — copy-in POST-MERGE drift gate for adopter repositories.
+#
+# WHAT THIS IS
+#   A scheduled + post-merge workflow that re-judges `main` after code lands.
+#   The merge bar (gates.yml / the merge-bar action) judges a pull request
+#   BEFORE it merges; nothing re-judges `main` AFTER merge, so a retired
+#   surface, a broken traceability link, or a silently-disarmed security gate
+#   can rot for weeks behind a long-green history. drift.yml closes that gap:
+#   it runs the toolkit's scripts/drift_scan.py, which re-projects the repo's
+#   committed HEAD against every docs/plans/plans.json-registered plan
+#   directory and reports where the on-disk artifacts have drifted from the
+#   specs they claim. It is the POST-MERGE COMPLEMENT to the pre-merge bar —
+#   together they close "live-and-verified" for adopters.
+#
+# WHAT THIS PROVES / WHAT IT DOES NOT — integrity, not function
+#   A green drift run proves the committed plan/spec artifacts still cohere:
+#   traceability holds, no spec dir orphaned from its plan feature, no
+#   security-coverage gate silently disarmed. It never builds the project and
+#   never runs its test suite — keep your own build/test job. Advisory findings
+#   (retired-surface residue, spec-claimed-file drift) are reported but never
+#   fail the run.
+#
+# LOCK VOCABULARY — every finding routes to the skill that owns the fix
+#   drift_scan speaks the SAME lock vocabulary the interactive skills use, so a
+#   red run tells a human exactly where to go:
+#     * "Scope Lock drift" -> /ce-plan   (plan artifact / registry integrity;
+#       a spec dir that resolves to no plan feature)
+#     * "Scope Lock drift"     -> /ce-spec   (spec referential integrity; a
+#       phantom [SECURITY: TZ-NNN]; a disarmed H5 security-coverage gate)
+#
+# THREAT MODEL — the scan must judge unbiased, immutable inputs
+#   * The toolkit is fetched at an immutable commit SHA and every file that
+#     DECIDES drift — the scanner plus the two lints it uses as its integrity
+#     oracle — is checksum-verified before anything runs.
+#   * TOOLKIT_REF is rejected unless it is a full 40-hex commit SHA, so a
+#     movable tag/branch pin fails loudly instead of silently drifting.
+#   * drift_scan judges COMMITTED state: it materializes HEAD's tree via git
+#     (never the mutable working tree), so a stray file in the checkout — the
+#     untracked toolkit clone included — can never change the verdict.
+#   * The scan is read-only. It writes nothing back to the repository; a red
+#     run fails the workflow (and, optionally, opens an issue) — it never edits.
+#
+# HOW TO ADOPT (<30 min) — mirrors gates.yml
+#   1. Copy this file to .github/workflows/drift.yml in your repo.
+#   2. Set TOOLKIT_REF below to the FULL 40-hex commit SHA of the
+#      vg-sdlc-claude-plugins release tag you trust (never a tag/branch name —
+#      tags are movable, commit SHAs are not). Use the SAME pin as gates.yml.
+#   3. Fill the three <PIN-ME-*-SHA256> placeholders. At that commit, run:
+#        sha256sum scripts/drift_scan.py \
+#          plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py \
+#          plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py
+#      and paste the three hashes into the verify step. These three files
+#      decide drift — the scanner and the two lints it invokes as subprocesses.
+#      (Regenerate them on every TOOLKIT_REF bump — three values change, like
+#      gates.yml's six. They ride the same release; batch script changes into
+#      one release so the checksums bind at one ref.)
+#   4. FIRST-WEEK ROLLOUT (recommended): set DRIFT_ADVISORY_ONLY: '1' below so
+#      the first scheduled runs REPORT hard drift on legacy/hand-authored plans
+#      but never fail the run. Read the findings, fix or waive them at their
+#      owning skill, then clear DRIFT_ADVISORY_ONLY to '' to arm the gate.
+#   5. OPTIONAL escalation: set DRIFT_ESCALATE: '1' AND add `issues: write` to
+#      this job's `permissions:` block. On a red run the workflow then files a
+#      GitHub issue carrying the lock-vocabulary findings, so drift on main
+#      pings a human rather than rotting in a workflow log. Default is OFF, so
+#      the shipped least-privilege posture is `contents: read` only.
+#
+# UPGRADE PROCEDURE
+#   Bump TOOLKIT_REF to the new release tag's commit SHA, regenerate the three
+#   checksums with the sha256sum command above at that commit, and update the
+#   verify step. Three values change per upgrade; nothing else.
+
+name: drift-monitor
+
+on:
+  schedule:
+    # Weekly, Monday 04:17 UTC. Off the top of the hour on purpose — GitHub
+    # de-prioritizes cron jobs that stampede at :00.
+    - cron: '17 4 * * 1'
+  push:
+    branches: [main]
+
+# Least-privilege default. The optional escalation step (DRIFT_ESCALATE) is the
+# ONLY reason to widen this — adding `issues: write` here — and it is OFF by
+# default, so a clean adoption reads and writes nothing but the run log.
+permissions:
+  contents: read
+
+env:
+  # Full commit SHA of the vg-sdlc-claude-plugins tag you trust (40 hex chars).
+  # Use the same pin as gates.yml so the pre- and post-merge surfaces agree.
+  TOOLKIT_REF: '<PIN-ME-40-HEX-COMMIT-SHA>'
+  # First-week rollout: set to '1' to REPORT hard drift without failing the run
+  # (drift_scan --advisory-only). Clear to '' to arm the gate.
+  DRIFT_ADVISORY_ONLY: ''
+  # Optional: set to '1' AND add `issues: write` to permissions above to file a
+  # GitHub issue with the lock-vocabulary findings on a red run.
+  DRIFT_ESCALATE: ''
+
+jobs:
+  drift-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse a movable toolkit ref
+        run: |
+          # A tag or branch name is movable — the pin must be an immutable
+          # commit SHA or the checksum step below verifies a moving target.
+          if ! printf '%s' "$TOOLKIT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "TOOLKIT_REF must be a full 40-hex commit SHA (got '$TOOLKIT_REF')"
+            exit 1
+          fi
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # drift_scan judges committed HEAD; give it real history
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: relusion/vg-sdlc-claude-plugins
+          ref: ${{ env.TOOLKIT_REF }}
+          path: .drift-scan-toolkit
+
+      - name: Verify toolkit integrity (SHA256)
+        working-directory: .drift-scan-toolkit
+        run: |
+          # Every file that DECIDES drift: the scanner, and the two lints it
+          # invokes as subprocesses (its integrity oracle). A swapped lint
+          # could turn a red plan green — pin all three.
+          sha256sum -c - <<'CHECKSUMS'
+          <PIN-ME-DRIFT-SCAN-SHA256>  scripts/drift_scan.py
+          <PIN-ME-PLAN-LINT-SHA256>  plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py
+          <PIN-ME-SPEC-LINT-SHA256>  plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py
+          CHECKSUMS
+
+      - name: Run drift scan
+        run: |
+          set -o pipefail
+          # The toolkit's drift_scan.py uses ITS OWN checked-out plan-lint.py /
+          # spec-lint.py as the integrity oracle (resolved relative to the
+          # script, i.e. the verified toolkit copy) — never the scanned repo's.
+          # --repo points at the self-checkout (committed HEAD only, materialized
+          # via git; the untracked .drift-scan-toolkit clone cannot leak in).
+          # DRIFT_ADVISORY_ONLY (first-week rollout) forces exit 0 while set.
+          python3 .drift-scan-toolkit/scripts/drift_scan.py \
+            --repo "$GITHUB_WORKSPACE" \
+            ${DRIFT_ADVISORY_ONLY:+--advisory-only} \
+            --json | tee drift-verdict.json
+
+      - name: Escalate drift to a tracked issue (optional)
+        # OFF by default. To enable: set DRIFT_ESCALATE: '1' above AND add
+        # `issues: write` to this job's permissions. Runs only when the scan
+        # step failed (hard drift) — so the run stays red AND a human is pinged.
+        if: ${{ failure() && env.DRIFT_ESCALATE == '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Build the issue body from the machine verdict — the lock-vocabulary
+          # findings, verbatim, so the issue routes to /ce-plan or /ce-spec.
+          body="$(python3 - <<'PY'
+          import json
+          try:
+              v = json.load(open("drift-verdict.json"))
+          except Exception as e:  # verdict missing/malformed — say so, don't crash
+              print(f"drift_scan produced no readable verdict ({e}). Check the run log.")
+              raise SystemExit(0)
+          hard = v.get("hard") or []
+          print(f"drift_scan re-projected `{v.get('head_sha') or 'HEAD'}` and found "
+                f"{len(hard)} hard drift finding(s) on `main`:\n")
+          for f in hard:
+              print(f"- **[{f.get('code')}]** {f.get('message')}")
+          print("\nEach finding names its lock and routes to the owning skill "
+                "(plan-layer Scope Lock -> /ce-plan, spec-layer Scope Lock -> /ce-spec). "
+                "Full verdict: `drift-verdict.json` in the workflow run artifacts/log.")
+          PY
+          )"
+          gh issue create \
+            --title "Post-merge drift on main ($(date -u +%Y-%m-%d))" \
+            --body "$body"

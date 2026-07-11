@@ -1,0 +1,27 @@
+# Quality Gate — managed-agent cookbook
+
+name: quality-gate
+model: claude-opus-4-8
+
+system:
+  file: ./system.md
+  append: "You are running headless against a sandboxed checkout. Review and verify artifacts already produced under docs/plans/<slug>/ and the working tree. Do not wait for interactive human verdicts; where a skill would ask, record the question, mark the verdict pending or blocked in the artifact, and route the next action. Never patch code, edit specs, commit, push, open a PR, tag, or deploy."
+
+tools:
+  - type: agent_toolset_20260401
+    default_config: { enabled: false }
+    configs:
+      - { name: read,  enabled: true }
+      - { name: grep,  enabled: true }
+      - { name: glob,  enabled: true }
+      - { name: write, enabled: true }
+      - { name: bash,  enabled: true }
+
+mcp_servers: []
+
+skills:
+  - { path: ../../plugins/core-engineering/skills/ce-review }
+  - { path: ../../plugins/core-engineering/skills/ce-verify }
+  - { path: ../../plugins/core-engineering/skills/ce-debug }
+
+callable_agents: []

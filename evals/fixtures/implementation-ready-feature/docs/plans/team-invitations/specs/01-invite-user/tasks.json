@@ -1,0 +1,30 @@
+{
+  "feature_id": "01-invite-user",
+  "spec_revision": 1,
+  "tasks": [
+    {
+      "id": "T-1",
+      "description": "Update checks/invitations_check.py test-first with TC-1 through TC-4.",
+      "files": ["checks/invitations_check.py"],
+      "verifies": ["TC-1", "TC-2", "TC-3", "TC-4"],
+      "order": 1,
+      "status": "todo"
+    },
+    {
+      "id": "T-2",
+      "description": "Require actor_role, enforce admin-only creation, validate allowed roles, and preserve the pending invitation shape.",
+      "files": ["src/invitations.py"],
+      "verifies": ["TC-1", "TC-2", "TC-3"],
+      "order": 2,
+      "status": "todo"
+    },
+    {
+      "id": "T-3",
+      "description": "Add list_pending_invitations(team_id) returning pending invitations scoped to the requested team.",
+      "files": ["src/invitations.py"],
+      "verifies": ["TC-4"],
+      "order": 3,
+      "status": "todo"
+    }
+  ]
+}

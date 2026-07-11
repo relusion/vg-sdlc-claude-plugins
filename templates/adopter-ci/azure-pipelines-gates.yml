@@ -1,0 +1,192 @@
+# merge-bar — copy-in PULL-REQUEST gate for adopter repositories on Azure Pipelines.
+#
+# WHAT THIS IS
+#   The Azure Pipelines port of templates/adopter-ci/gates.yml: the same
+#   vg-sdlc-claude-plugins merge bar (scripts/gate_runner.py over
+#   plugins/core-engineering/merge-policy.json) run against every pull request.
+#   It is agent-agnostic: a PR authored by any coding agent — or a human — gets
+#   the identical red/green verdict. The runner enforces the INTEGRITY conjunct
+#   only; the VALIDITY conjunct (human / two-human attestation) maps to required
+#   reviewers in an Azure Repos branch policy (see HOW TO ADOPT step 4).
+#
+#   Azure Pipelines has no composite-action equivalent, so the checksum
+#   discipline IS the product here — the pin block below is generated, never
+#   hand-maintained (in the toolkit repo run `python3 scripts/print_pin_block.py
+#   --required-only <sha>`), so a future gate addition can never leave it stale.
+#
+# WHAT THIS PROVES / WHAT IT DOES NOT — integrity, not function
+#   A green verdict proves artifact INTEGRITY: traceability held, tests were not
+#   weakened, no undeclared dependency entered a manifest. It never proves test
+#   SUFFICIENCY (a weak-but-unweakened suite passes) and never proves a
+#   dependency EXISTS on a registry (dep-guard's offline half only). The bar
+#   NEVER builds the project and NEVER runs its test suite — a repo whose only
+#   required check is merge-bar can merge code that does not compile behind a
+#   green bar. Keep your own build/test job as a second required check.
+#
+# THREAT MODEL — the PR must not grade itself
+#   The entity under judgment (the PR) must not control the bar's inputs. Four
+#   defenses, and one you must configure yourself:
+#     * the merge-policy.json override is read from the BASE (target) ref
+#       (git show <base>:...), never from the PR head — a PR cannot swap in a
+#       weaker policy in the same commit; the new policy applies only after that
+#       edit itself merges under review.
+#     * declared-deps.txt is read from BOTH the base ref AND the PR head, and
+#       the union is passed to dep-guard — so a PR MAY declare a new dependency
+#       in the same commit. This does not let the PR grade itself for free:
+#       touching .azure/merge-bar/** matches the shipped policy's class_rules
+#       and escalates the change class to `sensitive` / two-human, so a same-PR
+#       declaration is admissible ONLY under two-human review — encoded in the
+#       BASE policy (which the PR cannot weaken same-commit), not in memory.
+#     * the toolkit is fetched at an immutable commit SHA and every file that
+#       decides pass/fail is checksum-verified before anything runs.
+#     * TOOLKIT_REF is rejected unless it is a full 40-hex commit SHA, so a
+#       movable tag/branch pin fails loudly instead of silently drifting.
+#     * NOT covered here: this pipeline YAML itself is read from the PR source,
+#       so a PR can still edit it. Protect it and .azure/merge-bar/** with an
+#       Azure Repos branch policy (require reviewers + a path filter / required
+#       reviewers on the pipeline file) so a PR cannot rewrite the workflow or
+#       the merge-bar inputs it reads (required companion control — see
+#       docs/TEAM-ROLLOUT.md and docs/ENTERPRISE-HARDENING.md).
+#
+# HOW TO ADOPT (<30 min)
+#   1. Add this file to your repo (e.g. azure-pipelines.yml) and create a
+#      pipeline from it. It runs only on pull requests (trigger: none, pr: *).
+#      NOTE — pool requirement: this uses `ubuntu-latest`; the bash body needs
+#      bash + coreutils (sha256sum) + git + python3, all present on the Microsoft
+#      ubuntu image. A self-hosted or Windows pool must provide the same tools.
+#   2. Set TOOLKIT_REF below to the FULL 40-hex commit SHA of the
+#      vg-sdlc-claude-plugins release tag you trust (never a tag/branch name).
+#   3. Fill the five <PIN-ME-*-SHA256> placeholders. In the toolkit repo at that
+#      commit run `python3 scripts/print_pin_block.py --required-only <sha>` —
+#      it prints the TOOLKIT_REF line plus these five checksum lines from
+#      committed state, ready to paste. These five files decide pass/fail — the
+#      runner, the policy, and the three REQUIRED gate scripts the policy
+#      registers. (`print_pin_block.py <sha>` without --required-only also pins
+#      the ADVISORY gate scripts — sca-guard, implement-scope, review-gate,
+#      plan-lint, secrets-guard, disposition-lint — whose findings never change
+#      the verdict; add their lines too
+#      if you want tamper-evidence on advisory findings.)
+#   4. In Azure Repos: Project settings -> Repositories -> Branches -> your
+#      default branch -> Branch policies. Add a "Build validation" policy that
+#      runs THIS pipeline and is REQUIRED, alongside your own build/test
+#      validation (integrity, not function). Add a "Minimum number of reviewers"
+#      policy set to your policy's validity (human -> 1, two-human -> 2), with
+#      "requestors can't approve their own changes" (segregation of duties).
+#   5. Protect this pipeline file and .azure/merge-bar/** with a required-
+#      reviewers path policy so a PR cannot rewrite the workflow or the merge-bar
+#      inputs it reads.
+#   Optional: commit .azure/merge-bar/declared-deps.txt (one dependency name per
+#   line — the deps your team has verified) and/or a local policy override at
+#   .azure/merge-bar/merge-policy.json. The policy override is read from the BASE
+#   ref only; the declared-deps list is read from BOTH base and head (see THREAT
+#   MODEL). Cold start: before your first plan exists, commit an override with
+#   "spec_lint_scope": "changed-plans" so spec-lint only gates spec dirs a PR
+#   touches (and vacuously passes a PR that touches none).
+#
+# UPGRADE PROCEDURE
+#   Bump TOOLKIT_REF to the new release tag's commit SHA and regenerate the five
+#   checksums with `python3 scripts/print_pin_block.py --required-only <sha>` in
+#   the toolkit repo at that commit. Six values change per upgrade; nothing else.
+
+# CI (branch push) never runs this; only pull requests do. For Azure Repos Git,
+# `pr:` here is advisory — PR runs are enforced by the Build validation branch
+# policy in step 4; for GitHub-hosted repos `pr:` triggers directly.
+trigger: none
+pr:
+  branches:
+    include:
+      - '*'
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  # Full commit SHA of the vg-sdlc-claude-plugins tag you trust (40 hex chars).
+  TOOLKIT_REF: '<PIN-ME-40-HEX-COMMIT-SHA>'
+  # Policy change class for PRs. Leave EMPTY (recommended) to let the policy's
+  # class_rules auto-classify each PR from its committed diff; set a class name
+  # only to FORCE one bar for every PR (overrides class_rules).
+  MERGE_CHANGE_CLASS: ''
+  # Canonical toolkit source. Point at an internal mirror if your org forbids
+  # cloning from public GitHub in CI.
+  TOOLKIT_URL: 'https://github.com/relusion/vg-sdlc-claude-plugins.git'
+
+steps:
+  # fetchDepth: 0 — the diff gates need the base (target) ref, not a shallow tip.
+  - checkout: self
+    fetchDepth: 0
+
+  - bash: |
+      set -o pipefail
+      # A tag or branch name is movable — the pin must be an immutable commit
+      # SHA or the checksum step below verifies a moving target. TOOLKIT_REF and
+      # the PR target branch arrive via env (never interpolated $(...) into the
+      # script — the Azure Pipelines script-injection anti-pattern).
+      if ! printf '%s' "$TOOLKIT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+        echo "TOOLKIT_REF must be a full 40-hex commit SHA (got '$TOOLKIT_REF')"
+        exit 1
+      fi
+      # System.PullRequest.TargetBranch is refs/heads/<name>; strip to <name>
+      # and address it as origin/<name> after an explicit fetch.
+      target="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+      git fetch --no-tags origin "$target"
+      base="origin/${target}"
+
+      # Fetch the toolkit at the immutable pin, into an untracked sibling dir.
+      rm -rf .merge-bar-toolkit
+      git clone --quiet "$TOOLKIT_URL" .merge-bar-toolkit
+      git -C .merge-bar-toolkit checkout --quiet "$TOOLKIT_REF"
+
+      # Every file that decides pass/fail: the runner, the policy, and the three
+      # REQUIRED gate scripts the policy registers. (Generated by
+      # `print_pin_block.py --required-only` — never hand-maintained.)
+      ( cd .merge-bar-toolkit && sha256sum -c - <<'CHECKSUMS'
+      <PIN-ME-RUNNER-SHA256>  scripts/gate_runner.py
+      <PIN-ME-POLICY-SHA256>  plugins/core-engineering/merge-policy.json
+      <PIN-ME-SPEC-LINT-SHA256>  plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py
+      <PIN-ME-TEST-GUARD-SHA256>  plugins/core-engineering/skills/ce-implement/scripts/test-guard.py
+      <PIN-ME-DEP-GUARD-SHA256>  plugins/core-engineering/skills/ce-implement/scripts/dep-guard.py
+      CHECKSUMS
+      )
+
+      # The merge-policy.json override is read from the BASE ref only: a PR
+      # cannot weaken its own policy in the same commit (see THREAT MODEL).
+      POLICY_ARGS=()
+      if git cat-file -e "${base}:.azure/merge-bar/merge-policy.json" 2>/dev/null; then
+        git show "${base}:.azure/merge-bar/merge-policy.json" > "$BUILD_SOURCESDIRECTORY/merge-policy-override.json"
+        POLICY_ARGS=(--policy "$BUILD_SOURCESDIRECTORY/merge-policy-override.json")
+      fi
+      # declared-deps is read from BOTH base AND head; the union goes to
+      # dep-guard. A same-PR declaration is admissible because touching
+      # .azure/merge-bar/** escalates the change class to two-human via the BASE
+      # policy's class_rules (which the PR cannot weaken same-commit).
+      declared_base=''
+      if git cat-file -e "${base}:.azure/merge-bar/declared-deps.txt" 2>/dev/null; then
+        declared_base="$(git show "${base}:.azure/merge-bar/declared-deps.txt")"
+      fi
+      declared_head=''
+      if git cat-file -e "HEAD:.azure/merge-bar/declared-deps.txt" 2>/dev/null; then
+        declared_head="$(git show "HEAD:.azure/merge-bar/declared-deps.txt")"
+      fi
+      declared="$(printf '%s\n%s\n' "$declared_base" "$declared_head" \
+        | grep -v '^[[:space:]]*$' | sort -u | tr '\n' ',' | sed 's/,*$//')"
+      # --head defaults to HEAD (committed state), so the untracked
+      # .merge-bar-toolkit clone can never leak into the diff gates.
+      python3 .merge-bar-toolkit/scripts/gate_runner.py \
+        --repo "$BUILD_SOURCESDIRECTORY" \
+        --base "$base" \
+        ${MERGE_CHANGE_CLASS:+--change-class "$MERGE_CHANGE_CLASS"} \
+        --declared "$declared" \
+        "${POLICY_ARGS[@]}" \
+        --json | tee merge-verdict.json
+    displayName: Run merge bar
+    env:
+      # Expose the PR target branch + pins to the script as env, never $(...).
+      SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+      TOOLKIT_REF: $(TOOLKIT_REF)
+      MERGE_CHANGE_CLASS: $(MERGE_CHANGE_CLASS)
+      TOOLKIT_URL: $(TOOLKIT_URL)
+
+  - publish: merge-verdict.json
+    artifact: merge-verdict
+    condition: always()

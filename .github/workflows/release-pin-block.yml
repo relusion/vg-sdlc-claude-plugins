@@ -1,0 +1,139 @@
+name: release-pin-block
+
+# Release provenance surface: pushing a v* tag regenerates the adopter pin
+# block from COMMITTED state at the tagged commit (scripts/print_pin_block.py
+# — git-show blobs, so working-tree dirt can never leak in; the pinned file set
+# is DERIVED from merge-policy.json's gate registry, so a gate addition can
+# never leave the published block stale) and publishes it into the GitHub
+# Release notes: created if the tag has no Release yet, notes REPLACED if one
+# already exists. Either way the published pin block is generated, never
+# hand-typed, so it can never be stale. This workflow never creates or moves
+# tags — a human cuts and signs the tag; this only reacts.
+#
+# supply_chain_check.py holds needles on this file (the print_pin_block step,
+# --verify-tag, and the gh release publish) so the release chain cannot be
+# silently deregistered.
+
+on:
+  push:
+    tags: ["v*"]
+
+# The one workflow in this repo allowed to write — it creates/updates GitHub
+# Releases. Every other workflow runs with contents: read.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-pin-block-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-pin-block:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # print_pin_block.py reads committed blobs via `git show <sha>:<path>`
+          # — it needs real history, not a shallow tip.
+          fetch-depth: 0
+
+      - name: Generate the pin block at the tagged commit
+        run: |
+          set -euo pipefail
+          # On an annotated-tag push GITHUB_SHA can be the tag OBJECT sha;
+          # print_pin_block.py peels it (^{commit}) to the commit SHA that
+          # the adopter templates' 40-hex guard demands. The COMPLETE block
+          # (every policy-registered gate script, incl. advisory) is published;
+          # the templates' minimal heredocs pin the --required-only subset. Exit
+          # 2 (missing pinned file / invalid policy at this commit) fails the job
+          # — no half-filled block ever publishes.
+          python3 scripts/print_pin_block.py "$GITHUB_SHA" > /tmp/pin-block.txt
+          cat /tmp/pin-block.txt
+
+      - name: Assemble Release notes
+        env:
+          PIN_BLOCK_FILE: /tmp/pin-block.txt
+          NOTES_FILE: /tmp/release-notes.md
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          import os
+          from pathlib import Path
+
+          # The tag name arrives via the default env, never interpolated into
+          # this script (the anti-injection pattern gates.yml documents).
+          tag = os.environ["GITHUB_REF_NAME"]
+          pin_block = Path(os.environ["PIN_BLOCK_FILE"]).read_text(
+              encoding="utf-8").rstrip("\n")
+          # First line is a comment: # TOOLKIT_REF: '<40-hex-commit-sha>'
+          commit = pin_block.splitlines()[0].split("'")[1]
+          version = json.loads(
+              Path("plugins/core-engineering/.claude-plugin/plugin.json")
+              .read_text(encoding="utf-8"))["version"]
+
+          notes = f"""\
+          - **Tag:** `{tag}`
+          - **Plugin version:** `core-engineering {version}`
+          - **Commit:** `{commit}`
+
+          ## Merge-bar pin block (copy-in CI templates)
+
+          Generated from committed state at the tagged commit by
+          `scripts/print_pin_block.py`, which DERIVES the pinned file set from
+          `merge-policy.json`'s gate registry — verify locally by running
+          `python3 scripts/print_pin_block.py {tag} | sha256sum -c` in a clean
+          clone; every line must report `OK`.
+
+          The block below is the COMPLETE set — the runner, the policy, and
+          every policy-registered gate script (required AND advisory), so it
+          gives tamper-evidence on advisory scripts too:
+
+          ```
+          {pin_block}
+          ```
+
+          The copy-in templates
+          (`templates/adopter-ci/gates.yml`, `gates.gitlab-ci.yml`,
+          `azure-pipelines-gates.yml`) pin the minimal REQUIRED subset — the
+          runner, the policy, and the three required gate scripts. Generate
+          exactly that subset with
+          `python3 scripts/print_pin_block.py --required-only {tag}` (it is the
+          leading lines of the block above). Paste over the placeholders in your
+          copy: the `TOOLKIT_REF` value, then the checksum lines in the
+          `sha256sum -c` heredoc of the "Verify toolkit integrity" step.
+
+          ## Upgrading an existing pin (template UPGRADE PROCEDURE)
+
+          Bump `TOOLKIT_REF` to this release's commit SHA and replace the
+          checksum lines in the heredoc with the regenerated block — the ref
+          plus the pinned checksums change per upgrade; nothing else.
+          Composite-action adopters (`action/merge-bar`) change one value
+          instead: the `uses:` pin, to the same commit SHA.
+          """
+          Path(os.environ["NOTES_FILE"]).write_text(notes, encoding="utf-8")
+          print(notes)
+          PYEOF
+
+      - name: Publish or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NOTES_FILE: /tmp/release-notes.md
+        run: |
+          set -euo pipefail
+          # The ref arrives via the default env ($GITHUB_REF_NAME), never
+          # interpolated into the script (the anti-injection pattern gates.yml
+          # documents). Idempotent: create the Release when the tag has none;
+          # when one already exists (e.g. drafted by hand before the tag push
+          # triggered us), REPLACE its notes so the published pin block can
+          # never go stale.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$NOTES_FILE"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$NOTES_FILE"
+          fi

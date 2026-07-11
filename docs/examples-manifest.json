@@ -1,0 +1,54 @@
+{
+  "_comment": "Machine-readable index of every example published in docs/EXAMPLES.md. scripts/docs_drift.py re-runs each deterministic:true entry's captured command and diffs expected_anchors against the actual output, so a mutated golden or a drifted excerpt turns CI red. deterministic:false entries are explicitly historical model-run snapshots and are never executed by the offline checker; current live-evidence status is published in docs/BENCHMARKS.md. docs_drift.py also fails if EXAMPLES.md grows a Provenance line no entry covers, so the manifest cannot silently under-cover the doc.",
+  "doc": "docs/EXAMPLES.md",
+  "examples": [
+    {
+      "id": "EVAL-001",
+      "doc_anchor": "## 1. `/ce-ask`",
+      "source": "live-eval",
+      "deterministic": false,
+      "command": ["python3", "scripts/eval_run.py", "--execute", "--scenario", "EVAL-001", "--max-budget-usd", "1.00"],
+      "expected_anchors": [],
+      "note": "Historical model-run snapshot; not replayed offline. The command reruns the current scenario, while docs/BENCHMARKS.md owns the dated current-evidence label."
+    },
+    {
+      "id": "EVAL-007",
+      "doc_anchor": "## 2. `/ce-review`",
+      "source": "live-eval",
+      "deterministic": false,
+      "command": ["python3", "scripts/eval_run.py", "--execute", "--scenario", "EVAL-007", "--max-budget-usd", "2.00"],
+      "expected_anchors": [],
+      "note": "Historical model-run snapshot; not replayed offline. The command reruns the current scenario, while docs/BENCHMARKS.md owns the dated current-evidence label."
+    },
+    {
+      "id": "EVAL-005",
+      "doc_anchor": "## 3. `/ce-spec`",
+      "source": "golden",
+      "deterministic": true,
+      "command": ["python3", "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py", "evals/golden/EVAL-005/specs/01-invite-user", "--json"],
+      "expected_exit": 0,
+      "expected_anchors": [
+        "\"status\": \"pass\"",
+        "\"acceptance_criteria\": 3",
+        "\"security_acs\": 1",
+        "\"surface_acs\": 1",
+        "TZ-001",
+        "\"tasks\": 2"
+      ],
+      "note": "Deterministic golden lint replay. The anchors mechanize EXAMPLES.md's claims: three EARS ACs, one [SECURITY: TZ-001]-tagged AC, one [SURFACE]-tagged AC, a passing lint, and the composed two-task tasks.json. Any structural mutation of evals/golden/EVAL-005 (a dropped tag, a broken trace, a removed task) flips a count or the status and turns this red."
+    },
+    {
+      "id": "golden-replay-layer",
+      "doc_anchor": "## 4. The golden-replay layer",
+      "source": "golden",
+      "deterministic": true,
+      "command": ["python3", "scripts/eval_check.py"],
+      "expected_exit": 0,
+      "expected_anchors": [
+        "eval-check: OK",
+        "5 golden gate(s)"
+      ],
+      "note": "Replays EXAMPLES.md section 4's headline claim: eval_check.py runs all five frozen goldens back through their lints/schema checks and prints '5 golden gate(s)'. Any mutated golden (a broken plan.json, a dropped blocking_high, a missing eligibility clause) fails a gate and turns the eval_check run — and this replay — red. If a sixth golden is added, update section 4's prose and this anchor together."
+    }
+  ]
+}

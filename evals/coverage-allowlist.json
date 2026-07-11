@@ -1,0 +1,132 @@
+{
+  "$comment": "Eval-coverage ratchet waivers (eval_check.py). A waiver defers, never forgets: it needs a reason and an expiry, expiry failures are CI-red, and a waiver goes stale (also red) the moment its skill gains a scenario. The expiry dates are not a single cliff: every waiver lands on one of the dated tiers in burndown_schedule below, each keyed to a concrete unblocking fixture/harness, and eval_check caps the waivers per tier (max_waivers) so coverage burns down on a schedule instead of renewing all at once. Adding a waiver means picking the earliest tier its unblocker allows. Burn-down target: dialog- and fixture-unblocked skills live by 2026-Q4, the ship genre by 2026-11-30, and the runtime-harness-heavy probes by 2027-Q1.",
+  "burndown_schedule": [
+    {
+      "date": "2026-09-30",
+      "unblocker": "WS6-T9 scripted-dialog eval harness + WS6-T11 drift-gate fixture repo",
+      "max_waivers": 8
+    },
+    {
+      "date": "2026-10-31",
+      "unblocker": "WS6-T8 golden written-plan/spec fixtures + the ce-go intent-fixture harness",
+      "max_waivers": 8
+    },
+    {
+      "date": "2026-11-30",
+      "unblocker": "two-branch-git and verified-plan fixtures for the ship genre and auto-build",
+      "max_waivers": 8
+    },
+    {
+      "date": "2027-03-31",
+      "unblocker": "runtime browser/load/recorded-web harness workstream",
+      "max_waivers": 8
+    }
+  ],
+  "waivers": [
+    {
+      "skill": "ce-brief",
+      "reason": "interactive persona interview; unblocked by WS6-T9's scripted-dialog eval harness",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-decide",
+      "reason": "verdict-rendering on human-supplied options; needs the option-set fixture WS6-T9's dialog harness seeds",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-idea-score",
+      "reason": "idea-genre; judgment-heavy, low regression risk; unblocked by WS6-T9's dialog/fixture harness",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-idea-scout",
+      "reason": "idea-genre; judgment-heavy, low regression risk; unblocked by WS6-T9's dialog/fixture harness",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-init",
+      "reason": "deterministic scanner already unit-tested (test_repo_profile); interactive half unblocked by WS6-T9's dialog harness",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-onboard",
+      "reason": "interactive teaching loop; unblocked by WS6-T9's scripted-dialog eval harness",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-debug",
+      "reason": "auto-detected two-mode diagnosis (absorbs the retired plan-free investigator's flow): needs a seeded failing-feature fixture with a plan (planned mode) and a misbehaving-component fixture — a stuck consumer/worker (plan-free mode); both satisfied by WS6-T11's drift-gate + fixture harness",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-verify",
+      "reason": "whole-suite regression walk needs an implemented-plan fixture; satisfied by WS6-T11's drift-gate fixture repo",
+      "expires": "2026-09-30"
+    },
+    {
+      "skill": "ce-plan-audit",
+      "reason": "plan-lint's structural gate (H1-H8) is unit-tested in tests/test_plan_lint.py; the model-judged audit lenses need the golden written-plan fixture WS6-T8 creates",
+      "expires": "2026-10-31"
+    },
+    {
+      "skill": "ce-retro",
+      "reason": "aggregation is unit-tested (test_metrics_report, test_audit_export); model narration needs the golden plan-with-metrics fixture from WS6-T8/T11",
+      "expires": "2026-10-31"
+    },
+    {
+      "skill": "ce-ship-backlog",
+      "reason": "mechanical model->backlog.json map + a stdlib emitter unit-tested in test_backlog_emit (all four formats + the parent-linking rule); live scenario needs WS6-T8's golden spec fixture (model-policy down-routable)",
+      "expires": "2026-10-31"
+    },
+    {
+      "skill": "ce-go",
+      "reason": "router over already-evaluated skills; needs the intent-fixture eval that seeds repo states (plan present/absent, spec dir, running target) and asserts the routed /ce-* target",
+      "expires": "2026-10-31"
+    },
+    {
+      "skill": "ce-domain",
+      "reason": "interactive domain-teaching loop (sibling of ce-onboard); unblocked by WS6-T9's scripted-dialog eval harness — staggered to this tier because the 2026-09-30 tier is at its max_waivers cap",
+      "expires": "2026-10-31"
+    },
+    {
+      "skill": "ce-ship-deliver",
+      "reason": "construct-and-handoff flow needs a two-branch git fixture",
+      "expires": "2026-11-30"
+    },
+    {
+      "skill": "ce-ship-document",
+      "reason": "run-the-examples contract needs a buildable-app fixture (WS6-T13 examples manifest)",
+      "expires": "2026-11-30"
+    },
+    {
+      "skill": "ce-ship-release",
+      "reason": "go/no-go over verification artifacts needs a verified-plan fixture (WS6-T11)",
+      "expires": "2026-11-30"
+    },
+    {
+      "skill": "ce-market-scan",
+      "reason": "requires live web research (non-deterministic); needs the recorded-web harness workstream",
+      "expires": "2027-03-31"
+    },
+    {
+      "skill": "ce-probe-perf",
+      "reason": "needs a runnable target-app fixture with load consent; needs the runtime-harness workstream",
+      "expires": "2027-03-31"
+    },
+    {
+      "skill": "ce-probe-sec",
+      "reason": "needs a sandboxed vulnerable-target fixture; consent-gated; needs the runtime-harness workstream",
+      "expires": "2027-03-31"
+    },
+    {
+      "skill": "ce-ux-audit",
+      "reason": "auto-detected two-mode UX audit (absorbs the retired plan-free adversarial UX probe): needs a running app + browser harness — journey-walk mode also needs a traced plan; adversarial-discovery mode runs plan-free on any repo; needs the runtime-harness workstream",
+      "expires": "2027-03-31"
+    },
+    {
+      "skill": "ce-doc-audit",
+      "reason": "auto-detected two-mode doc audit; executable-doc mode needs a sandboxed runnable-doc fixture + a command-execution harness (like ux-audit's runtime workstream); conceptual mode is comprehension-only; needs the runtime-harness workstream",
+      "expires": "2027-03-31"
+    }
+  ]
+}

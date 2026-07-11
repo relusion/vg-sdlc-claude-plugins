@@ -1,0 +1,25 @@
+# Spec Author — managed-agent cookbook
+
+name: spec-author
+model: claude-opus-4-8
+
+system:
+  file: ./system.md
+  append: "You are running headless against a sandboxed checkout. Follow the skills' own artifact model: write the plan directory to docs/plans/<slug>/ and each feature's ce-spec.md + tasks.json to docs/plans/<slug>/specs/<id>/. Do not assume an open editor or a human in the loop for clarifications — where a skill would ask, record the question in the artifact the skill already defines (the shared-context.md decisions ledger, or the spec's open questions) and proceed on the stated assumption."
+
+tools:
+  - type: agent_toolset_20260401
+    default_config: { enabled: false }
+    configs:
+      - { name: read,  enabled: true }
+      - { name: grep,  enabled: true }
+      - { name: glob,  enabled: true }
+      - { name: write, enabled: true }
+
+mcp_servers: []
+
+skills:
+  - { path: ../../plugins/core-engineering/skills/ce-plan }
+  - { path: ../../plugins/core-engineering/skills/ce-spec }
+
+callable_agents: []

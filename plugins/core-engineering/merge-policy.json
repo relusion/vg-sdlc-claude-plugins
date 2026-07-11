@@ -1,0 +1,167 @@
+{
+  "$comment": "Machine-consumed merge bar. Every field is dereferenced by scripts/gate_runner.py or validated by scripts/check.py (section 14) — doctrine lives in docs/HOW-IT-WORKS.md, not here. Two invariants are encoded as ABSENCES: `validity` has no 'none' value (a bar always demands a human attestation — the two-conjunct invariant), and no field can express autonomous crossing of shared history. `args` placeholders are a closed set: {repo} {base} {head} {spec_dir} {plan_dir} {declared} {head_tree}; a gate whose args contain {spec_dir} runs once per resolved spec dir (docs/plans/*/specs/*) and one containing {plan_dir} runs once per resolved plan dir (docs/plans/* holding a plan.json), and {head_tree} resolves to the repo tree as committed at head (materialized by the runner so the verdict cannot depend on the working tree). Per-class `advisory_gates` run and report but never affect the verdict (promote one to required_integrity_gates in a local override to make it gate). Optional `class_rules` classifies a PR FROM THE COMMITTED DIFF when --change-class is omitted: each rule's path globs are matched against `git diff --name-only base head`, first match wins, else the mandatory `fallback` (both rule `class` and `fallback` must name a defined change class; explicit --change-class always wins). Here `.github/**` (which covers `.github/merge-bar/**`) and `.merge-bar/**` escalate to the two-human `sensitive` bar — so a PR that declares its own new dependency in `.github/merge-bar/declared-deps.txt`, or accepts its own finding in `.merge-bar/dispositions.json` (the finding-disposition ledger the `secrets-guard`/`sca-guard` advisory gates read AS COMMITTED at head, validated by `disposition-lint`), is allowed same-PR ONLY under two-human review, encoded in policy, not memory. Optional `spec_lint_scope` ('all' default — fail-closed; or 'changed-plans' — the {spec_dir}/{plan_dir} fan-out is filtered to dirs the diff touches, and an empty fan-out becomes a vacuous PASS advisory) makes the bar usable before the first plan and stops a legacy/broken spec elsewhere from failing every PR. Scripts are plugin-relative fork-manifest CANONICALS — never hand-edit a forked copy. The policy ships inside the plugin because ce-auto-build's presence rule (check.py §14) keys on it and future ce-init scaffolding copies it — it is not a dead file for plugin users whose skills never read it.",
+  "schema_version": 1,
+  "gates": {
+    "spec-lint": {
+      "script": "skills/ce-spec/scripts/spec-lint.py",
+      "args": [
+        "{spec_dir}",
+        "--json"
+      ],
+      "proves": "spec traceability holds: every task verifies a real test case, every AC is proven, assigned TZ-NNN threats carry [SECURITY] coverage (H1-H5)"
+    },
+    "test-guard": {
+      "script": "skills/ce-implement/scripts/test-guard.py",
+      "args": [
+        "--base",
+        "{base}",
+        "--head",
+        "{head}",
+        "--repo",
+        "{repo}",
+        "--json"
+      ],
+      "proves": "the test suite was not weakened across the change: no test file deleted or emptied, no net assertions removed, no skips or trivially-true assertions added (integrity, never sufficiency)"
+    },
+    "dep-guard": {
+      "script": "skills/ce-implement/scripts/dep-guard.py",
+      "args": [
+        "--base",
+        "{base}",
+        "--head",
+        "{head}",
+        "--repo",
+        "{repo}",
+        "--declared",
+        "{declared}",
+        "--json"
+      ],
+      "proves": "no undeclared new direct dependency entered a manifest, with typosquat advisory (offline half only; an empty declared set fails every new dep — fail-safe)"
+    },
+    "sca-guard": {
+      "script": "skills/ce-probe-deps/scripts/sca-guard.py",
+      "args": [
+        "--repo",
+        "{head_tree}",
+        "--json"
+      ],
+      "proves": "no exactly-pinned dependency is OSV-advisory-listed, judged against manifests AS COMMITTED at head (advisory: needs network; exit 2 degradation reports, never passes silently)"
+    },
+    "implement-scope": {
+      "script": "skills/ce-implement/scripts/implement-scope-guard.py",
+      "args": [
+        "--all-specs",
+        "--head-tree",
+        "{head_tree}",
+        "--base",
+        "{base}",
+        "--head",
+        "{head}",
+        "--repo",
+        "{repo}",
+        "--json"
+      ],
+      "proves": "no file was touched outside the union of every spec's tasks[].files (the Scope Lock's file boundary), judged AS COMMITTED at head (advisory: fail-closed only where a spec declares files, legacy file-less specs degrade to a warning; an adopter promotes it to required once the repo fully adopts tasks[].files)"
+    },
+    "review-gate": {
+      "script": "skills/ce-review/scripts/review-gate.py",
+      "args": [
+        "{spec_dir}",
+        "--json"
+      ],
+      "proves": "no confirmed-High correctness/security review finding is unresolved for this spec (review-summary.json blocking_high == 0), judged from the review artifact /ce-review writes (advisory: missing review evidence reports, never blocks, until promoted to required)"
+    },
+    "plan-lint": {
+      "script": "skills/ce-plan-audit/scripts/plan-lint.py",
+      "args": [
+        "{plan_dir}",
+        "--json"
+      ],
+      "proves": "plan referential integrity and DAG soundness hold for this plan dir (H1-H8: file refs resolve, ids unique, ship-order valid, dependencies point earlier and are acyclic, bridges retire into valid future features, cross-feature re-projections present) (advisory: structure, never soundness)"
+    },
+    "secrets-guard": {
+      "script": "skills/ce-probe-infra/scripts/secrets-guard.py",
+      "args": [
+        "--repo",
+        "{repo}",
+        "--base",
+        "{base}",
+        "--head",
+        "{head}",
+        "--json"
+      ],
+      "proves": "no credential signature or high-entropy secret entered a line the change ADDS between base and head, minus any actively-dispositioned finding in .merge-bar/dispositions.json (advisory: diff-scoped so pre-existing secrets never red every PR; values redacted, never emitted; a whole-tree/historical sweep is the separate gitleaks adapter)"
+    },
+    "disposition-lint": {
+      "script": "skills/ce-probe-infra/scripts/disposition-lint.py",
+      "args": [
+        "--repo",
+        "{head_tree}",
+        "--json"
+      ],
+      "proves": "the finding-disposition ledger .merge-bar/dispositions.json is well-formed AS COMMITTED at head: every accepted-risk entry has a unique id, a known gate, a valid match, a reason, a by-human stamp, and an unexpired date (advisory: an absent ledger passes; an expired disposition is flagged here and re-alarms through its consuming gate)"
+    }
+  },
+  "change_classes": {
+    "standard": {
+      "required_integrity_gates": [
+        "spec-lint",
+        "test-guard",
+        "dep-guard"
+      ],
+      "validity": "human",
+      "advisory_gates": [
+        "sca-guard",
+        "implement-scope",
+        "review-gate",
+        "plan-lint",
+        "secrets-guard",
+        "disposition-lint"
+      ]
+    },
+    "sensitive": {
+      "required_integrity_gates": [
+        "spec-lint",
+        "test-guard",
+        "dep-guard"
+      ],
+      "validity": "two-human",
+      "advisory_gates": [
+        "sca-guard",
+        "implement-scope",
+        "review-gate",
+        "plan-lint",
+        "secrets-guard",
+        "disposition-lint"
+      ]
+    }
+  },
+  "defaults": {
+    "required_integrity_gates": [
+      "spec-lint",
+      "test-guard",
+      "dep-guard"
+    ],
+    "validity": "two-human",
+    "advisory_gates": [
+      "sca-guard",
+      "implement-scope",
+      "review-gate",
+      "plan-lint"
+    ]
+  },
+  "class_rules": {
+    "fallback": "standard",
+    "rules": [
+      {
+        "paths": [
+          "**/auth/**",
+          "**/migrations/**",
+          ".github/**",
+          ".merge-bar/**"
+        ],
+        "class": "sensitive"
+      }
+    ]
+  }
+}

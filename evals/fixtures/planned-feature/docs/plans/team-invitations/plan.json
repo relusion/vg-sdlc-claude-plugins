@@ -1,0 +1,12 @@
+{
+  "slug": "team-invitations",
+  "features": [
+    {
+      "id": "01-invite-user",
+      "title": "Invite a user to a team",
+      "ship_order": 1,
+      "depends_on": []
+    }
+  ]
+}
+

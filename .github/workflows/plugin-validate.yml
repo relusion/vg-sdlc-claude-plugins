@@ -1,0 +1,110 @@
+name: plugin-validate
+
+# Runs the official Claude Code plugin linter over every plugin and the
+# marketplace manifest. Catches malformed manifests (e.g. hooks.json as a
+# bare [] instead of {"hooks": {}}) before they reach users.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Pinned for reproducible builds + a stable cache key. Bump by setting this
+  # to a newer version from https://downloads.claude.ai/claude-code-releases/stable
+  # 2.1.133 predates `plugin validate --strict` (unknown option — the validate
+  # job failed on every push since 2026-06-23); 2.1.195 supports it.
+  CLAUDE_VERSION: 2.1.195
+
+jobs:
+  # The portability guarantee, CI-checked: every shipped hook/gate script is
+  # stdlib-only Python and runs (exit 0/1/2, no crash) with no Claude Code
+  # present — so the gates survive any harness change. Plus the unit tests
+  # for the repo's own scripts. Deliberately needs nothing but python3.
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        # Full history: product_layer_check's recency ratchet reads each eval
+        # skill's real git last-change date (git log) to auto-degrade stale
+        # BENCHMARKS `pass (DATE)` rows, and fails loud on a shallow clone.
+        with:
+          fetch-depth: 0
+      - name: Portability check (gates run with zero Claude Code deps)
+        run: python3 scripts/portability_check.py
+      - name: Manifest + cross-reference + model-policy lint
+        # check.py needs pyyaml; the portability check deliberately does not.
+        # Running check.py here makes its byte-identity drift guard and the
+        # model-policy dual-truth guard CI facts, not pre-commit courtesies.
+        # jsonschema is for tests/test_orchestrate.py (orchestrate.py's own dep) —
+        # without it those tests skip rather than run.
+        run: |
+          pip install pyyaml jsonschema
+          python3 scripts/check.py --no-install-hooks
+      - name: Enterprise hardening check
+        run: python3 scripts/supply_chain_check.py
+      - name: Managed agent check
+        run: python3 scripts/managed_agent_check.py
+      - name: Product layer check
+        run: python3 scripts/product_layer_check.py
+      - name: Docs drift check (replay captured EXAMPLES.md commands)
+        run: python3 scripts/docs_drift.py
+      - name: Eval corpus check
+        run: |
+          python3 scripts/eval_check.py
+          python3 scripts/eval_run.py --profile smoke --out-dir /tmp/vg-eval-dry-run
+          python3 scripts/eval_run.py --profile benchmark --out-dir /tmp/vg-eval-benchmark-dry-run
+      - name: Metrics and evidence projections
+        run: |
+          python3 scripts/metrics_report.py --json >/tmp/vg-metrics-report.json
+          python3 scripts/enterprise_evidence.py --json >/tmp/vg-enterprise-evidence.json
+      - name: Script unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Cookbook dry-run deploys (manifest resolution, no API calls)
+        run: bash scripts/test-cookbooks.sh
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Cache Claude Code CLI
+        id: cli-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          # ~/.local/bin/claude is a symlink into the versioned dir below —
+          # both must be cached or the restored symlink dangles (exit 127).
+          path: |
+            ~/.local/bin/claude
+            ~/.local/share/claude
+          key: claude-cli-${{ runner.os }}-${{ env.CLAUDE_VERSION }}-v2
+
+      - name: Install Claude Code CLI
+        if: steps.cli-cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_VERSION"
+
+      - name: Validate marketplace + every plugin
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          claude --version
+          fail=0
+
+          echo "::group::marketplace"
+          claude plugin validate --strict .claude-plugin/marketplace.json || fail=1
+          echo "::endgroup::"
+
+          while IFS= read -r manifest; do
+            plugin_dir="$(dirname "$(dirname "$manifest")")"
+            echo "::group::$plugin_dir"
+            claude plugin validate --strict "$plugin_dir" || fail=1
+            echo "::endgroup::"
+          done < <(find plugins -path '*/.claude-plugin/plugin.json' | sort)
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::plugin validation failed — see grouped logs above"
+            exit 1
+          fi

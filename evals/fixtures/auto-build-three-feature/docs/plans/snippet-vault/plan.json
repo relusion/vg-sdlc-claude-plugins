@@ -1,0 +1,47 @@
+{
+  "project_slug": "snippet-vault",
+  "status": "planned",
+  "relates_to": [],
+  "features": [
+    {
+      "id": "01-create-snippet",
+      "title": "Create a snippet",
+      "type": "foundation",
+      "final_complexity": "Simple",
+      "risk_profile": "low",
+      "ship_order": 1,
+      "file": "features/01-create-snippet.md",
+      "dependencies": { "hard": [], "soft": [] }
+    },
+    {
+      "id": "02-share-snippet",
+      "title": "Share a snippet by link",
+      "type": "user-facing",
+      "final_complexity": "Moderate",
+      "risk_profile": "medium",
+      "ship_order": 2,
+      "file": "features/02-share-snippet.md",
+      "dependencies": {
+        "hard": [
+          { "id": "01-create-snippet", "reason": "A share targets an existing snippet created by 01." }
+        ],
+        "soft": []
+      }
+    },
+    {
+      "id": "03-export-snippets",
+      "title": "Export snippets to CSV",
+      "type": "user-facing",
+      "final_complexity": "Simple",
+      "risk_profile": "low",
+      "ship_order": 3,
+      "file": "features/03-export-snippets.md",
+      "dependencies": {
+        "hard": [
+          { "id": "01-create-snippet", "reason": "Exports the snippets 01 creates; independent of 02 so a parked 02 does not block it." }
+        ],
+        "soft": []
+      }
+    }
+  ]
+}

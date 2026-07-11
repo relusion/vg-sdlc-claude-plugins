@@ -1,0 +1,18 @@
+{
+  "name": "product-discovery",
+  "version": "0.1.3",
+  "description": "Companion product-discovery skills \u2014 generate, score, and evidence-check software/startup ideas before planning",
+  "author": {
+    "name": "Vladimir Gondarev"
+  },
+  "homepage": "https://github.com/relusion/vg-sdlc-claude-plugins",
+  "repository": "https://github.com/relusion/vg-sdlc-claude-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "product-discovery",
+    "idea-scoring",
+    "market-scan",
+    "sdlc",
+    "decision-support"
+  ]
+}

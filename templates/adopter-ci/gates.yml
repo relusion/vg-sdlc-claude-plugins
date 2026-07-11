@@ -1,0 +1,215 @@
+# merge-bar — copy-in PR gate for adopter repositories (the air-gapped fallback).
+#
+# WHAT THIS IS
+#   A required-status workflow that runs the vg-sdlc-claude-plugins merge bar
+#   (scripts/gate_runner.py over plugins/core-engineering/merge-policy.json)
+#   against every pull request. It is agent-agnostic: a PR authored by any
+#   coding agent — or a human — gets the identical red/green verdict. The
+#   runner enforces the INTEGRITY conjunct only; the VALIDITY conjunct
+#   (human / two-human attestation) maps to required approving reviews in
+#   branch protection (see docs/TEAM-ROLLOUT.md "Wire it to branch protection").
+#
+# PREFERRED PATH: the composite action
+#   Unless your org forbids third-party GitHub Actions, adopt the merge bar
+#   as the composite action instead of copying this file — three workflow
+#   lines, one 40-hex commit-SHA pin, and no checksum placeholders to fill
+#   (the `uses:` pin fetches the runner, the policy, and every gate script
+#   atomically at that one commit):
+#     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#       with: { fetch-depth: 0 }
+#     - uses: relusion/vg-sdlc-claude-plugins/action/merge-bar@<40-hex-commit-SHA>
+#   See action/merge-bar/README.md in the toolkit repo. This file is the
+#   documented AIR-GAPPED FALLBACK for orgs that forbid third-party actions:
+#   same runner, same policy, same verdict — you pin by verifying checksums
+#   yourself instead of trusting the actions fetch, and the checksum
+#   discipline below stays fully intact.
+#
+# WHAT THIS PROVES / WHAT IT DOES NOT — integrity, not function
+#   A green verdict proves artifact INTEGRITY: traceability held, tests were
+#   not weakened, no undeclared dependency entered a manifest. It never
+#   proves test SUFFICIENCY (a weak-but-unweakened suite passes) and never
+#   proves a dependency EXISTS on a registry (dep-guard's offline half only).
+#   The bar NEVER builds the project and NEVER runs its test suite — a repo
+#   whose only required check is merge-bar can merge code that does not
+#   compile behind a green bar. Keep your own build/test job as a second
+#   required status check alongside merge-bar.
+#
+# THREAT MODEL — the PR must not grade itself
+#   The entity under judgment (the PR) must not control the bar's inputs.
+#   Four defenses, and one you must configure yourself:
+#     * the merge-policy.json override is read from the BASE ref
+#       (git show <base>:...), never from the PR head — a PR cannot swap in a
+#       weaker policy in the same commit; the new policy applies only after that
+#       edit itself merges under review.
+#     * declared-deps.txt is read from BOTH the base ref AND the PR head, and
+#       the union is passed to dep-guard — so a PR MAY declare a new dependency
+#       in the same commit. This does not let the PR grade itself for free:
+#       touching .github/merge-bar/** matches the shipped policy's class_rules
+#       and escalates the change class to `sensitive` / two-human, so a same-PR
+#       declaration is admissible ONLY under two-human review — encoded in the
+#       BASE policy (which the PR cannot weaken same-commit), not in memory. An
+#       adopter override that drops the .github/** rule reopens this gap; keep it.
+#     * the toolkit is fetched at an immutable commit SHA and every file that
+#       decides pass/fail is checksum-verified before anything runs.
+#     * TOOLKIT_REF is rejected unless it is a full 40-hex commit SHA, so a
+#       movable tag/branch pin fails loudly instead of silently drifting.
+#     * NOT covered here: on pull_request this workflow file itself runs from
+#       the PR merge ref, so a PR can still edit gates.yml. Protect .github/**
+#       with CODEOWNERS or a repository ruleset (required companion control —
+#       see docs/TEAM-ROLLOUT.md step 6 and docs/ENTERPRISE-HARDENING.md).
+#
+# HOW TO ADOPT (<30 min)
+#   1. Copy this file to .github/workflows/gates.yml in your repo.
+#   2. Set TOOLKIT_REF below to the FULL 40-hex commit SHA of the
+#      vg-sdlc-claude-plugins release tag you trust (never a tag/branch name —
+#      tags are movable, commit SHAs are not).
+#   3. Fill the five <PIN-ME-*-SHA256> placeholders. In the toolkit repo at that
+#      commit, run:
+#        python3 scripts/print_pin_block.py --required-only <sha>
+#      It prints this whole pin block (the TOOLKIT_REF comment line plus the five
+#      checksum lines) from committed state, ready to paste — the file set is
+#      DERIVED from merge-policy.json's gate registry, so a future gate addition
+#      can never leave it stale. (Prefer the generator; the equivalent manual
+#      recipe is `sha256sum scripts/gate_runner.py
+#      plugins/core-engineering/merge-policy.json
+#      plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py
+#      plugins/core-engineering/skills/ce-implement/scripts/test-guard.py
+#      plugins/core-engineering/skills/ce-implement/scripts/dep-guard.py`.)
+#      These five files decide pass/fail — the runner, the policy, and the three
+#      REQUIRED gate scripts the policy registers. The policy also registers
+#      ADVISORY gate scripts (sca-guard, implement-scope, review-gate, plan-lint,
+#      secrets-guard, disposition-lint) whose findings never change the verdict;
+#      they are not pinned in this
+#      minimal block. Run `print_pin_block.py <sha>` (no --required-only) to get
+#      the COMPLETE block and add their checksum lines too if you want
+#      tamper-evidence on advisory findings.
+#   4. In GitHub: Settings -> Branches -> require the status check "merge-bar"
+#      alongside your own build/test required check (integrity, not function —
+#      see WHAT THIS PROVES above), and set required approving reviews per
+#      your policy's validity (human -> 1, two-human -> 2).
+#   5. Protect .github/** with CODEOWNERS or a repository ruleset so a PR
+#      cannot rewrite this workflow or the merge-bar inputs it reads.
+#   Optional: commit .github/merge-bar/declared-deps.txt (one dependency name
+#   per line — the deps your team has verified) and/or a local policy override
+#   at .github/merge-bar/merge-policy.json. The policy override is read from the
+#   BASE ref only: a PR cannot weaken its own policy in the same commit. The
+#   declared-deps list is read from BOTH base and head (the union goes to
+#   dep-guard), so a PR MAY declare a new dependency in the same commit — but
+#   because that edit touches .github/merge-bar/**, the shipped policy escalates
+#   the change class to two-human, so the self-declaration is admissible only
+#   under review (see THREAT MODEL). Prefer declaring deps in a prior, separate
+#   PR for a one-human path; declare in-PR when you accept the two-human bar.
+#
+#   COLD START (before your first plan exists): the bar's spec-lint fans out
+#   over docs/plans/*/specs/* and fails closed when none exist. Until your first
+#   plan lands, commit a local override at .github/merge-bar/merge-policy.json
+#   with "spec_lint_scope": "changed-plans" — spec-lint then only gates spec
+#   dirs a PR actually touches and vacuously passes a PR that touches none, so a
+#   single legacy/broken spec (or an empty repo) no longer fails every PR.
+#   Remove the override once you adopt the plan/spec layout to restore the
+#   fail-closed "all" posture. "changed-plans" trades cold-start usability for
+#   scope: it proves nothing about spec dirs a PR does not touch, by choice.
+#
+# UPGRADE PROCEDURE
+#   Bump TOOLKIT_REF to the new release tag's commit SHA, regenerate the five
+#   checksums with `python3 scripts/print_pin_block.py --required-only <sha>` at
+#   that commit, and update the verify step. Six values change per upgrade;
+#   nothing else.
+
+name: merge-bar
+
+on: pull_request
+
+permissions:
+  contents: read
+
+env:
+  # Full commit SHA of the vg-sdlc-claude-plugins tag you trust (40 hex chars).
+  TOOLKIT_REF: '<PIN-ME-40-HEX-COMMIT-SHA>'
+  # Policy change class for PRs. Leave EMPTY (recommended) to let the policy's
+  # class_rules auto-classify each PR from its committed diff — e.g. a change
+  # under auth/, migrations/, or .github/** escalates to the two-human
+  # `sensitive` bar, everything else falls through to the `standard` fallback.
+  # Set a class name only to FORCE one bar for every PR (overrides class_rules).
+  MERGE_CHANGE_CLASS: ''
+
+jobs:
+  merge-bar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse a movable toolkit ref
+        run: |
+          # A tag or branch name is movable — the pin must be an immutable
+          # commit SHA or the checksum step below verifies a moving target.
+          if ! printf '%s' "$TOOLKIT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "TOOLKIT_REF must be a full 40-hex commit SHA (got '$TOOLKIT_REF')"
+            exit 1
+          fi
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # the diff gates need the base ref, not a shallow tip
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: relusion/vg-sdlc-claude-plugins
+          ref: ${{ env.TOOLKIT_REF }}
+          path: .merge-bar-toolkit
+
+      - name: Verify toolkit integrity (SHA256)
+        working-directory: .merge-bar-toolkit
+        run: |
+          # Every file that decides pass/fail: the runner, the policy, and the
+          # three REQUIRED gate scripts the policy registers. (The policy also
+          # registers advisory gates whose findings never change the verdict;
+          # they are not pinned in this minimal block.)
+          sha256sum -c - <<'CHECKSUMS'
+          <PIN-ME-RUNNER-SHA256>  scripts/gate_runner.py
+          <PIN-ME-POLICY-SHA256>  plugins/core-engineering/merge-policy.json
+          <PIN-ME-SPEC-LINT-SHA256>  plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py
+          <PIN-ME-TEST-GUARD-SHA256>  plugins/core-engineering/skills/ce-implement/scripts/test-guard.py
+          <PIN-ME-DEP-GUARD-SHA256>  plugins/core-engineering/skills/ce-implement/scripts/dep-guard.py
+          CHECKSUMS
+
+      - name: Run merge bar
+        env:
+          # Passed via env, never interpolated into the script (the GitHub
+          # Actions script-injection anti-pattern).
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -o pipefail
+          base="origin/${BASE_REF}"
+          # The merge-policy.json override is read from the BASE ref only: a PR
+          # cannot weaken its own policy in the same commit (see THREAT MODEL).
+          POLICY_ARGS=()
+          if git cat-file -e "${base}:.github/merge-bar/merge-policy.json" 2>/dev/null; then
+            git show "${base}:.github/merge-bar/merge-policy.json" > "$RUNNER_TEMP/merge-policy.json"
+            POLICY_ARGS=(--policy "$RUNNER_TEMP/merge-policy.json")
+          fi
+          # declared-deps is read from BOTH base AND head; the union goes to
+          # dep-guard. A same-PR declaration is admissible because touching
+          # .github/merge-bar/** escalates the change class to two-human via the
+          # BASE policy's class_rules (which the PR cannot weaken same-commit) —
+          # the PR does not grade itself for free (see THREAT MODEL).
+          declared_base=''
+          if git cat-file -e "${base}:.github/merge-bar/declared-deps.txt" 2>/dev/null; then
+            declared_base="$(git show "${base}:.github/merge-bar/declared-deps.txt")"
+          fi
+          declared_head=''
+          if git cat-file -e "HEAD:.github/merge-bar/declared-deps.txt" 2>/dev/null; then
+            declared_head="$(git show "HEAD:.github/merge-bar/declared-deps.txt")"
+          fi
+          # `|| true`: grep exits 1 when both refs lack the file (the common
+          # case); under `set -e -o pipefail` that would kill the job before
+          # the bar runs. An empty declared-deps union is valid.
+          declared="$(printf '%s\n%s\n' "$declared_base" "$declared_head" \
+            | grep -v '^[[:space:]]*$' | sort -u | tr '\n' ',' | sed 's/,*$//' || true)"
+          # --head defaults to HEAD (committed state), so the untracked
+          # .merge-bar-toolkit checkout can never leak into the diff gates.
+          python3 .merge-bar-toolkit/scripts/gate_runner.py \
+            --repo "$GITHUB_WORKSPACE" \
+            --base "$base" \
+            ${MERGE_CHANGE_CLASS:+--change-class "$MERGE_CHANGE_CLASS"} \
+            --declared "$declared" \
+            "${POLICY_ARGS[@]}" \
+            --json | tee merge-verdict.json

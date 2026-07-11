@@ -1,0 +1,47 @@
+name: main-health-canary
+
+# The 2026-07-03 audit found plugin-validate had been RED on main for ten days —
+# across an entire six-item ship batch — and nobody noticed, because a red
+# required check produces no fresh signal once you stop looking at the runs list.
+# This canary manufactures that signal: it runs on a schedule, reads the latest
+# completed run of each required workflow on main, and FAILS LOUDLY (a new red
+# run + the usual failure notification) if any of them is not green. A red canary
+# is the alarm; the fix is still to green the underlying workflow.
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert the required workflows are green on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The push-required checks whose red state must never go unnoticed,
+          # plus the scheduled live-eval run (dispatch/schedule-only, so only
+          # this canary would ever notice it going red or missing).
+          REQUIRED_WORKFLOWS: "plugin-validate.yml secret-scan.yml eval-live.yml"
+        run: |
+          set -euo pipefail
+          fail=0
+          for wf in $REQUIRED_WORKFLOWS; do
+            concl=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$wf" \
+                      --branch main --status completed --limit 1 \
+                      --json conclusion --jq '.[0].conclusion // "missing"')
+            echo "$wf: latest completed run on main = $concl"
+            if [ "$concl" != "success" ]; then
+              echo "::error title=main is not green::$wf is '$concl' on main — a required check is red. Fix main before shipping anything else."
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "All required workflows are green on main."

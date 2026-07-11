@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "description": "Machine-readable model-tier policy for the product-discovery skill corpus. This is a REVIEWABLE POLICY, never automatic routing: every skill runs on the user's loaded model unless the user explicitly opts a stage down. tier 'strong' = judgment/gate/escalation/evidence work that must never be routed down; tier 'cheap-ok' = a mechanical, human-reviewed transform that feeds nothing downstream. A skill may carry binding model:/effort: frontmatter ONLY if its entry here says down_routable: true. scripts/check.py §7 enforces two-way completeness against skills/ (every skill has an entry, every entry names a real skill) plus the frontmatter-binding rule, so this file and the frontmatter can never silently disagree. The idea trio is verdict/evidence work: idea-score renders a seven-axis Pursue/Park/Drop call, idea-scout ranks many directions, market-scan grades three-state evidence — all judgment, never routed down.",
+  "defaults": {
+    "tier": "strong",
+    "down_routable": false
+  },
+  "tier_patterns": {
+    "_comment": "Runtime attestation buckets: substrings matched (case-insensitively) against the model id hooks/model-attest.py records into .claude/ce-session-model.json. Every tier a skill entry uses must appear here (check.py §7 enforces both directions); a recorded model matching the 'strong' list ran on policy, one matching a below-'strong' list is an accepted degradation, one matching nothing is 'unattested' (ce-retro surfacing). Keys are the closed tier vocabulary (strong / cheap-ok) only.",
+    "strong": ["opus", "fable"],
+    "cheap-ok": ["haiku"]
+  },
+  "skills": {
+    "ce-idea-score": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-idea-scout": {
+      "tier": "strong",
+      "down_routable": false
+    },
+    "ce-market-scan": {
+      "tier": "strong",
+      "down_routable": false
+    }
+  }
+}

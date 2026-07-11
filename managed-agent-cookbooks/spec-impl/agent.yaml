@@ -1,0 +1,25 @@
+# Spec Impl — managed-agent cookbook
+
+name: spec-impl
+model: claude-opus-4-8
+
+system:
+  file: ./system.md
+  append: "You are running headless against a sandboxed checkout under ./repo/. Execute tasks against that working tree: write code and tests there, tick tasks.json as each task completes, and record the outcome in the spec's verification.md (docs/plans/<slug>/specs/<id>/ — the layout the skill itself defines). Do not open an editor or wait on human approval mid-task."
+
+tools:
+  - type: agent_toolset_20260401
+    default_config: { enabled: false }
+    configs:
+      - { name: read,  enabled: true }
+      - { name: grep,  enabled: true }
+      - { name: glob,  enabled: true }
+      - { name: write, enabled: true }
+      - { name: bash,  enabled: true }
+
+mcp_servers: []
+
+skills:
+  - { path: ../../plugins/core-engineering/skills/ce-implement }
+
+callable_agents: []

@@ -1,0 +1,32 @@
+{
+  "project_slug": "team-invitations-rbac",
+  "status": "planned",
+  "relates_to": [],
+  "features": [
+    {
+      "id": "01-roles-authz-foundation",
+      "title": "Roles & authorization foundation",
+      "type": "foundation",
+      "final_complexity": "Moderate",
+      "risk_profile": "medium",
+      "ship_order": 1,
+      "file": "features/01-roles-authz-foundation.md",
+      "dependencies": { "hard": [], "soft": [] }
+    },
+    {
+      "id": "02-team-invitations",
+      "title": "Team invitations",
+      "type": "user-facing",
+      "final_complexity": "Moderate",
+      "risk_profile": "low",
+      "ship_order": 2,
+      "file": "features/02-team-invitations.md",
+      "dependencies": {
+        "hard": [
+          { "id": "01-roles-authz-foundation", "reason": "Needs roles, add_member, and authorize() to gate the invite action." }
+        ],
+        "soft": []
+      }
+    }
+  ]
+}

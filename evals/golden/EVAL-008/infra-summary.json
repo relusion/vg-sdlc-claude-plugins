@@ -1,0 +1,16 @@
+{
+  "slug": "full-repo",
+  "date": "2026-06-27",
+  "scope": "<repo root>",
+  "status": "pass",
+  "blocking_hard": 0,
+  "formats_detected": { "terraform": 1, "k8s": 1, "dockerfile": 1 },
+  "scanners_used": [],
+  "scanners_missing": ["tfsec", "checkov", "kube-score", "kube-linter", "hadolint", "trivy", "cfn-lint"],
+  "unsupported_formats": [],
+  "overlay_context": [],
+  "files_scanned_capped": false,
+  "counts": { "high": 0, "medium": 6, "low": 3 },
+  "states": { "scanner-confirmed": 0, "manifest-read": 8, "inferred": 1 },
+  "secrets_redacted_count": 0
+}

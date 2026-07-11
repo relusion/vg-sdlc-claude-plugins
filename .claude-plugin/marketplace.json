@@ -1,0 +1,20 @@
+{
+  "name": "vg-coding",
+  "description": "Spec-driven SDLC automation plugins for Claude Code, covering planning, implementation, review, probes, release, documentation, and continuous improvement.",
+  "owner": {
+    "name": "Vladimir Gondarev",
+    "url": "https://github.com/relusion/vg-sdlc-claude-plugins"
+  },
+  "plugins": [
+    {
+      "name": "core-engineering",
+      "source": "./plugins/core-engineering",
+      "description": "Core engineering skills and slash commands for the full SDLC, shared across every vg-coding agent"
+    },
+    {
+      "name": "product-discovery",
+      "source": "./plugins/product-discovery",
+      "description": "Companion product-discovery skills — generate, score, and evidence-check software/startup ideas before planning"
+    }
+  ]
+}

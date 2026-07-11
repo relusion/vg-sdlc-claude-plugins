@@ -1,0 +1,9 @@
+{
+  "plans": [
+    {
+      "slug": "snippet-vault",
+      "description": "A small in-memory snippet vault: create, share, and export snippets.",
+      "relates_to": []
+    }
+  ]
+}

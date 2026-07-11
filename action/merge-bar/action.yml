@@ -1,0 +1,235 @@
+# merge-bar — the agent-agnostic merge bar as a composite GitHub Action.
+#
+# Runs scripts/gate_runner.py over plugins/core-engineering/merge-policy.json
+# against the calling repository's PR and fails the check when any required
+# integrity gate fails. Because a `uses:` pin fetches this WHOLE repository at
+# one immutable commit, the action, the runner, the policy, and every gate
+# script the policy registers arrive atomically under a single SHA — the
+# copy-in template's five-checksum verify step collapses to the pin itself.
+#
+# Adoption is three workflow lines (checkout with fetch-depth: 0 + this
+# action's `uses:` line) — see README.md next to this file. The documented
+# air-gapped fallback for orgs that forbid third-party actions is
+# templates/adopter-ci/gates.yml in this repository.
+#
+# THREAT MODEL — the PR must not grade itself (same defenses as gates.yml):
+#   * the merge-policy override is read from the BASE ref (git show <base>:...),
+#     never from the PR head — a PR cannot weaken its own policy same-commit.
+#   * declared-deps is read from BOTH base and head (the union goes to
+#     dep-guard), so a PR MAY declare a new dependency in the same commit —
+#     but touching .github/merge-bar/** escalates the change class to two-human
+#     via the shipped policy's class_rules (judged from the BASE policy the PR
+#     cannot weaken), so a same-PR declaration is admissible only under review.
+#   * the action ref is rejected at run time unless it is a full 40-hex
+#     commit SHA — a movable tag/branch pin fails loudly, never drifts.
+#   * NOT covered here: on pull_request the CALLING workflow file runs from
+#     the PR merge ref, so a PR can still edit the workflow that invokes this
+#     action. Protect .github/** with CODEOWNERS or a repository ruleset
+#     (required companion control — see docs/TEAM-ROLLOUT.md).
+#
+# SIGNED VERDICTS (opt-in, default OFF) — `attest: 'true'` closes the "who
+# watches the workflow file" gap: after a GREEN verdict, the action projects
+# merge-verdict.json to the whitelisted predicate (scripts/verdict_predicate.py)
+# and calls GitHub's keyless OIDC attestation (actions/attest, SHA-pinned) to
+# sigstore-sign it under the workflow's OIDC identity — no stored secret, no
+# signing key. A second required check running `gh attestation verify` then
+# proves a green bar judged THESE commits under THIS policy hash, independently
+# of the workflow that emitted it. Default OFF preserves the 3-line adoption and
+# air-gapped/GHES compatibility (no OIDC needed, contents:read only). When ON the
+# caller must grant `permissions: {id-token: write, attestations: write}` — see
+# README.md, "Signed verdicts". The air-gapped gates.yml has no attestation path.
+
+name: merge-bar
+description: >-
+  Agent-agnostic merge integrity bar: run the change class's required
+  integrity gates (spec-lint, test-guard, dep-guard) against a pull request
+  and emit one machine verdict. Proves integrity, not function — keep your
+  own build/test job as a second required status check.
+
+inputs:
+  base-ref:
+    description: >-
+      Base branch the diff gates compare against, resolved as
+      origin/<base-ref>. Set explicitly for non-pull_request events.
+    default: ${{ github.base_ref }}
+  change-class:
+    description: >-
+      Policy change class. Empty (the default, recommended) omits the flag so
+      the policy's class_rules auto-classify each PR from its committed diff
+      (e.g. auth/, migrations/, .github/** escalate to the two-human
+      `sensitive` bar; everything else falls through to the fallback). Set a
+      class name to FORCE one bar for every PR (overrides class_rules).
+    default: ''
+  declared-deps-path:
+    description: >-
+      Path of the declared-dependency list (one dependency name per line),
+      read from both the base ref and PR head. Their union goes to dep-guard;
+      the policy override remains base-only.
+    default: .github/merge-bar/declared-deps.txt
+  policy-path:
+    description: >-
+      Path of a local merge-policy.json override, read from the BASE ref.
+      Absent -> the toolkit's shipped policy.
+    default: .github/merge-bar/merge-policy.json
+  gate-timeout:
+    description: Per-gate-run subprocess timeout in seconds.
+    default: '120'
+  repo-path:
+    description: >-
+      Root of the repository under judgment. Override when your checkout
+      step used `path:` (or, as in this repo's action-selftest workflow, to
+      judge a fixture repo).
+    default: ${{ github.workspace }}
+  attest:
+    description: >-
+      Opt-in signed verdicts (default 'false'). When 'true', a GREEN verdict is
+      sigstore-signed via GitHub's keyless OIDC attestation (actions/attest) over
+      the whitelisted predicate, so the check is verifiable independently of the
+      workflow that produced it. Requires the CALLER workflow to grant
+      `permissions: {id-token: write, attestations: write}`. Leave 'false' for
+      the 3-line adoption and for air-gapped/GHES runners with no OIDC — the
+      action then needs only `contents: read` and does nothing new.
+    default: 'false'
+
+outputs:
+  status:
+    description: The verdict status — pass, fail, or error.
+    value: ${{ steps.bar.outputs.status }}
+  verdict-path:
+    description: >-
+      Absolute path of the merge-verdict.json the run produced (upload it as
+      evidence with actions/upload-artifact).
+    value: ${{ steps.bar.outputs.verdict-path }}
+  predicate-path:
+    description: >-
+      Absolute path of the signed-verdict predicate JSON — non-empty only when
+      `attest: 'true'` and the bar came back green (empty otherwise).
+    value: ${{ steps.predicate.outputs.predicate-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Refuse a movable action ref
+      shell: bash
+      env:
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        # A tag or branch name is movable — the pin must be an immutable
+        # commit SHA or this action's own bytes are a moving target. Local
+        # `uses: ./action/merge-bar` (this repo's self-test) is exempt: it
+        # has no action ref and resolves inside the workspace, and its bytes
+        # are the PR's own reviewed checkout.
+        case "$ACTION_PATH" in
+          "$GITHUB_WORKSPACE"/*) exit 0 ;;
+        esac
+        if [ -z "$ACTION_REF" ]; then
+          exit 0
+        fi
+        if ! printf '%s' "$ACTION_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+          echo "::error::merge-bar must be pinned to a full 40-hex commit SHA," \
+            "got '@$ACTION_REF'. Pin a reviewed release commit by its" \
+            "immutable 40-hex SHA."
+          exit 1
+        fi
+
+    - name: Run merge bar
+      id: bar
+      shell: bash
+      env:
+        # Passed via env, never interpolated into the script (the GitHub
+        # Actions script-injection anti-pattern).
+        BASE_REF: ${{ inputs.base-ref }}
+        CHANGE_CLASS: ${{ inputs.change-class }}
+        DECLARED_DEPS_PATH: ${{ inputs.declared-deps-path }}
+        POLICY_PATH: ${{ inputs.policy-path }}
+        GATE_TIMEOUT: ${{ inputs.gate-timeout }}
+        REPO_PATH: ${{ inputs.repo-path }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -o pipefail
+        if [ -z "$BASE_REF" ]; then
+          echo "::error::no base ref — github.base_ref is empty outside" \
+            "pull_request events; set the base-ref input explicitly."
+          exit 2
+        fi
+        base="origin/${BASE_REF}"
+        if ! git -C "$REPO_PATH" rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+          echo "::error::${base} does not resolve in ${REPO_PATH} — the diff" \
+            "gates need real history: checkout with 'fetch-depth: 0'."
+          exit 2
+        fi
+        # The merge-policy override is read from the BASE ref only: a PR cannot
+        # weaken its own policy in the same commit (see THREAT MODEL).
+        POLICY_ARGS=()
+        if git -C "$REPO_PATH" cat-file -e "${base}:${POLICY_PATH}" 2>/dev/null; then
+          git -C "$REPO_PATH" show "${base}:${POLICY_PATH}" > "$RUNNER_TEMP/merge-policy.json"
+          POLICY_ARGS=(--policy "$RUNNER_TEMP/merge-policy.json")
+        fi
+        # declared-deps is read from BOTH base AND head; the union goes to
+        # dep-guard. A same-PR declaration is admissible because touching
+        # .github/merge-bar/** escalates the change class to two-human via the
+        # BASE policy's class_rules — the PR does not grade itself for free.
+        declared_base=''
+        if git -C "$REPO_PATH" cat-file -e "${base}:${DECLARED_DEPS_PATH}" 2>/dev/null; then
+          declared_base="$(git -C "$REPO_PATH" show "${base}:${DECLARED_DEPS_PATH}")"
+        fi
+        declared_head=''
+        if git -C "$REPO_PATH" cat-file -e "HEAD:${DECLARED_DEPS_PATH}" 2>/dev/null; then
+          declared_head="$(git -C "$REPO_PATH" show "HEAD:${DECLARED_DEPS_PATH}")"
+        fi
+        # `|| true`: grep exits 1 when both refs lack the file (the common
+        # case — most PRs declare no deps); under `set -e -o pipefail` that
+        # would kill the step before the bar runs. An empty union is valid.
+        declared="$(printf '%s\n%s\n' "$declared_base" "$declared_head" \
+          | grep -v '^[[:space:]]*$' | sort -u | tr '\n' ',' | sed 's/,*$//' || true)"
+        verdict="${GITHUB_WORKSPACE}/merge-verdict.json"
+        # --head defaults to HEAD (committed state), so nothing untracked can
+        # leak into the diff gates. rc is captured, the verdict outputs are
+        # written even on a red bar, and the step then exits with rc so a
+        # failing bar fails the check.
+        rc=0
+        python3 "${ACTION_PATH}/../../scripts/gate_runner.py" \
+          --repo "$REPO_PATH" \
+          --base "$base" \
+          ${CHANGE_CLASS:+--change-class "$CHANGE_CLASS"} \
+          --declared "$declared" \
+          --gate-timeout "$GATE_TIMEOUT" \
+          --plugin-root "${ACTION_PATH}/../../plugins/core-engineering" \
+          "${POLICY_ARGS[@]}" \
+          --json | tee "$verdict" || rc=$?
+        status="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("status", "error"))' "$verdict" 2>/dev/null || echo error)"
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        echo "verdict-path=$verdict" >> "$GITHUB_OUTPUT"
+        exit "$rc"
+
+    # --- Signed verdicts (opt-in) --------------------------------------------
+    # Both steps are GUARDED on `attest == 'true'` AND `success()`, so a default
+    # (attest:false) run does nothing new, and a RED bar (the step above exits
+    # non-zero) is never signed — there is no merge decision to attest. The
+    # predicate carries only gate_runner's whitelisted fields, never a model
+    # judgment or a local path (see scripts/verdict_predicate.py).
+    - name: Build the signable verdict predicate
+      id: predicate
+      if: ${{ success() && inputs.attest == 'true' }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        VERDICT_PATH: ${{ steps.bar.outputs.verdict-path }}
+      run: |
+        set -o pipefail
+        predicate="${RUNNER_TEMP}/merge-verdict-predicate.json"
+        python3 "${ACTION_PATH}/../../scripts/verdict_predicate.py" \
+          --in "$VERDICT_PATH" --out "$predicate"
+        echo "predicate-path=$predicate" >> "$GITHUB_OUTPUT"
+
+    - name: Sign the merge verdict (keyless OIDC attestation)
+      if: ${{ success() && inputs.attest == 'true' }}
+      # Pinned to actions/attest v4.1.1 by full 40-hex commit SHA (a lightweight
+      # tag pointing directly at this commit) — supply_chain_check enforces the
+      # pin; a movable tag would let the signer's bytes drift.
+      uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+      with:
+        subject-path: ${{ steps.bar.outputs.verdict-path }}
+        predicate-type: https://github.com/relusion/vg-sdlc-claude-plugins/attestations/merge-verdict/v1
+        predicate-path: ${{ steps.predicate.outputs.predicate-path }}

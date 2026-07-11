@@ -1,0 +1,15 @@
+{
+  "_comment": "sha256 of each hooks/*.py + hooks.json — regenerate with `python3 scripts/hook_manifest.py --write` after an intentional hook edit. hooks/hook-integrity.py verifies it at SessionStart; scripts/check.py enforces its freshness at commit time. Excludes itself.",
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "hooks": {
+    "env-guard.py": "204b1b8e59ad9873de7aa51be1f7051f80e73f9a2782d2274ef00613855497a1",
+    "git-guard.py": "f82d8cf1ebbda63f4ceedc44f909cf49ab764ab5c4e1e456fb23b0581a682e87",
+    "guard_log.py": "25adb7265e75e1632a55530cb23f77762730a33499b4f0bce350605a8830d514",
+    "hook-integrity.py": "0b690af2cebe89511a9596083ca1c9e87a7fce7f4af1f233e42d97d70f7d849c",
+    "hooks.json": "9909eae86872115a0c60d37cd464a38b53b2a614ca9b6dc83ea55a03b17b49a3",
+    "model-attest.py": "7edea8cc0c75d8128c9a74eae71808878de5c70dd303dec4d3121f68a0585327",
+    "net-guard.py": "b73e104c134c0b67ef2a0943eff1b72886a288f57d8e96264fb0181107723bae",
+    "write-scope-guard.py": "87ff5ee4057e8a4a6e772220424661790d004eca5b467a312fce1a96167253ac"
+  }
+}

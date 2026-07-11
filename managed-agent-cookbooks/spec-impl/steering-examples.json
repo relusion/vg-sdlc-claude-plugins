@@ -1,0 +1,5 @@
+[
+  { "event": "Implement spec at docs/plans/docs-watcher/specs/01-watcher-core/", "description": "Run the full task list of an approved spec" },
+  { "event": "Implement only task T-7 in docs/plans/auth-oauth/specs/02-oauth-login/tasks.json", "description": "Pick up a single task from a partially-implemented spec" },
+  { "event": "Resume implementation in docs/plans/auth-oauth/specs/02-oauth-login/ — last completed task was T-9", "description": "Resume after an interruption, using tasks.json's done flags to find the head" }
+]

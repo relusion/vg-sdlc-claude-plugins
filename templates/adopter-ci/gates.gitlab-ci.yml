@@ -1,0 +1,180 @@
+# merge-bar — copy-in MERGE-REQUEST gate for adopter repositories on GitLab CI.
+#
+# WHAT THIS IS
+#   The GitLab port of templates/adopter-ci/gates.yml: the same
+#   vg-sdlc-claude-plugins merge bar (scripts/gate_runner.py over
+#   plugins/core-engineering/merge-policy.json) run against every merge request.
+#   It is agent-agnostic: an MR authored by any coding agent — or a human — gets
+#   the identical red/green verdict. The runner enforces the INTEGRITY conjunct
+#   only; the VALIDITY conjunct (human / two-human attestation) maps to GitLab
+#   Merge Request approval rules (see HOW TO ADOPT step 4).
+#
+#   GitLab has no composite-action equivalent, so the checksum discipline IS the
+#   product here — the pin block below is generated, never hand-maintained (in
+#   the toolkit repo run `python3 scripts/print_pin_block.py --required-only
+#   <sha>`), so a future gate addition can never leave it stale.
+#
+# WHAT THIS PROVES / WHAT IT DOES NOT — integrity, not function
+#   A green verdict proves artifact INTEGRITY: traceability held, tests were not
+#   weakened, no undeclared dependency entered a manifest. It never proves test
+#   SUFFICIENCY (a weak-but-unweakened suite passes) and never proves a
+#   dependency EXISTS on a registry (dep-guard's offline half only). The bar
+#   NEVER builds the project and NEVER runs its test suite — a repo whose only
+#   required job is merge-bar can merge code that does not compile behind a green
+#   bar. Keep your own build/test job as a second required job alongside this.
+#
+# THREAT MODEL — the MR must not grade itself
+#   The entity under judgment (the MR) must not control the bar's inputs. Four
+#   defenses, and one you must configure yourself:
+#     * the merge-policy.json override is read from the BASE (target) ref
+#       (git show <base>:...), never from the MR head — an MR cannot swap in a
+#       weaker policy in the same commit; the new policy applies only after that
+#       edit itself merges under review.
+#     * declared-deps.txt is read from BOTH the base ref AND the MR head, and
+#       the union is passed to dep-guard — so an MR MAY declare a new dependency
+#       in the same commit. This does not let the MR grade itself for free:
+#       touching .gitlab/merge-bar/** matches the shipped policy's class_rules
+#       and escalates the change class to `sensitive` / two-human, so a same-MR
+#       declaration is admissible ONLY under two-human review — encoded in the
+#       BASE policy (which the MR cannot weaken same-commit), not in memory.
+#     * the toolkit is fetched at an immutable commit SHA and every file that
+#       decides pass/fail is checksum-verified before anything runs.
+#     * TOOLKIT_REF is rejected unless it is a full 40-hex commit SHA, so a
+#       movable tag/branch pin fails loudly instead of silently drifting.
+#     * NOT covered here: this .gitlab-ci.yml file itself is read from the MR
+#       source, so an MR can still edit it. Protect it with CODEOWNERS + a
+#       Protected-branch push rule (or GitLab "protected paths") on your default
+#       branch (required companion control — see docs/TEAM-ROLLOUT.md and
+#       docs/ENTERPRISE-HARDENING.md).
+#
+# HOW TO ADOPT (<30 min)
+#   1. Copy this file to .gitlab-ci.yml in your repo (or `include:` it).
+#   2. Set TOOLKIT_REF below to the FULL 40-hex commit SHA of the
+#      vg-sdlc-claude-plugins release tag you trust (never a tag/branch name —
+#      tags are movable, commit SHAs are not).
+#   3. Fill the five <PIN-ME-*-SHA256> placeholders. In the toolkit repo at that
+#      commit run `python3 scripts/print_pin_block.py --required-only <sha>` —
+#      it prints the TOOLKIT_REF line plus these five checksum lines from
+#      committed state, ready to paste. These five files decide pass/fail — the
+#      runner, the policy, and the three REQUIRED gate scripts the policy
+#      registers. (`print_pin_block.py <sha>` without --required-only also pins
+#      the ADVISORY gate scripts — sca-guard, implement-scope, review-gate,
+#      plan-lint, secrets-guard, disposition-lint — whose findings never change
+#      the verdict; add their lines too
+#      if you want tamper-evidence on advisory findings.)
+#   4. In GitLab: Settings -> Merge requests -> require approvals, and set the
+#      approval count to your policy's validity (human -> 1, two-human -> 2),
+#      with the approver not the MR author (segregation of duties). Mark this
+#      job REQUIRED via Settings -> Merge requests -> "Pipelines must succeed".
+#      Keep your own build/test job required too (integrity, not function).
+#   5. Protect .gitlab-ci.yml and .gitlab/merge-bar/** with CODEOWNERS + a
+#      protected-branch push rule so an MR cannot rewrite this workflow or the
+#      merge-bar inputs it reads.
+#   Optional: commit .gitlab/merge-bar/declared-deps.txt (one dependency name
+#   per line — the deps your team has verified) and/or a local policy override
+#   at .gitlab/merge-bar/merge-policy.json. The policy override is read from the
+#   BASE ref only; the declared-deps list is read from BOTH base and head (see
+#   THREAT MODEL). Cold start: before your first plan exists, commit an override
+#   with "spec_lint_scope": "changed-plans" so spec-lint only gates spec dirs an
+#   MR touches (and vacuously passes an MR that touches none).
+#
+# UPGRADE PROCEDURE
+#   Bump TOOLKIT_REF to the new release tag's commit SHA and regenerate the five
+#   checksums with `python3 scripts/print_pin_block.py --required-only <sha>` in
+#   the toolkit repo at that commit. Six values change per upgrade; nothing else.
+
+workflow:
+  rules:
+    # Run pipelines only for merge requests — the bar judges an MR's diff.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+variables:
+  # Full commit SHA of the vg-sdlc-claude-plugins tag you trust (40 hex chars).
+  TOOLKIT_REF: '<PIN-ME-40-HEX-COMMIT-SHA>'
+  # Policy change class for MRs. Leave EMPTY (recommended) to let the policy's
+  # class_rules auto-classify each MR from its committed diff; set a class name
+  # only to FORCE one bar for every MR (overrides class_rules).
+  MERGE_CHANGE_CLASS: ''
+  # Full clone so the diff gates can reach the target (base) ref — a shallow
+  # clone would hide the merge base from git.
+  GIT_DEPTH: '0'
+  # Canonical toolkit source. Point at an internal mirror if your org forbids
+  # cloning from public GitHub in CI.
+  TOOLKIT_URL: 'https://github.com/relusion/vg-sdlc-claude-plugins.git'
+
+merge-bar:
+  # python:3.12 (the full image, not -slim) ships git + coreutils — the bar
+  # needs both. Any image with python3 + git + coreutils works.
+  image: python:3.12
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  artifacts:
+    when: always
+    paths:
+      - merge-verdict.json
+  script:
+    - |
+      set -o pipefail
+      # A tag or branch name is movable — the pin must be an immutable commit
+      # SHA or the checksum step below verifies a moving target.
+      if ! printf '%s' "$TOOLKIT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+        echo "TOOLKIT_REF must be a full 40-hex commit SHA (got '$TOOLKIT_REF')"
+        exit 1
+      fi
+      # The diff gates compare against the MR's TARGET branch; fetch it
+      # explicitly (GitLab does not check it out) and address it as origin/<name>.
+      git fetch --no-tags origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+      base="origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+    - |
+      set -o pipefail
+      # Fetch the toolkit at the immutable pin, into an untracked sibling dir.
+      rm -rf .merge-bar-toolkit
+      git clone --quiet "$TOOLKIT_URL" .merge-bar-toolkit
+      git -C .merge-bar-toolkit checkout --quiet "$TOOLKIT_REF"
+    - |
+      set -o pipefail
+      # Every file that decides pass/fail: the runner, the policy, and the three
+      # REQUIRED gate scripts the policy registers. (Generated by
+      # `print_pin_block.py --required-only` — never hand-maintained.)
+      cd .merge-bar-toolkit
+      sha256sum -c - <<'CHECKSUMS'
+      <PIN-ME-RUNNER-SHA256>  scripts/gate_runner.py
+      <PIN-ME-POLICY-SHA256>  plugins/core-engineering/merge-policy.json
+      <PIN-ME-SPEC-LINT-SHA256>  plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py
+      <PIN-ME-TEST-GUARD-SHA256>  plugins/core-engineering/skills/ce-implement/scripts/test-guard.py
+      <PIN-ME-DEP-GUARD-SHA256>  plugins/core-engineering/skills/ce-implement/scripts/dep-guard.py
+      CHECKSUMS
+      cd ..
+    - |
+      set -o pipefail
+      base="origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+      # The merge-policy.json override is read from the BASE ref only: an MR
+      # cannot weaken its own policy in the same commit (see THREAT MODEL).
+      POLICY_ARGS=()
+      if git cat-file -e "${base}:.gitlab/merge-bar/merge-policy.json" 2>/dev/null; then
+        git show "${base}:.gitlab/merge-bar/merge-policy.json" > "$CI_PROJECT_DIR/merge-policy-override.json"
+        POLICY_ARGS=(--policy "$CI_PROJECT_DIR/merge-policy-override.json")
+      fi
+      # declared-deps is read from BOTH base AND head; the union goes to
+      # dep-guard. A same-MR declaration is admissible because touching
+      # .gitlab/merge-bar/** escalates the change class to two-human via the
+      # BASE policy's class_rules (which the MR cannot weaken same-commit).
+      declared_base=''
+      if git cat-file -e "${base}:.gitlab/merge-bar/declared-deps.txt" 2>/dev/null; then
+        declared_base="$(git show "${base}:.gitlab/merge-bar/declared-deps.txt")"
+      fi
+      declared_head=''
+      if git cat-file -e "HEAD:.gitlab/merge-bar/declared-deps.txt" 2>/dev/null; then
+        declared_head="$(git show "HEAD:.gitlab/merge-bar/declared-deps.txt")"
+      fi
+      declared="$(printf '%s\n%s\n' "$declared_base" "$declared_head" \
+        | grep -v '^[[:space:]]*$' | sort -u | tr '\n' ',' | sed 's/,*$//')"
+      # --head defaults to HEAD (committed state), so the untracked
+      # .merge-bar-toolkit clone can never leak into the diff gates.
+      python3 .merge-bar-toolkit/scripts/gate_runner.py \
+        --repo "$CI_PROJECT_DIR" \
+        --base "$base" \
+        ${MERGE_CHANGE_CLASS:+--change-class "$MERGE_CHANGE_CLASS"} \
+        --declared "$declared" \
+        "${POLICY_ARGS[@]}" \
+        --json | tee merge-verdict.json

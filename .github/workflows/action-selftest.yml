@@ -1,0 +1,357 @@
+name: action-selftest
+
+# Proves the merge-bar composite action end-to-end on every change, using the
+# same fixture shape as scripts/demo-cheat-catch.sh: build a throwaway adopter
+# repo from the shipped eval fixture, run the action locally
+# (uses: ./action/merge-bar), and assert both verdict directions — an honest
+# change comes back green, a committed test-gutting cheat comes back red and
+# fails the step. Because the local `./` form runs the PR's own checkout, every
+# commit an adopter might pin is continuously proven before it can be pinned.
+#
+# This repo itself has no docs/plans/*/specs/* layout, and the shipped policy
+# is deliberately fail-closed on zero spec dirs — so the self-test judges the
+# spec-carrying fixture repo (via the action's repo-path input), not this
+# repository's own tree.
+#
+# A second job (test-integrity-selftest) proves the standalone test-integrity
+# action the same way: it builds a minimal git repo (test-guard needs only a
+# test diff, no spec layout), asserts an honest test-strengthening change comes
+# back green and a committed test-gutting cheat comes back red and fails the
+# step — both via `uses: ./action/test-integrity`.
+#
+# A third job (attest-selftest) proves the opt-in SIGNED VERDICT path: it runs
+# the merge-bar with `attest: 'true'` (granting id-token:write + attestations:
+# write) so a green verdict is sigstore-signed via GitHub's keyless OIDC
+# attestation, then `gh attestation verify` SUCCEEDS on the real verdict and
+# FAILS on a byte-tampered copy. This job needs the workflow's OIDC token AND a
+# repo tier where Artifact Attestations exist, so it runs only for same-repo PRs
+# / pushes to main on a PUBLIC repo (a fork PR has no id-token; a user-owned
+# private repo cannot persist an attestation). Skipping on either is expected,
+# not a failure; the predicate is still covered by tests.test_verdict_predicate.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: merge-bar action self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build a fixture adopter repo (spec + honest test at base)
+        id: fixture
+        run: |
+          set -euo pipefail
+          demo="$RUNNER_TEMP/adopter-repo"
+          cp -R evals/fixtures/implementation-ready-feature "$demo"
+          mkdir -p "$demo/tests"
+          cat > "$demo/tests/test_invitations.py" <<'EOF'
+          from src.invitations import create_invitation
+
+
+          def test_create_invitation_returns_token():
+              inv = create_invitation('a@example.com', 'admin')
+              assert inv['token']
+              assert inv['email'] == 'a@example.com'
+          EOF
+          g() { git -C "$demo" -c user.name=selftest -c user.email=selftest@example.com \
+                    -c commit.gpgsign=false "$@"; }
+          git -C "$demo" init -q -b main
+          g add -A
+          g commit -qm "base: honest feature with a real test"
+          # The action resolves the diff baseline and its base-ref-sourced
+          # local inputs from origin/<base-ref>, exactly as in a real PR
+          # checkout — give the fixture that remote-tracking ref.
+          git -C "$demo" update-ref refs/remotes/origin/main "$(git -C "$demo" rev-parse HEAD)"
+          echo "path=$demo" >> "$GITHUB_OUTPUT"
+
+      - name: Merge bar on the honest change — expect green
+        id: green
+        uses: ./action/merge-bar
+        with:
+          repo-path: ${{ steps.fixture.outputs.path }}
+          base-ref: main
+
+      - name: Assert the green verdict and outputs
+        env:
+          STATUS: ${{ steps.green.outputs.status }}
+          VERDICT_PATH: ${{ steps.green.outputs.verdict-path }}
+        run: |
+          set -euo pipefail
+          test "$STATUS" = "pass"
+          python3 - "$VERDICT_PATH" <<'EOF'
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v["status"] == "pass", v["status"]
+          assert v["hard_failures"] == [], v["hard_failures"]
+          EOF
+          cp "$VERDICT_PATH" merge-verdict-green.json
+
+      - name: Commit a cheat in the fixture (test assertions gutted)
+        env:
+          FIXTURE: ${{ steps.fixture.outputs.path }}
+        run: |
+          set -euo pipefail
+          : > "$FIXTURE/tests/test_invitations.py"
+          git -C "$FIXTURE" -c user.name=selftest -c user.email=selftest@example.com \
+              -c commit.gpgsign=false commit -aqm "cheat: gut the test assertions"
+
+      - name: Merge bar on the cheat — expect red
+        id: red
+        continue-on-error: true
+        uses: ./action/merge-bar
+        with:
+          repo-path: ${{ steps.fixture.outputs.path }}
+          base-ref: main
+
+      - name: Assert the cheat failed the step with a red verdict
+        env:
+          OUTCOME: ${{ steps.red.outcome }}
+          STATUS: ${{ steps.red.outputs.status }}
+          VERDICT_PATH: ${{ steps.red.outputs.verdict-path }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure"
+          test "$STATUS" = "fail"
+          python3 - "$VERDICT_PATH" <<'EOF'
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v["status"] == "fail", v["status"]
+          assert any("test-guard" in line for line in v["hard_failures"]), v["hard_failures"]
+          EOF
+
+      - name: Upload the verdicts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: merge-verdicts
+          path: |
+            merge-verdict.json
+            merge-verdict-green.json
+          if-no-files-found: ignore
+
+  test-integrity-selftest:
+    name: test-integrity action self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build a fixture repo (a real test at base, an honest one strengthened at head)
+        id: fixture
+        run: |
+          set -euo pipefail
+          demo="$RUNNER_TEMP/test-integrity-repo"
+          mkdir -p "$demo/tests"
+          # Base: one real test with two assertions. test-guard never runs the
+          # suite — src/widget.py need not exist; only the test text is diffed.
+          cat > "$demo/tests/test_widget.py" <<'EOF'
+          from src.widget import widget
+
+
+          def test_widget_is_ready():
+              assert widget() is True
+              assert widget() is not None
+          EOF
+          g() { git -C "$demo" -c user.name=selftest -c user.email=selftest@example.com \
+                    -c commit.gpgsign=false "$@"; }
+          git -C "$demo" init -q -b main
+          g add -A
+          g commit -qm "base: a real test with assertions"
+          # The action resolves the diff baseline from origin/<base-ref>, exactly
+          # as a real PR checkout does — give the fixture that remote-tracking ref.
+          git -C "$demo" update-ref refs/remotes/origin/main "$(git -C "$demo" rev-parse HEAD)"
+          # An HONEST change: strengthen the test (add an assertion, remove none).
+          cat > "$demo/tests/test_widget.py" <<'EOF'
+          from src.widget import widget
+
+
+          def test_widget_is_ready():
+              assert widget() is True
+              assert widget() is not None
+              assert widget() == widget()
+          EOF
+          g commit -aqm "feat: strengthen the test with another assertion"
+          echo "path=$demo" >> "$GITHUB_OUTPUT"
+
+      - name: test-integrity on the honest change — expect green
+        id: green
+        uses: ./action/test-integrity
+        with:
+          repo-path: ${{ steps.fixture.outputs.path }}
+          base-ref: main
+
+      - name: Assert the green verdict and outputs
+        env:
+          STATUS: ${{ steps.green.outputs.status }}
+          VERDICT_PATH: ${{ steps.green.outputs.verdict-path }}
+        run: |
+          set -euo pipefail
+          test "$STATUS" = "pass"
+          python3 - "$VERDICT_PATH" <<'EOF'
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v["status"] == "pass", v["status"]
+          assert v["hard_failures"] == [], v["hard_failures"]
+          EOF
+          cp "$VERDICT_PATH" test-integrity-verdict-green.json
+
+      - name: Commit a cheat in the fixture (the test file gutted)
+        env:
+          FIXTURE: ${{ steps.fixture.outputs.path }}
+        run: |
+          set -euo pipefail
+          : > "$FIXTURE/tests/test_widget.py"
+          git -C "$FIXTURE" -c user.name=selftest -c user.email=selftest@example.com \
+              -c commit.gpgsign=false commit -aqm "cheat: gut the test to force green"
+
+      - name: test-integrity on the cheat — expect red
+        id: red
+        continue-on-error: true
+        uses: ./action/test-integrity
+        with:
+          repo-path: ${{ steps.fixture.outputs.path }}
+          base-ref: main
+
+      - name: Assert the cheat failed the step with a red verdict
+        env:
+          OUTCOME: ${{ steps.red.outcome }}
+          STATUS: ${{ steps.red.outputs.status }}
+          VERDICT_PATH: ${{ steps.red.outputs.verdict-path }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure"
+          test "$STATUS" = "fail"
+          python3 - "$VERDICT_PATH" <<'EOF'
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v["status"] == "fail", v["status"]
+          assert any(f.startswith("T1") for f in v["hard_failures"]), v["hard_failures"]
+          EOF
+
+      - name: Upload the test-integrity verdicts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-integrity-verdicts
+          path: |
+            test-integrity-verdict.json
+            test-integrity-verdict-green.json
+          if-no-files-found: ignore
+
+  attest-selftest:
+    name: signed-verdict (attest) self-test
+    runs-on: ubuntu-latest
+    # Runs only where the E2E can actually complete:
+    #   * a fork PR has no id-token — restrict to same-repo PRs + pushes to main;
+    #   * GitHub Artifact Attestations (actions/attest) are NOT available for
+    #     user-owned PRIVATE repos ("make this repository public"; private or
+    #     internal repos need GitHub Enterprise Cloud), so gate on the repo
+    #     being public. On a
+    #     private repo this job is skipped (neutral, not a failure); the
+    #     predicate transform is still validated by tests.test_verdict_predicate
+    #     in the `scripts` job, and the signing wiring is default-off + SHA-pinned.
+    if: >-
+      github.event.repository.private == false &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      id-token: write        # actions/attest mints the keyless OIDC token
+      attestations: write    # actions/attest stores the signed attestation
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build a fixture adopter repo (spec + honest test at base)
+        id: fixture
+        run: |
+          set -euo pipefail
+          demo="$RUNNER_TEMP/attest-adopter-repo"
+          cp -R evals/fixtures/implementation-ready-feature "$demo"
+          mkdir -p "$demo/tests"
+          cat > "$demo/tests/test_invitations.py" <<'EOF'
+          from src.invitations import create_invitation
+
+
+          def test_create_invitation_returns_token():
+              inv = create_invitation('a@example.com', 'admin')
+              assert inv['token']
+              assert inv['email'] == 'a@example.com'
+          EOF
+          g() { git -C "$demo" -c user.name=selftest -c user.email=selftest@example.com \
+                    -c commit.gpgsign=false "$@"; }
+          git -C "$demo" init -q -b main
+          g add -A
+          g commit -qm "base: honest feature with a real test"
+          git -C "$demo" update-ref refs/remotes/origin/main "$(git -C "$demo" rev-parse HEAD)"
+          echo "path=$demo" >> "$GITHUB_OUTPUT"
+
+      - name: Merge bar with attest on — expect green + a signed verdict
+        id: green
+        uses: ./action/merge-bar
+        with:
+          repo-path: ${{ steps.fixture.outputs.path }}
+          base-ref: main
+          attest: 'true'
+
+      - name: Assert the green verdict and that a predicate was produced
+        env:
+          STATUS: ${{ steps.green.outputs.status }}
+          VERDICT_PATH: ${{ steps.green.outputs.verdict-path }}
+          PREDICATE_PATH: ${{ steps.green.outputs.predicate-path }}
+        run: |
+          set -euo pipefail
+          test "$STATUS" = "pass"
+          test -n "$PREDICATE_PATH"
+          # The predicate carries ONLY the whitelisted fields — assert it round-
+          # tripped and leaked nothing model-derived or path-bearing.
+          python3 - "$PREDICATE_PATH" <<'EOF'
+          import json, sys
+          p = json.load(open(sys.argv[1]))
+          expected = {"base_sha", "head_sha", "policy_sha256", "status",
+                      "change_class", "change_class_source",
+                      "validity_required", "gates"}
+          assert set(p) == expected, sorted(p)
+          assert all(set(g) == {"id", "disposition", "status"} for g in p["gates"]), p["gates"]
+          assert p["status"] == "pass", p["status"]
+          EOF
+
+      - name: gh attestation verify — succeeds on the real verdict, fails on a tampered copy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERDICT_PATH: ${{ steps.green.outputs.verdict-path }}
+          PTYPE: https://github.com/relusion/vg-sdlc-claude-plugins/attestations/merge-verdict/v1
+        run: |
+          set -euo pipefail
+          # The real verdict verifies against its fresh OIDC attestation. A brief
+          # retry absorbs transparency-log propagation lag.
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            if gh attestation verify "$VERDICT_PATH" \
+                 --repo "$GITHUB_REPOSITORY" \
+                 --predicate-type "$PTYPE"; then
+              ok=1; break
+            fi
+            echo "verify attempt $attempt failed — retrying after propagation delay"
+            sleep 6
+          done
+          test "$ok" = "1" || { echo "::error::real verdict did not verify"; exit 1; }
+
+          # A byte-tampered copy has a different digest — verification MUST fail,
+          # proving the attestation binds these exact bytes (the tamper-evidence
+          # the whole feature exists to provide).
+          tampered="$RUNNER_TEMP/merge-verdict-tampered.json"
+          cp "$VERDICT_PATH" "$tampered"
+          printf '\n{"tamper": true}\n' >> "$tampered"
+          if gh attestation verify "$tampered" \
+               --repo "$GITHUB_REPOSITORY" \
+               --predicate-type "$PTYPE" 2>/dev/null; then
+            echo "::error::a tampered verdict verified — the attestation is not binding"
+            exit 1
+          fi
+          echo "signed-verdict self-test OK: real verdict verified, tampered copy rejected"

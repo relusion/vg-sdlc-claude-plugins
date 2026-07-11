@@ -1,0 +1,5 @@
+[
+  { "event": "Review and verify docs/plans/team-invitations/specs/01-invite-user after implementation", "description": "Feature-level quality gate after one implemented spec" },
+  { "event": "Run pre-handover quality gate for docs/plans/team-invitations/", "description": "Plan-level review plus verification before release preparation" },
+  { "event": "Diagnose verification failure in docs/plans/team-invitations/specs/02-accept-invite/", "description": "Root-cause a concrete failed journey or test and route the fix" }
+]

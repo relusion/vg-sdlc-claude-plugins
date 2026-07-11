@@ -1,0 +1,5 @@
+[
+  { "event": "Prepare release handoff for docs/plans/team-invitations after quality gate passed", "description": "Delivery manifest plus release decision package for a verified plan" },
+  { "event": "Draft user-facing docs for docs/plans/team-invitations, audience: user and api", "description": "Generate docs from verified behavior without publishing" },
+  { "event": "Assess release readiness for docs/plans/team-invitations, consent: decision package only", "description": "Record GO/NO-GO and pending human release actions without tagging or deploying" }
+]
