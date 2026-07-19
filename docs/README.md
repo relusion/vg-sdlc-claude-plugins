@@ -8,8 +8,8 @@ read this directory in filename order.
 - [Getting Started](GETTING-STARTED.md) — install the marketplace and get a
   useful result in the first session.
 - [Usage Matrix](USAGE-MATRIX.md) — choose the right `/ce-*` skill for the job.
-- [Workflow Recipes](WORKFLOW-RECIPES.md) — follow complete, multi-skill paths
-  with expected outputs and stop conditions.
+- [Workflow Recipes](WORKFLOW-RECIPES.md) — choose an outcome, follow the
+  matching multi-skill path, and adopt higher-autonomy workflows in stages.
 - [How It Works](HOW-IT-WORKS.md) — understand the architecture, artifacts,
   gates, and safety model.
 - [Real Outputs](EXAMPLES.md) — inspect captured examples with provenance.

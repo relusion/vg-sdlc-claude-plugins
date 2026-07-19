@@ -12,6 +12,101 @@ named feature? a running target?) and routes to the right skill below, showing
 its reasoning before it hands off. It routes, never executes; the routed skill
 does the work under its own gates.
 
+## Choose By Outcome
+
+Do not read all 35 recipes in order. Start with the outcome you need. The
+recipes intentionally operate at different scales: a **quick task** answers or
+changes one bounded thing, a **core workflow** advances delivery state, a
+**campaign** coordinates several skills around a team outcome, and an
+**operating guide** explains how to supervise an existing workflow.
+
+| I need to... | Start here | Primary user | Prerequisite | Outcome to measure |
+|---|---|---|---|---|
+| understand an unfamiliar repository | [Recipe 1](#recipe-1-answer-a-codebase-question), [Recipe 11](#recipe-11-learn-a-built-system), or [Recipe 35](#recipe-35-onboard-into-the-business-domain) | Developer, maintainer, PM | Read access to the repository | Time to first correct change; onboarding time |
+| refine, plan, or revise work | [Recipe 2](#recipe-2-refine-a-work-item), [Recipe 3](#recipe-3-plan-a-new-feature), or [Recipe 24](#recipe-24-mid-sprint-scope-change-without-losing-the-plan) | Tech lead, developer, PM | A concrete outcome or change request | Rework caused by missing scope; planning lead time |
+| make a small, safe change | [Recipe 6](#recipe-6-handle-a-small-fix) | Developer | A bounded, low-risk change | Patch cycle time; patch-to-plan graduation rate |
+| build planned work | [Recipe 4](#recipe-4-build-one-planned-feature) or [Recipe 25](#recipe-25-build-overnight-trust-it-by-morning) | Developer, tech lead | Approved plan; a spec for implementation | Feature cycle time; first-pass verification rate |
+| review and prove a change | [Recipe 5](#recipe-5-review-and-verify-before-handoff) or [Recipe 31](#recipe-31-work-a-human-pr-review-round) | Developer, reviewer | Implemented code or review comments | Escaped defects; review rework; finding acceptance rate |
+| respond to an incident or security finding | [Recipe 26](#recipe-26-escaped-defect-to-closed-incident) or [Recipe 27](#recipe-27-close-a-security-finding-on-a-clock) | On-call engineer, security engineer | Reproducible evidence or an external signal | Time to confirmed cause; time to evidenced closure |
+| automate and supervise a planned build | [Recipe 10](#recipe-10-run-the-full-spine-autonomously), then [Recipe 20](#recipe-20-operate-an-unattended-run) | Tech lead, solo developer | Audited plan and agreed budgets | Unattended completion rate; park and retry rate |
+| establish team or enterprise governance | [Recipe 29](#recipe-29-roll-out-the-merge-bar) or [Recipe 30](#recipe-30-ai-governance-evidence-trail) | Platform lead, engineering lead, control owner | Repository policy and CI ownership | Protected-PR coverage; gate reliability; evidence completeness |
+
+## Recommended Adoption Sequence
+
+Availability is not an adoption plan. Introduce the workflows in the order
+below unless a security, incident, or regulatory deadline creates a more urgent
+entry point.
+
+| Stage | Adopt | Why now | Exit signal |
+|---|---|---|---|
+| **1 — Establish trust** | [Bootstrap](#recipe-18-bootstrap-a-repository), [small fixes](#recipe-6-handle-a-small-fix), [review and verify](#recipe-5-review-and-verify-before-handoff), then the [merge bar](#recipe-29-roll-out-the-merge-bar) | These are frequent, bounded workflows with visible checks and limited autonomy. They establish repository policy and a common quality floor. | Developers repeat the workflows voluntarily; protected PRs require both mechanical integrity and human validity. |
+| **2 — Standardize delivery** | [Refine](#recipe-2-refine-a-work-item), [plan](#recipe-3-plan-a-new-feature), [build](#recipe-4-build-one-planned-feature), [revise](#recipe-21-revise-an-existing-plan), and [release handoff](#recipe-9-prepare-a-release-handoff) | Durable briefs, plans, specs, and evidence make handoffs repeatable across developers and teams. | A representative feature moves through the spine without undocumented scope changes or artifact repair. |
+| **3 — Add bounded autonomy** | [Plan audit](#recipe-14-audit-planning-and-process), [auto-build](#recipe-10-run-the-full-spine-autonomously), [supervision](#recipe-20-operate-an-unattended-run), and the [morning trust ritual](#recipe-25-build-overnight-trust-it-by-morning) | Autonomy becomes useful only after inputs, stops, and independent checks are trusted. | Parked decisions are actionable, retry rates are understood, and unattended output passes independent verification. |
+| **4 — Expand by organizational need** | Incident, security, debt, governance, knowledge-transfer, and hosted-agent campaigns | These create high value for specific operating contexts but should reuse the proven core rather than form a parallel process. | The owning team has named metrics, an accountable human owner, and a review cadence for each adopted campaign. |
+
+Track a small baseline before each stage. Prefer cycle time, escaped defects,
+first-pass verification, gate false-positive rate, and developer repeat usage;
+raw command counts alone do not demonstrate delivery value.
+
+## Recipe Catalog By Workflow Type
+
+The catalog below is a discovery aid, not a maturity ladder. Start with the
+smallest workflow that owns the outcome and follow its escalation route if the
+scope grows.
+
+### Quick Developer Tasks
+
+- [1 — Answer A Codebase Question](#recipe-1-answer-a-codebase-question)
+- [6 — Handle A Small Fix](#recipe-6-handle-a-small-fix)
+- [7 — Investigate A Failure](#recipe-7-investigate-a-failure)
+- [11 — Learn A Built System](#recipe-11-learn-a-built-system)
+- [13 — Make A Technical Decision](#recipe-13-make-a-technical-decision)
+- [16 — Export Work Items](#recipe-16-export-work-items)
+
+### Core Delivery Workflows
+
+- [2 — Refine A Work Item](#recipe-2-refine-a-work-item)
+- [3 — Plan A New Feature](#recipe-3-plan-a-new-feature)
+- [4 — Build One Planned Feature](#recipe-4-build-one-planned-feature)
+- [5 — Review And Verify Before Handoff](#recipe-5-review-and-verify-before-handoff)
+- [8 — Probe Risk](#recipe-8-probe-risk)
+- [9 — Prepare A Release Handoff](#recipe-9-prepare-a-release-handoff)
+- [10 — Run The Full Spine Autonomously](#recipe-10-run-the-full-spine-autonomously)
+- [12 — Shape Product Direction](#recipe-12-shape-product-direction) *(companion plugin)*
+- [14 — Audit Planning And Process](#recipe-14-audit-planning-and-process)
+- [15 — Check Planned UX](#recipe-15-check-planned-ux)
+- [18 — Bootstrap A Repository](#recipe-18-bootstrap-a-repository)
+- [21 — Revise An Existing Plan](#recipe-21-revise-an-existing-plan)
+
+### Team Outcome Campaigns
+
+- [23 — Refactor Without Regression](#recipe-23-refactor-without-regression)
+- [24 — Mid-Sprint Scope Change Without Losing The Plan](#recipe-24-mid-sprint-scope-change-without-losing-the-plan)
+- [25 — Build Overnight, Trust It By Morning](#recipe-25-build-overnight-trust-it-by-morning)
+- [26 — Escaped Defect To Closed Incident](#recipe-26-escaped-defect-to-closed-incident)
+- [27 — Close A Security Finding On A Clock](#recipe-27-close-a-security-finding-on-a-clock)
+- [28 — Debt Census To Funded Backlog](#recipe-28-debt-census-to-funded-backlog)
+- [29 — Roll Out The Merge Bar](#recipe-29-roll-out-the-merge-bar)
+- [30 — AI-Governance Evidence Trail](#recipe-30-ai-governance-evidence-trail)
+- [31 — Work A Human PR Review Round](#recipe-31-work-a-human-pr-review-round)
+- [32 — Divide A Plan Among N Developers](#recipe-32-divide-a-plan-among-n-developers)
+- [33 — Pick The Next Sprint's Slate](#recipe-33-pick-the-next-sprints-slate)
+- [34 — Capture A Departing Owner's Knowledge](#recipe-34-capture-a-departing-owners-knowledge)
+- [35 — Onboard Into The Business Domain](#recipe-35-onboard-into-the-business-domain)
+
+### Operating And Evidence Guides
+
+These recipes support another workflow rather than representing a separate
+delivery outcome. Use them after entering through the owning recipe.
+
+- [19 — Return To A Plan Mid-Flight](#recipe-19-return-to-a-plan-mid-flight) supports planned work and interrupted sessions.
+- [20 — Operate An Unattended Run](#recipe-20-operate-an-unattended-run) supports Recipe 10 and Recipe 25.
+- [22 — Compile An Audit / Evidence Pack](#recipe-22-compile-an-audit--evidence-pack) supports release, incident, security, and governance campaigns.
+
+### Experimental Integration
+
+- [17 — Run Hosted Agent Handoffs](#recipe-17-run-hosted-agent-handoffs) is for platform teams whose host can replace the plugin runtime's sandboxing, approvals, hooks, and state enforcement. It is not the default adoption path.
+
 ## Recipe 1: Answer A Codebase Question
 
 **Use when:** a developer needs one grounded answer about existing code.
