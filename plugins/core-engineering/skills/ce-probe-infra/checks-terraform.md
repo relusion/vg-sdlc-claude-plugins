@@ -36,7 +36,7 @@ Record any missing scanner as **degraded coverage** in the report — never a si
 - **Missing encryption / public exposure** beyond the literal flags (e.g. an S3 bucket with
   no `server_side_encryption_configuration`, a public `acl`), and **state-backend** secrets
   (an unencrypted remote backend) — `inferred` where the real exposure depends on the
-  deployed account; route those to `/ce-probe-sec`.
+  deployed account; route those to `/core-engineering:ce-probe-sec`.
 
 ## Module limitations (layered on the spine's)
 - HCL is hand-scanned, not parsed: `for_each`, `dynamic` blocks, locals, and computed

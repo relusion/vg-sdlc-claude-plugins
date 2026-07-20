@@ -26,8 +26,8 @@ Then provide the evidence in this order:
 
 1. **Run boundary:** approved scope, baseline, budget/caps, and why the run ended.
 2. **Parked, failed, and blocked work:** exact decision or failure, evidence, affected
-   dependents, and owning follow-up (`/ce-plan`, `/ce-spec`, `/ce-implement`,
-   `/ce-debug`, or `/ce-verify`).
+   dependents, and owning follow-up (`/core-engineering:ce-plan`, `/core-engineering:ce-spec`, `/core-engineering:ce-implement`,
+   `/core-engineering:ce-debug`, or `/core-engineering:ce-verify`).
 3. **Decisions and assumptions:** provisional decisions first. The human accepts or
    overrides each material assumption. An override does not silently patch the
    result; it routes the affected feature and dependents back through the fixed

@@ -65,15 +65,15 @@ decomposition — route to **Stage R** (`${CLAUDE_SKILL_DIR}/stage-R-revision.md
 Execution Contract item 17) rather than Stages 1–9. Three sub-cases:
 
 - **Unambiguous revision** — an explicit `revise:` argument (`revise=docs/plans/<slug>` or a
-  `revise:` input), a `/ce-patch` text handoff naming this existing plan's slug, or a `/ce-spec`
-  structural Boundary Conflict escalation (§3.3 / §3.5 / §3.6) / `/ce-implement` Boundary
+  `revise:` input), a `/core-engineering:ce-patch` text handoff naming this existing plan's slug, or a `/core-engineering:ce-spec`
+  structural Boundary Conflict escalation (§3.3 / §3.5 / §3.6) / `/core-engineering:ce-implement` Boundary
   Conflict naming this plan. **Load `stage-R-revision.md` and start Stage R.0** — no
   disambiguation needed; Stage R's own R.3 gate confirms the delta.
 - **Interrupted revision** — a written plan **and** a `docs/plans/.drafts/<slug>/scratch.md`
   coexist. A completed plan normally has no scratch (Stage 9 / R.6 deletes it), so the pair
   means a prior **revision** was interrupted. Load `stage-R-revision.md` and resume at the
   last passed gate (Stage R → *Resume*) — do not re-run R.0 or re-ask the confirmed delta.
-- **Slug collision** — a bare `/ce-plan <description>` whose derived slug happens to match an
+- **Slug collision** — a bare `/core-engineering:ce-plan <description>` whose derived slug happens to match an
   existing written plan, with no revision signal. **Never silently overwrite.** Present the
   routing choice, each option labelled by its consequence (HITL Gate Standard R1):
 
@@ -91,7 +91,7 @@ an **interrupted prior fresh run of this same slug**. Read
 Checkpoint & Resume*). If it does not exist, this is a fresh run — continue to *Sibling
 Plans* below and do nothing else here.
 
-If a scratch **does** exist, a prior `/ce-plan` for this slug was interrupted after at
+If a scratch **does** exist, a prior `/core-engineering:ce-plan` for this slug was interrupted after at
 least one passed gate. Read it, identify the **last passed gate** (the last `## <gate> —
 passed` block) and its recorded `state`, then offer the recovery choice — each option
 labelled by its consequence (HITL Gate Standard R1):
@@ -107,7 +107,7 @@ Markdown (the *Two-Surface Rendering Rule*, Stage 5.3), and proceed — do **not
 codebase profile (1.2) or re-ask the Stage 1.4 questions the scratch already answered. On
 **Start fresh**: delete `docs/plans/.drafts/<slug>/`, then run this stage normally. The
 scratch is a resume transcript, never planning input — it is never registered in
-`plans.json` and never fed to `/ce-spec`.
+`plans.json` and never fed to `/core-engineering:ce-spec`.
 
 ---
 
@@ -206,7 +206,7 @@ Detect:
 - **dependency manifest path + registry-existence-check command** — the manifest a
   new dependency is declared in (`package.json`, `pyproject.toml` / `requirements.txt`,
   …) and the one-line command that confirms a package exists on the registry (`npm view
-  <pkg>`, `pip index versions <pkg>`, …). Recorded so `/ce-implement`'s dependency-existence
+  <pkg>`, `pip index versions <pkg>`, …). Recorded so `/core-engineering:ce-implement`'s dependency-existence
   step knows **which registry to query** for a new package, and so reviewers know which
   manifest holds the direct deps (the slopsquatting defense). *(The `dep-guard.py`
   gate auto-detects manifests from the diff itself — it consumes neither field; this
@@ -396,8 +396,8 @@ Record the reason for the tier.
 
 **This subsection applies only when a project brief is supplied through the
 dedicated brief channel.** Detect a brief **only** from an explicit brief argument
-— `brief=docs/briefs/<slug>.md` passed on the `/ce-plan` invocation
-line, or a `brief:` input when `plan` is invoked directly (e.g. by `/ce-brief`
+— `brief=docs/briefs/<slug>.md` passed on the `/core-engineering:ce-plan` invocation
+line, or a `brief:` input when `plan` is invoked directly (e.g. by `/core-engineering:ce-brief`
 at handoff). A brief that merely *also* appears in the project-wide **Reference
 Documents** list is auto-loaded for context (Stage 1.5) but does **not** arm this
 skip — the dedicated channel is the only trigger, so the brief side and plan side

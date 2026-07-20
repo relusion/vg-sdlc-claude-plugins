@@ -87,7 +87,7 @@ Then attest with `AskUserQuestion`:
 
 | Option | Result |
 |---|---|
-| Confirm | Accept the assignment; each `TZ-NNN` becomes a `[SECURITY]` obligation the feature's `/ce-spec` must cover. |
+| Confirm | Accept the assignment; each `TZ-NNN` becomes a `[SECURITY]` obligation the feature's `/core-engineering:ce-spec` must cover. |
 | Add a threat | A feature crosses a boundary the model missed — name it; add the `TZ-NNN`. |
 | Remove a threat (state the reason) | A flagged feature has no real surface — record the reason; *surface-don't-force* makes this a consented exclusion, not a silent drop. |
 
@@ -138,7 +138,7 @@ Then attest with `AskUserQuestion`:
 
 | Option | Result |
 |---|---|
-| Confirm | Accept the assignment; each `IC-NNN` becomes a `[CONTRACT]` obligation the feature's `/ce-spec` must cover. |
+| Confirm | Accept the assignment; each `IC-NNN` becomes a `[CONTRACT]` obligation the feature's `/core-engineering:ce-spec` must cover. |
 | Add an invariant | A cross-feature edge / shared noun the model missed — name it; add the `IC-NNN`. |
 | Remove an invariant (state the reason) | A flagged edge has no real protocol residue (e.g. a synchronous in-proc call) — record the reason; *surface-don't-force* makes this a consented exclusion, not a silent drop. |
 
@@ -297,7 +297,7 @@ Write one `features/<id>.md` per feature; `feature-plan.md` carries only the com
 
 For a single-feature plan accepted at the Sizing Gate, write the single-file **Recommended Minimal Output** instead of the directory (see `${CLAUDE_SKILL_DIR}/artifact-template.md`).
 
-Also: write the `relates_to` captured in Stage 0's Sibling Plans subsection into `plan.json`. Then **update `docs/plans/plans.json`** (the repo's plan registry) — create it if missing, append this plan's entry (slug, description, `relates_to`). The registry is what `/ce-spec` and `/ce-implement` consult to resolve feature ids across plans.
+Also: write the `relates_to` captured in Stage 0's Sibling Plans subsection into `plan.json`. Then **update `docs/plans/plans.json`** (the repo's plan registry) — create it if missing, append this plan's entry (slug, description, `relates_to`). The registry is what `/core-engineering:ce-spec` and `/core-engineering:ce-implement` consult to resolve feature ids across plans.
 
 **Record the plan tier.** Write `"plan_tier": "light"` into `plan.json` (top-level, beside
 `plan_revision` — see `${CLAUDE_SKILL_DIR}/artifact-template.md` → *Plan Manifest*) whenever
@@ -305,26 +305,26 @@ the run entered the **light-plan tier** (§4.3) and did **not** expand back at 8
 `"standard"` or omit the key otherwise (**absent ⇒ `standard`**). Also append a
 `plan-tier: light` entry to §13 Notes naming **which gates were merged** — the standalone
 Candidate Decision folded into Final Approval, and (when it fired) the combined §8.2.3
-attestation in place of the separate 8.2.1 / 8.2.2 — so `/ce-plan-audit` and a later Stage R
+attestation in place of the separate 8.2.1 / 8.2.2 — so `/core-engineering:ce-plan-audit` and a later Stage R
 read the merged-gate set from the artifact instead of re-deriving it. This is a **recorded
 proportionality choice**, the same discipline as the Sizing Gate's, not a silent skip.
 
-**Lint the written plan (write-time gate).** Immediately after the plan directory, `plan.json`, and `plans.json` are written — and **before** deleting the gate-checkpoint scratch — run the structural-integrity lint over the *persisted* artifact, so nothing closes on a plan that fails a mechanical invariant the ~40-item Validation Checklist below only self-attests. This is the on-disk twin of `/ce-plan-audit`'s hard lint, run here at the moment of writing:
+**Lint the written plan (write-time gate).** Immediately after the plan directory, `plan.json`, and `plans.json` are written — and **before** deleting the gate-checkpoint scratch — run the structural-integrity lint over the *persisted* artifact, so nothing closes on a plan that fails a mechanical invariant the ~40-item Validation Checklist below only self-attests. This is the on-disk twin of `/core-engineering:ce-plan-audit`'s hard lint, run here at the moment of writing:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
 ```
 
-Dispose by exit code (the same contract `/ce-spec`'s `spec-lint` follows — the lint **supplements** the checklist, never replaces it):
+Dispose by exit code (the same contract `/core-engineering:ce-spec`'s `spec-lint` follows — the lint **supplements** the checklist, never replaces it):
 
 - **PASS (exit 0)** → the H1–H8 invariants hold on disk. Annotate the checklist items the lint covers — dependency direction + cycle-freedom (H5/H6), referential integrity (H1/H3/H4), bridge resolution (H7), re-projection presence (H8) — as **`[machine-verified]`**; they **stay** in the checklist. Proceed to delete the scratch.
 - **FAIL (exit 1)** → do **not** close on the failing artifact and do **not** delete the scratch (the run stays resumable). Present each hard failure and **return to the stage that owns it**: `H5`/`H6` → Stage 6 ordering; `H1`/`H3`/`H4`/`H7`/`H8` → re-write the offending file. Re-run the lint after the fix.
 - **Could-not-run (exit 2)** → the lint could not parse its inputs: fall back to the manual Validation Checklist **loudly** ("plan-lint did not run — checklist verified by hand"), recorded as a degradation. Never silently skip.
-- **Single-feature minimal plan (no `plan.json`)** → record the lint line as **`N/A — single-feature minimal plan`** (mirroring `/ce-plan-audit`) and proceed; by construction there is no manifest to lint.
+- **Single-feature minimal plan (no `plan.json`)** → record the lint line as **`N/A — single-feature minimal plan`** (mirroring `/core-engineering:ce-plan-audit`) and proceed; by construction there is no manifest to lint.
 
 **Delete the gate-checkpoint scratch on success.** After the plan directory, `plan.json`, and `plans.json` are all written, delete `docs/plans/.drafts/<slug>/` (SKILL.md → *Gate Checkpoint & Resume*) — the final artifact now exists, so the resume transcript has served its purpose. Delete it **only** on a successful write; an abort or crash before this point leaves the scratch so the run stays resumable. Removing an emptied `.drafts/` parent when no other drafts remain is optional cleanup, never required.
 
-**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "plan"`, `feature: null`) to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema — derive from data already produced, label any token figure an estimate, and **never** let this block or fail the write. It powers `/ce-retro`.
+**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "plan"`, `feature: null`) to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema — derive from data already produced, label any token figure an estimate, and **never** let this block or fail the write. It powers `/core-engineering:ce-retro`.
 
 ---
 
@@ -408,7 +408,7 @@ Next feature:
 01-feature-slug
 
 Run:
- /ce-spec 01-feature-slug
+ /core-engineering:ce-spec 01-feature-slug
 ```
 
 Do not start downstream specification automatically unless the user explicitly asks.

@@ -13,7 +13,7 @@ want to get useful output in the first session.
 - **A git repository to work in** — every artifact the skills write is plain
   markdown/JSON, meant to be committed and reviewed like code.
 - **Model-spend awareness** — skills make model calls on your plan or API key;
-  see [What It Costs](#what-it-costs) below for measured floors.
+  see [What It Costs](#what-it-costs) below for historical budget caps.
 
 ## Install
 
@@ -22,8 +22,8 @@ claude plugin marketplace add relusion/vg-sdlc-claude-plugins
 claude plugin install core-engineering@vg-coding
 ```
 
-The upstream idea/market skills (`/ce-idea-scout`, `/ce-idea-score`,
-`/ce-market-scan`) ship as a small **companion** plugin. Install it only if you
+The upstream idea/market skills (`/product-discovery:ce-idea-scout`, `/product-discovery:ce-idea-score`,
+`/product-discovery:ce-market-scan`) ship as a small **companion** plugin. Install it only if you
 also want the product-discovery front-end — the core engineering framework does
 not need it:
 
@@ -32,13 +32,13 @@ claude plugin install product-discovery@vg-coding
 ```
 
 Then open a project repository in Claude Code and invoke skills directly with
-their `ce-` names, for example:
+their plugin-qualified names, for example:
 
 ```text
-/ce-ask Where is login rate limiting enforced?
-/ce-impact Add CSV export to the orders report.
-/ce-init --write
-/ce-brief We need team invitations with role-based access.
+/core-engineering:ce-ask Where is login rate limiting enforced?
+/core-engineering:ce-impact Add CSV export to the orders report.
+/core-engineering:ce-init --write
+/core-engineering:ce-brief We need team invitations with role-based access.
 ```
 
 ### Watch it catch a cheat (60 seconds, offline)
@@ -59,42 +59,44 @@ readable from across the room.
 
 ## First 10 Minutes
 
-**One command to remember in week one:** `/ce-go <what you want>`. It is the
+**One command to remember in week one:** `/core-engineering:ce-go <what you want>`. It is the
 front door: describe the outcome in plain language ("why does export fail",
 "score this idea", "is this code safe to ship") and it inspects repo state (a
 plan on disk? a spec for the named feature? a running target?), routes to the
 right skill, shows its reasoning, and asks you to confirm before it hands off.
-It routes, never executes — so instead of learning ~30 skill names, you learn
-one. The steps below are what `/ce-go` routes *to*; run them directly once you
-know which one you want.
+It routes, never executes: after confirmation it starts a model-invocable skill,
+or prints the exact command when the destination requires direct human
+invocation. Instead of learning ~30 skill names, you learn one. The steps below
+are what `/core-engineering:ce-go` routes *to*; run them directly once you know which one you want.
 
 ```text
-/ce-go The export job silently stops after a few hundred rows.
+/core-engineering:ce-go The export job silently stops after a few hundred rows.
 ```
 
-Expected output: a single routing gate — e.g. *"Routing to `/ce-debug`
+Expected output: a single routing gate — e.g. *"Routing to `/core-engineering:ce-debug`
 because a failing component matches the diagnosis lane — Proceed / Pick another /
-Abort"* — then it starts the chosen skill. It writes nothing itself.
+Abort"* — then it starts the chosen skill or prints its direct command. It writes
+nothing itself.
 
 1. Bootstrap repository policy:
 
    ```text
-   /ce-init --write
+   /core-engineering:ce-init --write
    ```
 
    Expected output: `docs/plans/repo-profile.json`, `vc-policy.md`,
    `review-policy.md`, and `patterns.md` when missing, plus the
    `.claude/ce-write-scope.json` deny-only write-scope baseline (git internals
    and the lease file itself are never agent-writable). It also appends
-   `.gitignore` entries for the four runtime guard/session files
+   `.gitignore` entries for the five runtime guard/session files
    (`.claude/ce-write-scope.json`, `.claude/ce-write-scope.session.json`,
-   `.claude/ce-guard-log.jsonl`, `.claude/ce-session-model.json`) when they are
-   absent.
+   `.claude/ce-guard-log.jsonl`, `.claude/ce-session-model.json`, and
+   `.claude/ce-net-policy.json`) when they are absent.
 
 2. Ask one grounded question:
 
    ```text
-   /ce-ask Where is authentication enforced?
+   /core-engineering:ce-ask Where is authentication enforced?
    ```
 
    Expected output: a short answer with `file:line` citations and no file
@@ -103,7 +105,7 @@ Abort"* — then it starts the chosen skill. It writes nothing itself.
 3. Analyze one proposed change:
 
    ```text
-   /ce-impact Add CSV export to the orders report.
+   /core-engineering:ce-impact Add CSV export to the orders report.
    ```
 
    Expected output: affected components, blast radius, rough sizing, open
@@ -112,8 +114,8 @@ Abort"* — then it starts the chosen skill. It writes nothing itself.
 4. If the work is real, start the planning path:
 
    ```text
-   /ce-brief Add team invitations with role-based access.
-   /ce-plan <brief-or-project-description>
+   /core-engineering:ce-brief Add team invitations with role-based access.
+   /core-engineering:ce-plan <brief-or-project-description>
    ```
 
    Expected output: `docs/briefs/<slug>.md`, then `docs/plans/<slug>/`.
@@ -121,48 +123,51 @@ Abort"* — then it starts the chosen skill. It writes nothing itself.
 5. If the work is genuinely small:
 
    ```text
-   /ce-patch Fix the typo in the archived item status label.
+   /core-engineering:ce-patch Fix the typo in the archived item status label.
    ```
 
    Expected output: a mechanical admission screen for a change bounded to at
    most two files. An admitted patch runs test-first, shows the diff and
    evidence at one human gate, and records one line in
    `docs/plans/express-log.jsonl` after acceptance. If the screen is uncertain
-   or the change is structural, `/ce-patch` stops and routes to `/ce-plan`.
+   or the change is structural, `/core-engineering:ce-patch` stops and routes to `/core-engineering:ce-plan`.
 
 ## Common First Runs
 
 | Situation | Start Here | What You Get |
 |---|---|---|
-| I am using this plugin in a repo for the first time | `/ce-init --write` | Repo profile, starter SDLC policy artifacts, and the write-scope baseline |
-| I need to understand code | `/ce-ask` | Cited answer, no writes |
-| I need to refine a work item | `/ce-impact` | Blast-radius read and open questions |
-| I have a raw feature idea | `/ce-brief` -> `/ce-plan` | Brief, plan, feature decomposition |
-| I have an approved plan feature | `/ce-spec` -> `/ce-implement` | `ce-spec.md`, `tasks.json`, code, tests, verification |
-| I need confidence before handoff | `/ce-review` + `/ce-verify` | Review findings and behavior-verification evidence |
-| I need release readiness | `/ce-ship-release` | Release decision package and changelog proposal |
-| I need a risk probe | `/ce-probe-infra`, `/ce-probe-sec`, `/ce-probe-perf`, or `/ce-ux-audit` (UX) | Evidence-backed findings within each probe boundary |
+| I am using this plugin in a repo for the first time | `/core-engineering:ce-init --write` | Repo profile, starter SDLC policy artifacts, and the write-scope baseline |
+| I need to understand code | `/core-engineering:ce-ask` | Cited answer, no writes |
+| I need to refine a work item | `/core-engineering:ce-impact` | Blast-radius read and open questions |
+| I have a raw feature idea | `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` | Brief, plan, feature decomposition |
+| I have an approved plan feature | `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` | `ce-spec.md`, `tasks.json`, code, tests, verification |
+| I need confidence before handoff | `/core-engineering:ce-review` + `/core-engineering:ce-verify` | Review findings and behavior-verification evidence |
+| I need release readiness | `/core-engineering:ce-ship-release` | Release decision package and changelog proposal |
+| I need a risk probe | `/core-engineering:ce-probe-infra`, `/core-engineering:ce-probe-sec`, `/core-engineering:ce-probe-perf`, or `/core-engineering:ce-ux-audit` (UX) | Evidence-backed findings within each probe boundary |
 
 For the full router, use `docs/USAGE-MATRIX.md`. For recipes with stop
 conditions, use `docs/WORKFLOW-RECIPES.md`.
 
 ## What It Costs
 
-Skills make model calls on your Claude plan or API key. The floors below were
-measured by the live eval harness on deliberately tiny fixture repos — treat
-them as floors, not averages; real repositories cost more. Method, caveats, and
-reproduction commands are in [docs/BENCHMARKS.md](./BENCHMARKS.md):
+Skills make model calls on your Claude plan or API key. These are the configured
+caps on successful 2026-06-27 runs against deliberately tiny fixtures, not
+actual spend, current-contract passes, or forecasts. Every current scenario
+awaits a clean rerun after contract changes. Method, recency status, and reproduction commands
+are in [docs/BENCHMARKS.md](./BENCHMARKS.md):
 
-| Path | Measured floor (USD) |
+| Path | Historical per-run cap (USD) |
 |---|---|
-| `/ce-ask` grounded answer · `/ce-impact` blast-radius read | ~$1 |
-| `/ce-review` six-lens review of one feature | ~$2 |
-| `/ce-plan` decomposition · `/ce-implement` one feature · `/ce-probe-infra` audit | ~$3 |
-| `/ce-spec` one implementation-ready spec · `/ce-patch` lane | ~$4 |
+| `/core-engineering:ce-ask` grounded answer · `/core-engineering:ce-impact` blast-radius read | $1 |
+| `/core-engineering:ce-review` six-lens review of one feature | $2 |
+| `/core-engineering:ce-plan` decomposition · `/core-engineering:ce-implement` one feature · `/core-engineering:ce-probe-infra` audit | $3 |
+| `/core-engineering:ce-spec` one implementation-ready spec · prior `/core-engineering:ce-patch` contract | $4 |
 
-Add those floors up and one tiny feature through plan → spec → implement →
-review is ≈ $12 of model calls. Anything autonomous is budget-capped up front:
-`/ce-auto-build` asks for a token budget at Stage 0, and executed evals refuse
+Historically, those four calls authorized up to $12 for one tiny feature through
+plan → spec → implement → review; actual spend was not retained. Use a
+project-specific pilot before budgeting.
+Anything autonomous is budget-capped up front:
+`/core-engineering:ce-auto-build` asks for a token budget at Stage 0, and executed evals refuse
 to run without an explicit `--max-budget-usd`.
 
 ## Safety Boundaries
@@ -189,13 +194,13 @@ The framework is intentionally conservative:
 
 | Symptom | Likely Cause | Next Step |
 |---|---|---|
-| A skill picked the wrong lane | The request was ambiguous or too broad | Invoke the intended skill directly, for example `/ce-impact ...` |
-| `/ce-impact` refuses | The change description is too thin | Add subject, action, and desired outcome |
-| `/ce-patch` routes to `/ce-plan` before editing | The screen found more than 2 files, a reviewer-trigger surface, a cross-feature collision, a dependency manifest, or uncertain scope | Narrow the request or continue with `/ce-plan`; patch never silently expands its scope |
+| A skill picked the wrong lane | The request was ambiguous or too broad | Invoke the intended skill directly, for example `/core-engineering:ce-impact ...` |
+| `/core-engineering:ce-impact` refuses | The change description is too thin | Add subject, action, and desired outcome |
+| `/core-engineering:ce-patch` routes to `/core-engineering:ce-plan` before editing | The screen found more than 2 files, a reviewer-trigger surface, a cross-feature collision, a dependency manifest, or uncertain scope | Narrow the request or continue with `/core-engineering:ce-plan`; patch never silently expands its scope |
 | A probe refuses | Target, environment, or authorization is unsafe or unclear | Use a local/dedicated target and pass the consent gate |
 | A release is NO-GO | Verification, review, rollback, or supply-chain evidence is missing | Run the routed skill or have the human accept the gap |
-| Claude asked me to confirm a `git push` / PR command | The `git-guard` hook backstop is working: shared-history operations (`git push`, `gh pr create`/`merge`, commits on the protected branch) default to an `ask` confirmation | Approve or refuse the prompt. To hard-enforce instead, set the per-operation env tiers `CE_GIT_GUARD_PUSH` / `CE_GIT_GUARD_PR` / `CE_GIT_GUARD_COMMIT` to `deny` (see `plugins/core-engineering/hooks/README.md`) |
-| A file edit was denied mid-skill | A read-only skill holds the session write lease and the edit is outside its declared scope | If the lease belongs to a **dead** session (a different session set it, or it is older than the lease TTL), the guard auto-replaces it with the deny-only baseline and asks you **once** — approve and continue; there is no file to hand-delete. If it belongs to a **live** skill, the edit really is out of scope — let that skill finish or reconcile with its write contract. Only in the rare ambiguous case (the host sent no session id, or a pre-upgrade lease has no id) does the deny fall back to the manual lift the message names (delete `.claude/ce-write-scope.json`) |
+| Claude asked me to confirm a `git push` / PR command | The `git-guard` backstop is preserving human authority over shared history | Approve or refuse the prompt. For hard-deny tiers and environment variables, see the [hooks guide](../plugins/core-engineering/hooks/README.md). |
+| A file edit was denied mid-skill | A read-only skill holds the session write lease and the edit is outside its scope | Let a live skill finish. For a stale or ambiguous lease, follow the guard's recovery message and the [hooks guide](../plugins/core-engineering/hooks/README.md); do not bypass a live lease. |
 
 ## Where To Go Next
 

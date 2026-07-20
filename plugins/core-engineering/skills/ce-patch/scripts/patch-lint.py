@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic admission and diff checks for the express-only `/ce-patch` lane.
+"""Deterministic admission and diff checks for the express-only `/core-engineering:ce-patch` lane.
 
 The checker accepts a transient JSON candidate stub:
 
@@ -11,8 +11,8 @@ no-op alias for callers written before the lane became express-only.
 
 Exit contract:
     0  pass
-    1  policy refusal; route to /ce-plan
-    2  invalid/inconclusive input or tooling; route to /ce-plan
+    1  policy refusal; route to /core-engineering:ce-plan
+    2  invalid/inconclusive input or tooling; route to /core-engineering:ce-plan
 """
 
 from __future__ import annotations
@@ -424,7 +424,7 @@ def emit(mode: str, candidate: Path, hard: list[str], advisory: list[str], as_js
                     "candidate": str(candidate),
                     "hard_failures": hard,
                     "advisory": advisory,
-                    "route": "/ce-plan" if hard else None,
+                    "route": "/core-engineering:ce-plan" if hard else None,
                 },
                 indent=2,
             )
@@ -436,7 +436,7 @@ def emit(mode: str, candidate: Path, hard: list[str], advisory: list[str], as_js
         print(f"\n  FAIL — {len(hard)} refusal(s):")
         for finding in hard:
             print(f"    x {finding}")
-        print("\n  -> route directly to /ce-plan; do not edit or widen /ce-patch.")
+        print("\n  -> route directly to /core-engineering:ce-plan; do not edit or widen /core-engineering:ce-patch.")
     else:
         print("\n  PASS — express-only patch checks hold.")
     print()
@@ -445,7 +445,7 @@ def emit(mode: str, candidate: Path, hard: list[str], advisory: list[str], as_js
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Admission and post-diff gate for the express-only /ce-patch lane."
+        description="Admission and post-diff gate for the express-only /core-engineering:ce-patch lane."
     )
     parser.add_argument(
         "candidate",
@@ -454,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--express",
         action="store_true",
-        help="backward-compatible alias; /ce-patch is always express-only",
+        help="backward-compatible alias; /core-engineering:ce-patch is always express-only",
     )
     parser.add_argument("--post", action="store_true", help="check the actual diff")
     parser.add_argument("--base", help="git commit captured before patch-owned edits")
@@ -479,13 +479,13 @@ def main(argv: list[str] | None = None) -> int:
                         "mode": mode,
                         "candidate": str(candidate),
                         "message": str(exc),
-                        "route": "/ce-plan",
+                        "route": "/core-engineering:ce-plan",
                     }
                 )
             )
         else:
             print(f"patch-lint [{mode}]: ERROR — {exc}", file=sys.stderr)
-            print("  -> route directly to /ce-plan; admission is inconclusive.", file=sys.stderr)
+            print("  -> route directly to /core-engineering:ce-plan; admission is inconclusive.", file=sys.stderr)
         return 2
     return emit(mode, candidate, hard, advisory, args.json)
 

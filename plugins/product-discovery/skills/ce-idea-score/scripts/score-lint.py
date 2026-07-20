@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""score-lint.py — the Verdict-Honesty gate for /ce-idea-score.
+"""score-lint.py — the Verdict-Honesty gate for /product-discovery:ce-idea-score.
 
-`ce-idea-score` is a VERDICT-RENDERING tool (unlike /ce-market-scan, whose scan-lint.py
+`ce-idea-score` is a VERDICT-RENDERING tool (unlike /product-discovery:ce-market-scan, whose scan-lint.py
 forbids verdicts via the Scope Lock). A verdict is permitted here; an *unaccountable*
 verdict is not. This external checker over the composed scorecard enforces the
 **Verdict-Honesty Contract**: the verdict may be rendered, but it may never rest on
@@ -342,7 +342,7 @@ def emit(path: Path, hard: list, advisory: list, as_json: bool) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Verdict-Honesty gate for an /ce-idea-score artifact.")
+    p = argparse.ArgumentParser(description="Verdict-Honesty gate for an /product-discovery:ce-idea-score artifact.")
     p.add_argument("artifact", help="the composed idea-score markdown file (docs/idea-scores/<slug>/<date>.md)")
     p.add_argument("--json", action="store_true", help="machine-readable result")
     args = p.parse_args(argv)

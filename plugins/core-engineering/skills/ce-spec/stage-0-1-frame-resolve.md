@@ -41,7 +41,7 @@ If any hard dependency is neither specced nor built, **stop**:
 
 ```text
 Cannot spec <id>: hard dependency <dep> is not yet specified or built.
-Hard dependencies must be specified first. Run: /ce-spec <dep>
+Hard dependencies must be specified first. Run: /core-engineering:ce-spec <dep>
 ```
 
 If a dependency's build state is genuinely unclear, ask the human (material) — do
@@ -68,7 +68,7 @@ Present the Feature Frame. Confirm with the human:
 |---|---|
 | Proceed | Continue to Stage 1 |
 | Wrong feature | Re-select the feature |
-| Boundary needs revision first | Escalate to `/ce-plan`; stop |
+| Boundary needs revision first | Escalate to `/core-engineering:ce-plan`; stop |
 | Abort | Exit without writing |
 
 ---

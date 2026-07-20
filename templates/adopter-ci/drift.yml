@@ -23,9 +23,9 @@
 # LOCK VOCABULARY — every finding routes to the skill that owns the fix
 #   drift_scan speaks the SAME lock vocabulary the interactive skills use, so a
 #   red run tells a human exactly where to go:
-#     * "Scope Lock drift" -> /ce-plan   (plan artifact / registry integrity;
+#     * "Scope Lock drift" -> /core-engineering:ce-plan   (plan artifact / registry integrity;
 #       a spec dir that resolves to no plan feature)
-#     * "Scope Lock drift"     -> /ce-spec   (spec referential integrity; a
+#     * "Scope Lock drift"     -> /core-engineering:ce-spec   (spec referential integrity; a
 #       phantom [SECURITY: TZ-NNN]; a disarmed H5 security-coverage gate)
 #
 # THREAT MODEL — the scan must judge unbiased, immutable inputs
@@ -154,7 +154,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Build the issue body from the machine verdict — the lock-vocabulary
-          # findings, verbatim, so the issue routes to /ce-plan or /ce-spec.
+          # findings, verbatim, so the issue routes to /core-engineering:ce-plan or /core-engineering:ce-spec.
           body="$(python3 - <<'PY'
           import json
           try:
@@ -168,7 +168,7 @@ jobs:
           for f in hard:
               print(f"- **[{f.get('code')}]** {f.get('message')}")
           print("\nEach finding names its lock and routes to the owning skill "
-                "(plan-layer Scope Lock -> /ce-plan, spec-layer Scope Lock -> /ce-spec). "
+                "(plan-layer Scope Lock -> /core-engineering:ce-plan, spec-layer Scope Lock -> /core-engineering:ce-spec). "
                 "Full verdict: `drift-verdict.json` in the workflow run artifacts/log.")
           PY
           )"

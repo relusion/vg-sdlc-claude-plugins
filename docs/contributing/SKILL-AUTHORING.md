@@ -94,10 +94,10 @@ applies" and a number signals "you will pass them all."
   - `## Cross-cutting rule — Stuck or Ambiguous → Ask, Don't Guess` — core:
     stop, ask one short direct question, record in **Open Questions / Stops**.
 - **One evidence meta-scale.** Every genre that reports findings by evidence strength
-  keeps its own domain tag strings — `/ce-probe-sec`'s `confirmed`/`suspected`/`passive`,
-  `/ce-probe-perf`'s `measured`/`observed`/`inferred`, `/ce-probe-infra`'s
-  `scanner-confirmed`/`manifest-read`/`inferred`, `/ce-market-scan`'s
-  `confirmed`/`suspected`/`unknown`, `/ce-domain`'s `recorded`/`enforced`/`inferred`
+  keeps its own domain tag strings — `/core-engineering:ce-probe-sec`'s `confirmed`/`suspected`/`passive`,
+  `/core-engineering:ce-probe-perf`'s `measured`/`observed`/`inferred`, `/core-engineering:ce-probe-infra`'s
+  `scanner-confirmed`/`manifest-read`/`inferred`, `/product-discovery:ce-market-scan`'s
+  `confirmed`/`suspected`/`unknown`, `/core-engineering:ce-domain`'s `recorded`/`enforced`/`inferred`
   (a deliberate two-to-one source split within `read`: human-authored artifact vs
   enforcing code) — because lint scripts (`scan-lint.py`) and the
   reports parse those exact strings and the epistemic distinctions are load-bearing.

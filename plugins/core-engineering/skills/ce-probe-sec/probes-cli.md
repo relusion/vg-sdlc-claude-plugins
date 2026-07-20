@@ -1,6 +1,6 @@
 # Sec-Probe Module — CLI (console apps)
 
-Probe content for **CLI / console** targets. Loaded by the `/ce-probe-sec` spine
+Probe content for **CLI / console** targets. Loaded by the `/core-engineering:ce-probe-sec` spine
 (`SKILL.md`) at Stage 0 when the target is a binary or command. The spine owns the
 arc, evidence model, triage, and report; this module owns the consent-gate choice,
 the sandbox model, tool detection, and the probe taxonomy.
@@ -74,5 +74,5 @@ the evidence itself.
 - **AI-driven CLI fuzzing is shallow** vs coverage-guided fuzzers (AFL++, libFuzzer). For depth, write a harness and run those; this module is a first cut.
 - **Isolation is only as strong as the mechanism** — container > ulimit-subprocess. The fallback's weaker isolation is acknowledged at Gate B Q2.
 - **Unreachable surfaces:** interactive prompts, GUI sub-processes, and anything requiring real credentials/network the sandbox withholds.
-- **Binary-only** limits source-level analysis — pair with `/ce-review` for the code side.
+- **Binary-only** limits source-level analysis — pair with `/core-engineering:ce-review` for the code side.
 - **Destructive-only classes** (e.g. some TOCTOU) are reported `suspected`, not attempted.

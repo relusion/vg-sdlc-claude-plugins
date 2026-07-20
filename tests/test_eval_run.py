@@ -41,7 +41,20 @@ class EvalRun(unittest.TestCase):
             metadata = json.loads((out / "metadata.json").read_text())
             self.assertTrue(metadata["dry_run"])
             self.assertFalse(metadata["bare"])
+            self.assertEqual(metadata["grade_status"], "not-run")
+            self.assertIsNone(metadata["grade_returncode"])
+            self.assertEqual(metadata["graded_scenarios"], [])
+            self.assertIsInstance(metadata["source_clean"], bool)
+            self.assertIn(len(metadata["git_head"]), (40, 64))
+            self.assertNotEqual(metadata["run_id"], out.name)
+            self.assertTrue(metadata["started_at"].endswith("Z"))
+            self.assertTrue(metadata["completed_at"].endswith("Z"))
             self.assertEqual(metadata["records"][0]["id"], "EVAL-003")
+            summary = json.loads((out / "summary.json").read_text())
+            self.assertEqual(summary["run_id"], metadata["run_id"])
+            self.assertEqual(summary["scenarios"], [{
+                "id": "EVAL-003", "skill": "ce-impact", "status": "planned",
+            }])
             self.assertTrue((out / "work" / "EVAL-003" / "README.md").is_file())
             self.assertFalse((out / "EVAL-003.md").exists())
 
@@ -159,6 +172,105 @@ class EvalRun(unittest.TestCase):
             self.assertEqual(res.returncode, 0, f"stdout={res.stdout}\nstderr={res.stderr}")
             output = (out / "EVAL-003.md").read_text()
             self.assertIn("Claude Code Eval <claude-code-eval@example.invalid>", output)
+            state = json.loads((out / "metadata.json").read_text())["records"][0]["git_state"]
+            self.assertEqual(state["before"], state["after"])
+            self.assertEqual(state["after"]["changed_paths"], [])
+            self.assertEqual(state["after"]["ignored_files_sha256"], {})
+            metadata = json.loads((out / "metadata.json").read_text())
+            self.assertEqual(metadata["grade_status"], "not-run")
+
+    def test_deterministic_grade_is_recorded_in_live_receipt(self):
+        for output, expected_code, expected_grade in (
+            ("Not analyzable yet — too thin to ground\n", 0, "pass"),
+            ("unsupported claim\n", 1, "failed"),
+        ):
+            with self.subTest(expected_grade=expected_grade), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                out = root / "run"
+                fake = root / "fake-claude"
+                fake.write_text(f"#!/bin/sh\nprintf '%s' {output!r}\n")
+                fake.chmod(0o755)
+                res = subprocess.run(
+                    [
+                        sys.executable,
+                        str(SCRIPT),
+                        "--scenario", "EVAL-003",
+                        "--execute",
+                        "--max-budget-usd", "1.00",
+                        "--claude-bin", str(fake),
+                        "--out-dir", str(out),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                self.assertEqual(res.returncode, expected_code, res.stdout + res.stderr)
+                metadata = json.loads((out / "metadata.json").read_text())
+                self.assertEqual(metadata["records"][0]["status"], "pass")
+                self.assertEqual(metadata["grade_status"], expected_grade)
+                self.assertEqual(metadata["grade_returncode"], expected_code)
+                self.assertEqual(
+                    metadata["graded_scenarios"],
+                    ["EVAL-003"] if expected_code == 0 else [],
+                )
+                summary = json.loads((out / "summary.json").read_text())
+                self.assertEqual(summary["grade_status"], expected_grade)
+                self.assertEqual(summary["grade_returncode"], expected_code)
+                self.assertEqual(summary["scenarios"][0]["returncode"], 0)
+
+    def test_live_run_refuses_to_overwrite_nonempty_output_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "existing-run"
+            out.mkdir()
+            marker = out / "receipt.json"
+            marker.write_text("preserve me", encoding="utf-8")
+            fake = root / "fake-claude"
+            fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            fake.chmod(0o755)
+            res = run(
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 2)
+            self.assertIn("must be new or empty", res.stderr)
+            self.assertEqual(marker.read_text(encoding="utf-8"), "preserve me")
+
+    def test_unignored_in_repo_output_makes_receipt_unpromotable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_eval_repo(Path(tmp))
+            fake = root / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\nprintf '%s\\n' 'Not analyzable yet — too thin to ground'\n"
+            )
+            fake.chmod(0o755)
+            subprocess.run(["git", "-C", str(root), "init", "--quiet"], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "--all"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(root),
+                    "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                    "commit", "--quiet", "--no-gpg-sign", "-m", "baseline",
+                ],
+                check=True,
+            )
+            out = root / "unignored-run"
+            res = run(
+                "--root", str(root),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            metadata = json.loads((out / "metadata.json").read_text())
+            self.assertFalse(metadata["source_clean"])
+            self.assertEqual(metadata["grade_status"], "pass")
 
     def test_bad_fixture_in_catalog_is_reported(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -241,6 +353,44 @@ class EvalRun(unittest.TestCase):
             metadata = json.loads((out / "metadata.json").read_text())
             self.assertEqual(metadata["records"][0]["failure_kind"], "auth-error")
             self.assertIn("Not logged in", metadata["records"][0]["failure_message"])
+
+    def test_timeout_preserves_failure_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "run"
+            fake = root / "fake-claude"
+            fake.write_text("#!/bin/sh\necho started\nsleep 2\necho too-late\n")
+            fake.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{root}:{env.get('PATH', '')}"
+            res = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--scenario",
+                    "EVAL-003",
+                    "--execute",
+                    "--max-budget-usd",
+                    "1.00",
+                    "--claude-bin",
+                    "fake-claude",
+                    "--timeout",
+                    "1",
+                    "--out-dir",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("timed out after 1 seconds", res.stderr)
+            metadata = json.loads((out / "metadata.json").read_text())
+            record = metadata["records"][0]
+            self.assertEqual(record["failure_kind"], "timeout")
+            self.assertEqual(record["timeout_seconds"], 1)
+            self.assertEqual((out / "EVAL-003.md").read_text().strip(), "started")
 
 
 if __name__ == "__main__":

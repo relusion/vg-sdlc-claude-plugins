@@ -89,21 +89,55 @@ class SupplyChainCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("--max-budget-usd", res.stderr)
 
-    def test_eval_live_workflow_must_not_gain_code_driven_triggers(self):
+    def test_eval_live_workflow_preserves_runner_receipt_and_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            workflow = repo / ".github" / "workflows" / "eval-live.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8")
+                .replace("summary.json", "receipt.json")
+                .replace("timeout-minutes: 210", "timeout-minutes: 90"),
+                encoding="utf-8",
+            )
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("summary.json", res.stderr)
+            self.assertIn("timeout-minutes must be at least", res.stderr)
+
+    def test_eval_live_workflow_trigger_allowlist_rejects_extra_triggers(self):
+        for trigger in ("pull_request", "push", "workflow_call", "issues"):
+            with self.subTest(trigger=trigger), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                workflow = repo / ".github" / "workflows" / "eval-live.yml"
+                workflow.write_text(
+                    workflow.read_text(encoding="utf-8").replace(
+                        "on:\n  workflow_dispatch:",
+                        f"on:\n  {trigger}:\n  workflow_dispatch:",
+                        1,
+                    ),
+                    encoding="utf-8",
+                )
+                res = run("--root", str(repo))
+                self.assertEqual(res.returncode, 1)
+                self.assertIn("triggers must be exactly", res.stderr)
+                self.assertIn(trigger, res.stderr)
+
+    def test_eval_live_workflow_trigger_allowlist_requires_both_triggers(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             workflow = repo / ".github" / "workflows" / "eval-live.yml"
             workflow.write_text(
                 workflow.read_text(encoding="utf-8").replace(
-                    "on:\n  workflow_dispatch:",
-                    "on:\n  pull_request:\n  workflow_dispatch:",
+                    '  schedule:\n    - cron: "17 6 * * 1" # weekly smoke run, Monday 06:17 UTC\n',
+                    "",
                     1,
                 ),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
-            self.assertIn("must not appear", res.stderr)
+            self.assertIn("triggers must be exactly", res.stderr)
+            self.assertIn("workflow_dispatch", res.stderr)
 
     def test_claude_version_pin_drift_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -249,12 +283,12 @@ class SupplyChainCheck(unittest.TestCase):
             template = repo / "templates" / "adopter-ci" / "gates.yml"
             template.write_text(
                 template.read_text(encoding="utf-8").replace(
-                    "AIR-GAPPED FALLBACK", "OFFLINE COPY"),
+                    "CHECKSUM-PINNED COPY-IN FALLBACK", "OFFLINE COPY"),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
-            self.assertIn("AIR-GAPPED FALLBACK", res.stderr)
+            self.assertIn("CHECKSUM-PINNED COPY-IN FALLBACK", res.stderr)
 
     def test_selftest_workflow_must_keep_local_action_use(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -70,7 +70,8 @@
 #      default branch -> Branch policies. Add a "Build validation" policy that
 #      runs THIS pipeline and is REQUIRED, alongside your own build/test
 #      validation (integrity, not function). Add a "Minimum number of reviewers"
-#      policy set to your policy's validity (human -> 1, two-human -> 2), with
+#      policy set to 2 globally (the static host rule cannot vary per PR from
+#      the verdict's runtime validity), with
 #      "requestors can't approve their own changes" (segregation of duties).
 #   5. Protect this pipeline file and .azure/merge-bar/** with a required-
 #      reviewers path policy so a PR cannot rewrite the workflow or the merge-bar

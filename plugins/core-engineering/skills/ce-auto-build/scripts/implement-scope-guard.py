@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """implement-scope-guard.py — the Scope Lock's file boundary, made mechanical.
 
-`/ce-spec` records each task's declared file set in `tasks.json` (`tasks[].files`);
-`/ce-implement` (and the auto-build orchestrator) then implement that spec WITHOUT
+`/core-engineering:ce-spec` records each task's declared file set in `tasks.json` (`tasks[].files`);
+`/core-engineering:ce-implement` (and the auto-build orchestrator) then implement that spec WITHOUT
 widening it (the Scope Lock). This gate makes the file half of that lock checkable:
 it FAILS any touched file that lies outside the union of the spec's `tasks[].files`
 (plus the sanctioned bookkeeping/promotion writes), the same mechanical scope check
-`/ce-patch`'s H9 proves against `frozen_files`. A file the diff touched but no task
+`/core-engineering:ce-patch`'s H9 proves against `frozen_files`. A file the diff touched but no task
 named is a **Spec Conflict** — the spec must name every file it changes.
 
 Two modes, one 0/1/2 exit contract:
@@ -207,7 +207,7 @@ def check_scope(changed: set[str], task_files: set[str],
                 f"Spec Conflict: `{f}` was touched but is outside the spec's "
                 f"declared file set (`tasks[].files`) — the spec must name every "
                 f"file it changes. Add it to a task's `files`, or route to "
-                f"/ce-spec if the change genuinely widened the planned boundary.")
+                f"/core-engineering:ce-spec if the change genuinely widened the planned boundary.")
     return hard, advisory
 
 

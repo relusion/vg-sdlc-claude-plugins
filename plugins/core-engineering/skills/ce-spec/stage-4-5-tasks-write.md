@@ -63,7 +63,7 @@ route it:
 | Feature-local | Stays in `ce-spec.md` — no propagation |
 | Cross-feature + architecturally significant | An ADR (already promoted in Stage 1.5 / 3.4) |
 | Cross-feature, not architectural (a convention, fact, or constraint) | The **Resolved Project Decisions** ledger in `shared-context.md` |
-| Reveals a plan error | Escalate to `/ce-plan` — do not propagate |
+| Reveals a plan error | Escalate to `/core-engineering:ce-plan` — do not propagate |
 
 Appending to the ledger **mutates a shared artifact** — present each proposed
 ledger entry as a *material* decision and let the human approve the wording.
@@ -111,15 +111,15 @@ Write `docs/plans/[slug]/specs/<id>/ce-spec.md` and `tasks.json`. Append
 each approved entry to the **Resolved Project Decisions** ledger in
 `shared-context.md`, citing this spec as the origin.
 
-**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "spec"`) — plus any `escalation` raised this run — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive every field from data already produced, label any token figure an estimate, and **never** let this block or fail the spec. It powers `/ce-retro`.
+**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "spec"`) — plus any `escalation` raised this run — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive every field from data already produced, label any token figure an estimate, and **never** let this block or fail the spec. It powers `/core-engineering:ce-retro`.
 
 ### 5.6 Closing
 
 Confirm the created paths (`ce-spec.md`, `tasks.json` under `docs/plans/[slug]/specs/<id>/`) and any ledger or ADR updates — and, if a Boundary Conflict edited `features/<id>.md` or ADRs were created, note those too. Then point to the next step:
 
 ```text
-Implement:  /ce-implement <id>
-Or spec the next feature:  /ce-spec <next-id>
+Implement:  /core-engineering:ce-implement <id>
+Or spec the next feature:  /core-engineering:ce-spec <next-id>
 ```
 
 Do not start implementation automatically unless the user explicitly asks.

@@ -2,7 +2,7 @@
 name: ce-impact
 description: |
   Analyze the codebase impact of a proposed change described in plain text (e.g. an Azure DevOps work item pasted in) — affected components, blast radius, an approximate sizing hint, similar prior work, and the open questions a thin description leaves — as file:line-cited FINDINGS, never a verdict. Refuses loudly when the description is too thin to ground. Read-only on code; ephemeral; one-way (renders a paste-ready summary the human posts back themselves — no tracker API, no write-back).
-  Triggers: estimate/assess the impact or blast radius of a proposed change or work item before building it. For a question about existing code use /ce-ask; to decompose a whole project use /ce-plan; to investigate a failure use /ce-debug.
+  Triggers: estimate/assess the impact or blast radius of a proposed change or work item before building it. For a question about existing code use /core-engineering:ce-ask; to decompose a whole project use /core-engineering:ce-plan; to investigate a failure use /core-engineering:ce-debug.
 argument-hint: "[work-item text or change description]"
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -21,8 +21,8 @@ reads during refinement — never a go/no-go verdict.
 
 This tool is **read-only**, **plan-free**, and **repo-agnostic**. It is **not** part
 of the plan/spec/implement pipeline and consumes none of those artifacts. It is the
-*forward-looking* sibling of `/ce-ask` (which answers questions about code as it is) and
-reuses `/ce-ask`'s scoping discipline plus `/ce-plan`'s reachability / blast-radius
+*forward-looking* sibling of `/core-engineering:ce-ask` (which answers questions about code as it is) and
+reuses `/core-engineering:ce-ask`'s scoping discipline plus `/core-engineering:ce-plan`'s reachability / blast-radius
 vocabulary — it does not re-derive that reasoning.
 
 **The tool is tracker-agnostic by design.** It takes plain text and knows nothing
@@ -58,7 +58,7 @@ skill never reads from or writes to a tracker — see *Cross-cutting rule — On
    not an estimate.
 6. **Honest about uncertainty.** Anything the description leaves unanswerable, or any
    impact you cannot evidence, goes under *Open questions* — never papered over.
-7. **Read-only.** No commits, no edits, no writes. The `/ce-impact` skill's
+7. **Read-only.** No commits, no edits, no writes. The `/core-engineering:ce-impact` skill's
    `allowed-tools` deliberately exclude `Write` and `Edit`. The output is the
    conversation answer plus a paste-ready block the human copies.
 8. **Repo-agnostic.** Don't assume language, framework, or layout — detect.
@@ -69,7 +69,7 @@ skill never reads from or writes to a tracker — see *Cross-cutting rule — On
 
 This tool **never touches the tracker**. It reads code and renders a summary; a human
 reviews it and pastes it back into the work item if they choose. There is **no API,
-no write-back, no sync** — the same posture `/ce-ship-backlog` takes for the reverse
+no write-back, no sync** — the same posture `/core-engineering:ce-ship-backlog` takes for the reverse
 direction. Two consequences, both made explicit in the output:
 
 - The paste-ready block carries a **provenance stamp** — `Analyzed against: <repo>@<short-sha>`
@@ -98,7 +98,7 @@ toolset exists to prevent. So **ground-check before analyzing**:
 Refusing on a stub is a feature: a tool that knows when to stay silent is the only
 kind a team learns to trust.
 
-## Scoping strategy — reuse `/ce-ask`'s contract, don't re-derive it
+## Scoping strategy — reuse `/core-engineering:ce-ask`'s contract, don't re-derive it
 
 Repository exploration here **is `ask`'s discipline**, applied to a
 forward-looking question — not a second copy of it. Treat the `ask` skill's
@@ -118,17 +118,17 @@ impact. So borrow `ask`'s mechanics, but scope for **coverage** on callers/
 consumers, durable state, and surface, and record any reachability you could not
 exhaustively confirm under *Open questions* (never imply completeness you didn't reach).
 
-## Blast-radius vocabulary (borrowed from `/ce-plan`, not re-derived)
+## Blast-radius vocabulary (borrowed from `/core-engineering:ce-plan`, not re-derived)
 
-When tracing impact, reuse `/ce-plan`'s reachability / blast-radius lenses rather than
+When tracing impact, reuse `/core-engineering:ce-plan`'s reachability / blast-radius lenses rather than
 inventing new ones:
 
 - **Reachability / consumers** — who calls or depends on the touched code; how far the
   change propagates outward.
-- **Durable-state closure** (`/ce-plan` §6.3) — does the change add/alter/remove
+- **Durable-state closure** (`/core-engineering:ce-plan` §6.3) — does the change add/alter/remove
   persisted state (a table, column, schema, migration, stored event)? Durable changes
   are higher blast radius.
-- **Surface / interface closure** (`/ce-plan` §6.4) — does it change a public interface,
+- **Surface / interface closure** (`/core-engineering:ce-plan` §6.4) — does it change a public interface,
   API contract, event shape, or CLI surface that other code or other teams depend on?
 - **Test surface** — which existing tests cover the touched code; where new coverage
   would be needed.
@@ -240,18 +240,18 @@ I did not guess an impact. Re-run once the item names something the codebase rec
 
 ## Escalation
 
-If the change is analyzable and meaningful, route to `/ce-plan` for decomposition or
-`/ce-patch` only when the impact is genuinely bounded. If the analysis exposes a
-technical choice with multiple viable options, route to `/ce-decide`. Thin inputs stop
+If the change is analyzable and meaningful, route to `/core-engineering:ce-plan` for decomposition or
+`/core-engineering:ce-patch` only when the impact is genuinely bounded. If the analysis exposes a
+technical choice with multiple viable options, route to `/core-engineering:ce-decide`. Thin inputs stop
 at the Thin-Description Gate instead of guessing.
 
 ## Honest Limitations
 
 - **Not a verdict.** It will not tell you whether to do the work — that's the human's
-  call (use `/ce-decide` for a weighed technical recommendation).
+  call (use `/core-engineering:ce-decide` for a weighed technical recommendation).
 - **Not an estimate.** The sizing hint is a coarse refinement aid, not a commitment.
 - **Point-in-time.** The analysis is pinned to the current commit (stamped); it goes
   stale as the code moves. There is no sync.
-- **Not a planning or spec tool** — use `/ce-plan` to decompose a
-  project, `/ce-spec` to specify one feature.
+- **Not a planning or spec tool** — use `/core-engineering:ce-plan` to decompose a
+  project, `/core-engineering:ce-spec` to specify one feature.
 - **Read-only.** It never edits code and never writes to a tracker.

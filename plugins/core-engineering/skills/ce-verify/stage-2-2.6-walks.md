@@ -45,7 +45,7 @@ For each step, in order:
 
 Per-feature `manual` verdicts already in each `verification.md` are **read, not
 re-run** — the journey walk is the system-level manual check. **Exception under
-`/ce-auto-build`:** the implement subagents *self-certified* their `manual:harness-gap`
+`/core-engineering:ce-auto-build`:** the implement subagents *self-certified* their `manual:harness-gap`
 verdicts in-loop (the author rendered its own verdict against an ephemeral server),
 so when this skill runs as auto-build's integration agent it **independently
 re-drives those `manual:harness-gap` cases** against the integration server and
@@ -152,8 +152,8 @@ table against the §6.3 closure for each noun walked above. The threat model is 
 **read-only re-projection** — its data-class must equal the closure's. A mismatch
 means the read-only contract was violated (a data-class was downgraded in the threat
 model to dodge a governance reciprocal — the §6.3.4 risk made real): record it as a
-`Fail` and escalate to `/ce-plan` (the closure owns the data-class;
-`/ce-verify` never resets it). This is a mechanical equality check, not a judgment
+`Fail` and escalate to `/core-engineering:ce-plan` (the closure owns the data-class;
+`/core-engineering:ce-verify` never resets it). This is a mechanical equality check, not a judgment
 call — a detected mismatch is **reported as a pre-flagged row in the noun gate below,
 never asked as a question**.
 
@@ -164,8 +164,8 @@ they re-project — each **Behavioural-Protocol Invariant** row's shared noun ag
 and each edge against a real §8 Journey-Map / §10 Dependency-Flow producer→consumer
 pairing. A row that re-assigns a data-class, invents an edge the plan never traced, or
 re-cuts a boundary means the read-only contract was violated: record it as a `Fail` and
-escalate to `/ce-plan` (the plan owns the edges and the closure;
-`/ce-verify` detects drift, never re-binds the contract). This is a mechanical consistency
+escalate to `/core-engineering:ce-plan` (the plan owns the edges and the closure;
+`/core-engineering:ce-verify` detects drift, never re-binds the contract). This is a mechanical consistency
 check, not a judgment call — whether a built feature *honours* its `[CONTRACT: IC-NNN]`
 obligation is that feature's own EARS / test-case coverage, walked above. Like the
 threat-model check, a detected mismatch is **reported as a pre-flagged row in the noun
@@ -197,7 +197,7 @@ mismatch the human confirms) fails the stage and escalates.
 
 **Escalation.** A missing or duplicating revisit/amend surface is not a code bug
 to patch here — a reciprocal obligation was never owned by any feature. Escalate
-**up** to `/ce-plan` (see Escalation).
+**up** to `/core-engineering:ce-plan` (see Escalation).
 
 ---
 
@@ -227,4 +227,4 @@ closure row and confirm the continuity disposition actually shipped:
 Present evidence and capture the human verdict via `AskUserQuestion`:
 `Pass` / `Fail` / `Blocked`. A `Fail` (an old surface gone with no shipped window or
 shim, or a `hard-break` the plan never consented) escalates **up** to
-`/ce-plan` — a continuity obligation was never owned by a feature.
+`/core-engineering:ce-plan` — a continuity obligation was never owned by a feature.

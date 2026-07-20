@@ -35,6 +35,22 @@ class AutoBuildMvp(unittest.TestCase):
         self.assertIn("Retain this feature's", text)
         self.assertIn("rerun `test-guard --verify-passes`", text)
 
+    def test_nonzero_deterministic_gate_cannot_be_reinterpreted(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("A non-zero deterministic gate is authoritative", text)
+        self.assertIn("Never replace it with a manual Git", text)
+
+    def test_review_uses_shared_machine_schema_and_gate(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("../ce-review/artifact-template.md", text)
+        self.assertIn('${CLAUDE_SKILL_DIR}/scripts/review-gate.py', text)
+        self.assertNotIn("../ce-review/scripts/review-gate.py", text)
+        self.assertIn("status` / `blocking_high` schema", text)
+
+    def test_review_retry_returns_state_to_implementing(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("run `run-state.py advance <id> implementing`", text)
+
     def test_removed_advanced_components_are_not_shipped(self):
         for rel in (
             "gate-diagnose.md",

@@ -114,7 +114,7 @@ class GateRunner(unittest.TestCase):
 
     def test_spec_lint_violation_goes_red(self):
         repo, base = self._make_adopter()
-        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/spec.md"
+        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/ce-spec.md"
         text = spec.read_text(encoding="utf-8")
         # Delete a TC heading a task verifies -> H1 dangling `verifies` ref.
         lines = [ln for ln in text.splitlines() if not ln.startswith("### TC-1")]
@@ -133,7 +133,7 @@ class GateRunner(unittest.TestCase):
         # committing must not flip a red verdict green — the recorded head SHA
         # fully determines the verdict (audit-evidence soundness).
         repo, base = self._make_adopter()
-        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/spec.md"
+        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/ce-spec.md"
         good = spec.read_text(encoding="utf-8")
         lines = [ln for ln in good.splitlines() if not ln.startswith("### TC-1")]
         spec.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -347,7 +347,7 @@ class GateRunner(unittest.TestCase):
         # A repo with one BROKEN legacy spec passes a PR that does not touch it
         # under changed-plans (the spec is out of scope), by choice.
         repo, base = self._make_adopter()
-        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/spec.md"
+        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/ce-spec.md"
         text = spec.read_text(encoding="utf-8")
         lines = [ln for ln in text.splitlines() if not ln.startswith("### TC-1")]
         spec.write_text("\n".join(lines) + "\n", encoding="utf-8")  # break H1
@@ -370,7 +370,7 @@ class GateRunner(unittest.TestCase):
         # changed-plans is not a loophole: a PR that DOES touch the broken spec
         # is in scope and still goes red.
         repo, base = self._make_adopter()
-        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/spec.md"
+        spec = repo / "docs/plans/team-invitations/specs/01-invite-user/ce-spec.md"
         text = spec.read_text(encoding="utf-8")
         lines = [ln for ln in text.splitlines() if not ln.startswith("### TC-1")]
         spec.write_text("\n".join(lines) + "\n", encoding="utf-8")

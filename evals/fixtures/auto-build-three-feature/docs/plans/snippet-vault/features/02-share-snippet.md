@@ -34,7 +34,7 @@ determines the auth model and the data-exposure surface. Therefore: **PARK (prod
 - Spec agent returns `status:"parked"`, reason naming the undecided access model, class
   `product`.
 - The orchestrator records a park (consecutive-park counter += 1) and surfaces it in the
-  run report's **Parked — Needs Your Input** table and the end-review.
+  Gate-2 **Parked — Needs Your Input** evidence and the end-review triage.
 - 03-export-snippets still builds (no dependency on 02).
 
 ## Out of Scope

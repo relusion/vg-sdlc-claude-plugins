@@ -2,7 +2,7 @@
 name: ce-probe-sec
 description: |
   Security-probe a running target — web/API apps or CLI binaries — passive recon by default; smell-test and active-exploit tiers behind explicit opt-in. Twice-attested consent; refuses production; sandboxes binaries; findings, not verdicts.
-  Triggers: security-test/sec-scan/probe a running app for vulnerabilities. Never production. For performance use /ce-probe-perf.
+  Triggers: security-test/sec-scan/probe a running app for vulnerabilities. Never production. For performance use /core-engineering:ce-probe-perf.
 argument-hint: "[target-url-or-binary] [--type http|cli]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 disable-model-invocation: true
@@ -15,9 +15,9 @@ disable-model-invocation: true
 
 Probe a running target for security issues. This is the **dynamic** security tool
 — it exercises a live instance or binary. For *static*, code-level review of
-pending changes, use `/ce-review`'s Security lens (see the boundary below).
+pending changes, use `/core-engineering:ce-review`'s Security lens (see the boundary below).
 
-Sister to `/ce-ux-audit`: same evidence-bound finding *discipline* (every finding cited,
+Sister to `/core-engineering:ce-ux-audit`: same evidence-bound finding *discipline* (every finding cited,
 triaged, escalated — though each tool's finding fields and evidence-state vocabulary
 differ), same triage discipline, same escalate-up chain. **Not a pentest** — a first cut that surfaces leads for a
 human security professional; mature scanners do the deep work where installed.
@@ -47,7 +47,7 @@ nothing and triggers a filesystem search.
 
 ## Sister tools
 
-| | `/ce-ux-audit` | `/ce-probe-sec` |
+| | `/core-engineering:ce-ux-audit` | `/core-engineering:ce-probe-sec` |
 |---|---|---|
 | Mode | Verification (journey-walk) **or** Discovery (adversarial, plan-free) | Discovery (security, dynamic) |
 | Targets | Web | Web / API / CLI |
@@ -56,10 +56,10 @@ nothing and triggers a filesystem search.
 
 ## Boundary — dynamic vs static
 
-- **`/ce-probe-sec`** (this tool) — *dynamic*: probes a running target (web / API / CLI).
-- **`/ce-review` Security lens** — *static*: reviews source / pending changes for vulnerabilities.
+- **`/core-engineering:ce-probe-sec`** (this tool) — *dynamic*: probes a running target (web / API / CLI).
+- **`/core-engineering:ce-review` Security lens** — *static*: reviews source / pending changes for vulnerabilities.
 
-Anything that's "analyze the code for vulns" belongs to `/ce-review`. This
+Anything that's "analyze the code for vulns" belongs to `/core-engineering:ce-review`. This
 tool exercises a live target. Don't duplicate; route accordingly.
 
 ## Runtime Inputs
@@ -124,7 +124,7 @@ A finding is `{category, tier, state, severity, target, payload?, observation, e
 
 | Triage | Result |
 |---|---|
-| **Escalate** | `/ce-implement <id>` (spec exists) · `/ce-spec <id>` (spec gap) · `/ce-plan` (structural) · "review" (plan-less) |
+| **Escalate** | `/core-engineering:ce-implement <id>` (spec exists) · `/core-engineering:ce-spec <id>` (spec gap) · `/core-engineering:ce-plan` (structural) · "review" (plan-less) |
 | **Defer** | Record as a known limitation |
 | **Dismiss** | False positive; drop |
 
@@ -241,9 +241,9 @@ findings should reach a human security professional before remediation begins.
 
 ## Escalation
 
-Static code follow-up routes to `/ce-review`'s Security lens; runtime confirmation
-stays in `/ce-probe-sec`; infrastructure exposure routes to `/ce-probe-infra`; and
-owned feature remediation routes to `/ce-spec` or `/ce-implement` through the plan's
+Static code follow-up routes to `/core-engineering:ce-review`'s Security lens; runtime confirmation
+stays in `/core-engineering:ce-probe-sec`; infrastructure exposure routes to `/core-engineering:ce-probe-infra`; and
+owned feature remediation routes to `/core-engineering:ce-spec` or `/core-engineering:ce-implement` through the plan's
 normal locks. This skill records findings and consent, not fixes.
 
 ## Honest Limitations (shared)

@@ -204,7 +204,7 @@ class TestHardClasses(DriftScanBase):
         # A plan.json-claimed feature file goes missing -> plan-lint H1 FAIL.
         files = self.mutate(_remove=["docs/plans/acme/features/02-bar.md"])
         _data, f = self._assert_hard(files, "plan_lint_fail", "Scope Lock drift")
-        self.assertEqual(f["route"], "/ce-plan")
+        self.assertEqual(f["route"], "/core-engineering:ce-plan")
         self.assertEqual(f["lock"], "Scope Lock")
 
     def test_spec_lint_fail_is_spec_lock_drift(self):
@@ -214,7 +214,7 @@ class TestHardClasses(DriftScanBase):
         files = self.mutate(**{
             "docs/plans/acme/specs/01-foo/tasks.json": json.dumps(bad, indent=2)})
         _data, f = self._assert_hard(files, "spec_lint_fail", "Scope Lock drift")
-        self.assertEqual(f["route"], "/ce-spec")
+        self.assertEqual(f["route"], "/core-engineering:ce-spec")
 
     def test_h5_disarmed_when_obligation_declared_but_gate_off(self):
         # tasks.feature_id drifts from the plan id -> spec-lint's H5 auto-lookup
@@ -226,7 +226,7 @@ class TestHardClasses(DriftScanBase):
             "docs/plans/acme/specs/01-foo/tasks.json": json.dumps(drifted, indent=2)})
         _data, f = self._assert_hard(
             files, "h5_disarmed", "threat-model coverage disarmed — H5 no longer runs for 01-foo")
-        self.assertEqual(f["route"], "/ce-spec")
+        self.assertEqual(f["route"], "/core-engineering:ce-spec")
 
     def test_orphan_spec_dir(self):
         # A spec dir whose id is in no plan.json feature.
@@ -243,7 +243,7 @@ class TestHardClasses(DriftScanBase):
             "docs/plans/acme/specs/99-ghost/tasks.json": json.dumps(ghost_tasks, indent=2),
             "src/ghost.py": "x = 1\n"})
         _data, f = self._assert_hard(files, "orphan_spec", "resolves to no feature")
-        self.assertEqual(f["route"], "/ce-plan")
+        self.assertEqual(f["route"], "/core-engineering:ce-plan")
 
     def test_phantom_threat_id(self):
         # A spec cites a [SECURITY: TZ-NNN] the threat-model never defines.
@@ -252,7 +252,7 @@ class TestHardClasses(DriftScanBase):
             "### AC-1 [SECURITY: TZ-777] Pending invitations are listed")
         files = self.mutate(**{"docs/plans/acme/specs/02-bar/ce-spec.md": spec})
         _data, f = self._assert_hard(files, "phantom_threat_id", "TZ-777")
-        self.assertEqual(f["route"], "/ce-spec")
+        self.assertEqual(f["route"], "/core-engineering:ce-spec")
 
     def test_registry_break_entry_without_dir(self):
         reg = {"plans": [{"slug": "acme"}, {"slug": "extra"}]}

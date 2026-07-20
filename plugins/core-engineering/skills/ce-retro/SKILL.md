@@ -2,7 +2,7 @@
 name: ce-retro
 description: |
   Read-only retrospective over a plan's pipeline — aggregate the .metrics.jsonl stream and existing artifacts into descriptive signals (testability, escalation, park/retry/circuit-break rates, review disposition, complexity drift). Scope-boxed by plan, and optionally time-boxed by a --since/--until window for a sprint retro; renders for a chosen audience (standup, sprint-review, on-call handoff) without ever computing a number the artifacts do not carry. Mutates nothing.
-  Triggers: retrospective/metrics/health-report/how-did-this-plan-go, sprint retro, standup summary, on-call handoff brief. Dynamic counterpart of the static /ce-plan-audit.
+  Triggers: retrospective/metrics/health-report/how-did-this-plan-go, sprint retro, standup summary, on-call handoff brief. Dynamic counterpart of the static /core-engineering:ce-plan-audit.
 argument-hint: "[plan-slug] [standup|sprint-review|handoff] [--since YYYY-MM-DD] [--until YYYY-MM-DD]"
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -32,7 +32,8 @@ ground truth.
   recurring-dismissal / promote-to-`review-policy.md` signal), `plan.json` and/or
   `feature-plan.md` (Final Complexity per feature — for the complexity-drift
   signal), `docs/plans/express-log.jsonl` (accepted express-patch activity, when
-  reporting repo-wide), and `auto-build/<date>-run.md`.
+  reporting repo-wide), and `ce-auto-build/<date>-run.md` (legacy
+  `auto-build/` is read only as a fallback).
 
 ## Execution Contract
 
@@ -50,7 +51,7 @@ stream degrades the relevant section of this report to "partial / no data", neve
 an error.
 
 ```json
-{"ts":"YYYY-MM-DD","stage":"plan|spec|implement|verify|review|debug|release|document|auto-build|patch","plan":"<slug>","feature":"<id>|null","event":"stage-complete|gate|escalation|park|retry|circuit-break|attestation","gate":"pass|fail|null","escalation_type":"/ce-implement|/ce-spec|/ce-plan|null","detail":"<short>","model":"<id>|null","est":{"tokens":0}}
+{"ts":"YYYY-MM-DD","stage":"plan|spec|implement|verify|review|debug|release|document|auto-build|patch","plan":"<slug>","feature":"<id>|null","event":"stage-complete|gate|escalation|park|retry|circuit-break|attestation","gate":"pass|fail|null","escalation_type":"/core-engineering:ce-implement|/core-engineering:ce-spec|/core-engineering:ce-plan|null","detail":"<short>","model":"<id>|null","est":{"tokens":0}}
 ```
 
 - `feature` is `null` for plan-level events.
@@ -59,7 +60,7 @@ an error.
   `.claude/ce-session-model.json` sidecar the `model-attest.py` hook refreshes
   (the runtime leg of the model-tier policy). Emit it on gate-stage and
   `attestation` lines; it is **`null` when the sidecar is absent**, so a
-  hook-less run records the *absence*, never a guessed tier. `/ce-retro` maps it through `model-policy.json`
+  hook-less run records the *absence*, never a guessed tier. `/core-engineering:ce-retro` maps it through `model-policy.json`
   `tier_patterns` (see the Model-tier attestation signal in Stage 1).
 - Producers derive every field from data they already have, add the line *after*
   the stage's real work and gate complete, and swallow any failure.
@@ -70,7 +71,7 @@ Every interactive Human-in-the-Loop gate a skill presents emits **one**
 `attestation` line recording *what the human decided* — so the confirm-vs-override
 ratio per gate becomes measurable (the raw material for proportionality tuning and
 the evidence pack's human-attestation section). The **emitters** are the skills
-that own the gates (`/ce-implement`, `/ce-review`, …); this section defines the
+that own the gates (`/core-engineering:ce-implement`, `/core-engineering:ce-review`, …); this section defines the
 shape they emit into, and `audit-export.py` rolls the lines up under an
 `attestations` summary (`confirms` / `overrides` / `edits` / `loops` / `by_gate`).
 
@@ -145,10 +146,10 @@ Compute each signal from its export field (or the noted artifact); **skip with
 | Signal | Export field (deterministic floor) · else artifact |
 |---|---|
 | **Criteria-testability rate** | `testability` (`total` / `auto` / `harness_gap` / `judgment`, summed across specs from each spec's TC `verification:` tags) — narrate the % split; `total: 0` ⇒ "no data" |
-| **Escalation hotspots** | `metrics.escalations[]` by feature × `escalation_type` (`/ce-implement` / `/ce-spec` / `/ce-plan`), **plus** entries whose `detail` begins `route:<cmd>` (lateral routes: `/ce-verify` / `/ce-review`) so none is silently dropped |
+| **Escalation hotspots** | `metrics.escalations[]` by feature × `escalation_type` (`/core-engineering:ce-implement` / `/core-engineering:ce-spec` / `/core-engineering:ce-plan`), **plus** entries whose `detail` begins `route:<cmd>` (lateral routes: `/core-engineering:ce-verify` / `/core-engineering:ce-review`) so none is silently dropped |
 | **Park / retry / circuit-break rates** | `metrics.parks` / `metrics.retries` (+ `metrics.retries_by_feature`) / `metrics.circuit_breaks` (auto-build runs) |
 | **Attestation (HITL) — confirm vs override** | `metrics.attestations` (`confirms` / `overrides` / `edits` / `loops` / `by_gate`) — the confirm-vs-override ratio per gate; a gate with many `overrides` or `loops`, or `basis_shown:false`, is a calibration signal for proportionality tuning |
-| **Review-finding disposition** | per-feature `features[].review` (`blocking_high` / `findings_total` / `suppressed` / `by_severity`) for the current-state counts; **recurring dismissals** — the same finding shape dismissed across features / runs — from `review-learnings.md` `RL-N` entries + the climbing `suppressed` counts, reported as **promote-to-`review-policy.md` candidates**. Read-only — surfaced under *Signals worth a look*; the human promotes, `/ce-retro` never writes either file |
+| **Review-finding disposition** | per-feature `features[].review` (`blocking_high` / `findings_total` / `suppressed` / `by_severity`) for the current-state counts; **recurring dismissals** — the same finding shape dismissed across features / runs — from `review-learnings.md` `RL-N` entries + the climbing `suppressed` counts, reported as **promote-to-`review-policy.md` candidates**. Read-only — surfaced under *Signals worth a look*; the human promotes, `/core-engineering:ce-retro` never writes either file |
 | **Complexity-vs-actual drift** | `complexity_drift[]` (per feature: planned `final_complexity` vs built `task_count` + `retries`) |
 | **Gate pass/fail** | `metrics.gates` (`pass` / `fail`) |
 | **Model-tier attestation** | each gate / `attestation` event's `model` field (read from `.metrics.jsonl` — a signal the export does not yet carry) mapped through `model-policy.json` `tier_patterns`: a model matching the `strong` list ran **on policy**; one matching a below-`strong` tier's list **ran below policy tier** — surface it as an *accepted degradation* (loudest first); one matching **no** list, or `model:null`, is **`unattested`** (reported as a finding, never assumed fine). This is the runtime check on "judgment/gate stages always use the strongest model" |
@@ -267,7 +268,7 @@ plan root or `specs/`) — exit 1. Every section is **populated or gap-listed** 
 absent source lands in `gaps[]`, never a silent zero), and a **broken guard chain
 fails loudly inside the pack** (the `guard_decisions.verify` field), it is not
 hidden. `--merge-verdict` points at the CI verdict for a per-merge pack; omit it
-when none exists. `/ce-ship-release` generates the per-release pack as a stage step.
+when none exists. `/core-engineering:ce-ship-release` generates the per-release pack as a stage step.
 
 The pack is **evidence COMPILATION, not attestation and not a conformity
 assessment** — it gathers and hashes what the pipeline recorded and renders no
@@ -281,8 +282,8 @@ sign for the organization.
 ## Escalation
 
 Recurring review dismissals route to human-owned `review-policy.md`; repeated
-planning drift routes to `/ce-plan-audit` or `/ce-plan`; persistent verification or
-review hotspots route to `/ce-debug`, `/ce-verify`, or `/ce-review` depending on the
+planning drift routes to `/core-engineering:ce-plan-audit` or `/core-engineering:ce-plan`; persistent verification or
+review hotspots route to `/core-engineering:ce-debug`, `/core-engineering:ce-verify`, or `/core-engineering:ce-review` depending on the
 signal. This skill reports trends and optional exports only.
 
 ## Honest Limitations

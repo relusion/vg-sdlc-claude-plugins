@@ -18,7 +18,7 @@ conform.
 > gate is therefore **self-sufficient**: its behavior, and every gloss it prints, live
 > **inline in the skill text**. Skills cite the standard by name ("HITL Gate Standard
 > R4"), never by a runtime file path. The **runtime home of the shared glossary** below
-> is `/ce-plan` §6.6, which prints it; this doc mirrors it for contributors.
+> is `/core-engineering:ce-plan` §6.6, which prints it; this doc mirrors it for contributors.
 
 > **The two in-repo exemplars** — the target UX already exists; copy these shapes:
 > - **R1 (decidable-in-the-dialog):** `spec/SKILL.md` → *Human-in-the-Loop*
@@ -68,7 +68,7 @@ than the harness allows per `AskUserQuestion` call (≤ 4 questions, ≤ 4 optio
 **splits with a stated reason** — no silent cap. **The locator doubles as the
 telemetry key:** the same `Gate N of M — <name>` string a gate prints is what its
 `attestation` metrics line records in `gate_index` (the metrics-stream schema in
-`/ce-retro`'s `SKILL.md`) — one vocabulary for the human *and* the audit trail,
+`/core-engineering:ce-retro`'s `SKILL.md`) — one vocabulary for the human *and* the audit trail,
 never a second one to drift.
 
 ---
@@ -79,7 +79,7 @@ Every gate that prints these terms uses **this** plain-language gloss — so a h
 meets a term at two gates never sees two different explanations. Gloss *by consequence*.
 (Source sections in `plan/stage-4-7-gates.md`.)
 
-> **Runtime home:** the live copy of this glossary is **inline** in the `/ce-plan`
+> **Runtime home:** the live copy of this glossary is **inline** in the `/core-engineering:ce-plan`
 > Reachability gate (`plan/stage-4-7-gates.md` §6.6.1 Legend), which is what
 > actually prints it; single terms also appear inline at the gates that use them
 > (Sibling Plans glosses *recorded decision (ADR)*, §8.2.1 glosses *TZ-NNN* / *trust
@@ -133,7 +133,7 @@ meets a term at two gates never sees two different explanations. Gloss *by conse
 
 | Term | Gloss |
 |---|---|
-| Scope Lock | The boundary a stage may not widen from inside — **frozen for this run; widening goes up a layer, never through it**. Each stage locks a different scope: the planned feature boundary (`/ce-spec`), the approved spec (`/ce-implement`), the frozen file set (`/ce-patch`), the framed decision space (`/ce-market-scan` · `/ce-idea-score`), the release decision (`/ce-ship-release`). |
+| Scope Lock | The boundary a stage may not widen from inside — **frozen for this run; widening goes up a layer, never through it**. Each stage locks a different scope: the planned feature boundary (`/core-engineering:ce-spec`), the approved spec (`/core-engineering:ce-implement`), the frozen file set (`/core-engineering:ce-patch`), the framed decision space (`/product-discovery:ce-market-scan` · `/product-discovery:ce-idea-score`), the release decision (`/core-engineering:ce-ship-release`). |
 
 **Evidence-strength meta-scale** (the one shape behind each genre's own three-state
 evidence axis — the per-domain tag strings are load-bearing and stay distinct, this is the
@@ -147,9 +147,9 @@ shared mental model they specialize; full rule:
 | `inferred` | **model reasoning** — synthesis, extrapolation, or heuristic attribution | probe-sec `suspected` · probe-perf `inferred` · probe-infra `inferred` · market-scan `suspected` · domain `inferred` |
 
 `market-scan`'s `unknown` is a **declared coverage gap** — the absence of evidence, below the
-scale (`/ce-domain`'s known-unknown register entries are the same below-the-scale shape). A skill that declares a `Three-State Evidence` rule states its mapping on first use
+scale (`/core-engineering:ce-domain`'s known-unknown register entries are the same below-the-scale shape). A skill that declares a `Three-State Evidence` rule states its mapping on first use
 (the literal `shared evidence scale` clause — `authoring_check.py` A11 enforces it). This
-meta-scale is glossed at those runtime print-sites, not in the `/ce-plan` Reachability Legend
+meta-scale is glossed at those runtime print-sites, not in the `/core-engineering:ce-plan` Reachability Legend
 (the same treatment as the threat-model / interaction-contract terms above), so it is **not**
 registered in `GLOSSARY_ANCHORS` — A11, not A9, keeps it and its per-skill mappings in sync.
 
@@ -202,13 +202,13 @@ glossary). The spine's gates and their load-bearing terms:
 
 | Gate | Must gloss |
 |---|---|
-| `/ce-plan` §0 Sibling Plans | recorded decision (ADR) |
-| `/ce-plan` §6.6 Reachability | durable noun, reciprocal, revisit/amend/retire, retain/export/erase, access-mode, data-class, owned-by/bridge/excluded, break-class, deprecate/shim/hard-break, select-to-continue |
-| `/ce-plan` §8.2 threat-id confirm | TZ-NNN, trust boundary, surface-don't-force |
-| `/ce-plan` §8.2.2 interaction-contract confirm | IC-NNN/[CONTRACT], idempotency, at-least-once, per-key ordering |
-| `/ce-spec` §3.5 shared-shape | additive vs breaking, consumer, Boundary Conflict |
-| `/ce-auto-build` end-review (shared-shape attestation) | additive vs breaking, consumer, Boundary Conflict, provisional |
+| `/core-engineering:ce-plan` §0 Sibling Plans | recorded decision (ADR) |
+| `/core-engineering:ce-plan` §6.6 Reachability | durable noun, reciprocal, revisit/amend/retire, retain/export/erase, access-mode, data-class, owned-by/bridge/excluded, break-class, deprecate/shim/hard-break, select-to-continue |
+| `/core-engineering:ce-plan` §8.2 threat-id confirm | TZ-NNN, trust boundary, surface-don't-force |
+| `/core-engineering:ce-plan` §8.2.2 interaction-contract confirm | IC-NNN/[CONTRACT], idempotency, at-least-once, per-key ordering |
+| `/core-engineering:ce-spec` §3.5 shared-shape | additive vs breaking, consumer, Boundary Conflict |
+| `/core-engineering:ce-auto-build` end-review (shared-shape attestation) | additive vs breaking, consumer, Boundary Conflict, provisional |
 
-This standard is applied across the `/ce-brief → /ce-plan → /ce-spec → /ce-implement` spine; see
-`docs/HOW-IT-WORKS.md` §6 (*Human owns judgment*). `/ce-spec`'s resolve-unknowns and
-`/ce-implement`'s manual-verdict gates are the **exemplars** the rest conform to.
+This standard is applied across the `/core-engineering:ce-brief → /core-engineering:ce-plan → /core-engineering:ce-spec → /core-engineering:ce-implement` spine; see
+`docs/HOW-IT-WORKS.md` §6 (*Human owns judgment*). `/core-engineering:ce-spec`'s resolve-unknowns and
+`/core-engineering:ce-implement`'s manual-verdict gates are the **exemplars** the rest conform to.

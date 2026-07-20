@@ -1,6 +1,6 @@
 # Feature Plan: team-invitations-rbac
 
-> Minimized golden copy of a real `/ce-plan` output, kept in-repo as a
+> Minimized golden copy of a real `/core-engineering:ce-plan` output, kept in-repo as a
 > deterministic `plan-lint.py` replay gate (EVAL-004). Trimmed to the
 > structural surface the lint reads; see EXAMPLES.md for provenance.
 

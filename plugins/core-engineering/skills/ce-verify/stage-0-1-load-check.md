@@ -31,12 +31,12 @@ Invoke it by its `${CLAUDE_SKILL_DIR}` path, never a bare name (the same rule th
 | State | Condition |
 |---|---|
 | `implemented` | `specs/<id>/tasks.json` exists, every task `status` is `done` **and the freshness check finds none `stale`**, and `specs/<id>/verification.md` exists |
-| `stale` | the implemented shape holds on disk, but `check` verdicts ≥1 `done` task `stale` — the recorded done-ness points at a commit this checkout doesn't contain (reverted / rebased away / a different branch). **Not** verifiable until re-derived: route to `/ce-implement` to re-run the stale tasks, then re-verify. |
+| `stale` | the implemented shape holds on disk, but `check` verdicts ≥1 `done` task `stale` — the recorded done-ness points at a commit this checkout doesn't contain (reverted / rebased away / a different branch). **Not** verifiable until re-derived: route to `/core-engineering:ce-implement` to re-run the stale tasks, then re-verify. |
 | `specced` | `specs/<id>/ce-spec.md` exists but the implemented condition is not met |
 | `planned` | otherwise |
 
 Verify operates on the **implemented subset** at this moment in time — a `stale`
-feature is excluded from it (reported, then routed to `/ce-implement`), never verified
+feature is excluded from it (reported, then routed to `/core-engineering:ce-implement`), never verified
 over evidence this checkout can't stand behind.
 
 ### 0.3 Determine Scope

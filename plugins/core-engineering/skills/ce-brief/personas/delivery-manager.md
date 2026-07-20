@@ -22,7 +22,7 @@ This lens asks the questions a delivery manager would raise when first hearing a
 
 ## Question Bank
 
-> **How this lens relates to the brief's spine:** these questions **sharpen and reframe** the delivery-relevant parts of the brief's core spine (Problem & Users, Scope & Journeys, Technical Context, Constraints & Risks) — they do not stack a second, parallel question set on top of them. The time-pressure and consequence questions sharpen **Success Criteria**; the runtime/rollout questions sharpen **Technical Context → Deployment / runtime target**; the ordering and risk questions sharpen **Constraints & Ordering** and **Known Risks & Pitfalls**. The brief's **Delivery Target** section already captures *which* delivery/tracking system the work lives in (e.g. ADO/Jira/GitHub/Linear); this lens **does not re-ask that** — it contributes only the delivery-risk and rollout-intent angle. Choosing the tooling itself is downstream (`/ce-plan`'s tooling mapping), not this lens's job.
+> **How this lens relates to the brief's spine:** these questions **sharpen and reframe** the delivery-relevant parts of the brief's core spine (Problem & Users, Scope & Journeys, Technical Context, Constraints & Risks) — they do not stack a second, parallel question set on top of them. The time-pressure and consequence questions sharpen **Success Criteria**; the runtime/rollout questions sharpen **Technical Context → Deployment / runtime target**; the ordering and risk questions sharpen **Constraints & Ordering** and **Known Risks & Pitfalls**. The brief's **Delivery Target** section already captures *which* delivery/tracking system the work lives in (e.g. ADO/Jira/GitHub/Linear); this lens **does not re-ask that** — it contributes only the delivery-risk and rollout-intent angle. Choosing the tooling itself is downstream (`/core-engineering:ce-plan`'s tooling mapping), not this lens's job.
 
 ### Time pressure & fixed points
 - **[always-ask]** Is there a date, event, or window this needs to be ready for — and is that date *fixed* (external/contractual) or *aspirational*?
@@ -39,7 +39,7 @@ This lens asks the questions a delivery manager would raise when first hearing a
 - Are there fixed approval or review *windows* (audit dates, change-freeze periods, release trains) that constrain when work can land?
 
 ### Team capacity & access constraints
-*Intent: elicit only access/blocking constraints and availability windows the user already knows — never effort sizing, capacity math, or whether the team can fit the work in the time available (that is `/ce-plan`'s job).*
+*Intent: elicit only access/blocking constraints and availability windows the user already knows — never effort sizing, capacity math, or whether the team can fit the work in the time available (that is `/core-engineering:ce-plan`'s job).*
 - Who is expected to build this, and are there access, environment, or onboarding constraints that could block them (credentials, sandbox access, a key person's availability)?
 - Are there competing commitments or a freeze period (holidays, an in-flight release) the user *already knows about* that overlap this work's intended window?
 
@@ -62,4 +62,4 @@ Ensure each of the following, if unresolved, is captured as an **Open Question**
 
 ## Boundary
 
-This lens surfaces delivery pressures, dependencies, and constraints **as questions only**; it must never **decompose, sequence, phase, schedule, estimate, or do capacity math** for the work, nor judge whether a target is achievable — that is `/ce-plan`'s job, grounded in the real codebase. A persona may shape what is asked and what risk is raised, never decide, design, validate, or assert; every delivery item it raises lands in the brief's Assumptions, Open Questions, or Decision Log, never in an expert-asserted-facts bucket.
+This lens surfaces delivery pressures, dependencies, and constraints **as questions only**; it must never **decompose, sequence, phase, schedule, estimate, or do capacity math** for the work, nor judge whether a target is achievable — that is `/core-engineering:ce-plan`'s job, grounded in the real codebase. A persona may shape what is asked and what risk is raised, never decide, design, validate, or assert; every delivery item it raises lands in the brief's Assumptions, Open Questions, or Decision Log, never in an expert-asserted-facts bucket.

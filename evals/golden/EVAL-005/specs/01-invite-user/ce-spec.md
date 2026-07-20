@@ -49,4 +49,3 @@ Render pending invitations in the team member list.
 | AC-001 | TC-001 | T-001 |
 | AC-002 | TC-002 | T-001 |
 | AC-003 | TC-003 | T-002 |
-

@@ -19,16 +19,16 @@ The main workflow is a spine where each stage produces a durable input for the
 next:
 
 ```text
-/ce-brief -> /ce-plan -> /ce-spec -> /ce-implement
-                                |-> /ce-verify   behavior and acceptance proof
-                                |-> /ce-review   code-quality findings
-                                `-> /ce-debug    cause analysis and fix routing
+/core-engineering:ce-brief -> /core-engineering:ce-plan -> /core-engineering:ce-spec -> /core-engineering:ce-implement
+                                |-> /core-engineering:ce-verify   behavior and acceptance proof
+                                |-> /core-engineering:ce-review   code-quality findings
+                                `-> /core-engineering:ce-debug    cause analysis and fix routing
 
-/ce-auto-build  orchestrates the planned spine across multiple features
-/ce-patch       handles one low-risk change of at most two files
-/ce-ux-audit    checks a running product, with or without a plan
+/core-engineering:ce-auto-build  orchestrates the planned spine across multiple features
+/core-engineering:ce-patch       handles one low-risk change of at most two files
+/core-engineering:ce-ux-audit    checks a running product, with or without a plan
 
-release tail: /ce-ship-release -> /ce-ship-document
+release tail: /core-engineering:ce-ship-release -> /core-engineering:ce-ship-document
 ```
 
 The artifacts, rather than a chat transcript, are the handoff contract. A plan
@@ -41,16 +41,16 @@ layer that owns the correction.
 
 Every write-capable stage has a **Scope Lock**:
 
-- `/ce-spec` may refine one planned feature, but it may not expand the plan.
-- `/ce-implement` may implement the approved spec, but it may not redesign it.
-- `/ce-patch` may touch only its approved file set; structural work graduates
-  to `/ce-plan`.
+- `/core-engineering:ce-spec` may refine one planned feature, but it may not expand the plan.
+- `/core-engineering:ce-implement` may implement the approved spec, but it may not redesign it.
+- `/core-engineering:ce-patch` may touch only its approved file set; structural work graduates
+  to `/core-engineering:ce-plan`.
 - product and release workflows may frame or prepare a decision, but do not
   take product or deployment authority from the human.
 
 When a stage finds a conflict, it records the evidence and routes upward. A
 spec-level boundary conflict returns to planning; an implementation/spec
-conflict returns to specification. Read-only skills such as review, verify,
+conflict returns to specification. Code-read-only analysis workflows such as review, verify,
 debug, ask, impact, and most probes report findings instead of changing the
 layer they inspect.
 
@@ -59,63 +59,64 @@ silently turning a review or diagnosis into an unplanned code change.
 
 ## 2. The skill surface
 
-`/ce-go <outcome>` is the front door when the caller does not know which skill
+`/core-engineering:ce-go <outcome>` is the front door when the caller does not know which skill
 fits. It inspects repository state, explains one proposed route, and hands off
-only after confirmation. Callers who already know the workflow they need can
-invoke it directly.
+only after confirmation. It starts model-invocable routes and returns the exact
+command for direct-only routes. Callers who already know the workflow they need
+can invoke it directly.
 
 ### Entry, repository understanding, and onboarding
 
 | Skill | Responsibility |
 |---|---|
-| `/ce-go` | Route a request to one appropriate skill; it does not perform the work itself. |
-| `/ce-init` | Profile the repository and, with `--write`, create starter policy and guard configuration. |
-| `/ce-ask` | Answer one codebase question with `file:line` evidence and no writes. |
-| `/ce-impact` | Analyze the blast radius and unknowns of a proposed change without implementing it. |
-| `/ce-domain` | Teach the business concepts encoded in a codebase, separating recorded, enforced, and inferred claims. |
-| `/ce-onboard` | Teach the implementation of a built system or plan through an evidence-grounded walkthrough. |
+| `/core-engineering:ce-go` | Route a request to one appropriate skill; it does not perform the work itself. |
+| `/core-engineering:ce-init` | Profile the repository and, with `--write`, create starter policy and guard configuration. |
+| `/core-engineering:ce-ask` | Answer one codebase question with `file:line` evidence and no writes. |
+| `/core-engineering:ce-impact` | Analyze the blast radius and unknowns of a proposed change without implementing it. |
+| `/core-engineering:ce-domain` | Teach the business concepts encoded in a codebase, separating recorded, enforced, and inferred claims. |
+| `/core-engineering:ce-onboard` | Teach the implementation of a built system or plan through an evidence-grounded walkthrough. |
 
 ### Planning, building, and bounded change
 
 | Skill | Responsibility |
 |---|---|
-| `/ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
-| `/ce-plan` | Decompose work into ordered features, decisions, risks, and cross-feature obligations. |
-| `/ce-plan-audit` | Lint and review an existing plan without rewriting it. |
-| `/ce-spec` | Convert one planned feature into EARS acceptance criteria, tests, and `tasks.json`. |
-| `/ce-implement` | Execute an approved task list test-first and record verification evidence. |
-| `/ce-patch` | Handle one change of at most two files through a single approval gate; failed or uncertain admission routes to planning. |
-| `/ce-auto-build` | Run one fixed, sequential spec/implement/verify/review loop across features with budgets, retries, parks, and an end review. |
+| `/core-engineering:ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
+| `/core-engineering:ce-plan` | Decompose work into ordered features, decisions, risks, and cross-feature obligations. |
+| `/core-engineering:ce-plan-audit` | Lint and review an existing plan without rewriting it. |
+| `/core-engineering:ce-spec` | Convert one planned feature into EARS acceptance criteria, tests, and `tasks.json`. |
+| `/core-engineering:ce-implement` | Execute an approved task list test-first and record verification evidence. |
+| `/core-engineering:ce-patch` | Handle one change of at most two files through a single approval gate; failed or uncertain admission routes to planning. |
+| `/core-engineering:ce-auto-build` | Run one fixed, sequential spec/implement/verify/review loop across features with budgets, retries, parks, and an end review. |
 
 ### Assurance, diagnosis, and operational evidence
 
 | Skill | Responsibility |
 |---|---|
-| `/ce-verify` | Check implemented behavior, journeys, dependencies, and acceptance criteria; it does not fix failures. |
-| `/ce-review` | Review code and inbound review comments, producing findings and a machine-readable summary; it does not patch. |
-| `/ce-debug` | Reproduce and classify a failure, then route the fix to implementation, specification, or planning. |
-| `/ce-ux-audit` | Walk planned journeys or probe an unplanned running surface for UX findings. |
-| `/ce-probe-deps` | Check pinned dependencies against OSV advisories, with loud degraded behavior when offline. |
-| `/ce-probe-infra` | Inspect infrastructure manifests and static scanner evidence. |
-| `/ce-probe-sec` | Perform consent-gated dynamic security probing against an authorized target. |
-| `/ce-probe-perf` | Collect measured performance signals from an authorized running target. |
-| `/ce-retro` | Summarize recorded pipeline signals and optionally compile an evidence pack without re-judging the work. |
+| `/core-engineering:ce-verify` | Check implemented behavior, journeys, dependencies, and acceptance criteria; it does not fix failures. |
+| `/core-engineering:ce-review` | Review code and inbound review comments, producing findings and a machine-readable summary; it does not patch. |
+| `/core-engineering:ce-debug` | Reproduce and classify a failure, then route the fix to implementation, specification, or planning. |
+| `/core-engineering:ce-ux-audit` | Walk planned journeys or probe an unplanned running surface for UX findings. |
+| `/core-engineering:ce-probe-deps` | Check pinned dependencies against OSV advisories, with loud degraded behavior when offline. |
+| `/core-engineering:ce-probe-infra` | Inspect infrastructure manifests and static scanner evidence. |
+| `/core-engineering:ce-probe-sec` | Perform consent-gated dynamic security probing against an authorized target. |
+| `/core-engineering:ce-probe-perf` | Collect measured performance signals from an authorized running target. |
+| `/core-engineering:ce-retro` | Summarize recorded pipeline signals and optionally compile an evidence pack without re-judging the work. |
 
 ### Decisions, release, and documentation
 
 | Skill | Responsibility |
 |---|---|
-| `/ce-decide` | Compare technical options and draft an evidence-tagged proposed ADR; a human promotes it. |
-| `/ce-ship-backlog` | Emit one-way ADO, Jira, or GitHub work-item files from a spec; it does not call tracker APIs. |
-| `/ce-ship-release` | Prepare a GO/NO-GO decision package, evidence inventory, and optional changelog; it never deploys. |
-| `/ce-ship-document` | Generate user-facing documentation from verified behavior and runnable examples. |
-| `/ce-humanize` | Rewrite supplied prose while preserving facts and markup; file edits require consent. |
-| `/ce-doc-audit` | Execute an existing guide as a reader role in a sandbox and report findings without editing the source. |
+| `/core-engineering:ce-decide` | Compare technical options and draft an evidence-tagged proposed ADR; a human promotes it. |
+| `/core-engineering:ce-ship-backlog` | Emit one-way ADO, Jira, or GitHub work-item files from a spec; it does not call tracker APIs. |
+| `/core-engineering:ce-ship-release` | Prepare a GO/NO-GO decision package, evidence inventory, and optional changelog; it never deploys. |
+| `/core-engineering:ce-ship-document` | Generate user-facing documentation from verified behavior and runnable examples. |
+| `/core-engineering:ce-humanize` | Rewrite supplied prose while preserving facts and markup; file edits require consent. |
+| `/core-engineering:ce-doc-audit` | Execute an existing guide as a reader role in a sandbox and report findings without editing the source. |
 
-The optional `product-discovery` plugin adds `/ce-idea-scout` for generating and
-ranking directions, `/ce-idea-score` for evaluating one direction, and
-`/ce-market-scan` for sourced market and competitor research. They sit before
-`/ce-brief`; the engineering spine does not require them.
+The optional `product-discovery` plugin adds `/product-discovery:ce-idea-scout` for generating and
+ranking directions, `/product-discovery:ce-idea-score` for evaluating one direction, and
+`/product-discovery:ce-market-scan` for sourced market and competitor research. They sit before
+`/core-engineering:ce-brief`; the engineering spine does not require them.
 
 ## 3. The artifact model
 
@@ -133,11 +134,11 @@ docs/
 │   └── <slug>.json                  # machine-readable brief status
 └── plans/
     ├── plans.json                   # registry of plans in this repository
-    ├── repo-profile.json            # /ce-init repository profile
+    ├── repo-profile.json            # /core-engineering:ce-init repository profile
     ├── vc-policy.md                 # version-control and release policy
     ├── review-policy.md             # human-owned review calibration
     ├── patterns.md                  # known repository hazards
-    ├── express-log.jsonl            # accepted /ce-patch ledger
+    ├── express-log.jsonl            # accepted /core-engineering:ce-patch ledger
     └── <slug>/
         ├── feature-plan.md
         ├── shared-context.md
@@ -150,13 +151,16 @@ docs/
         │   ├── tasks.json
         │   ├── verification.md
         │   ├── code-review.md
-        │   ├── review-summary.json
-        │   └── diagnosis.md
+        │   └── review-summary.json
+        ├── diagnosis.md
         ├── verification-report.md
         ├── evidence/
         ├── .metrics.jsonl
         ├── STATUS.md
-        ├── ce-auto-build/<date>-run.md
+        ├── ce-auto-build/
+        │   ├── <date>-state.json
+        │   ├── <date>-ledger.jsonl
+        │   └── <date>-run.md
         ├── release/<date>-release.md
         └── evidence-pack/<date>/
 ```
@@ -238,14 +242,14 @@ shipped manifest. These controls are tamper-evident rather than tamper-proof: a
 process with broad shell access is not contained the way an OS or container
 sandbox would contain it.
 
-Read-only skills set a write lease at entry and clear it at exit.
-`/ce-init --write` creates the deny-only baseline and starter network policy. Without the
+Code-read-only skills set a write lease at entry and clear it at exit.
+`/core-engineering:ce-init --write` creates the deny-only baseline and starter network policy. Without the
 relevant policy file, a hook may intentionally remain inert; the hook README
 documents each default and limitation.
 
 The safety contract also applies above the hooks. Skills do not push, open or
 merge pull requests, deploy, rotate credentials, or publish packages on their
-own. `/ce-auto-build` also does not create branches, commits, or worktrees; its
+own. `/core-engineering:ce-auto-build` also does not create branches, commits, or worktrees; its
 final human review owns the complete working-tree diff.
 
 Plugin hooks do not run in a standalone CI gate. CI judges only the committed
@@ -260,6 +264,9 @@ and reference checks, spec traceability, test-integrity checks, dependency
 declarations, patch-boundary checks, review summaries, and evidence schemas.
 The scripts use a consistent exit shape: pass, finding/failure, or could-not-run.
 Degraded execution is reported instead of being presented as a clean result.
+The review-evidence gate requires a non-negative `blocking_high` count and rejects
+a contradictory `status` before trusting it; malformed review evidence is a
+could-not-run result, never a pass.
 
 ### Two separate merge questions
 
@@ -279,9 +286,11 @@ secrets, and accepted-risk dispositions. Adopters can promote advisory gates
 after their repository has the inputs those gates require.
 
 The validity value is `human` or `two-human`. The runner records it but cannot
-prove that a reviewer approved the pull request. The host platform must map it
-to branch protection or repository rules. A green integrity result without
-the required review is not a merge authorization.
+prove that a reviewer approved the pull request. GitHub branch protection
+cannot vary its approval count per PR from that runtime value, so the supported
+default is **two required approvals globally**. That conservatively enforces
+both classes; `human` remains the reported minimum. A green integrity result
+without the protected review rule is not a merge authorization.
 
 ### What a green result proves
 
@@ -325,7 +334,7 @@ CI and Azure Pipelines. Teams that want only the test-integrity check can use
 the separate [`action/test-integrity`](../action/test-integrity/README.md).
 
 `scripts/drift_scan.py` is the post-merge complement: it re-projects committed
-plan/spec artifacts on a schedule and routes drift to `/ce-plan` or `/ce-spec`.
+plan/spec artifacts on a schedule and routes drift to `/core-engineering:ce-plan` or `/core-engineering:ce-spec`.
 The plugin does not wrap these local gates in a built-in MCP server; teams add
 external connectors only where a repository workflow actually needs them.
 
@@ -333,15 +342,15 @@ external connectors only where a repository workflow actually needs them.
 
 The plugin ships two leaf custom agents:
 
-- `spec-author` wraps `/ce-plan` and `/ce-spec` for focused artifact authoring.
-- `spec-impl` wraps `/ce-implement` for focused test-first execution.
+- `spec-author` wraps `/core-engineering:ce-plan` and `/core-engineering:ce-spec` for focused artifact authoring.
+- `spec-impl` wraps `/core-engineering:ce-implement` for focused test-first execution.
 
 They use the same skills and artifact contracts as direct invocations. They do
 not spawn nested task workers and do not gain push, merge, or deployment
 authority.
 
-`/ce-auto-build` is different: it is the in-plugin orchestrator for a complete
-plan. Stage 0 fixes the feature range, retry cap, park cap, and budget. Features
+`/core-engineering:ce-auto-build` is different: it is the in-plugin orchestrator for a complete
+plan. Stage 0 fixes the feature range, failure-attempt cap, park cap, and budget. Features
 then move in ship order, one at a time, through specification, deterministic
 lint, implementation, verification, and independent review. Blocking product,
 security-acceptance, destructive, architecture, and scope decisions are parked
@@ -363,7 +372,7 @@ Repository validation combines several layers:
 - CI pins third-party actions, scans history for secrets, validates both
   plugins, and runs the portable gate corpus without Claude Code.
 
-[Benchmarks and Measured Costs](BENCHMARKS.md) distinguishes recorded live runs
+[Benchmarks and Evaluation Budgets](BENCHMARKS.md) distinguishes recorded live runs
 from design-verified scenarios and states which skills have not been measured.
 [Real Outputs](EXAMPLES.md) shows captured artifacts with provenance. The eval
 harness and contributor protocol live in the

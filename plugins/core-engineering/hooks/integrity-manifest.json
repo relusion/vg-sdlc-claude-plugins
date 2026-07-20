@@ -8,8 +8,8 @@
     "guard_log.py": "25adb7265e75e1632a55530cb23f77762730a33499b4f0bce350605a8830d514",
     "hook-integrity.py": "0b690af2cebe89511a9596083ca1c9e87a7fce7f4af1f233e42d97d70f7d849c",
     "hooks.json": "9909eae86872115a0c60d37cd464a38b53b2a614ca9b6dc83ea55a03b17b49a3",
-    "model-attest.py": "e7d09ba508dd85b0fb4a21c0d31ff2570056f9fb55c4b728935afab69ce6aede",
-    "net-guard.py": "2a25796b78641b2d37006d88d592896c3dfe846bbcaf46c684aec9195f8be9fa",
-    "write-scope-guard.py": "87ff5ee4057e8a4a6e772220424661790d004eca5b467a312fce1a96167253ac"
+    "model-attest.py": "666b51be1746481b390f8c8de29b21ef4efe6f5975a3d2cde663ce7236726dc2",
+    "net-guard.py": "d8e6ecdf02527134b158689156130d2de616346ef813735f36cded5a736d89e5",
+    "write-scope-guard.py": "0ba7e2d1f3ab469735cb1236e60e806bea86f834ecf42db0bd1f59789cd7664a"
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""infra-lint.py — the offline, stdlib-only floor under /ce-probe-infra (probe-infra).
+"""infra-lint.py — the offline, stdlib-only floor under /core-engineering:ce-probe-infra (probe-infra).
 
 probe-infra audits Infrastructure-as-Code / Kubernetes / cloud manifests statically.
 Like every gate in this corpus it is a TWO-LAYER discipline: richer findings come from
@@ -473,7 +473,7 @@ def emit(result: dict, as_json: bool) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Offline stdlib floor for /ce-probe-infra — static IaC/k8s/Dockerfile audit.")
+    p = argparse.ArgumentParser(description="Offline stdlib floor for /core-engineering:ce-probe-infra — static IaC/k8s/Dockerfile audit.")
     p.add_argument("--root", metavar="PATH", help="repo root for relative paths (default: cwd)")
     p.add_argument("--scope", metavar="SUBPATH", help="restrict the sweep to this path (file or dir, under root; default: root)")
     p.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES, help=f"sweep cap (default {DEFAULT_MAX_FILES}); a hit is reported, never silent")

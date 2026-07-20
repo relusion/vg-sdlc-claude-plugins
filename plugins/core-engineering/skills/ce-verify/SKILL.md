@@ -2,7 +2,7 @@
 name: ce-verify
 description: |
   Verify a plan's implemented features work together — whole-suite regression, journey walks, durable-noun revisits, bridge retirement, dependency-manifest integrity, stakeholder acceptance — and produce the handover report.
-  Triggers: verify/integration-test/pre-handover-check a plan. Asks DOES IT BEHAVE (a gate); for code quality use /ce-review.
+  Triggers: verify/integration-test/pre-handover-check a plan. Asks DOES IT BEHAVE (a gate); for code quality use /core-engineering:ce-review.
 argument-hint: "[journey]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -15,7 +15,7 @@ allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 Verify that the implemented features of a plan work together. This is the last
 link in the discipline chain: `plan ← spec ← implement ← verify`. Verify checks
 that the software **behaves** as specified; its sibling
-`/ce-review` checks **how the code is written** (correctness beyond
+`/core-engineering:ce-review` checks **how the code is written** (correctness beyond
 tests, security, maintainability, conformance) — run both before handover.
 
 This workflow does **not redesign or patch code**. It runs the whole project's
@@ -25,12 +25,12 @@ never fixes — keeping `spec` and `implement` as the only path that mutates cod
 
 It runs in two modes:
 
-- **Milestone** (`/ce-verify <journey>`) — verify one journey once
+- **Milestone** (`/core-engineering:ce-verify <journey>`) — verify one journey once
   all its composing features are implemented.
 - **Pre-handover** (no argument) — verify the whole project.
 
 It can be run at any point during plan implementation; it operates on whatever
-features have been implemented so far. Under `/ce-auto-build` it runs as the
+features have been implemented so far. Under `/core-engineering:ce-auto-build` it runs as the
 **post-loop integration pass** — it captures the surface evidence and **defers its
 readability verdict to the end-review** (auto-build batches human judgment to the
 bookends, so this human-verdict skill is not spawned mid-loop). The *in-loop*
@@ -102,14 +102,14 @@ Verify never fixes code. When a check fails:
 
 | Failure | Escalate to |
 |---|---|
-| Cross-feature regression / failed criterion | `/ce-implement <id>` — re-open the broken feature |
-| Bridge not retired | `/ce-implement <replacer-id>` — the replacer should have retired it |
-| Journey broken by missing connection or bad ship order | `/ce-plan` — the journey design itself is wrong |
-| Durable noun with no reachable revisit/amend surface (Stage 2.5) | `/ce-plan` — a lifecycle reciprocal was never owned by a feature |
-| Durable noun with no real governance consumer — retain/export/erase (Stage 2.5) | `/ce-plan` — a governance reciprocal was never owned by a feature |
-| Existing surface broken with no shipped continuity (Stage 2.6) | `/ce-plan` — a deprecation/migration obligation was never owned by a feature |
-| Undeclared / unverified dependency in the manifest (Stage 1) | `/ce-implement <id>` — re-open the feature to verify-and-declare or remove the dep; if it is legitimate but unspecced, `/ce-spec <id>` |
-| A feature in scope is not yet `implemented` | `/ce-implement <id>` |
+| Cross-feature regression / failed criterion | `/core-engineering:ce-implement <id>` — re-open the broken feature |
+| Bridge not retired | `/core-engineering:ce-implement <replacer-id>` — the replacer should have retired it |
+| Journey broken by missing connection or bad ship order | `/core-engineering:ce-plan` — the journey design itself is wrong |
+| Durable noun with no reachable revisit/amend surface (Stage 2.5) | `/core-engineering:ce-plan` — a lifecycle reciprocal was never owned by a feature |
+| Durable noun with no real governance consumer — retain/export/erase (Stage 2.5) | `/core-engineering:ce-plan` — a governance reciprocal was never owned by a feature |
+| Existing surface broken with no shipped continuity (Stage 2.6) | `/core-engineering:ce-plan` — a deprecation/migration obligation was never owned by a feature |
+| Undeclared / unverified dependency in the manifest (Stage 1) | `/core-engineering:ce-implement <id>` — re-open the feature to verify-and-declare or remove the dep; if it is legitimate but unspecced, `/core-engineering:ce-spec <id>` |
+| A feature in scope is not yet `implemented` | `/core-engineering:ce-implement <id>` |
 
 These complete the escalate-up chain: `plan ← spec ← implement ← verify`.
 
@@ -127,10 +127,10 @@ Status:   verified | failed | partial
 ```
 
 Point to the next action: if failures escalated, name the skill
-(`/ce-implement <id>` or `/ce-plan`); if pre-handover
+(`/core-engineering:ce-implement <id>` or `/core-engineering:ce-plan`); if pre-handover
 passed, the project is ready for handover.
 
-**Cross-journey UX — point, don't run.** If at least one in-scope journey carried `browser` verification-modality (the modality you already read at Stage 2 from the plan's Journey Map), append one pointer — otherwise suppress it entirely. This run proved each journey *behaves* and each rendered surface is *readable*, but it did **not** check the cross-journey experiential layer: **cross-feature consistency** (action-label / pattern / navigation / tone drift), **off-path dead-ends** one hop from the traced path, **coverage gaps**, and **missing empty/error states**. For those, run `/ce-ux-audit <slug>` before handover — it walks the plan's traced journeys (and auto-detects an adversarial plan-free probe where no plan owns the surface). Skipping it leaves that layer unchecked: acceptable for a CRUD tool, load-bearing for a game / experience app where flow *is* the product. **Name it, never auto-run it** — it is interactive and browser-driven and renders findings-not-verdicts, so the call stays the human's.
+**Cross-journey UX — point, don't run.** If at least one in-scope journey carried `browser` verification-modality (the modality you already read at Stage 2 from the plan's Journey Map), append one pointer — otherwise suppress it entirely. This run proved each journey *behaves* and each rendered surface is *readable*, but it did **not** check the cross-journey experiential layer: **cross-feature consistency** (action-label / pattern / navigation / tone drift), **off-path dead-ends** one hop from the traced path, **coverage gaps**, and **missing empty/error states**. For those, run `/core-engineering:ce-ux-audit <slug>` before handover — it walks the plan's traced journeys (and auto-detects an adversarial plan-free probe where no plan owns the surface). Skipping it leaves that layer unchecked: acceptable for a CRUD tool, load-bearing for a game / experience app where flow *is* the product. **Name it, never auto-run it** — it is interactive and browser-driven and renders findings-not-verdicts, so the call stays the human's.
 
 ---
 
@@ -140,7 +140,7 @@ passed, the project is ready for handover.
 - **Shares the model's blind spots.** Journey walks and evidence interpretation run on the same model that built the feature — an error baked into both the implementation and the reading of the evidence can pass. Independent ≠ omniscient.
 - **Verdicts are interpretation.** A `Pass` means the captured evidence matched the expected observable *as judged here* — not a proof of correctness under inputs not walked. Acceptance is the stakeholder's sign-off, not this tool's.
 - **On a rendered surface, the human's verdict on the presented image is authoritative.** The Surface Critique step (Stage 2.4) is the agent's job to *present the surface and its functional findings* (overlap, clipping, illegible density, unreachable affordance, goal-service) — fallible vision that raises the floor, shares the model's blind spots, and renders no aesthetic verdict. The human owns the call on the presented image; taste is never a Fail.
-- **Behavior, not code quality.** Checks that the software *behaves* as specified; it does not review *how the code is written* — run `/ce-review` as well before handover.
+- **Behavior, not code quality.** Checks that the software *behaves* as specified; it does not review *how the code is written* — run `/core-engineering:ce-review` as well before handover.
 - **As complete as the harness.** A step whose modality can't be driven here falls back to a human-run observable and is recorded as degraded — never silently skipped, but not machine-proven either.
 - **Closes named writes, not unnamed state.** The revisit walk fires off durable writes that actually shipped (a `db`/`event` step, a write criterion, a `tasks.json` write verb) — the only check keyed to built evidence rather than planned scope, so it can catch a noun the plan never named. But state persisted by a path nothing names as a write (an implicit autosave row, a server session assumed transient) emits no detectable signal and is not walked.
 - **Governance horizons longer than a session are attested, not observed.** A `retain` policy whose window exceeds the verify session is confirmed from the wired job/TTL, never watched elapsing — the one governance reciprocal that cannot be walked to completion locally; recorded degraded, never silently passed.

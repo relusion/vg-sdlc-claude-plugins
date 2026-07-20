@@ -2,7 +2,7 @@
 name: ce-humanize
 description: |
   Rewrite AI-generated, generic, or over-polished prose into natural, credible, human-sounding text while preserving meaning, facts, structure, and required terminology — for emails, PR descriptions, READMEs, docs, proposals, commit messages, and other prose. Ephemeral by default (returns the rewrite); edits a named file only on explicit consent, format preserved. Never claims human authorship, fabricates experience or data, or optimizes to defeat AI-detection.
-  Triggers: humanize, naturalize, de-robot, de-AI, make less AI-like, make more conversational or authentic, polish or rewrite prose/copy/tone. For generating user-facing docs from a plan's verified behavior use /ce-ship-document; this rewrites the tone of prose that already exists.
+  Triggers: humanize, naturalize, de-robot, de-AI, make less AI-like, make more conversational or authentic, polish or rewrite prose/copy/tone. For generating user-facing docs from a plan's verified behavior use /core-engineering:ce-ship-document; this rewrites the tone of prose that already exists.
 argument-hint: "[text, file path, or tone/audience — plus what to rewrite]"
 allowed-tools: Read, Edit, Write, Glob, Grep, AskUserQuestion
 ---
@@ -153,13 +153,13 @@ For before/after patterns and the fake-detail failure mode, load
 ## Escalation
 
 - Asked to **write new content** (not rewrite existing prose): route to
-  `/ce-ship-document` for user-facing docs grounded in verified behavior, or to
+  `/core-engineering:ce-ship-document` for user-facing docs grounded in verified behavior, or to
   the relevant spine skill — this tool only rewrites tone.
 - Asked to **add facts, research, or citations**: that is content work, not
   humanizing — decline the fabrication and say where the facts should come from.
 - Asked to **rewrite a spec, EARS criteria, or an evidence / findings artifact**
   (`ce-spec.md`, `code-review.md`, `threat-model.md`, `verification.md`, a probe
-  or `/ce-doc-audit` report, an ADR): decline — its exact wording is a contract or
+  or `/core-engineering:ce-doc-audit` report, an ADR): decline — its exact wording is a contract or
   attestation the framework depends on; point to the owning skill instead.
 - Asked to **misrepresent authorship, defeat AI-detection, or disguise academic
   or compliance misconduct**: refuse, and say why.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""brief-lint.py — well-formedness lint for a /ce-brief artifact pair.
+"""brief-lint.py — well-formedness lint for a /core-engineering:ce-brief artifact pair.
 
 Validates a `docs/briefs/<slug>.md` brief and its `docs/briefs/<slug>.json`
 sidecar so the **Brief -> Plan skip contract** (ce-plan Stage 1.4) is COMPUTED
@@ -19,7 +19,7 @@ Sidecar schema (schema_version 1):
 HARD checks (a FAIL -> exit 1; these gate Stage 3's "Approve & write"):
   H1  Every required Brief-Template heading is present in the markdown brief.
   H2  The Project Description section is non-empty and clears a self-sufficiency
-      length floor (it is /ce-plan's required free-text input — a stub cannot
+      length floor (it is /core-engineering:ce-plan's required free-text input — a stub cannot
       arm the skip).
   H3  Every lens named in the sidecar's `lenses` resolves to a persona file in
       the skill's `personas/` dir (catches the dangling "UX/design lens" class
@@ -62,7 +62,7 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 SECTION_STATES = {"answered", "open", "disputed"}
-# The Project Description must stand alone as /ce-plan's input — a real one-to-two
+# The Project Description must stand alone as /core-engineering:ce-plan's input — a real one-to-two
 # paragraph statement clears this; a stub or bare `<placeholder>` does not.
 DESC_FLOOR = 120
 
@@ -191,7 +191,7 @@ def check_brief(md: dict, sidecar: dict) -> tuple[list, list]:
         n = _content_len(desc)
         if n < DESC_FLOOR:
             hard.append(f"H2 Project Description: only {n} chars of content "
-                        f"(floor {DESC_FLOOR}) — it must stand alone as /ce-plan's "
+                        f"(floor {DESC_FLOOR}) — it must stand alone as /core-engineering:ce-plan's "
                         f"required input, not a stub or bare placeholder")
 
     # A1 range exception carries a reason
@@ -240,7 +240,7 @@ def resolve_personas_dir(args, brief_path: Path) -> Path:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Well-formedness lint for a /ce-brief pair.")
+    p = argparse.ArgumentParser(description="Well-formedness lint for a /core-engineering:ce-brief pair.")
     p.add_argument("brief", help="path to docs/briefs/<slug>.md")
     p.add_argument("--sidecar", help="path to the brief.json sidecar (default: <brief>.json)")
     p.add_argument("--personas-dir", help="persona library dir (default: ../personas)")

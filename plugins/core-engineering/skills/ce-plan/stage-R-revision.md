@@ -9,8 +9,8 @@ Stage R **revises an existing frozen plan in place** — it does not re-decompos
 scratch. It diffs the requested change against the plan already on disk, re-runs **only**
 the gates that change actually touches, preserves everything it does not, and writes the
 result back as the next revision. It is the **receiving end** of every downstream
-"escalate to `/ce-plan` and stop" path: `/ce-spec`'s structural Boundary Conflicts
-(§3.3 / §3.5 / §3.6) and `/ce-implement`'s Boundary Conflict both land here.
+"escalate to `/core-engineering:ce-plan` and stop" path: `/core-engineering:ce-spec`'s structural Boundary Conflicts
+(§3.3 / §3.5 / §3.6) and `/core-engineering:ce-implement`'s Boundary Conflict both land here.
 
 **Next:** Stage R ends by writing through the **existing** Stage 8.3 approval + Stage 9
 write path in `${CLAUDE_SKILL_DIR}/stage-8-9-write.md` — it does not invent a second write
@@ -27,7 +27,7 @@ mechanism. Load that file when you reach R.6.
   a licence to skip a correctness check the change reopened.
 - **Must not** re-ask a gate the delta did **not** touch. Those are **held from the prior
   revision** and listed as such (evidence-first, R2) — never silently, never re-prompted.
-- **Must not** re-spec a feature. Stage R stamps a touched feature so the *next* `/ce-spec`
+- **Must not** re-spec a feature. Stage R stamps a touched feature so the *next* `/core-engineering:ce-spec`
   knows its spec is stale; it never edits `specs/<id>/` itself (escalate up, never expand).
 - **Must not** rename an existing stable feature id. New features earn new stable ids
   appended after the highest existing one; re-cut features keep their id (SKILL.md →
@@ -180,7 +180,7 @@ Before writing:
 - **Stamp** every touched feature's `features/<id>.md` Structured-Metadata block with
   `revised_by: plan-revision <N>` (the new revision number from R.6). A touched feature
   whose `specs/<id>/` already exists has a **stale spec**: the stamp is the signal that its
-  `/ce-spec` must be re-run. State this in the Closing (R.6) — Stage R never edits the spec
+  `/core-engineering:ce-spec` must be re-run. State this in the Closing (R.6) — Stage R never edits the spec
   itself.
 - **New features** get a fresh `features/<id>.md` and a new stable id appended after the
   highest existing ship_order; they have no spec yet.
@@ -232,7 +232,7 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
 **Closing.** Confirm what changed (files written, features touched, `plan_revision: <N>`),
 then name the next actions: for each touched feature whose spec is now stale
 (`revised_by: plan-revision <N>` with an existing `specs/<id>/`), print its
-`/ce-spec <slug> <id>` re-run line; for each new feature, print its `/ce-spec` line. Do not
+`/core-engineering:ce-spec <slug> <id>` re-run line; for each new feature, print its `/core-engineering:ce-spec` line. Do not
 start downstream specification automatically.
 
 ---

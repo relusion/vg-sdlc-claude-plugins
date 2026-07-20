@@ -1,4 +1,4 @@
 # Infra Stack Fixture
 
-Static IaC fixture for `/ce-probe-infra`.
+Static IaC fixture for `/core-engineering:ce-probe-infra`.
 

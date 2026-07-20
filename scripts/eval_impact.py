@@ -26,8 +26,8 @@ Output (JSON on stdout):
      "touched_waived_skills": [...], "stale": [...]}
 
 With --check, each affected scenario is resolved against the committed
-evals/results/*.json live passes (the same receipt product_layer_check demands:
-dry_run:false, status:pass, returncode:0, run_id). A scenario is STALE when it
+evals/results/*.json live passes (the same complete receipt
+product_layer_check demands). A scenario is STALE when it
 has no committed live pass, or when its newest live pass predates the change
 (neither dated no-earlier-than the change's commit, nor run against a commit
 that already contains the change). Any stale scenario → exit 1 with remediation.
@@ -56,7 +56,8 @@ CATCHALL_PATHS = {
 }
 SKILL_PATH_RE = re.compile(r"^plugins/[^/]+/skills/([^/]+)/")
 FIXTURE_PATH_RE = re.compile(r"^evals/fixtures/([^/]+)/")
-RUN_ID_RE = re.compile(r"^(\d{8}-\d{6})Z$")
+RUN_ID_RE = re.compile(r"^(\d{8}-\d{6})(?:-\d{6})?Z$")
+GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$")
 REMEDIATION = (
     "dispatch eval-live on this branch, distill the summary into "
     "evals/results/, commit it in this PR"
@@ -142,6 +143,7 @@ def analyze_changes(
     """Return (scenario_id → triggering changed paths, affected skill names)."""
     by_skill: dict[str, list[str]] = defaultdict(list)
     by_fixture: dict[str, list[str]] = defaultdict(list)
+    by_contract_path: list[tuple[str, str]] = []
     all_ids: list[str] = []
     for s in scenarios:
         sid = s.get("id")
@@ -152,6 +154,13 @@ def analyze_changes(
             by_skill[s["skill"]].append(sid)
         if s.get("fixture"):
             by_fixture[s["fixture"]].append(sid)
+        contract_paths = s.get("contract_paths", [])
+        if isinstance(contract_paths, list):
+            by_contract_path.extend(
+                (path.rstrip("/"), sid)
+                for path in contract_paths
+                if isinstance(path, str) and path
+            )
 
     scenario_triggers: dict[str, set[str]] = defaultdict(set)
     affected_skills: set[str] = set()
@@ -174,6 +183,9 @@ def analyze_changes(
 
         if p in CATCHALL_PATHS:
             for sid in all_ids:
+                scenario_triggers[sid].add(p)
+        for contract_path, sid in by_contract_path:
+            if p == contract_path or p.startswith(f"{contract_path}/"):
                 scenario_triggers[sid].add(p)
 
     return scenario_triggers, affected_skills
@@ -218,6 +230,14 @@ def git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     return proc.returncode == 0
 
 
+def committed_file_matches_head(root: Path, path: Path) -> bool:
+    rel = str(path.relative_to(root))
+    return (
+        _git(root, "ls-files", "--error-unmatch", rel, check=False).returncode == 0
+        and _git(root, "diff", "--quiet", "HEAD", "--", rel, check=False).returncode == 0
+    )
+
+
 # ---------------------------------------------------------------------------
 # Freshness
 # ---------------------------------------------------------------------------
@@ -254,13 +274,18 @@ def load_result_passes(root: Path) -> dict[str, list[dict]]:
     """scenario id → committed live-pass candidates (date + git_head anchor).
 
     Mirrors product_layer_check.check_live_eval_provenance: a candidate must
-    carry status:pass, returncode:0, and a run_id, inside a non-dry summary.
+    carry a successful model result and deterministic grade, a unique run id,
+    and a clean full-commit source anchor inside a non-dry summary.
     """
+    raw: list[tuple[str, dict]] = []
+    receipt_owners: dict[str, set[str]] = defaultdict(set)
     passes: dict[str, list[dict]] = defaultdict(list)
     results_dir = root / "evals" / "results"
     if not results_dir.is_dir():
         return passes
     for summary in sorted(results_dir.glob("*.json")):
+        if not committed_file_matches_head(root, summary):
+            continue
         try:
             data = json.loads(summary.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -268,23 +293,68 @@ def load_result_passes(root: Path) -> dict[str, list[dict]]:
         if not isinstance(data, dict) or data.get("dry_run") is not False:
             continue
         top_run_id = data.get("run_id")
+        if isinstance(top_run_id, str) and top_run_id.strip():
+            receipt_owners[top_run_id].add(f"{summary.name}:batch")
         top_git_head = data.get("git_head")
+        top_source_clean = data.get("source_clean")
+        top_grade_status = data.get("grade_status")
+        top_grade_returncode = data.get("grade_returncode")
+        top_graded_scenarios = data.get("graded_scenarios")
+        top_graded_ids = (
+            {item for item in top_graded_scenarios if isinstance(item, str)}
+            if isinstance(top_graded_scenarios, list)
+            else set()
+        )
         top_curated = data.get("curated")
-        for sc in data.get("scenarios", []):
-            if not (isinstance(sc, dict)
+        for index, sc in enumerate(data.get("scenarios", [])):
+            if not isinstance(sc, dict):
+                continue
+            scenario_run_id = sc.get("run_id")
+            run_id = scenario_run_id or top_run_id
+            git_head = sc.get("git_head") or top_git_head
+            source_clean = (
+                sc.get("source_clean") if "source_clean" in sc else top_source_clean
+            )
+            grade_status = sc.get("grade_status") or top_grade_status
+            grade_returncode = (
+                sc.get("grade_returncode")
+                if "grade_returncode" in sc
+                else top_grade_returncode
+            )
+            graded = sc.get("graded") if "graded" in sc else sc.get("id") in top_graded_ids
+            owner = (
+                f"{summary.name}:scenario:{index}"
+                if scenario_run_id
+                else f"{summary.name}:batch"
+            )
+            if isinstance(run_id, str) and run_id.strip():
+                receipt_owners[run_id].add(owner)
+            if not (isinstance(sc.get("id"), str)
                     and sc.get("status") == "pass"
+                    and type(sc.get("returncode")) is int
                     and sc.get("returncode") == 0
-                    and sc.get("run_id")):
+                    and isinstance(run_id, str) and run_id.strip()
+                    and grade_status == "pass"
+                    and type(grade_returncode) is int and grade_returncode == 0
+                    and graded is True
+                    and source_clean is True
+                    and isinstance(git_head, str)
+                    and GIT_SHA_RE.fullmatch(git_head)
+                    and _git(root, "cat-file", "-e", f"{git_head}^{{commit}}", check=False).returncode == 0):
                 continue
             date = (parse_run_id(sc.get("run_id"))
                     or parse_run_id(top_run_id)
                     or parse_iso(top_curated))
-            git_head = sc.get("git_head") or top_git_head
-            passes[sc["id"]].append({
+            raw.append((sc["id"], {
                 "date": date,
-                "git_head": git_head if isinstance(git_head, str) and git_head else None,
+                "git_head": git_head,
+                "run_id": run_id,
+                "owner": owner,
                 "source": summary.name,
-            })
+            }))
+    for scenario_id, candidate in raw:
+        if receipt_owners[candidate["run_id"]] == {candidate["owner"]}:
+            passes[scenario_id].append(candidate)
     return passes
 
 
@@ -297,12 +367,28 @@ def freshness_for(
 
     change_commit, change_date = git_change_info(root, list(triggers))
 
-    # git_head anchor: a pass run against a commit that already contains the
-    # change is fresh regardless of wall-clock date.
+    # A clean commit anchor is authoritative. A later wall-clock timestamp cannot
+    # make a run against older code fresh.
     if change_commit:
         for c in candidates:
-            if c["git_head"] and git_is_ancestor(root, change_commit, c["git_head"]):
+            if (
+                c["git_head"]
+                and git_is_ancestor(root, change_commit, c["git_head"])
+                and git_is_ancestor(root, c["git_head"], "HEAD")
+                and _git(
+                    root, "diff", "--quiet", c["git_head"], "HEAD", "--",
+                    *sorted(triggers), check=False,
+                ).returncode == 0
+            ):
                 return None
+        if any(c.get("git_head") for c in candidates):
+            dated = [c["date"] for c in candidates if c["date"] is not None]
+            newest = max(dated) if dated else None
+            return {
+                "reason": "live pass predates the change",
+                "change_date": change_date.isoformat() if change_date else None,
+                "result_date": newest.isoformat() if newest else None,
+            }
 
     if change_date is None:
         # The change has no resolvable commit history; a live pass exists and we

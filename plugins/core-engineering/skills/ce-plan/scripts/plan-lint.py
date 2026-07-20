@@ -4,7 +4,7 @@
 Checks a plan directory (`plan.json` + `features/<id>.md` + `feature-plan.md`,
 produced by the `plan` workflow) for the *mechanical* invariants the plan
 artifact must hold on disk. It is the on-disk counterpart to plan's own
-pre-write checks: `/ce-plan` validates only the in-flight candidate draft and writes
+pre-write checks: `/core-engineering:ce-plan` validates only the in-flight candidate draft and writes
 once, so nothing re-checks the persisted artifact after a manual edit, drift, or a
 hand-authored plan. This lint does — and it machine-PROVES the dependency-direction
 and cycle-freedom invariants that `plan` itself only *model-reads* (its

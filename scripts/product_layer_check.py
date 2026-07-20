@@ -17,7 +17,9 @@ import sys
 from pathlib import Path
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
-COMMAND_RE = re.compile(r"(?<![\w/.-])/(ce-[A-Za-z0-9-]+)\b")
+COMMAND_RE = re.compile(
+    r"(?<![\w/.-])/([A-Za-z_][A-Za-z0-9_-]*):(ce-[A-Za-z0-9-]+)\b"
+)
 
 PRODUCT_DOCS = {
     "README.md": [
@@ -56,12 +58,12 @@ PRODUCT_DOCS = {
         "claude plugin install core-engineering@vg-coding",
         "BENCHMARKS.md",
         "CONTRIBUTING.md",
-        "/ce-ask",
-        "/ce-impact",
-        "/ce-init",
-        "/ce-brief",
-        "/ce-plan",
-        "/ce-patch",
+        "/core-engineering:ce-ask",
+        "/core-engineering:ce-impact",
+        "/core-engineering:ce-init",
+        "/core-engineering:ce-brief",
+        "/core-engineering:ce-plan",
+        "/core-engineering:ce-patch",
     ],
     "CONTRIBUTING.md": [
         "# Contributing",
@@ -86,8 +88,8 @@ PRODUCT_DOCS = {
         "contributing/SKILL-AUTHORING.md",
     ],
     "docs/BENCHMARKS.md": [
-        "# Benchmarks & Measured Costs",
-        "## Measured cost floors",
+        "# Benchmarks & Evaluation Budgets",
+        "## Historical successful-run budget caps",
         "## What is *not* yet measured",
         "eval_run.py",
         "--max-budget-usd",
@@ -138,7 +140,6 @@ PRODUCT_DOCS = {
         "Stop or escalate",
         "--resume",
         "STATUS.md",
-        "status-board",
     ],
     "plugins/core-engineering/skills/ce-init/SKILL.md": [
         ".claude/ce-write-scope.json",
@@ -182,8 +183,18 @@ def skill_names(root: Path) -> set[str]:
     }
 
 
+def skill_commands(root: Path) -> set[str]:
+    return {
+        f"/{path.parents[2].name}:{path.parent.name}"
+        for path in sorted((root / "plugins").glob("*/skills/*/SKILL.md"))
+    }
+
+
 def commands_in(text: str) -> set[str]:
-    return {f"/{match.group(1)}" for match in COMMAND_RE.finditer(text)}
+    return {
+        f"/{match.group(1)}:{match.group(2)}"
+        for match in COMMAND_RE.finditer(text)
+    }
 
 
 def check_docs(root: Path, errors: list[str]) -> int:
@@ -225,10 +236,10 @@ def check_usage_matrix(root: Path, errors: list[str]) -> int:
     if not names:
         errors.append("structure: no skills found under any plugins/*/skills")
         return 1
-    expected = {f"/{name}" for name in names}
+    expected = skill_commands(root)
     listed = commands_in(text)
     missing = sorted(expected - listed)
-    extra = sorted(cmd for cmd in listed - expected if cmd.startswith("/ce-"))
+    extra = sorted(listed - expected)
     if missing:
         errors.append(
             f"docs/USAGE-MATRIX.md: missing shipped skill(s): {', '.join(missing)}"
@@ -244,7 +255,7 @@ def check_recipes(root: Path, errors: list[str]) -> int:
     path = root / "docs/WORKFLOW-RECIPES.md"
     text = read(root, path, errors)
     listed = commands_in(text)
-    expected = {f"/{name}" for name in skill_names(root)}
+    expected = skill_commands(root)
     missing = sorted(expected - listed)
     if missing:
         errors.append(
@@ -259,9 +270,9 @@ ROUTING_TABLE_END = "<!-- routing-table:end -->"
 
 
 def check_front_door_parity(root: Path, errors: list[str]) -> int:
-    """The /ce-go front-door router's routing table must route to exactly the
+    """The namespaced ce-go front-door router's routing table must route to exactly the
     skills docs/USAGE-MATRIX.md routes to — a two-way parity lint (excluding
-    /ce-go itself), the same shape as check_usage_matrix.
+    /core-engineering:ce-go itself), the same shape as check_usage_matrix.
 
     ce-go exists so a user need not learn ~30 skill names or the plan-existence
     splits between them; that promise is only true if its table stays complete.
@@ -280,7 +291,7 @@ def check_front_door_parity(root: Path, errors: list[str]) -> int:
         )
         return 1
     block = skill.split(ROUTING_TABLE_START, 1)[1].split(ROUTING_TABLE_END, 1)[0]
-    self_cmd = "/ce-go"
+    self_cmd = "/core-engineering:ce-go"
     matrix_cmds = {cmd for cmd in commands_in(matrix) if cmd != self_cmd}
     routed = {cmd for cmd in commands_in(block) if cmd != self_cmd}
     missing = sorted(matrix_cmds - routed)
@@ -336,11 +347,97 @@ def check_comparison_freshness(root: Path, errors: list[str]) -> int:
     return 1
 
 
+SUPPORTED_SURFACE_RE = re.compile(
+    r"\((\d+) skills across (\d+) plugins\)"
+)
+
+
+def check_supported_surface_claims(root: Path, errors: list[str]) -> int:
+    """Keep product docs aligned with the shipped, intentionally small surface.
+
+    The simplification removed the delivery workflow while retaining the front
+    door, usage matrix, and recipes.  Count the actual plugin/skill inventory
+    and reject the retired delivery vocabulary at the few product surfaces
+    that previously drifted.
+    """
+    comparison_rel = "docs/COMPARISON.md"
+    enterprise_rel = "docs/ENTERPRISE-HARDENING.md"
+    init_rel = "plugins/core-engineering/skills/ce-init/SKILL.md"
+    debug_rel = "plugins/core-engineering/skills/ce-debug/SKILL.md"
+    implement_rel = "plugins/core-engineering/skills/ce-implement/SKILL.md"
+    comparison = read(root, root / comparison_rel, errors)
+    enterprise = read(root, root / enterprise_rel, errors)
+    init_skill = read(root, root / init_rel, errors)
+    debug_skill = read(root, root / debug_rel, errors)
+    implement_skill = read(root, root / implement_rel, errors)
+
+    plugin_count = sum(
+        1 for path in (root / "plugins").glob("*/.claude-plugin/plugin.json")
+        if path.is_file()
+    )
+    skill_count = sum(
+        1 for path in (root / "plugins").glob("*/skills/*/SKILL.md")
+        if path.is_file()
+    )
+    inventory = SUPPORTED_SURFACE_RE.search(comparison)
+    expected = (skill_count, plugin_count)
+    if inventory is None:
+        errors.append(
+            f"{comparison_rel}: missing machine-checkable supported inventory "
+            f"'({skill_count} skills across {plugin_count} plugins)'"
+        )
+    elif tuple(map(int, inventory.groups())) != expected:
+        errors.append(
+            f"{comparison_rel}: supported inventory says {inventory.group(1)} "
+            f"skills across {inventory.group(2)} plugins, but the shipped surface "
+            f"contains {skill_count} skills across {plugin_count} plugins"
+        )
+
+    retired_claims = {
+        comparison_rel: (comparison, ("backlog/delivery",)),
+        enterprise_rel: (
+            enterprise,
+            (
+                "docs/plans/<slug>/delivery/",
+                "release/delivery prompts",
+                "release/delivery fixture",
+            ),
+        ),
+        init_rel: (init_skill, ("delivery base", "delivery profile")),
+        debug_rel: (
+            debug_skill,
+            ("Diagnose Gate", "`/core-engineering:ce-auto-build` invokes debug"),
+        ),
+        implement_rel: (
+            implement_skill,
+            ("`specs/<id>/diagnosis.md` (auto-build)",),
+        ),
+    }
+    for rel, (text, needles) in retired_claims.items():
+        for needle in needles:
+            if needle in text:
+                errors.append(
+                    f"{rel}: retired surface claim {needle!r} must not return; "
+                    "keep the simplified supported workflow terminology"
+                )
+
+    duplicate_supply_chain = re.compile(
+        r"scripts/check\.py --no-install-hooks\s*\n\s*"
+        r"python3 scripts/supply_chain_check\.py"
+    )
+    if duplicate_supply_chain.search(enterprise):
+        errors.append(
+            f"{enterprise_rel}: lists supply_chain_check.py immediately after "
+            "the umbrella check.py command, which already delegates to it"
+        )
+    return 1
+
+
 AUTO_BUILD_RECIPE_HEADING = "## Recipe 10: Run The Full Spine Autonomously"
 
 
 def check_autobuild_recipe_routes_plan_audit(root: Path, errors: list[str]) -> int:
-    """The auto-build recipe section must route through /ce-plan-audit.
+    """The auto-build recipe section must route through namespaced ce-plan-audit.
 
     A substring needle over the whole file cannot prove this (Recipe 14 also
     mentions the skill), so slice Recipe 10's section — the auto-build recipe —
@@ -357,10 +454,10 @@ def check_autobuild_recipe_routes_plan_audit(root: Path, errors: list[str]) -> i
         return 1
     end = text.find("\n## ", start + len(AUTO_BUILD_RECIPE_HEADING))
     section = text[start : end if end != -1 else len(text)]
-    if "/ce-plan-audit" not in section:
+    if "/core-engineering:ce-plan-audit" not in section:
         errors.append(
             "docs/WORKFLOW-RECIPES.md: the auto-build recipe (Recipe 10) must "
-            "mention /ce-plan-audit as the pre-run audit step"
+            "mention /core-engineering:ce-plan-audit as the pre-run audit step"
         )
     return 1
 
@@ -406,7 +503,7 @@ LINK_PLACEHOLDER_CHARS = frozenset("<>*{}")
 LINK_SKIP_PREFIXES = (
     # adopter-side artifact roots (the skills write these in consuming repos)
     "docs/plans/",
-    # where a human promotes /ce-decide's proposed ADR; the canonical ADR root the
+    # where a human promotes /core-engineering:ce-decide's proposed ADR; the canonical ADR root the
     # skill corpus already cites 23 times, and an adopter-side path like the rest.
     "docs/adr/",
     "docs/briefs/",
@@ -499,13 +596,16 @@ def check_doc_links(root: Path, errors: list[str]) -> int:
     return checked
 
 
-BENCH_PASS_ROW_RE = re.compile(
-    r"\|\s*(EVAL-\d+)\s*\|.*\|\s*pass\s*\(\d{4}-\d{2}-\d{2}\)\s*\|")
 BENCH_SCENARIO_ROW_RE = re.compile(r"^\|\s*(EVAL-\d+)\s*\|", re.MULTILINE)
+GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$")
+EVAL_RECEIPT_CONTRACT_PATHS = (
+    "evals/scenarios.json",
+    "scripts/eval_run.py",
+    "scripts/eval_check.py",
+)
 
-# Same row shape, but also capturing the cited run DATE so the recency ratchet
-# can compare it against the skill's real last-change date. Kept separate from
-# BENCH_PASS_ROW_RE so the provenance check keeps its single-group findall.
+# Capture the cited run date so provenance and recency can bind the claim to the
+# receipt's completion day and the contract's real last-change date.
 BENCH_PASS_DATE_RE = re.compile(
     r"\|\s*(EVAL-\d+)\s*\|.*\|\s*pass\s*\((\d{4}-\d{2}-\d{2})\)\s*\|")
 
@@ -517,7 +617,9 @@ RECENCY_FETCH_DEPTH_FIX = (
 
 def check_live_eval_provenance(root: Path, errors: list[str]) -> int:
     """Every BENCHMARKS row claiming `pass (DATE)` must resolve to a committed
-    live-run summary under evals/results/ — no uncited pass claim survives.
+    live-run summary under evals/results/. A promotable receipt must record a
+    successful model process, a successful deterministic grade, a clean source
+    tree, a full commit id, and a run id unique to its run/batch.
 
     The audit found ten 'pass (2026-06-27)' rows with zero committed evidence.
     This makes an uncited pass row (or a curated summary that does not actually
@@ -527,13 +629,48 @@ def check_live_eval_provenance(root: Path, errors: list[str]) -> int:
     import json
 
     bench = read(root, root / "docs/BENCHMARKS.md", errors)
-    claimed = BENCH_PASS_ROW_RE.findall(bench)
+    claimed = BENCH_PASS_DATE_RE.findall(bench)
     if not claimed:
         return 1  # no live-pass claims to back (honest all-design-verified state)
 
-    proven: set[str] = set()
+    candidates: dict[str, list[dict]] = {}
+    receipt_owners: dict[str, set[str]] = {}
+    contract_commits: dict[str, str] = {}
+    contract_paths_by_id: dict[str, list[str]] = {}
+    try:
+        catalog = json.loads((root / "evals/scenarios.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        catalog = {}
+    for scenario in catalog.get("scenarios", []) if isinstance(catalog, dict) else []:
+        if not isinstance(scenario, dict) or not isinstance(scenario.get("id"), str):
+            continue
+        skill = scenario.get("skill")
+        fixture = scenario.get("fixture")
+        skill_paths = [
+            str(path.relative_to(root))
+            for path in root.glob(f"plugins/*/skills/{skill}")
+            if isinstance(skill, str) and path.is_dir()
+        ]
+        relevant = [*EVAL_RECEIPT_CONTRACT_PATHS, *skill_paths]
+        if isinstance(fixture, str) and fixture:
+            relevant.append(f"evals/fixtures/{fixture}")
+        contract_paths = scenario.get("contract_paths", [])
+        if isinstance(contract_paths, list):
+            relevant.extend(
+                path for path in contract_paths if isinstance(path, str) and path
+            )
+        contract_paths_by_id[scenario["id"]] = relevant
+        code, output, _ = _git_out(root, "log", "-1", "--format=%H", "--", *relevant)
+        if code == 0 and output.strip():
+            contract_commits[scenario["id"]] = output.strip().splitlines()[0]
     results_dir = root / "evals" / "results"
     for summary in sorted(results_dir.glob("*.json")):
+        summary_rel = str(summary.relative_to(root))
+        if (
+            _git_out(root, "ls-files", "--error-unmatch", summary_rel)[0] != 0
+            or _git_out(root, "diff", "--quiet", "HEAD", "--", summary_rel)[0] != 0
+        ):
+            continue
         try:
             data = json.loads(summary.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
@@ -541,21 +678,104 @@ def check_live_eval_provenance(root: Path, errors: list[str]) -> int:
             continue
         if data.get("dry_run") is not False:
             continue  # a summary must be a real (non-dry) run to count as evidence
-        for scenario in data.get("scenarios", []):
-            # A live pass must carry the full receipt: status pass, a zero exit,
-            # and the run id it came from — otherwise it is not citable evidence.
-            if (isinstance(scenario, dict)
-                    and scenario.get("status") == "pass"
-                    and scenario.get("returncode") == 0
-                    and scenario.get("run_id")):
-                proven.add(scenario.get("id"))
+        top_run_id = data.get("run_id")
+        if isinstance(top_run_id, str) and top_run_id.strip():
+            receipt_owners.setdefault(top_run_id, set()).add(f"{summary.name}:batch")
+        top_git_head = data.get("git_head")
+        top_source_clean = data.get("source_clean")
+        top_grade_status = data.get("grade_status")
+        top_grade_returncode = data.get("grade_returncode")
+        top_graded_scenarios = data.get("graded_scenarios")
+        top_completed_at = data.get("completed_at")
+        top_graded_ids = (
+            {item for item in top_graded_scenarios if isinstance(item, str)}
+            if isinstance(top_graded_scenarios, list)
+            else set()
+        )
+        for index, scenario in enumerate(data.get("scenarios", [])):
+            if not isinstance(scenario, dict):
+                continue
+            scenario_run_id = scenario.get("run_id")
+            run_id = scenario_run_id or top_run_id
+            scenario_id = scenario.get("id")
+            owner = (
+                f"{summary.name}:scenario:{index}"
+                if scenario_run_id
+                else f"{summary.name}:batch"
+            )
+            if isinstance(run_id, str) and run_id.strip():
+                # Identity belongs to the run/batch, regardless of its outcome.
+                # A failed second record cannot safely reuse a passing receipt id.
+                receipt_owners.setdefault(run_id, set()).add(owner)
+            if not (
+                isinstance(scenario_id, str)
+                and scenario.get("status") == "pass"
+                and type(scenario.get("returncode")) is int
+                and scenario.get("returncode") == 0
+                and isinstance(run_id, str)
+                and run_id.strip()
+            ):
+                continue
+            candidates.setdefault(scenario_id, []).append({
+                "run_id": run_id,
+                "owner": owner,
+                "git_head": scenario.get("git_head") or top_git_head,
+                "source_clean": (
+                    scenario.get("source_clean")
+                    if "source_clean" in scenario
+                    else top_source_clean
+                ),
+                "grade_status": scenario.get("grade_status") or top_grade_status,
+                "grade_returncode": (
+                    scenario.get("grade_returncode")
+                    if "grade_returncode" in scenario
+                    else top_grade_returncode
+                ),
+                "graded": (
+                    scenario.get("graded")
+                    if "graded" in scenario
+                    else scenario_id in top_graded_ids
+                ),
+                "completed_at": scenario.get("completed_at") or top_completed_at,
+            })
 
-    for eval_id in claimed:
-        if eval_id not in proven:
+    for eval_id, run_date in claimed:
+        proven = any(
+            candidate.get("grade_status") == "pass"
+            and type(candidate.get("grade_returncode")) is int
+            and candidate.get("grade_returncode") == 0
+            and candidate.get("graded") is True
+            and candidate.get("source_clean") is True
+            and isinstance(candidate.get("git_head"), str)
+            and GIT_SHA_RE.fullmatch(candidate["git_head"])
+            and _git_out(
+                root, "cat-file", "-e", f"{candidate['git_head']}^{{commit}}"
+            )[0] == 0
+            and _git_out(
+                root, "merge-base", "--is-ancestor", candidate["git_head"], "HEAD"
+            )[0] == 0
+            and eval_id in contract_commits
+            and _git_out(
+                root, "merge-base", "--is-ancestor",
+                contract_commits[eval_id], candidate["git_head"],
+            )[0] == 0
+            and _git_out(
+                root, "diff", "--quiet", candidate["git_head"], "HEAD", "--",
+                *contract_paths_by_id.get(eval_id, []),
+            )[0] == 0
+            and isinstance(candidate.get("completed_at"), str)
+            and candidate["completed_at"][:10] == run_date
+            and receipt_owners.get(candidate["run_id"]) == {candidate["owner"]}
+            for candidate in candidates.get(eval_id, [])
+        )
+        if not proven:
             errors.append(
                 f"docs/BENCHMARKS.md: {eval_id} is marked 'pass (DATE)' but no "
-                f"committed evals/results/*.json records it as a live pass "
-                f"(dry_run:false, status:pass) — cite a run or label it "
+                f"committed evals/results/*.json records a promotable live pass "
+                f"(tracked and unchanged receipt, model exit 0, scenario-bound "
+                f"deterministic grade pass, matching completion date, exact current "
+                f"contract, clean full git_head, and unique run_id) — cite a "
+                f"complete receipt or label it "
                 f"'design-verified, not live-run'"
             )
     return 1
@@ -714,6 +934,11 @@ def check_benchmark_recency(root: Path, errors: list[str]) -> int:
         fixture_dir = root / "evals" / "fixtures" / fixture
         if fixture and fixture_dir.is_dir():
             paths.append(str(fixture_dir.relative_to(root)))
+        contract_paths = scenario.get("contract_paths", [])
+        if isinstance(contract_paths, list):
+            paths.extend(
+                path for path in contract_paths if isinstance(path, str) and path
+            )
 
         rc, out, err = _git_out(root, "log", "-1", "--format=%cs", "--", *paths)
         last_change = out.strip()
@@ -753,6 +978,7 @@ def main(argv: list[str] | None = None) -> int:
     checked += check_doc_links(root, errors)
     checked += check_ci(root, errors)
     checked += check_comparison_freshness(root, errors)
+    checked += check_supported_surface_claims(root, errors)
     checked += check_benchmark_inventory(root, errors)
     checked += check_live_eval_provenance(root, errors)
     checked += check_benchmark_recency(root, errors)

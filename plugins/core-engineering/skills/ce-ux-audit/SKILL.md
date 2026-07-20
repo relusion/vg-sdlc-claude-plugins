@@ -18,9 +18,9 @@ inconsistencies, broken links, missing states, validation gaps, state loss,
 layout breakage, accessibility violations.
 
 The workflow is **read-only on code and existing artifacts**. It finds issues and
-**escalates** to the rest of the toolset (`/ce-implement`, `/ce-spec`, `/ce-plan`) —
+**escalates** to the rest of the toolset (`/core-engineering:ce-implement`, `/core-engineering:ce-spec`, `/core-engineering:ce-plan`) —
 it never patches code or modifies any other artifact. Same discipline as
-`/ce-verify`.
+`/core-engineering:ce-verify`.
 
 It runs in one of **two auto-detected modes**, chosen by a Stage-0 probe of plan
 state — you never have to know which:
@@ -84,7 +84,7 @@ The agent never declares pass / fail. The human triages each finding:
 
 | Triage | Result |
 |---|---|
-| **Escalate** | Record the suggested skill (`/ce-implement <id>`, `/ce-spec <id>`, `/ce-plan`) in the report |
+| **Escalate** | Record the suggested skill (`/core-engineering:ce-implement <id>`, `/core-engineering:ce-spec <id>`, `/core-engineering:ce-plan`) in the report |
 | **Defer** | Record as a known limitation in the report |
 | **Dismiss** | False positive — record the dismissal and its reason (kept in the report, never silently dropped) |
 
@@ -152,9 +152,9 @@ it. Read each at `${CLAUDE_SKILL_DIR}/<file>` by absolute path.
 
 ## Escalation
 
-Implementation defects route to `/ce-implement`; missing or wrong criteria route to
-`/ce-spec`; unplanned journeys or structural UX gaps route to `/ce-plan`; small,
-bounded UI defects on a plan-less repo can route to `/ce-patch`. This workflow
+Implementation defects route to `/core-engineering:ce-implement`; missing or wrong criteria route to
+`/core-engineering:ce-spec`; unplanned journeys or structural UX gaps route to `/core-engineering:ce-plan`; small,
+bounded UI defects on a plan-less repo can route to `/core-engineering:ce-patch`. This workflow
 writes findings and evidence only, in both modes — the mode's own stage file
 carries the per-finding routing table.
 

@@ -244,7 +244,10 @@ def collect_plan(root: Path, plan_dir: Path, gaps: list[str],
         merge_review_counts(reviews, review_counts(parsed))
 
     verifications = sorted(plan_dir.rglob("verification.md"))
-    run_reports = sorted((plan_dir / "auto-build").glob("*-run.md")) if (plan_dir / "auto-build").is_dir() else []
+    run_report_dir = plan_dir / "ce-auto-build"
+    if not run_report_dir.is_dir():
+        run_report_dir = plan_dir / "auto-build"  # legacy pre-canonical path
+    run_reports = sorted(run_report_dir.glob("*-run.md")) if run_report_dir.is_dir() else []
 
     return {
         "slug": plan_dir.name,

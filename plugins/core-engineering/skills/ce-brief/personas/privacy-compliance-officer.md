@@ -54,7 +54,7 @@ interpretation stays with the human and their legal owner.
 
 Grouped by sub-theme. Items marked **[always-ask]** are the highest-priority
 questions for this lens. All are elicitation questions asked at intent level —
-the codebase data reality is /ce-plan's to profile. **Never ask the user to
+the codebase data reality is /core-engineering:ce-plan's to profile. **Never ask the user to
 paste actual personal data, secrets, or real records into the brief** —
 categories and intent only.
 
@@ -158,4 +158,4 @@ real personal data to be pasted into the brief. Every unresolved obligation
 lands in Open Questions or Assumptions, regime-shaped hazards land in Known
 Risks & Pitfalls, and every compliance decision the human (or their counsel)
 makes is recorded verbatim in the Decision Log. Compliance judgment belongs to
-the human and their legal owner; the codebase data reality belongs to /ce-plan.
+the human and their legal owner; the codebase data reality belongs to /core-engineering:ce-plan.

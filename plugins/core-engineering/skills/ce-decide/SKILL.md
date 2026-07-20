@@ -1,9 +1,9 @@
 ---
 name: ce-decide
 description: |
-  Weigh two or more TECHNICAL/architecture options for one decision and render an evidence-tagged Adopt/Adopt-with-mitigations/Spike-first/Reject recommendation plus a proposed ADR — situation-derived weights, knockout gates, a falsifiable DEAD-IF. Engineering-side verdict (unlike /ce-idea-score, which scores PRODUCT ideas).
+  Weigh two or more TECHNICAL/architecture options for one decision and render an evidence-tagged Adopt/Adopt-with-mitigations/Spike-first/Reject recommendation plus a proposed ADR — situation-derived weights, knockout gates, a falsifiable DEAD-IF. Engineering-side verdict (unlike /product-discovery:ce-idea-score, which scores PRODUCT ideas).
   Triggers: choose between, compare, or weigh technical/architecture/fix options for one decision.
-argument-hint: "[the decision + options, or a path to a /ce-debug diagnosis or problem statement] [--evidence measured|reasoned]"
+argument-hint: "[the decision + options, or a path to a /core-engineering:ce-debug diagnosis or problem statement] [--evidence measured|reasoned]"
 allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill
 ---
 
@@ -21,12 +21,12 @@ and render an **Adopt / Adopt-with-mitigations / Spike-first / Reject** recommen
 naming one option — then draft a **proposed ADR** the human promotes.
 
 > **A verdict tool — on the engineering side of the line.** The framework keeps
-> *product, security, and scope* verdicts with the human (`/ce-plan` decomposes, `/ce-brief`
-> elicits, `/ce-market-scan` frames but never decides; `/ce-idea-score` is the one *product*
-> verdict exception — both `/ce-market-scan` and `/ce-idea-score` now ship in the companion
+> *product, security, and scope* verdicts with the human (`/core-engineering:ce-plan` decomposes, `/core-engineering:ce-brief`
+> elicits, `/product-discovery:ce-market-scan` frames but never decides; `/product-discovery:ce-idea-score` is the one *product*
+> verdict exception — both `/product-discovery:ce-market-scan` and `/product-discovery:ce-idea-score` now ship in the companion
 > `product-discovery` plugin). Choosing among **technical options is engineering judgment the
-> agent already exercises** — `/ce-spec` ends a material-decision prompt with
-> `Recommendation: <A/B>`, `/ce-plan` runs a Sizing Gate. This skill makes that judgment
+> agent already exercises** — `/core-engineering:ce-spec` ends a material-decision prompt with
+> `Recommendation: <A/B>`, `/core-engineering:ce-plan` runs a Sizing Gate. This skill makes that judgment
 > *rigorous and standalone*. It is **not** a second product-verdict exception, and it is
 > **not** route-only. The discipline that keeps it honest is the **Decision-Honesty
 > Contract** below. The whole artifact is labeled **OPINIONATED engineering decision
@@ -34,16 +34,13 @@ naming one option — then draft a **proposed ADR** the human promotes.
 
 > **Where it sits.** A discovery / bridging utility (read-only on code, works on any
 > repo, writes a dated never-overwritten snapshot). It is **one caller among several**,
-> **human-triggered**: a `/ce-debug` fix-fork (after the cause is **confirmed** — a
-> planned bug-route approach, or a plan-free investigation's settled cause), a `/ce-plan-audit` decision-quality finding, a `/ce-review`
+> **human-triggered**: a `/core-engineering:ce-debug` fix-fork (after the cause is **confirmed** — a
+> planned bug-route approach, or a plan-free investigation's settled cause), a `/core-engineering:ce-plan-audit` decision-quality finding, a `/core-engineering:ce-review`
 > structural finding, a human's pre-plan architecture call, or — as a **rigorous upgrade of
-> an inline recommendation** — an escalation from `/ce-spec`'s unknown-resolution or `/ce-plan`'s
-> Sizing-Gate / candidate review on a consequential fork with no dominant option. The lone
-> non-interactive caller is **auto-build's off-by-default `enrich-parks` mode**, which runs
-> it (in `reasoned` mode, situation weights marked `inferred`) only to **draft a scored
-> package for a parked fork** — it scores the park, never resolves it. Its output — a
+> an inline recommendation** — an escalation from `/core-engineering:ce-spec`'s unknown-resolution or `/core-engineering:ce-plan`'s
+> Sizing-Gate / candidate review on a consequential fork with no dominant option. Its output — a
 > **proposed ADR** — is consumed downstream: the human promotes it into `docs/adr/` and
-> `/ce-spec` ingests it, or the chosen option seeds `/ce-plan` (large) / `/ce-patch` (small). It
+> `/core-engineering:ce-spec` ingests it, or the chosen option seeds `/core-engineering:ce-plan` (large) / `/core-engineering:ce-patch` (small). It
 > renders a recommendation; it never writes code, mutates a plan, or auto-promotes the ADR.
 
 ## The Decision-Honesty Contract (the core discipline)
@@ -57,7 +54,7 @@ mechanically checked by `decide-lint.py`:
    excluded from any confidence claim). *No tag → the score is inadmissible.* A
    `measured` claim names the measurement; reasoning across the codebase is `inferred` at
    most, never `measured`. Where a score hinges on an unmeasured number, **the natural
-   next step is `/ce-probe-perf`** — the only tool that proves a numeric breach.
+   next step is `/core-engineering:ce-probe-perf`** — the only tool that proves a numeric breach.
 2. **The fatal axes gate, they do not average** — **Efficacy** and **Constraint-fit** are
    **non-compensatory knockouts**: a score ≤ 3 on either **disqualifies that option**, no
    matter how strong the rest. An option that does not solve the problem, or that violates
@@ -72,7 +69,7 @@ mechanically checked by `decide-lint.py`:
    weighting; the weights sum to 1.
 5. **A falsifiable kill-condition, not a failure story** — the recommendation carries one
    observable **DEAD IF \<X\>** line — *the recommendation is wrong if this is observed* —
-   that a human could check, plus the cheapest experiment (often a spike or a `/ce-probe-perf`
+   that a human could check, plus the cheapest experiment (often a spike or a `/core-engineering:ce-probe-perf`
    run) that tests it. A narrative "this might not work" does not satisfy this.
 6. **Recommend, but the human owns the call** — the recommendation is the tool's opinion
    from one fixed set (Adopt / Adopt-with-mitigations / Spike-first / Reject) naming one
@@ -89,10 +86,10 @@ for those two gates and any Stuck-rule question.
 ## ADR rule — draft, never promote
 
 When the decision is **architecturally significant AND cross-feature** (the same two-test
-gate `/ce-spec` uses — it shapes structure / a technology choice / a cross-cutting concern,
+gate `/core-engineering:ce-spec` uses — it shapes structure / a technology choice / a cross-cutting concern,
 *and* a later feature will need it), the artifact ends with a **proposed ADR** in Nygard
 form with `Status: proposed`. The tool **drafts**; only a human promotes it into
-`docs/adr/NNNN-short-title.md` as `Status: accepted` (mirroring `/ce-spec`'s
+`docs/adr/NNNN-short-title.md` as `Status: accepted` (mirroring `/core-engineering:ce-spec`'s
 `decided_by: human` rule and Autonomous-Mode park-on-ADR-worthy). A feature-local
 decision gets **no** ADR — say so, and route it to the spec's Resolved Decisions instead.
 ADR sprawl is the failure mode.
@@ -100,7 +97,7 @@ ADR sprawl is the failure mode.
 ## Runtime Inputs
 
 - **One decision + two or more candidate options (required):** from the invocation, the
-  user, a `/ce-debug` Route section or classification, or a problem
+  user, a `/core-engineering:ce-debug` Route section or classification, or a problem
   statement. If the options are missing or there is only one, ask once. **Do not invent
   options.** If only one option is genuinely viable, say so explicitly (the lint accepts a
   declared single-option case) — do not manufacture a strawman second option.
@@ -111,10 +108,10 @@ ADR sprawl is the failure mode.
 - **Evidence mode (Stage 0):** `measured` (benchmarks / spikes / profiler numbers are
   available or will be gathered — preferred) or `reasoned` (no measurement; **every**
   score is then `inferred` or `unknown`, never `measured`, and the artifact says so).
-- **Confirmed cause (when fed by `/ce-debug`):** weigh fixes only against a
+- **Confirmed cause (when fed by `/core-engineering:ce-debug`):** weigh fixes only against a
   **confirmed** root cause. If the cause is still `suspected` (the Static Ceiling in
-  `/ce-debug`'s plan-free mode), stop and route back to its discrimination plan —
-  re-run `/ce-debug` — first; do not weigh fixes on un-settled evidence.
+  `/core-engineering:ce-debug`'s plan-free mode), stop and route back to its discrimination plan —
+  re-run `/core-engineering:ce-debug` — first; do not weigh fixes on un-settled evidence.
 - **Optional weighting override:** a fully explicit non-default weight profile (Stage 0
   only, recorded) — but prefer deriving weights from the situation.
 
@@ -206,7 +203,7 @@ data-residency obligation.
 Summarize (Markdown): the decision (one sentence), the candidate options (≥ 2, or a
 declared single-option case), the evidence mode (`measured` / `reasoned`), the situational
 factors, and the **weight derivation** (default → adjusted, each move named). If fed by
-a `/ce-debug` investigation, confirm the root cause is **confirmed**. Then ask (AskUserQuestion)
+a `/core-engineering:ce-debug` investigation, confirm the root cause is **confirmed**. Then ask (AskUserQuestion)
 **Proceed / Adjust / Abort**. Score nothing before Proceed. In `reasoned` mode, state up
 front that no score can be `measured`.
 
@@ -232,7 +229,7 @@ kill-conditions, and record the result **on its own line, naming the option and 
 result token** (e.g. `**Option A** — PASS`, `**Option B** — DISQUALIFIED`), so the
 knockout is checkable per option. Then author the
 single **DEAD IF** line for the *recommendation* — the observable that would make the
-recommended choice wrong — with its cheapest experiment (often a spike or a `/ce-probe-perf`
+recommended choice wrong — with its cheapest experiment (often a spike or a `/core-engineering:ce-probe-perf`
 run). A disqualified or DEAD option cannot be the Adopt pick.
 
 ## Stage 4 — Aggregate (gate-then-weight)
@@ -249,9 +246,9 @@ on-disk scorecard (the gates that fired, the deciding axes, the open `unknown`s)
 
 | Recommendation | When | Routes to |
 |---|---|---|
-| **Adopt** | one option clears the gates and wins the weighted composite with a clear margin | the chosen option → `/ce-plan` (large) / `/ce-patch` (small); promote the proposed ADR |
+| **Adopt** | one option clears the gates and wins the weighted composite with a clear margin | the chosen option → `/core-engineering:ce-plan` (large) / `/core-engineering:ce-patch` (small); promote the proposed ADR |
 | **Adopt-with-mitigations** | a winner, but a named weak axis needs a guardrail (the mitigation is stated, and is what the DEAD-IF watches) | as Adopt, carrying the mitigation |
-| **Spike-first** | a load-bearing axis is `unknown` and a cheap spike / `/ce-probe-perf` run would settle it | run the named experiment, then re-decide |
+| **Spike-first** | a load-bearing axis is `unknown` and a cheap spike / `/core-engineering:ce-probe-perf` run would settle it | run the named experiment, then re-decide |
 | **Reject** | every option is disqualified / DEAD, or none meets the requirement | stop — the scorecard is the recorded rationale; re-open the option set |
 
 Read the recommendation back to the human (AskUserQuestion): **Accept / Override /
@@ -336,12 +333,12 @@ The weighting is an opinionated profile, not a fact; read the vector, not just t
 ## Escalation
 
 - A score that hinges on an unmeasured number → mark the axis `unknown`, recommend
-  **Spike-first**, and route to `/ce-probe-perf` or a scoped spike.
-- The cause is only `suspected` (fed from a `/ce-debug` plan-free investigation) →
-  stop; route back to its discrimination plan — re-run `/ce-debug` — to confirm
+  **Spike-first**, and route to `/core-engineering:ce-probe-perf` or a scoped spike.
+- The cause is only `suspected` (fed from a `/core-engineering:ce-debug` plan-free investigation) →
+  stop; route back to its discrimination plan — re-run `/core-engineering:ce-debug` — to confirm
   before weighing fixes.
 - The decision is really a decomposition / boundary question → not this tool's job; route
-  to `/ce-plan`.
+  to `/core-engineering:ce-plan`.
 - The decision is architecturally significant + cross-feature → draft the proposed ADR;
   the human promotes it into `docs/adr/`.
 - The human disagrees with the recommendation → record the **override**; the tool yields.
@@ -357,7 +354,7 @@ The weighting is an opinionated profile, not a fact; read the vector, not just t
 - **Scores are only as good as the evidence behind them.** In `reasoned` mode every score
   is `inferred`/`unknown`; even `inferred` codebase reasoning can miss a hidden coupling.
   An `unknown`-heavy scorecard should Spike-first, not Adopt. `measured` is the only state
-  that proves a number — and proving a numeric breach is `/ce-probe-perf`'s job,
+  that proves a number — and proving a numeric breach is `/core-engineering:ce-probe-perf`'s job,
   not this tool's.
 - **The lint checks shape, not truth.** `decide-lint.py` verifies that every option is
   scored and tagged, the knockouts were applied, the weights sum to 1 and the situation
@@ -368,11 +365,11 @@ The weighting is an opinionated profile, not a fact; read the vector, not just t
   is *accountable*, not *right*.
 - **Knockout floors are deliberately blunt.** Disqualifying on a single ≤ 3 will reject an
   option a specialist could make work; that bluntness is the point. There is no Stage-0
-  knockout waiver here (unlike `/ce-idea-score`): an option that fails to solve the problem or
+  knockout waiver here (unlike `/product-discovery:ce-idea-score`): an option that fails to solve the problem or
   violates a hard constraint is genuinely out — re-open the option set instead.
 - **It decides nothing about product, security, or scope.** Those verdicts stay with the
   human. This tool weighs *engineering* options, drafts (never promotes) an ADR, and
-  escalates a decomposition / boundary question to `/ce-plan`.
+  escalates a decomposition / boundary question to `/core-engineering:ce-plan`.
 - **Garbage options in, garbage recommendation out.** It weighs the options it is given;
   it does not generate the option set, and a missing better option will never appear. If
   only a strawman second option exists, declare the single-option case rather than

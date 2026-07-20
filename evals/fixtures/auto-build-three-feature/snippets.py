@@ -1,7 +1,7 @@
 """In-memory snippet vault — the seed the snippet-vault plan builds on.
 
-Seeded scaffold only: the Store container, validation constants, and a read
-helper. `01-create-snippet` implements `add_snippet`; `03-export-snippets`
+Seeded scaffold only: the Store container and a read helper.
+`01-create-snippet` implements `add_snippet`; `03-export-snippets`
 implements `export_csv`. Kept tiny and dependency-free so the plan's three
 features are the only moving parts an auto-build run has to reason about.
 """
@@ -9,10 +9,6 @@ features are the only moving parts an auto-build run has to reason about.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-
-MAX_BODY = 4000
-ALLOWED_LANGUAGES = {"python", "sql", "text", "javascript", "shell"}
-
 
 @dataclass
 class Snippet:

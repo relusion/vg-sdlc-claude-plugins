@@ -11,7 +11,7 @@ Told to make a failing test pass, an agent may edit the *test* to pass instead
 of the *code* — deleting it, emptying it, ripping out an assertion, adding a
 `skip`, or stubbing it trivially-true (`assert True`). A self-policing context
 cannot be trusted to confess it, so this runs as an **external script over the
-committed diff** — the same test-integrity gate the toolkit's `/ce-implement`
+committed diff** — the same test-integrity gate the toolkit's `/core-engineering:ce-implement`
 loop and merge bar enforce, unbundled for teams that want only the genie-catch.
 
 Agent-agnostic, stdlib-only Python, offline, zero Claude Code installed: a PR

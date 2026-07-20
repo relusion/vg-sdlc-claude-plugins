@@ -14,7 +14,7 @@ It compares the test files at TWO points and FAILS if they got weaker between th
 There are two ways to obtain the earlier ("strong") version, because they catch
 different things — one script, two modes, mutually exclusive:
 
-  --snapshot <dir>   The PRIMARY genie catcher, used per-task by /ce-implement. <dir> is a
+  --snapshot <dir>   The PRIMARY genie catcher, used per-task by /core-engineering:ce-implement. <dir> is a
                      copy of the touched test files taken the moment they were confirmed
                      RED (failing), mirroring repo-relative paths. test-guard diffs that
                      snapshot against the current (green) working tree. This is the ONLY
@@ -37,7 +37,7 @@ different things — one script, two modes, mutually exclusive:
 A THIRD mode audits the PASS-marker ledger those --snapshot runs leave behind — it
 neither diffs tests nor detects weakening, it closes the HONOR gap:
 
-  --verify-passes    Run at feature verification (/ce-implement Stage 2 and auto-build
+  --verify-passes    Run at feature verification (/core-engineering:ce-implement Stage 2 and auto-build
     --spec-dir DIR   step 5a, before `.test-guard/<id>/` is deleted). Every `done` task in
                      DIR/tasks.json whose `verifies` includes an `auto` test case MUST
                      have left a PASS marker in `.test-guard/<feature-id>/passes.json`

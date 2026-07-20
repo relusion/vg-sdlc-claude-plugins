@@ -344,9 +344,16 @@ def check_router_clusters(root: Path, errors: list[str]) -> int:
             for sibling in cluster:
                 if sibling == member:
                     continue
-                if f"/{sibling}" not in fm:
+                sibling_path = by_name.get(sibling)
+                sibling_command = (
+                    f"/{sibling_path.parents[2].name}:{sibling}"
+                    if sibling_path is not None
+                    else f"/<plugin>:{sibling}"
+                )
+                if sibling_command not in fm:
                     errors.append(
-                        f"{rel(root, path)}: description does not mention /{sibling} — "
+                        f"{rel(root, path)}: description does not mention "
+                        f"{sibling_command} — "
                         f"router cluster {cluster} relies on mutual contrastive clauses"
                     )
     return checked

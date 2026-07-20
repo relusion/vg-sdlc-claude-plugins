@@ -48,8 +48,8 @@ cell traces to the sections above and `Verified` is their AND. In **milestone** 
 a feature whose owned journeys are not all walked yet reads `partial (n-of-m
 journeys)`, never an unqualified `Verified`; only the **pre-handover** pass asserts a
 whole-feature `Verified`. This report is the **single owner of the per-feature
-verified rule**: `/ce-ship-release` and `/ce-ship-document` read its `Verified` column (scoped to
+verified rule**: `/core-engineering:ce-ship-release` and `/core-engineering:ce-ship-document` read its `Verified` column (scoped to
 their own range / audience) instead of re-deriving feature state — so write it to be
 read that way.
 
-**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "verify"`) — plus a `gate` line per check and any `escalation` — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive from data already produced, label token figures estimates, and **never** let this block or fail verification. It powers `/ce-retro`.
+**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "verify"`) — plus a `gate` line per check and any `escalation` — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive from data already produced, label token figures estimates, and **never** let this block or fail verification. It powers `/core-engineering:ce-retro`.

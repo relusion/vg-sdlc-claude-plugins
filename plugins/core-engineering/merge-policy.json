@@ -69,7 +69,7 @@
         "{spec_dir}",
         "--json"
       ],
-      "proves": "no confirmed-High correctness/security review finding is unresolved for this spec (review-summary.json blocking_high == 0), judged from the review artifact /ce-review writes (advisory: missing review evidence reports, never blocks, until promoted to required)"
+      "proves": "no confirmed-High correctness/security review finding is unresolved for this spec (review-summary.json blocking_high == 0), judged from the review artifact /core-engineering:ce-review writes (advisory: missing review evidence reports, never blocks, until promoted to required)"
     },
     "plan-lint": {
       "script": "skills/ce-plan-audit/scripts/plan-lint.py",

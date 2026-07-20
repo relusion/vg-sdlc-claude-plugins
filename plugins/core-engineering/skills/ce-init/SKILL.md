@@ -82,7 +82,7 @@ signals by reading the files the scanner cites, especially:
 Ask at most one grouped setup question if material facts are missing. Keep it
 decidable:
 
-- protected branch / delivery base;
+- protected branch / release base;
 - canonical test, lint, build, and start commands;
 - review calibration (high bar, generated paths, nit policy);
 - known recurring hazards or flaky suites;
@@ -97,7 +97,7 @@ When writes are permitted, write missing artifacts under `docs/plans/`:
 
 - `repo-profile.json`: machine-readable scan, git identity, commands, surfaces,
   and confidence notes.
-- `vc-policy.md`: protected branch, delivery profile, commit/push boundaries,
+- `vc-policy.md`: protected branch, release profile, commit/push boundaries,
   dirty-tree handling, and release handoff defaults.
 - `review-policy.md`: review bar, generated/third-party skip paths, severity
   calibration, finding dismissal policy, and convergence rules.
@@ -143,22 +143,22 @@ When writes are permitted, write missing artifacts under `docs/plans/`:
   Loopback hosts always pass. Leave any existing policy untouched and report it.
   Gitignore `.claude/ce-net-policy.json` alongside the other runtime guard state.
 
-Do not create a plan slug. `/ce-plan` owns feature/project plans.
+Do not create a plan slug. `/core-engineering:ce-plan` owns feature/project plans.
 
 ### Stage 3 - Handoff
 
 Recommend the next command:
 
-- `/ce-ask` for immediate code questions;
-- `/ce-impact` for a pasted work item;
-- `/ce-brief` then `/ce-plan` for a new feature;
-- `/ce-patch` for one small bounded change;
-- `/ce-probe-infra` if infrastructure manifests were detected.
+- `/core-engineering:ce-ask` for immediate code questions;
+- `/core-engineering:ce-impact` for a pasted work item;
+- `/core-engineering:ce-brief` then `/core-engineering:ce-plan` for a new feature;
+- `/core-engineering:ce-patch` for one small bounded change;
+- `/core-engineering:ce-probe-infra` if infrastructure manifests were detected.
 
 ## Escalation
 
 - If the repo has no discoverable build/test path, record a setup blocker and
-  recommend adding one before `/ce-auto-build`.
+  recommend adding one before `/core-engineering:ce-auto-build`.
 - If protected branch or release policy is unknown, write a conservative
   `vc-policy.md` draft only with `inferred` labels, or skip writing if the human
   does not consent.

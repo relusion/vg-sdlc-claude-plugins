@@ -17,7 +17,10 @@ eval run can still be checked while it is in progress.
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,6 +31,22 @@ CITATION_RE = re.compile(r"\b[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+:\d+(?:-\d+)?\b")
 BUDGET_EXCEEDED = "Exceeded USD budget"
 PROFILES = {"smoke", "full", "benchmark"}
 MAX_CHECK_SUBSTRING_CHARS = 160
+IGNORED_STATE_EXCLUDED_DIRS = frozenset({
+    ".cache",
+    ".gradle",
+    ".mypy_cache",
+    ".nox",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "venv",
+})
 OUTPUT_CHECK_KEYS = {
     "forbid_citation",
     "forbidden_regexes",
@@ -35,12 +54,24 @@ OUTPUT_CHECK_KEYS = {
     "require_citation",
     "required_citations",
     "required_substrings",
+    "required_substrings_case_insensitive",
+    "forbidden_substrings_case_insensitive",
+}
+GIT_CHECK_KEYS = {
+    "head_unchanged",
+    "branch_unchanged",
+    "refs_unchanged",
+    "worktrees_unchanged",
+    "local_config_unchanged",
+    "changed_paths_exact",
+    "allowed_changed_path_globs",
 }
 ARTIFACT_BASE_KEYS = {"type", "path", "path_glob"}
-ARTIFACT_TYPES = {"file_contains", "json_fields", "spec_lint"}
+ARTIFACT_TYPES = {"file_contains", "json_fields", "jsonl_records", "spec_lint"}
 ARTIFACT_TYPE_KEYS = {
     "file_contains": ARTIFACT_BASE_KEYS | {"substrings", "forbidden_substrings"},
     "json_fields": ARTIFACT_BASE_KEYS | {"equals", "contains", "min_lengths"},
+    "jsonl_records": ARTIFACT_BASE_KEYS | {"where", "equals", "contains", "count"},
     "spec_lint": ARTIFACT_BASE_KEYS,
 }
 
@@ -83,10 +114,11 @@ def load_scenarios(root: Path) -> dict:
 def invocation_skill_path(root: Path, invocation: str) -> tuple[str, Path]:
     if not invocation.startswith("/"):
         return "core-engineering", root / "__invalid_skill__"
-    skill = invocation[1:]
-    if ":" in skill or not skill.startswith("ce-"):
+    command = invocation[1:]
+    plugin, separator, skill = command.partition(":")
+    if not separator or not plugin or not skill.startswith("ce-"):
         return "core-engineering", root / "__invalid_skill__"
-    return "core-engineering", skill_path(root, "core-engineering", skill)
+    return plugin, skill_path(root, plugin, skill)
 
 
 def skill_path(root: Path, plugin: str, skill: str) -> Path:
@@ -132,7 +164,7 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
             if not sp.is_file():
                 errors.append(f"{prefix}: skill file not found for {skill}: {rel(root, sp)}")
             if isinstance(invocation, str) and invocation.startswith("/"):
-                invoked_skill = invocation[1:]
+                invoked_skill = invocation.rpartition(":")[2]
                 if invoked_skill and invoked_skill != skill:
                     errors.append(
                         f"{prefix}: invocation {invocation} does not match skill '{skill}'"
@@ -147,6 +179,19 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
             if not fixture_dir.is_dir():
                 errors.append(f"{prefix}: fixture not found: {rel(root, fixture_dir)}")
 
+        contract_paths = scenario.get("contract_paths", [])
+        if not isinstance(contract_paths, list):
+            errors.append(f"{prefix}: contract_paths must be a list")
+        else:
+            for path_idx, value in enumerate(contract_paths):
+                errors.extend(
+                    validate_artifact_path(
+                        prefix, f"contract_paths.{path_idx}", value
+                    )
+                )
+                if isinstance(value, str) and not (root / value).exists():
+                    errors.append(f"{prefix}: contract path does not exist: {value}")
+
         prompt = scenario.get("prompt")
         if not isinstance(prompt, str) or not prompt.strip():
             errors.append(f"{prefix}: prompt must be a non-empty string")
@@ -158,6 +203,14 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
         budget = scenario.get("recommended_budget_usd")
         if not isinstance(budget, (int, float)) or budget <= 0:
             errors.append(f"{prefix}: recommended_budget_usd must be a positive number")
+
+        timeout_seconds = scenario.get("timeout_seconds")
+        if timeout_seconds is not None and (
+            not isinstance(timeout_seconds, int)
+            or isinstance(timeout_seconds, bool)
+            or timeout_seconds <= 0
+        ):
+            errors.append(f"{prefix}: timeout_seconds must be a positive integer")
 
         expected_files = scenario.get("expected_files", [])
         if not isinstance(expected_files, list):
@@ -181,6 +234,34 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
 
         errors.extend(validate_output_checks(prefix, scenario.get("output_checks")))
         errors.extend(validate_artifact_checks(prefix, scenario))
+        errors.extend(validate_git_checks(prefix, scenario.get("git_checks")))
+
+        if scenario.get("skill") in {"ce-spec", "ce-implement"}:
+            legacy_refs: list[str] = []
+            if isinstance(expected_files, list):
+                legacy_refs.extend(
+                    value for value in expected_files
+                    if isinstance(value, str) and Path(value).name == "spec.md"
+                )
+            output_checks = scenario.get("output_checks")
+            if isinstance(output_checks, dict):
+                required = output_checks.get("required_substrings", [])
+                if isinstance(required, list) and "spec.md" in required:
+                    legacy_refs.append("output_checks.required_substrings:spec.md")
+            artifact_checks = scenario.get("artifact_checks", [])
+            if isinstance(artifact_checks, list):
+                for check in artifact_checks:
+                    if not isinstance(check, dict):
+                        continue
+                    value = check.get("path") or check.get("path_glob")
+                    if isinstance(value, str) and Path(value).name == "spec.md":
+                        legacy_refs.append(value)
+            if legacy_refs:
+                errors.append(
+                    f"{prefix}: uses legacy spec.md in its executable contract "
+                    f"({', '.join(legacy_refs)}); current /core-engineering:ce-spec and /core-engineering:ce-implement "
+                    "scenarios must use canonical ce-spec.md"
+                )
 
     return errors, gate_count
 
@@ -228,6 +309,16 @@ def validate_output_checks(sid: str, checks: object) -> list[str]:
                                          checks.get("required_substrings")))
     errors.extend(validate_check_strings(sid, "output_checks.forbidden_substrings",
                                          checks.get("forbidden_substrings")))
+    errors.extend(validate_check_strings(
+        sid,
+        "output_checks.required_substrings_case_insensitive",
+        checks.get("required_substrings_case_insensitive"),
+    ))
+    errors.extend(validate_check_strings(
+        sid,
+        "output_checks.forbidden_substrings_case_insensitive",
+        checks.get("forbidden_substrings_case_insensitive"),
+    ))
     errors.extend(validate_check_strings(sid, "output_checks.required_citations",
                                          checks.get("required_citations")))
 
@@ -267,13 +358,63 @@ def validate_output_checks(sid: str, checks: object) -> list[str]:
             "forbid_citation",
             "forbidden_regexes",
             "forbidden_substrings",
+            "forbidden_substrings_case_insensitive",
             "require_citation",
             "required_substrings",
+            "required_substrings_case_insensitive",
         )
     )
     if not has_assertion:
         errors.append(f"{sid}: output_checks must contain at least one assertion")
 
+    return errors
+
+
+def validate_git_checks(sid: str, checks: object) -> list[str]:
+    if checks is None:
+        return []
+    if not isinstance(checks, dict) or not checks:
+        return [f"{sid}: git_checks must be a non-empty object"]
+    errors: list[str] = []
+    unknown = sorted(set(checks) - GIT_CHECK_KEYS)
+    if unknown:
+        errors.append(f"{sid}: git_checks has unknown key(s): {', '.join(unknown)}")
+    for key in (
+        "head_unchanged",
+        "branch_unchanged",
+        "refs_unchanged",
+        "worktrees_unchanged",
+        "local_config_unchanged",
+    ):
+        if key in checks and checks[key] is not True:
+            errors.append(f"{sid}: git_checks.{key} must be true when present")
+    for key in ("changed_paths_exact", "allowed_changed_path_globs"):
+        if key not in checks:
+            continue
+        value = checks[key]
+        if not isinstance(value, list):
+            errors.append(f"{sid}: git_checks.{key} must be a list")
+            continue
+        for idx, item in enumerate(value):
+            errors.extend(validate_artifact_path(sid, f"git_checks.{key}.{idx}", item))
+    if "changed_paths_exact" in checks and "allowed_changed_path_globs" in checks:
+        errors.append(
+            f"{sid}: git_checks cannot combine changed_paths_exact and "
+            "allowed_changed_path_globs"
+        )
+    if not any(
+        key in checks
+        for key in (
+            "head_unchanged",
+            "branch_unchanged",
+            "refs_unchanged",
+            "worktrees_unchanged",
+            "local_config_unchanged",
+            "changed_paths_exact",
+            "allowed_changed_path_globs",
+        )
+    ):
+        errors.append(f"{sid}: git_checks must contain at least one assertion")
     return errors
 
 
@@ -326,6 +467,29 @@ def validate_artifact_checks(sid: str, scenario: dict) -> list[str]:
                 )
         elif ctype == "json_fields":
             errors.extend(validate_json_fields_body(sid, label, check))
+        elif ctype == "jsonl_records":
+            for key in ("where", "equals", "contains"):
+                if key in check and not isinstance(check[key], dict):
+                    errors.append(f"{sid}: {label}.{key} must be an object")
+            if not check.get("where"):
+                errors.append(f"{sid}: {label}.where must select at least one field")
+            count = check.get("count")
+            if type(count) is not int or count < 0:
+                errors.append(f"{sid}: {label}.count must be a non-negative integer")
+            for key in ("where", "equals", "contains"):
+                body = check.get(key, {})
+                if isinstance(body, dict):
+                    for dotted in body:
+                        if not isinstance(dotted, str) or not dotted:
+                            errors.append(
+                                f"{sid}: {label}.{key} keys must be non-empty strings"
+                            )
+            contains = check.get("contains", {})
+            if isinstance(contains, dict):
+                for dotted, items in contains.items():
+                    errors.extend(
+                        validate_check_strings(sid, f"{label}.contains.{dotted}", items)
+                    )
 
     return errors
 
@@ -498,12 +662,13 @@ def grade_outputs(root: Path, scenarios: list[dict], outputs_dir: Path,
     errors: list[str] = []
     graded = 0
     run_records = load_run_records(outputs_dir)
+    required_ids = set(run_records) if run_records else {s["id"] for s in scenarios}
 
     for scenario in scenarios:
         sid = scenario["id"]
         out = outputs_dir / f"{sid}.md"
         if not out.is_file():
-            if require_all:
+            if require_all and sid in required_ids:
                 errors.append(f"{sid}: missing output file {rel(root, out)}")
             continue
         record = run_records.get(sid)
@@ -532,6 +697,7 @@ def grade_outputs(root: Path, scenarios: list[dict], outputs_dir: Path,
             continue
         errors.extend(grade_one_output(sid, text, checks))
         errors.extend(grade_artifacts(root, outputs_dir, scenario, record))
+        errors.extend(grade_git_state(root, outputs_dir, scenario, record))
 
     return errors, graded
 
@@ -544,6 +710,13 @@ def grade_one_output(sid: str, text: str, checks: dict) -> list[str]:
     for item in checks.get("forbidden_substrings", []):
         if item in text:
             errors.append(f"{sid}: output contains forbidden text {item!r}")
+    folded_text = text.casefold()
+    for item in checks.get("required_substrings_case_insensitive", []):
+        if item.casefold() not in folded_text:
+            errors.append(f"{sid}: output missing semantic text {item!r}")
+    for item in checks.get("forbidden_substrings_case_insensitive", []):
+        if item.casefold() in folded_text:
+            errors.append(f"{sid}: output contains forbidden semantic text {item!r}")
     for pat in checks.get("forbidden_regexes", []):
         if re.search(pat, text, re.MULTILINE):
             errors.append(f"{sid}: output matched forbidden regex {pat!r}")
@@ -557,6 +730,162 @@ def grade_one_output(sid: str, text: str, checks: dict) -> list[str]:
             errors.append(f"{sid}: output missing citation for {path}")
     if checks.get("forbid_citation") and CITATION_RE.search(text):
         errors.append(f"{sid}: output should not contain file:line citations")
+    return errors
+
+
+def capture_git_state(work_dir: Path) -> dict:
+    git_env = os.environ.copy()
+    for key in [name for name in git_env if name.startswith("GIT_")]:
+        del git_env[key]
+
+    def read(*args: str, allow_nonzero: bool = False) -> str:
+        proc = subprocess.run(
+            ["git", "-C", str(work_dir), *args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=git_env,
+        )
+        if proc.returncode != 0 and not allow_nonzero:
+            detail = proc.stderr.strip() or proc.stdout.strip() or f"git exited {proc.returncode}"
+            raise ValueError(detail)
+        return proc.stdout
+
+    branch = read("symbolic-ref", "--quiet", "--short", "HEAD", allow_nonzero=True).strip() or None
+    local_config = read("config", "--local", "--list", "--null")
+    changed = {
+        path for path in read("diff", "--name-only", "-z", "HEAD").split("\0") if path
+    }
+    changed.update(
+        path
+        for path in read("ls-files", "--others", "--exclude-standard", "-z").split("\0")
+        if path
+    )
+    ignored_files_sha256: dict[str, str] = {}
+    ignored_paths = (
+        path
+        for path in read(
+            "ls-files", "--others", "--ignored", "--exclude-standard", "-z"
+        ).split("\0")
+        if path
+    )
+    for relative_path in ignored_paths:
+        if any(
+            part in IGNORED_STATE_EXCLUDED_DIRS
+            for part in Path(relative_path).parts
+        ):
+            continue
+        path = work_dir / relative_path
+        digest = hashlib.sha256()
+        try:
+            if path.is_symlink():
+                digest.update(b"symlink\0")
+                digest.update(os.fsencode(os.readlink(path)))
+            elif path.is_file():
+                digest.update(b"file\0")
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            else:
+                continue
+        except OSError as exc:
+            raise ValueError(
+                f"could not hash ignored eval fixture path {relative_path!r}: {exc}"
+            ) from exc
+        ignored_files_sha256[relative_path] = digest.hexdigest()
+    return {
+        "head": read("rev-parse", "HEAD").strip(),
+        "branch": branch,
+        "refs": sorted(
+            line
+            for line in read("for-each-ref", "--format=%(objectname) %(refname)").splitlines()
+            if line
+        ),
+        "worktrees": [
+            line for line in read("worktree", "list", "--porcelain").splitlines() if line
+        ],
+        "local_config_sha256": hashlib.sha256(local_config.encode("utf-8")).hexdigest(),
+        "changed_paths": sorted(changed),
+        "ignored_files_sha256": dict(sorted(ignored_files_sha256.items())),
+    }
+
+
+def grade_git_state(root: Path, outputs_dir: Path, scenario: dict, record: object) -> list[str]:
+    sid = scenario["id"]
+    checks = scenario.get("git_checks")
+    if not checks:
+        return []
+    if not isinstance(record, dict):
+        return [f"{sid}: git_checks require eval_run metadata"]
+    state = record.get("git_state")
+    if not isinstance(state, dict):
+        return [f"{sid}: git_checks require git_state metadata"]
+    before = state.get("before")
+    after = state.get("after")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        detail = state.get("capture_error") or "missing before/after snapshot"
+        return [f"{sid}: git_state metadata is incomplete ({detail})"]
+    base = resolve_artifact_base(root, outputs_dir, sid, record)
+    if base is None:
+        return [f"{sid}: git_checks require eval_run metadata with work_dir"]
+    try:
+        current = capture_git_state(base)
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        return [f"{sid}: could not inspect final Git state: {exc}"]
+
+    errors: list[str] = []
+    if current != after:
+        errors.append(f"{sid}: worktree changed after the runner captured its final Git state")
+    if checks.get("head_unchanged") and current.get("head") != before.get("head"):
+        errors.append(f"{sid}: Git HEAD changed during the eval run")
+    if checks.get("branch_unchanged") and current.get("branch") != before.get("branch"):
+        errors.append(f"{sid}: current Git branch changed during the eval run")
+    if checks.get("refs_unchanged") and current.get("refs") != before.get("refs"):
+        errors.append(f"{sid}: Git refs changed during the eval run")
+    if checks.get("worktrees_unchanged") and current.get("worktrees") != before.get("worktrees"):
+        errors.append(f"{sid}: Git worktree set changed during the eval run")
+    if (
+        checks.get("local_config_unchanged")
+        and current.get("local_config_sha256") != before.get("local_config_sha256")
+    ):
+        errors.append(f"{sid}: local Git config changed during the eval run")
+
+    visible_paths = current.get("changed_paths")
+    if not isinstance(visible_paths, list):
+        errors.append(f"{sid}: final Git snapshot has no changed_paths list")
+        return errors
+    before_ignored = before.get("ignored_files_sha256")
+    after_ignored = after.get("ignored_files_sha256")
+    current_ignored = current.get("ignored_files_sha256")
+    if not all(
+        isinstance(snapshot, dict)
+        for snapshot in (before_ignored, after_ignored, current_ignored)
+    ):
+        errors.append(
+            f"{sid}: Git snapshots have no ignored_files_sha256 map; "
+            "ignored-path write coverage is unavailable"
+        )
+        return errors
+    ignored_changed_paths = {
+        path
+        for path in set(before_ignored) | set(current_ignored)
+        if before_ignored.get(path) != current_ignored.get(path)
+    }
+    actual_paths = sorted(set(visible_paths) | ignored_changed_paths)
+    if "changed_paths_exact" in checks:
+        expected = sorted(checks.get("changed_paths_exact", []))
+        if actual_paths != expected:
+            errors.append(
+                f"{sid}: final changed paths {actual_paths!r}, expected exactly {expected!r}"
+            )
+    allowed = checks.get("allowed_changed_path_globs")
+    if isinstance(allowed, list):
+        unexpected = [
+            path for path in actual_paths
+            if not any(fnmatch.fnmatchcase(path, pattern) for pattern in allowed)
+        ]
+        if unexpected:
+            errors.append(f"{sid}: final changed paths outside the allowed set: {unexpected!r}")
     return errors
 
 
@@ -703,6 +1032,73 @@ def grade_artifact_target(root: Path, sid: str, check: dict, ctype: object, path
                     f"{sid}: artifact {rel(root, path)} field {dotted} length {actual_len}, "
                     f"expected at least {expected}"
                 )
+        return errors
+
+    if ctype == "jsonl_records":
+        if not path.is_file():
+            return [f"{sid}: artifact missing: {rel(root, path)}"]
+        records: list[dict] = []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for line_no, line in enumerate(lines, start=1):
+                if not line.strip():
+                    continue
+                value = json.loads(line)
+                if not isinstance(value, dict):
+                    return [
+                        f"{sid}: artifact {rel(root, path)} line {line_no} "
+                        "must be a JSON object"
+                    ]
+                records.append(value)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return [f"{sid}: artifact {rel(root, path)} is not valid JSONL: {exc}"]
+
+        def matches(record: dict) -> bool:
+            for dotted, expected in check.get("where", {}).items():
+                try:
+                    if value_at_path(record, dotted) != expected:
+                        return False
+                except KeyError:
+                    return False
+            return True
+
+        selected = [record for record in records if matches(record)]
+        expected_count = check.get("count")
+        if len(selected) != expected_count:
+            errors.append(
+                f"{sid}: artifact {rel(root, path)} matched {len(selected)} JSONL "
+                f"record(s), expected {expected_count}"
+            )
+        for record in selected:
+            for dotted, expected in check.get("equals", {}).items():
+                try:
+                    actual = value_at_path(record, dotted)
+                except KeyError:
+                    errors.append(
+                        f"{sid}: artifact {rel(root, path)} matched record missing "
+                        f"field {dotted}"
+                    )
+                    continue
+                if actual != expected:
+                    errors.append(
+                        f"{sid}: artifact {rel(root, path)} matched record field "
+                        f"{dotted} = {actual!r}, expected {expected!r}"
+                    )
+            for dotted, items in check.get("contains", {}).items():
+                try:
+                    actual = str(value_at_path(record, dotted))
+                except KeyError:
+                    errors.append(
+                        f"{sid}: artifact {rel(root, path)} matched record missing "
+                        f"field {dotted}"
+                    )
+                    continue
+                for item in items:
+                    if item not in actual:
+                        errors.append(
+                            f"{sid}: artifact {rel(root, path)} matched record field "
+                            f"{dotted} missing text {item!r}"
+                        )
         return errors
 
     return [f"{sid}: unsupported artifact check type {ctype!r}"]

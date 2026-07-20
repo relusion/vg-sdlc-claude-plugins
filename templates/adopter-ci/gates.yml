@@ -1,4 +1,4 @@
-# merge-bar — copy-in PR gate for adopter repositories (the air-gapped fallback).
+# merge-bar — checksum-pinned copy-in PR gate for adopter repositories.
 #
 # WHAT THIS IS
 #   A required-status workflow that runs the vg-sdlc-claude-plugins merge bar
@@ -19,10 +19,13 @@
 #       with: { fetch-depth: 0 }
 #     - uses: relusion/vg-sdlc-claude-plugins/action/merge-bar@<40-hex-commit-SHA>
 #   See action/merge-bar/README.md in the toolkit repo. This file is the
-#   documented AIR-GAPPED FALLBACK for orgs that forbid third-party actions:
+#   documented CHECKSUM-PINNED COPY-IN FALLBACK for orgs that forbid third-party actions:
 #   same runner, same policy, same verdict — you pin by verifying checksums
-#   yourself instead of trusting the actions fetch, and the checksum
+#   yourself instead of trusting a third-party composite action, and the checksum
 #   discipline below stays fully intact.
+#   This workflow still fetches the toolkit repository at run time; it is not
+#   an offline or air-gapped distribution. Use an approved internal mirror for
+#   disconnected environments.
 #
 # WHAT THIS PROVES / WHAT IT DOES NOT — integrity, not function
 #   A green verdict proves artifact INTEGRITY: traceability held, tests were
@@ -85,8 +88,8 @@
 #      tamper-evidence on advisory findings.
 #   4. In GitHub: Settings -> Branches -> require the status check "merge-bar"
 #      alongside your own build/test required check (integrity, not function —
-#      see WHAT THIS PROVES above), and set required approving reviews per
-#      your policy's validity (human -> 1, two-human -> 2).
+#      see WHAT THIS PROVES above), and require 2 approving reviews globally.
+#      GitHub's static review rule cannot vary per PR from runtime validity.
 #   5. Protect .github/** with CODEOWNERS or a repository ruleset so a PR
 #      cannot rewrite this workflow or the merge-bar inputs it reads.
 #   Optional: commit .github/merge-bar/declared-deps.txt (one dependency name

@@ -19,7 +19,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
 ```
 
 - `exit 0`: continue.
-- `exit 1`: stop and route the reported planning defects to `/ce-plan`.
+- `exit 1`: stop and route the reported planning defects to `/core-engineering:ce-plan`.
 - `exit 2`: stop because auto-build cannot establish a trustworthy plan. A human
   may choose an interactive workflow instead.
 
@@ -54,7 +54,7 @@ Baseline: <commit>
 Required checks: <commands/capabilities>
 Coverage gaps: <none or exact gaps>
 Token/compute budget: <positive estimate>
-Per-feature retry cap: <positive integer; recommend 3>
+Per-feature failure-attempt cap (`--retry-cap`): <positive integer; recommend 3>
 Consecutive-park cap: <positive integer; recommend 3>
 Writes: repository working tree and plan evidence only
 Version control/external actions: none

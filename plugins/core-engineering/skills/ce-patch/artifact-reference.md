@@ -1,6 +1,6 @@
 # Patch Artifact Reference
 
-`/ce-patch` uses one transient input and one optional durable record. It never creates
+`/core-engineering:ce-patch` uses one transient input and one optional durable record. It never creates
 a patch plan directory, eligibility lease, spec, task file, verification file,
 `plans.json` entry, or patch metrics bundle.
 
@@ -22,7 +22,7 @@ Rules:
 - The array is the frozen Scope Lock and includes every code/test file the change may
   touch. Do not mutate it after admission.
 - `desc` is the user's request, kept on one line so the safety screen can inspect it.
-- Delete the temporary stub when the run accepts, discards, or routes to `/ce-plan`.
+- Delete the temporary stub when the run accepts, discards, or routes to `/core-engineering:ce-plan`.
 
 ## Accepted-Change Ledger
 

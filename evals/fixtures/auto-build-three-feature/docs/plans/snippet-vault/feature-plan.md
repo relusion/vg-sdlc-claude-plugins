@@ -1,7 +1,7 @@
 # Feature Plan: snippet-vault
 
 A small in-memory snippet vault. Three features, engineered to exercise the three
-terminal paths of an `/ce-auto-build` run — one clean, one park, one retry-exhaustion.
+terminal paths of a `/core-engineering:ce-auto-build` run — one clean, one park, one retry-exhaustion.
 
 ## Journey Map / Consumability Trace
 

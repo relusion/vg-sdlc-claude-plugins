@@ -5,7 +5,7 @@ run-state.py — the deterministic owner of ce-auto-build's run state.
 The auto-build orchestrator used to hand-write its run state in prose: append a
 ledger row, tick a retry counter, bump a park counter, re-derive the
 circuit-breaker verdict by eye. Every one of those was a place a model could
-miscount and a `/ce-retro` reader could not trust. This script makes each
+miscount and a `/core-engineering:ce-retro` reader could not trust. This script makes each
 transition a single, atomic, exit-code-checked call so the state is owned by
 mechanism, not discipline.
 
@@ -29,7 +29,7 @@ Subcommands
   init          create the run's state.json (bounds + zeroed counters)
   advance       move a feature along the fixed specced→…→done lattice
   park          mark a feature parked; bump the consecutive-park counter
-  retry         authorize one repair; mark failed and exit 1 at the retry cap
+  retry         count one failed gate; authorize repair below the failure cap
   budget-add    add an estimated token cost to the running budget total
   ledger-append append a `provisional (auto-build <date>)`-marked decision row
   breaker-check evaluate the run-level circuit-breaker bounds (exit 1 = break)
@@ -38,7 +38,7 @@ Exit codes (the house 0/1/2 contract)
 -------------------------------------
   0  the operation succeeded / continue
   1  a bounded signal the caller must act on:
-        retry        — the per-feature retry cap was reached
+        retry        — the per-feature failure-attempt cap was reached
         breaker-check — a run-level bound tripped (circuit-break)
   2  could-not-do-that: an illegal transition, a missing/invalid state file,
      unparseable input, a re-init clash — never a silent success, never a crash
@@ -460,7 +460,7 @@ def cmd_breaker_check(args) -> int:
 
     Checks the run-level bounds that are unambiguous from state alone: the
     consecutive-park cap and the token budget. The `retry` subcommand owns the
-    per-feature retry-cap signal.
+    per-feature failure-attempt-cap signal.
 
     Exit 0 continue · 1 circuit-break (JSON reason names the tripped bound) ·
     2 could-not-evaluate.
@@ -515,7 +515,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--budget", type=int, required=True,
                         help="required positive token/compute budget estimate")
     p_init.add_argument("--retry-cap", type=int, default=3,
-                        help="per-feature repair-retry cap (default 3)")
+                        help="per-feature failed-gate-attempt cap (default 3)")
     p_init.add_argument("--park-cap", type=int, default=3,
                         help="consecutive-park cap (default 3)")
     p_init.set_defaults(func=cmd_init)
@@ -539,7 +539,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_park.add_argument("--tokens", type=int, default=0)
     p_park.set_defaults(func=cmd_park)
 
-    p_retry = sub.add_parser("retry", help="bump a feature's retry count (exit 1 at cap)")
+    p_retry = sub.add_parser(
+        "retry", help="count a failed gate attempt (exit 1 at the failure cap)"
+    )
     p_retry.add_argument("feature")
     add_locator(p_retry)
     p_retry.add_argument("--detail", help="metrics detail string override")

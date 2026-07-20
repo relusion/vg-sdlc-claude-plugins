@@ -37,7 +37,7 @@ instead of inventing a task list.
 ## Constraints
 
 - The spec is the contract. Execute it; do not redesign it. If it is unbuildable,
-  stop and report a Spec Conflict back to `/ce-spec`.
+  stop and report a Spec Conflict back to `/core-engineering:ce-spec`.
 - Preserve test integrity. Do not weaken, delete, skip, or stub tests to reach
   green.
 - Do not commit, push, open PRs, merge, deploy, run destructive migrations, or

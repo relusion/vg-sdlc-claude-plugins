@@ -34,7 +34,7 @@ HARD checks (a FAIL -> exit 1; these gate auto-build's spec-artifact step):
       so a formatting slip in threat-model.md can no longer silently switch the
       security gate off.
   H6  `tasks[].files` file-set consistency (only when `enforce_files=True`, which
-      main() sets — so `/ce-spec` and the auto-build spec gate enforce it, but
+      main() sets — so `/core-engineering:ce-spec` and the auto-build spec gate enforce it, but
       patch-lint's `run_checks(parsed, tasks)` import stays unaffected). Once a spec
       ADOPTS the file-boundary convention — any task carrying a non-empty `files`
       list — EVERY task must carry one, so the implement-scope guard can enforce the
@@ -245,7 +245,7 @@ def run_checks(spec: dict, tasks: dict, threat_ids: set | None = None,
     assigned threats (or no threat-model) simply skips H5.
 
     `enforce_files` (default False) drives H6, the `tasks[].files` consistency check.
-    main() sets it True so `/ce-spec` and the auto-build spec gate enforce the file
+    main() sets it True so `/core-engineering:ce-spec` and the auto-build spec gate enforce the file
     boundary; patch-lint imports `run_checks` and calls it WITHOUT the flag (the patch
     lane has its own frozen_files discipline), so its behavior is unchanged."""
     hard, advisory = [], []

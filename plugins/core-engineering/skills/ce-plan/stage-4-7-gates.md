@@ -239,18 +239,18 @@ Options:
 | Coarsen | **Scope-preserving** — re-slice the *same* Scope into fewer, larger features (name a target count or "coarsest viable"). Trades session-fit headroom + per-diff review granularity for fewer spec→implement loops; records a consented session-fit relaxation, then re-runs Reachability + Session-Fit, which can still **reject** an over-coarse merge. **Not** an MVP cut (that drops scope — use Adjust) and **not** the single-feature collapse (that's the Sizing Gate). See §5.5. |
 | Adjust | Loop back to feature decomposition and re-cut. |
 | Add context | Capture more context, then loop back to feature decomposition. |
-| Decide a fork | *(offer only when the escalation note below applies)* Send one no-dominant-option architecture fork to `/ce-decide` before committing the cut. |
+| Decide a fork | *(offer only when the escalation note below applies)* Send one no-dominant-option architecture fork to `/core-engineering:ce-decide` before committing the cut. |
 
-> **Escalating an architectural fork to `/ce-decide` (optional, human-triggered).** If this
+> **Escalating an architectural fork to `/core-engineering:ce-decide` (optional, human-triggered).** If this
 > candidate decomposition hinges on an unresolved **technical/architecture fork with no
 > dominant option** — a choice that changes *how* features are cut (event-sourced vs CRUD,
 > extract-a-service vs in-monolith, a shared persistence model) — the human may escalate it
-> to `/ce-decide` for a situation-weighted scorecard before committing the
+> to `/core-engineering:ce-decide` for a situation-weighted scorecard before committing the
 > cut; its **proposed ADR** feeds back as a Resolved Project Decision the plan and
 > downstream specs honor. This review and the Sizing Gate already *detect* forks, so
-> `/ce-decide` adds **rigor on the rare hard one, not a second detector** — reserve it for a
-> genuine no-dominant-option fork. A fork that is really a *scope* change stays a `/ce-plan`
-> matter (re-cut here), not a `/ce-decide`. **When this note applies, surface `Decide a fork`
+> `/core-engineering:ce-decide` adds **rigor on the rare hard one, not a second detector** — reserve it for a
+> genuine no-dominant-option fork. A fork that is really a *scope* change stays a `/core-engineering:ce-plan`
+> matter (re-cut here), not a `/core-engineering:ce-decide`. **When this note applies, surface `Decide a fork`
 > as the labeled option above — decidable in the dialog — rather than leaving it as prose
 > the human must volunteer (R1).**
 
@@ -302,13 +302,12 @@ escalates to the user, never loops forever).
 **Trade-offs the option must carry (decidable in the dialog — HITL R1).** When
 offering `Coarsen`, state its costs so the human chooses with eyes open: a merged
 feature's diff is **reviewed as one unit**, so review attributability drops; under
-`/ce-auto-build`, merging *independent* features **shrinks the parallelizable set**, so a
-parallel run can be *slower*, not faster; and a larger feature **re-imports some
-context-compaction risk** (mitigated under auto-build, which spawns a fresh context
-per feature).
+`/core-engineering:ce-auto-build`, merging independent features means fewer but larger sequential work
+units; and a larger feature **re-imports some context-compaction risk** (mitigated by
+the fresh worker context created for each feature).
 
 **Not a lock breach.** Stage 5 is **pre-freeze** — IDs are provisional until Stage 9
-(SKILL.md → *Feature ID*). Coarsening here is `/ce-plan` **authoring** boundaries, not
+(SKILL.md → *Feature ID*). Coarsening here is `/core-engineering:ce-plan` **authoring** boundaries, not
 widening an already-frozen one, so it does not violate *escalate-up-never-expand*
 (that lock governs a downstream stage widening a frozen boundary, not the plan setting
 its own cut).
@@ -964,4 +963,3 @@ and ship order. A crash after Session-Fit re-enters at Stage 8's Final Plan Revi
 validated shape intact.
 
 ---
-

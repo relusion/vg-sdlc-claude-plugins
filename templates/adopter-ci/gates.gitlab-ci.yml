@@ -63,7 +63,8 @@
 #      the verdict; add their lines too
 #      if you want tamper-evidence on advisory findings.)
 #   4. In GitLab: Settings -> Merge requests -> require approvals, and set the
-#      approval count to your policy's validity (human -> 1, two-human -> 2),
+#      approval count to 2 globally (the static host rule cannot vary per MR
+#      from the verdict's runtime validity),
 #      with the approver not the MR author (segregation of duties). Mark this
 #      job REQUIRED via Settings -> Merge requests -> "Pipelines must succeed".
 #      Keep your own build/test job required too (integrity, not function).

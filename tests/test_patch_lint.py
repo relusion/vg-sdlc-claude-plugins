@@ -1,4 +1,4 @@
-"""Focused tests for the express-only `/ce-patch` admission and diff gate."""
+"""Focused tests for the express-only `/core-engineering:ce-patch` admission and diff gate."""
 
 import importlib.util
 import json
@@ -61,6 +61,11 @@ def init_repo(root: Path) -> str:
 
 
 class ExpressContractText(unittest.TestCase):
+    def test_first_nonzero_admission_result_is_terminal(self):
+        stages = STAGES.read_text(encoding="utf-8")
+        self.assertIn("first non-zero admission result is terminal", stages)
+        self.assertIn("Do not try alternate candidate", stages)
+
     def test_failed_green_or_regression_check_routes_without_repair_loop(self):
         skill = SKILL.read_text(encoding="utf-8")
         stages = STAGES.read_text(encoding="utf-8")
@@ -68,7 +73,7 @@ class ExpressContractText(unittest.TestCase):
         self.assertIn("this lane has no automated repair loop", skill)
         self.assertIn("still-red intended check", skill)
         self.assertIn("regression/lint/build failure", skill)
-        self.assertIn("Any\n   failure or could-not-run result routes directly to `/ce-plan`", stages)
+        self.assertIn("Any\n   failure or could-not-run result routes directly to `/core-engineering:ce-plan`", stages)
 
 
 class AdmissionFileBoundary(unittest.TestCase):
@@ -98,7 +103,7 @@ class AdmissionFileBoundary(unittest.TestCase):
             stub = write_stub(root, ["src/a.py", "src/b.py", "src/c.py"])
             payload, rc = run_json(str(stub), cwd=root)
         self.assertEqual(rc, 1)
-        self.assertEqual(payload["route"], "/ce-plan")
+        self.assertEqual(payload["route"], "/core-engineering:ce-plan")
         self.assertTrue(any(item.startswith("E1:") for item in payload["hard_failures"]))
 
     def test_over_cap_schema_request_reports_both_reasons(self):
@@ -151,7 +156,7 @@ class AdmissionOwnership(unittest.TestCase):
             payload, rc = run_json(str(stub), cwd=root)
         self.assertEqual(rc, 2)
         self.assertEqual(payload["status"], "error")
-        self.assertEqual(payload["route"], "/ce-plan")
+        self.assertEqual(payload["route"], "/core-engineering:ce-plan")
         self.assertIn("ownership data", payload["message"])
 
 
@@ -304,7 +309,7 @@ class ErrorContract(unittest.TestCase):
             root = Path(tmp)
             payload, rc = run_json(str(root / "missing.json"), cwd=REPO)
             self.assertEqual(rc, 2)
-            self.assertEqual(payload["route"], "/ce-plan")
+            self.assertEqual(payload["route"], "/core-engineering:ce-plan")
             bad = root / "express.json"
             bad.write_text("not json", encoding="utf-8")
             payload, rc = run_json(str(bad), cwd=REPO)
@@ -325,7 +330,7 @@ class ErrorContract(unittest.TestCase):
             stub = write_stub(root, ["src/widget.py"])
             payload, rc = run_json(str(stub), "--post", cwd=root)
         self.assertEqual(rc, 2)
-        self.assertEqual(payload["route"], "/ce-plan")
+        self.assertEqual(payload["route"], "/core-engineering:ce-plan")
 
     def test_retired_full_lane_flags_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

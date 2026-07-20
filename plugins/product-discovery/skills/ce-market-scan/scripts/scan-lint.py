@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""scan-lint.py — the Scope Lock gate for /ce-market-scan's Stage 3.5.
+"""scan-lint.py — the Scope Lock gate for /product-discovery:ce-market-scan's Stage 3.5.
 
 Stage 3.5 ("Frame the Decision Space") assembles the scan's scattered findings into
 three sections — **Strategic Tensions**, **Positioning Options**, **Load-Bearing
@@ -379,7 +379,7 @@ def emit(path: Path, hard: list, advisory: list, as_json: bool) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Scope Lock gate for a /ce-market-scan Stage-3.5 artifact.")
+    p = argparse.ArgumentParser(description="Scope Lock gate for a /product-discovery:ce-market-scan Stage-3.5 artifact.")
     p.add_argument("artifact", help="the composed market-scan markdown file (docs/market-scans/<slug>/<date>.md)")
     p.add_argument("--json", action="store_true", help="machine-readable result")
     args = p.parse_args(argv)

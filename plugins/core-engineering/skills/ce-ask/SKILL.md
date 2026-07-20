@@ -2,7 +2,7 @@
 name: ce-ask
 description: |
   Answer questions about any code repository — locate code, trace flow, explain rationale, find callers — with structured, file-cited answers that stage the relevant files into the conversation. Ephemeral; writes nothing.
-  Triggers: ask how/where/why about a codebase. For a misbehaving running component use /ce-debug — ask answers questions, it does not investigate symptoms.
+  Triggers: ask how/where/why about a codebase. For a misbehaving running component use /core-engineering:ce-debug — ask answers questions, it does not investigate symptoms.
 argument-hint: "[question]"
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -127,14 +127,14 @@ disk; it is ephemeral.
 
 ## Escalation
 
-If the answer reveals a change request, route instead of acting: `/ce-impact` for
-blast radius, `/ce-patch` for a genuinely small fix, `/ce-plan` for structural work,
-or `/ce-debug` for a misbehaving component. This skill remains read-only and
+If the answer reveals a change request, route instead of acting: `/core-engineering:ce-impact` for
+blast radius, `/core-engineering:ce-patch` for a genuinely small fix, `/core-engineering:ce-plan` for structural work,
+or `/core-engineering:ce-debug` for a misbehaving component. This skill remains read-only and
 ephemeral.
 
 ## Honest Limitations
 
-- Not a planning tool — use `/ce-plan`.
-- Not a specification tool — use `/ce-spec`.
-- Not a code-modification tool — it is read-only; the `/ce-ask` skill's `allowed-tools` deliberately exclude `Write` and `Edit`.
+- Not a planning tool — use `/core-engineering:ce-plan`.
+- Not a specification tool — use `/core-engineering:ce-spec`.
+- Not a code-modification tool — it is read-only; the `/core-engineering:ce-ask` skill's `allowed-tools` deliberately exclude `Write` and `Edit`.
 - Not persistent memory — each invocation reads what's there *now*.

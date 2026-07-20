@@ -2,7 +2,7 @@
 name: ce-probe-deps
 description: |
   Statically scan a repository's pinned dependency manifests against the OSV.dev advisory database — known-vulnerable versions (CVE/GHSA advisories) per exactly-pinned package, with loud offline degradation, never a silent pass. Deterministic stdlib floor (sca-guard.py over requirements.txt / npm lockfiles) enriched by model triage; only package name+version coordinates ever leave the machine (disclosed; --offline honored). Read-only on code; findings, not verdicts.
-  Triggers: scan/audit/check dependencies for known CVEs or vulnerable versions, SCA, software composition analysis. For manifest *misconfiguration* (IaC/k8s/Dockerfile) use /ce-probe-infra; undeclared/typosquat NEW dependencies in a change are dep-guard's job inside the implement lane.
+  Triggers: scan/audit/check dependencies for known CVEs or vulnerable versions, SCA, software composition analysis. For manifest *misconfiguration* (IaC/k8s/Dockerfile) use /core-engineering:ce-probe-infra; undeclared/typosquat NEW dependencies in a change are dep-guard's job inside the implement lane.
 argument-hint: "[path (default: repo root)] [--offline]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -17,7 +17,7 @@ against the OSV.dev advisory database, and each hit is triaged into an
 evidence-bound finding. This is the SCA probe — the standard automated
 security control a serious team expects to exist.
 
-It complements, never duplicates, the neighbors: `/ce-probe-infra` audits
+It complements, never duplicates, the neighbors: `/core-engineering:ce-probe-infra` audits
 manifest *misconfiguration*; `dep-guard.py` (inside the implement lane) gates
 *new undeclared* dependencies entering a change. This probe asks a third
 question: **are the versions already pinned here publicly known-bad?**
@@ -77,16 +77,16 @@ Write `docs/dep-audits/<date>-<slug>.md`:
 - **Findings table:** package == version · manifest `file:line` · advisory ids · usage note.
 - **Skipped (unpinned):** every range-specified dependency the floor could not
   check, listed — an unchecked dependency is visible, never implied clean.
-- **Routing per finding:** every manifest or lock-file edit → `/ce-plan` (optionally
-  run `/ce-impact` first); unclear exploitability in this codebase → note for
-  `/ce-probe-sec` if a live target exists.
+- **Routing per finding:** every manifest or lock-file edit → `/core-engineering:ce-plan` (optionally
+  run `/core-engineering:ce-impact` first); unclear exploitability in this codebase → note for
+  `/core-engineering:ce-probe-sec` if a live target exists.
 
 Restore the lease baseline (contract item 0, last act).
 
 ## Escalation
 
 - Any finding that requires a dependency manifest or lock-file edit → route to
-  `/ce-plan`; `/ce-patch` rejects dependency surfaces even for compatible bumps.
+  `/core-engineering:ce-plan`; `/core-engineering:ce-patch` rejects dependency surfaces even for compatible bumps.
 - The floor exits `2` and the human needs a clean verdict → re-run with
   network, or record the degradation as an accepted gap — never report clean.
 - Manifest formats outside the parsed set (poetry.lock, go.sum, *.csproj…)
@@ -102,7 +102,7 @@ Restore the lease baseline (contract item 0, last act).
 - **OSV is the source of truth and its coverage is a floor** — an empty
   result means "no known advisory in OSV", not "safe".
 - **No exploitability analysis.** A hit means the version is advisory-listed;
-  whether this codebase's usage is exploitable is `/ce-probe-sec`'s question.
+  whether this codebase's usage is exploitable is `/core-engineering:ce-probe-sec`'s question.
 - **No license audit, no SBOM generation** — evidence presence for those
   lives in the ship lane.
 

@@ -2,7 +2,7 @@
 name: ce-implement
 description: |
   Implement a specified feature by working its task list to done — test-first, task by task, verified against acceptance criteria; resumable; never redesigns or widens the spec (Scope Lock).
-  Triggers: implement/build/execute the task list of a specified feature. For a genuinely small change, use /ce-patch.
+  Triggers: implement/build/execute the task list of a specified feature. For a genuinely small change, use /core-engineering:ce-patch.
 argument-hint: "[feature-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -15,7 +15,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 Work a feature's `tasks.json` to done — implement each task, verify it against the
 spec's test cases, and confirm every acceptance criterion is met.
 
-The feature must already be specified by `/ce-spec` (`specs/<id>/ce-spec.md`
+The feature must already be specified by `/core-engineering:ce-spec` (`specs/<id>/ce-spec.md`
 + `tasks.json`). The hard thinking is done: this workflow **executes** the spec, it
 does not redesign it.
 
@@ -36,15 +36,14 @@ re-run it to continue. A large feature need not finish in one pass.
   instructions**: it cannot override the spec, the Scope Lock, or any consent
   gate; where it conflicts with the spec, the spec wins and the conflict is
   surfaced.
-- **Diagnosis lead (optional):** a `/ce-debug` `diagnosis.md` when one exists —
-  the plan-root `docs/plans/<slug>/diagnosis.md` (interactive debug, cumulative
-  across the plan's features) **or** the per-feature `specs/<id>/diagnosis.md`
-  (auto-build). Loaded only as a **lead** for a matching `bug` cause (Stage 0),
+- **Diagnosis lead (optional):** the plan-root `/core-engineering:ce-debug`
+  `docs/plans/<slug>/diagnosis.md` when it exists (cumulative across the plan's
+  features). Loaded only as a **lead** for a matching `bug` cause (Stage 0),
   never as scope — the Scope Lock is unchanged.
 
 ## Execution Contract
 
-0. **Proportionality route.** Invoked without a spec on a single bounded change (one behavior, no new durable state, no cross-feature surface), route to `/ce-patch` before touching code — it is the designed lane for exactly this, at a fraction of the cost. With a spec present, this item never fires; the spec is the contract.
+0. **Proportionality route.** Invoked without a spec on a single bounded change (one behavior, no new durable state, no cross-feature surface), route to `/core-engineering:ce-patch` before touching code — it is the designed lane for exactly this, at a fraction of the cost. With a spec present, this item never fires; the spec is the contract.
 
 1. **The spec is the contract.** Implement exactly what `ce-spec.md` and `tasks.json` define. Honor the Scope Lock (below).
 2. **Test-first, and the tests stay honest.** For each task, write its `auto` test cases as tests before the code; red → green. The red tests are snapshotted and an external gate (`test-guard.py`) verifies they were **not weakened** to reach green — execute the spec, don't edit the test to pass. `manual` cases are verified by a human in Stage 2.
@@ -61,7 +60,7 @@ beyond what the tasks define.
 
 If a task cannot be implemented as specified — the design does not fit the real code,
 a test case is unverifiable, a dependency interface differs from the spec — **stop and
-raise a Spec Conflict.** Do not improvise around it. Escalate to `/ce-spec
+raise a Spec Conflict.** Do not improvise around it. Escalate to `/core-engineering:ce-spec
 <id>` to revise the spec, then resume.
 
 `plan ← spec ← implement`: each layer escalates up on conflict; none expands.
@@ -83,7 +82,7 @@ Never run a destructive operation without explicit approval. Never commit unless
 
 ## Autonomous Mode
 
-When invoked by `/ce-auto-build`, load `${CLAUDE_SKILL_DIR}/autonomous-mode.md` and apply it before Stage 0; outside autonomous mode, the review-and-approve gates in this file apply as written.
+When invoked by `/core-engineering:ce-auto-build`, load `${CLAUDE_SKILL_DIR}/autonomous-mode.md` and apply it before Stage 0; outside autonomous mode, the review-and-approve gates in this file apply as written.
 
 ---
 
@@ -97,7 +96,7 @@ Load the spec, `tasks.json`, shared context, and ADRs. Check preconditions:
 - Report the working-tree state; if it is not clean, have the human acknowledge before proceeding.
 - Ensure `.test-guard/` is ignored by version control — the per-task red-test snapshots (Stage 1) are transient. If the repo has a `.gitignore` and the entry is missing, add it; if there is no `.gitignore`, note that the snapshots live under `.test-guard/` and should not be committed.
 
-**Diagnosis lead (when a `/ce-debug` diagnosis is present).** Check both locations — the plan-root `docs/plans/<slug>/diagnosis.md` (interactive debug, cumulative across features) and `specs/<id>/diagnosis.md` (auto-build). When a `DX` entry's routed feature is **this** feature **and** its classification is `bug`, load it and carry its `file:line` fix locus + the named confirming test/AC into the relevant task's **Restate** step (Stage 1) as the **lead** — where to look and what proves the fix — so the human need not hand-carry the diagnosis across the debug→implement seam. It is *a lead, never a spec widening*: the Scope Lock holds, the diagnosis cannot add scope, and a diagnosis that implies new or changed behavior is a **Spec Conflict** to `/ce-spec` as usual (a `spec-gap` or `structural` diagnosis already routes there, never here). Ignore a diagnosis for another feature or classified anything but `bug`.
+**Diagnosis lead (when a `/core-engineering:ce-debug` diagnosis is present).** Check the plan-root `docs/plans/<slug>/diagnosis.md`, which is cumulative across features. When a `DX` entry's routed feature is **this** feature **and** its classification is `bug`, load it and carry its `file:line` fix locus + the named confirming test/AC into the relevant task's **Restate** step (Stage 1) as the **lead** — where to look and what proves the fix — so the human need not hand-carry the diagnosis across the debug→implement seam. It is *a lead, never a spec widening*: the Scope Lock holds, the diagnosis cannot add scope, and a diagnosis that implies new or changed behavior is a **Spec Conflict** to `/core-engineering:ce-spec` as usual (a `spec-gap` or `structural` diagnosis already routes there, never here). Ignore a diagnosis for another feature or classified anything but `bug`.
 
 **Version-control policy.** Read `docs/plans/vc-policy.md` (the repo-level policy):
 
@@ -185,7 +184,7 @@ conformance criteria from the spec (uses the shared tokens/primitives, no stray
 color/spacing, WCAG-AA contrast). Run the **checker the foundation feature
 established** (its lint rule / contrast or contract test); a conformance failure is
 a defect, not an aesthetic note. If the foundation shipped a contract but no
-checker, that is a gap in the foundation — **escalate to `/ce-spec`
+checker, that is a gap in the foundation — **escalate to `/core-engineering:ce-spec`
 on the foundation feature** rather than silently downgrading to a self-assessment.
 **Run the Scope Lock file-boundary gate** —
 `python3 "${CLAUDE_SKILL_DIR}/scripts/implement-scope-guard.py" --spec-dir specs/<id> --base <pre-feature ref> --json`.
@@ -193,8 +192,8 @@ It fails any touched file outside the union of this spec's `tasks[].files` (the 
 bookkeeping subtree, `.test-guard/`, and `docs/adr/` promotions are sanctioned, never
 a violation). A **FAIL (exit 1)** names each stray file — a **Spec Conflict**: either
 the change genuinely belongs to this feature (add the file to the owning task's
-`files` and re-run) or it widens the planned boundary (**escalate to `/ce-spec`**),
-mirroring `/ce-patch`'s mandatory-promotion posture. On a **legacy spec that declares
+`files` and re-run) or it widens the planned boundary (**escalate to `/core-engineering:ce-spec`**),
+mirroring `/core-engineering:ce-patch`'s mandatory-promotion posture. On a **legacy spec that declares
 no `tasks[].files`** the gate cannot enforce and returns an advisory (recorded,
 non-blocking); **exit 2** (not a git repo / unreadable tasks.json) degrades to the
 manual file-boundary check, loudly. (m4: a write into a `.gitignore`'d path is
@@ -254,7 +253,7 @@ optionally exercise the feature before deciding — then ask for final acceptanc
 |---|---|
 | Accept | The feature is complete |
 | Revise | Loop back to a specific task |
-| Reject | Escalate to `/ce-spec` |
+| Reject | Escalate to `/core-engineering:ce-spec` |
 
 On **Accept**:
 
@@ -270,19 +269,19 @@ Then handle version control as a **separate, explicit step** — Accept does not
 - `per-task` — the task commits already exist; offer one final commit for the remaining artifacts (`verification.md`, the checklist tick): *Commit / Skip*.
 - `none` — do not commit; report what is staged and leave version control to the human.
 
-Once the feature commit lands (`per-feature`, or `per-task`'s final artifacts commit), **bind every done task to it**: `python3 "${CLAUDE_SKILL_DIR}/scripts/task-evidence.py" stamp specs/<id>/tasks.json --all-done --commit HEAD` fills `commit_sha` on every `done` task that still lacks one (per-task shas from step 8 are left untouched), so each task's recorded done-ness points at a real commit `/ce-verify` and the freshness check can later verify against HEAD's ancestry. Under `none` (or *Skip*), leave `commit_sha` as-is — it is recorded when the human commits. (The `--all-done` write is itself the trailing one-field bookkeeping diff — a commit cannot contain its own sha; sweep it in with the human's own commit or leave it staged.)
+Once the feature commit lands (`per-feature`, or `per-task`'s final artifacts commit), **bind every done task to it**: `python3 "${CLAUDE_SKILL_DIR}/scripts/task-evidence.py" stamp specs/<id>/tasks.json --all-done --commit HEAD` fills `commit_sha` on every `done` task that still lacks one (per-task shas from step 8 are left untouched), so each task's recorded done-ness points at a real commit `/core-engineering:ce-verify` and the freshness check can later verify against HEAD's ancestry. Under `none` (or *Skip*), leave `commit_sha` as-is — it is recorded when the human commits. (The `--all-done` write is itself the trailing one-field bookkeeping diff — a commit cannot contain its own sha; sweep it in with the human's own commit or leave it staged.)
 
 Never push, open a PR, or merge — that is the human's to do.
 
 ## Metrics (best-effort, optional)
 
-Append one JSON line per event to `docs/plans/<slug>/.metrics.jsonl` (`stage: "implement"`) per the `retro` skill's schema — **after** the real work, deriving every field from data already produced, labeling any token figure an estimate, and **never** letting the write block or fail implementation (the append-only stream never gates a run). It powers `/ce-retro`; interactive runs emit nothing today, so retro's signals read "no data" without this.
+Append one JSON line per event to `docs/plans/<slug>/.metrics.jsonl` (`stage: "implement"`) per the `retro` skill's schema — **after** the real work, deriving every field from data already produced, labeling any token figure an estimate, and **never** letting the write block or fail implementation (the append-only stream never gates a run). It powers `/core-engineering:ce-retro`; interactive runs emit nothing today, so retro's signals read "no data" without this.
 
 - **`gate`** — one per test-guard / dep-guard disposition (Stage 1 step 5): `gate: "pass"|"fail"`, `detail: "test-guard: <task-id>"` or `"dep-guard: <task-id>"`.
 - **`retry`** — one per re-attempt inside a task's ~3-attempt budget (Stage 1); set `feature` so retro can join it to complexity drift.
-- **`escalation`** — one on a Spec Conflict: `escalation_type: "/ce-spec"` (or `/ce-plan` for a Boundary Conflict), `detail` naming the conflict.
+- **`escalation`** — one on a Spec Conflict: `escalation_type: "/core-engineering:ce-spec"` (or `/core-engineering:ce-plan` for a Boundary Conflict), `detail` naming the conflict.
 - **`stage-complete`** — one at Stage 3 **Accept**.
-- **`attestation`** — one line per HITL-gate decision, at **every** interactive gate this run fires (Stage 0 *Proceed/Abort* and the VC-policy / branch offers, Stage 1's destructive-op approval, each Stage 2 `manual` verdict, Stage 3 *Accept / Revise / Reject*). Emit the `attestation` event from the `retro` schema: `gate` = the gate name, `gate_index` = that gate's printed `Gate N of M` locator (R5) **verbatim**, `basis_shown` = whether the gate rendered its evidence-first basis, and `action` per the schema's definitions — `confirm` (accepted as rendered, e.g. Accept / a `Pass` verdict / an accepted offer), `override` (rejected or changed it, e.g. Reject / a `Fail` verdict / a declined offer), `edit` (accepted with a modification, e.g. Revise back to a task), or `loop` (one line per re-prompt of the *same* gate, so a churning gate stays visible). This is the confirm-vs-override telemetry `/ce-retro` and the evidence pack consume; it is emitted nowhere else.
+- **`attestation`** — one line per HITL-gate decision, at **every** interactive gate this run fires (Stage 0 *Proceed/Abort* and the VC-policy / branch offers, Stage 1's destructive-op approval, each Stage 2 `manual` verdict, Stage 3 *Accept / Revise / Reject*). Emit the `attestation` event from the `retro` schema: `gate` = the gate name, `gate_index` = that gate's printed `Gate N of M` locator (R5) **verbatim**, `basis_shown` = whether the gate rendered its evidence-first basis, and `action` per the schema's definitions — `confirm` (accepted as rendered, e.g. Accept / a `Pass` verdict / an accepted offer), `override` (rejected or changed it, e.g. Reject / a `Fail` verdict / a declined offer), `edit` (accepted with a modification, e.g. Revise back to a task), or `loop` (one line per re-prompt of the *same* gate, so a churning gate stays visible). This is the confirm-vs-override telemetry `/core-engineering:ce-retro` and the evidence pack consume; it is emitted nowhere else.
 
 ## Closing
 
@@ -297,14 +296,14 @@ Branch:      <branch> — <committed per policy | not committed>
 
 Pushing, PRs, and merging are the human's to do — never automatic. Point to the
 next step: an independent code review of this feature
-(`/ce-review <id>` — correctness beyond tests, security,
+(`/core-engineering:ce-review <id>` — correctness beyond tests, security,
 maintainability, conformance) before it ships, then the next feature to implement
 or spec in ship order. **If this feature owns a user-facing `browser` surface,** add
 one pointer: its *single-surface* readability was critiqued here (the Surface Critique
 pass), but the **cross-journey experiential layer** — cross-feature consistency
 (action-label / pattern / navigation / tone drift), off-path dead-ends, coverage
 gaps, missing empty/error states — is only reachable once journeys exist, by
-`/ce-verify` (does it behave) and then `/ce-ux-audit` (it walks the plan's traced
+`/core-engineering:ce-verify` (does it behave) and then `/core-engineering:ce-ux-audit` (it walks the plan's traced
 journeys, and auto-detects an adversarial plan-free probe where no plan owns the
 surface). Name it, never auto-run it.
 
@@ -312,21 +311,21 @@ surface). Name it, never auto-run it.
 
 ## Escalation
 
-An unbuildable or internally inconsistent task is a Spec Conflict to `/ce-spec`.
+An unbuildable or internally inconsistent task is a Spec Conflict to `/core-engineering:ce-spec`.
 Scope growth, cross-feature migration, or a broken Scope Lock escalates to
-`/ce-plan` **Stage R**, which revises the existing plan in place (diff the delta,
+`/core-engineering:ce-plan` **Stage R**, which revises the existing plan in place (diff the delta,
 re-run only the affected gates) rather than re-planning from scratch. Repeated
-red/green failure routes through `/ce-debug`; behavior and quality proof after
-implementation belong to `/ce-verify` and `/ce-review`.
+red/green failure routes through `/core-engineering:ce-debug`; behavior and quality proof after
+implementation belong to `/core-engineering:ce-verify` and `/core-engineering:ce-review`.
 
 ## Honest Limitations
 
-- **Executes, does not design.** Implements the spec as written; a design that doesn't fit the real code is a **Spec Conflict** to escalate (`/ce-spec`), not something this workflow re-solves.
-- **One feature, in isolation.** Builds a single feature against its spec — cross-feature integration and journey behavior belong to `/ce-verify`, and code quality beyond the tests to `/ce-review`.
-- **Resume verifies recorded status, but freshness is commit-deep only.** On resume, `task-evidence.py check` downgrades any `done` task whose `commit_sha` is no longer in HEAD's ancestry to `stale` and re-derives it (Stage 0) — a reverted or rebased-away task no longer slips through as trusted-done. The check is **commit-ancestry deep, not content-deep**: a task whose commit is still an ancestor but whose *files* were later hand-edited reads `fresh` (the sha is present); and a task recorded under `none` granularity or never committed reads `unstamped` (unverifiable — warned, not blocked). Disk plus HEAD ancestry is the source of truth for freshness; semantic correctness is still `/ce-review`'s.
+- **Executes, does not design.** Implements the spec as written; a design that doesn't fit the real code is a **Spec Conflict** to escalate (`/core-engineering:ce-spec`), not something this workflow re-solves.
+- **One feature, in isolation.** Builds a single feature against its spec — cross-feature integration and journey behavior belong to `/core-engineering:ce-verify`, and code quality beyond the tests to `/core-engineering:ce-review`.
+- **Resume verifies recorded status, but freshness is commit-deep only.** On resume, `task-evidence.py check` downgrades any `done` task whose `commit_sha` is no longer in HEAD's ancestry to `stale` and re-derives it (Stage 0) — a reverted or rebased-away task no longer slips through as trusted-done. The check is **commit-ancestry deep, not content-deep**: a task whose commit is still an ancestor but whose *files* were later hand-edited reads `fresh` (the sha is present); and a task recorded under `none` granularity or never committed reads `unstamped` (unverifiable — warned, not blocked). Disk plus HEAD ancestry is the source of truth for freshness; semantic correctness is still `/core-engineering:ce-review`'s.
 - **`manual:judgment` verdicts are deferred, not proven.** Where a check needs human judgment, it captures evidence and defers the verdict; the workflow never self-certifies those.
 - **Rendered surfaces are critiqued, not just confirmed.** Where the feature owns a user-facing surface, Stage 2 runs the Surface Critique inverse pass over the build screenshot against the surface contract and surfaces functional findings (overlap, clipping, occluded affordance, illegible density, goal-service) the does-`expected`-hold check would miss. But the critique is **fallible evidence, not proof** — it shares the model's visual blind spots (the same model read the build and the screenshot), renders no verdict, and raises the floor not the ceiling; the verdict stays the human's.
 - **Shares the model's blind spots.** Test-first catches what the tests express; an error shared by the implementation and its tests (or the model reading them) can still pass green.
-- **The test-integrity gate is structural, not semantic.** `test-guard.py` catches the blunt genie — deleted tests, removed assertions, added skips, trivially-true asserts — by a high-recall, language-naive heuristic; a hit is a *material finding to adjudicate*, not an automatic verdict. It does **not** catch logical inversions (`==` → `!=`), threshold loosening (`>` → `>=`), or mock-strength erosion (`assert_called_once` → `assert_called` ) — those are `/ce-review`'s correctness lens. The per-task snapshot gate only runs where a red snapshot was captured — but a task that *skips* the snapshot no longer slips through silently: on PASS the gate writes a `{task_id, verdict, ts, snapshot_sha256}` marker to `.test-guard/<id>/passes.json`, and Stage 2's `--verify-passes` honor check fails any `done` task with an `auto` test case that left **no** marker, surfacing it as a loud degradation line in `verification.md` rather than an unguarded pass. (The honor check proves a marker *exists*, not that the snapshot was strong — a weak-from-birth test is still the shared-blind-spot residual below.)
+- **The test-integrity gate is structural, not semantic.** `test-guard.py` catches the blunt genie — deleted tests, removed assertions, added skips, trivially-true asserts — by a high-recall, language-naive heuristic; a hit is a *material finding to adjudicate*, not an automatic verdict. It does **not** catch logical inversions (`==` → `!=`), threshold loosening (`>` → `>=`), or mock-strength erosion (`assert_called_once` → `assert_called` ) — those are `/core-engineering:ce-review`'s correctness lens. The per-task snapshot gate only runs where a red snapshot was captured — but a task that *skips* the snapshot no longer slips through silently: on PASS the gate writes a `{task_id, verdict, ts, snapshot_sha256}` marker to `.test-guard/<id>/passes.json`, and Stage 2's `--verify-passes` honor check fails any `done` task with an `auto` test case that left **no** marker, surfacing it as a loud degradation line in `verification.md` rather than an unguarded pass. (The honor check proves a marker *exists*, not that the snapshot was strong — a weak-from-birth test is still the shared-blind-spot residual below.)
 - **The dependency gate is offline detection, not existence proof.** `dep-guard.py` deterministically detects new direct dependencies and flags undeclared ones and typosquat-near-popular names — but it **never touches the network**: whether a package actually *exists*, its *age*, and live typo confirmation are the agent's step-3 registry check (`npm view` / `pip index` / Safe Chain), which shares the model's blind spots and can be fooled by a poisoned registry. Phase 1 parses **npm + Python** only; a changed Cargo/NuGet/Go/Gradle manifest exits 2 (loud — manual check), never a silent pass. Transitive dependencies are out of scope (it reads the manifest's direct deps, not the lockfile's resolution).
 - **The gate detects a *delta*, not weakness-from-birth.** It compares the red snapshot to green, so it catches a test *weakened* after it was authored strong — not a test written weak from the start (no strong baseline ever existed to diff against; that residual shares the model's blind spot, like an implementation and its tests sharing an error). Under `ce-auto-build` this bounds the orchestrator's external re-check too: the snapshot is the *subagent's own* red capture, so re-running the gate catches a subagent that misreported a result or weakened a real red test, but not one that captured a weak snapshot — partial independence, not the spec-artifact gate's full guarantee.

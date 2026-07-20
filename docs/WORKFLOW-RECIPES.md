@@ -7,7 +7,7 @@ see `docs/USAGE-MATRIX.md`; for the rest of the documentation, see
 `docs/README.md`.
 
 **Front door:** if you are not sure which recipe applies, run
-`/ce-go <what you want>` — it inspects repo state (a plan on disk? a spec for the
+`/core-engineering:ce-go <what you want>` — it inspects repo state (a plan on disk? a spec for the
 named feature? a running target?) and routes to the right skill below, showing
 its reasoning before it hands off. It routes, never executes; the routed skill
 does the work under its own gates.
@@ -112,7 +112,7 @@ delivery outcome. Use them after entering through the owning recipe.
 **Use when:** a developer needs one grounded answer about existing code.
 
 ```text
-/ce-ask Where is login rate limiting enforced?
+/core-engineering:ce-ask Where is login rate limiting enforced?
 ```
 
 **Expected output:** cited explanation with `file:line` anchors.
@@ -121,49 +121,49 @@ delivery outcome. Use them after entering through the owning recipe.
 evidence is missing.
 
 **Stop or escalate when:** the question turns into a change request. Use
-`/ce-impact` for proposed change analysis or `/ce-plan` for real work.
+`/core-engineering:ce-impact` for proposed change analysis or `/core-engineering:ce-plan` for real work.
 
 ## Recipe 2: Refine A Work Item
 
 **Use when:** a ticket or idea needs blast-radius analysis before planning.
 
 ```text
-/ce-impact Add CSV export to the orders report.
+/core-engineering:ce-impact Add CSV export to the orders report.
 ```
 
 **Expected output:** affected components, test surface, sizing hint, open
 questions, and a paste-ready summary.
 
-**When the item is too big — split it along real seams, not by eye.** `/ce-impact`
+**When the item is too big — split it along real seams, not by eye.** `/core-engineering:ce-impact`
 reports findings, never a decomposition, so the split is a routing decision you make
 from its output. Grooming an epic:
 
 ```text
-/ce-impact <paste the epic description>   # seams, blast radius, open questions
-/ce-brief  <the epic, now with the open questions answered>
-/ce-plan                                  # the gated decomposition into features
-/ce-ship-backlog <feature-id>             # one Story + Tasks per feature, paste-ready
+/core-engineering:ce-impact <paste the epic description>   # seams, blast radius, open questions
+/core-engineering:ce-brief  <the epic, now with the open questions answered>
+/core-engineering:ce-plan                                  # the gated decomposition into features
+/core-engineering:ce-ship-backlog <feature-id>             # one Story + Tasks per feature, paste-ready
 ```
 
-The seams `/ce-impact` names (components, durable state, contracts) are the candidate
-feature boundaries; `/ce-plan` is what actually cuts them, because it owns the
+The seams `/core-engineering:ce-impact` names (components, durable state, contracts) are the candidate
+feature boundaries; `/core-engineering:ce-plan` is what actually cuts them, because it owns the
 sizing, dependency, reachability, and session-fit gates a hand-split skips. Answer
-`/ce-impact`'s open questions **before** `/ce-brief` — a PM's answer is exactly what
+`/core-engineering:ce-impact`'s open questions **before** `/core-engineering:ce-brief` — a PM's answer is exactly what
 that stage exists to elicit, and a plan built on a guessed answer inherits the guess.
 
 **Done when:** the output is specific enough for backlog discussion or planning.
 
 **Stop or escalate when:** the description is too thin. Add subject, action, and
 desired outcome, then re-run. If the epic has no locatable subject in the codebase at
-all, it is not a work item yet — it is an idea, and `/ce-brief` is where it starts.
+all, it is not a work item yet — it is an idea, and `/core-engineering:ce-brief` is where it starts.
 
 ## Recipe 3: Plan A New Feature
 
 **Use when:** the team has a real feature or project to decompose.
 
 ```text
-/ce-brief Add team invitations with role-based access.
-/ce-plan <brief-or-project-description>
+/core-engineering:ce-brief Add team invitations with role-based access.
+/core-engineering:ce-plan <brief-or-project-description>
 ```
 
 **Expected artifacts:** `docs/briefs/<slug>.md`, then `docs/plans/<slug>/` with
@@ -182,8 +182,8 @@ unknown. The human decides; the skill records.
 implementation.
 
 ```text
-/ce-spec <plan-slug> <feature-id>
-/ce-implement <plan-slug> <feature-id>
+/core-engineering:ce-spec <plan-slug> <feature-id>
+/core-engineering:ce-implement <plan-slug> <feature-id>
 ```
 
 **Expected artifacts:** `ce-spec.md`, `tasks.json`, updated code/tests, and
@@ -193,15 +193,15 @@ implementation.
 verification evidence is written.
 
 **Stop or escalate when:** implementation cannot satisfy the spec without
-redesign. That is a Spec Conflict; route back to `/ce-spec`.
+redesign. That is a Spec Conflict; route back to `/core-engineering:ce-spec`.
 
 ## Recipe 5: Review And Verify Before Handoff
 
 **Use when:** code exists and the team needs confidence before delivery.
 
 ```text
-/ce-review <plan-slug-or-feature-id>
-/ce-verify <plan-slug>
+/core-engineering:ce-review <plan-slug-or-feature-id>
+/core-engineering:ce-verify <plan-slug>
 ```
 
 **Expected artifacts:** code-review findings, review summary, verification
@@ -211,8 +211,8 @@ report, and evidence files.
 the verification report records pass/fail status per feature.
 
 **Stop or escalate when:** review finds a design/spec gap, verification fails, or
-runtime evidence is required. Route to `/ce-spec`, `/ce-implement`,
-`/ce-debug`, `/ce-probe-sec`, or `/ce-probe-perf` as indicated.
+runtime evidence is required. Route to `/core-engineering:ce-spec`, `/core-engineering:ce-implement`,
+`/core-engineering:ce-debug`, `/core-engineering:ce-probe-sec`, or `/core-engineering:ce-probe-perf` as indicated.
 
 ## Recipe 6: Handle A Small Fix
 
@@ -220,7 +220,7 @@ runtime evidence is required. Route to `/ce-spec`, `/ce-implement`,
 planning lane.
 
 ```text
-/ce-patch Fix the typo in the archived item status label.
+/core-engineering:ce-patch Fix the typo in the archived item status label.
 ```
 
 **Expected artifacts:** a constrained diff, test evidence, and one accepted-run
@@ -234,20 +234,21 @@ evidence at the single gate.
 **Stop or escalate when:** the mechanical screen finds a cross-feature
 collision, dependency manifest, reviewer-trigger surface, durable state,
 schema/public-contract change, destructive signal, more than two files, or any
-scope uncertainty. Route directly to `/ce-plan`; `/ce-patch` has no larger
+scope uncertainty. Route directly to `/core-engineering:ce-plan`; `/core-engineering:ce-patch` has no larger
 fallback lane. `--express` remains accepted only as a backward-compatible alias
 for the default behavior.
 
 **The thin-spine default.** You don't have to know this lane exists to reach
-it: `/ce-plan`, `/ce-spec`, and `/ce-implement` each run a proportionality
-check and will offer `/ce-patch` — with the cost difference stated — when a
+it: `/core-engineering:ce-plan`, `/core-engineering:ce-spec`, and `/core-engineering:ce-implement` each run a proportionality
+check and will offer `/core-engineering:ce-patch` — with the cost difference stated — when a
 request is patch-shaped (one bounded behavior, no new durable state, no
 cross-feature surface). Dollar amounts below are USD. The trade is explicit
-and consented in both directions: the patch lane is one skill at a ~$4 floor
-with a frozen file set; the full spine is ≈$12+ of model calls plus hours of attention, and buys
+and consented in both directions: the historical patch run used a $4 configured
+cap with a frozen file set; the four-step spine historically authorized up to
+$12 across separate calls, and buys
 decomposition, EARS traceability, and the review/verify gates. Graduation is
 explicit — a patch that fails admission stops and hands its discovered scope to
-`/ce-plan`. All lanes run on your loaded model; nothing is
+`/core-engineering:ce-plan`. All lanes run on your loaded model; nothing is
 silently down-routed (the model-tier policy is a reviewable file, and
 down-route widening waits for live-eval evidence).
 
@@ -256,10 +257,10 @@ down-route widening waits for live-eval evidence).
 **Use when:** something is failing and the team needs cause before fix.
 
 ```text
-/ce-debug <feature-id | component> [symptom]
+/core-engineering:ce-debug <feature-id | component> [symptom]
 ```
 
-`/ce-debug` auto-detects its mode from plan state — you need not know which:
+`/core-engineering:ce-debug` auto-detects its mode from plan state — you need not know which:
 planned mode when a plan/spec owns the failing feature (reproduce → `file:line`
 cause → classify → route one fix); plan-free mode for a misbehaving component with
 no plan/spec (ranked hypotheses + the cheapest discrimination plan).
@@ -278,11 +279,11 @@ result as suspected until a repro/log/metric confirms it.
 **Use when:** the team needs evidence-backed findings outside normal review.
 
 ```text
-/ce-probe-infra .
-/ce-probe-deps .
-/ce-probe-sec <local-or-dedicated-target>
-/ce-probe-perf <local-or-dedicated-target>
-/ce-ux-audit <running-app-scope>    # plan-free adversarial UX discovery (or a plan's traced-journey walk)
+/core-engineering:ce-probe-infra .
+/core-engineering:ce-probe-deps .
+/core-engineering:ce-probe-sec <local-or-dedicated-target>
+/core-engineering:ce-probe-perf <local-or-dedicated-target>
+/core-engineering:ce-ux-audit <running-app-scope>    # plan-free adversarial UX discovery (or a plan's traced-journey walk)
 ```
 
 **Expected artifacts:** dated probe reports with evidence, redactions, and
@@ -299,18 +300,18 @@ confidence.
 **Use when:** a verified plan needs a release decision and user-facing docs.
 
 ```text
-/ce-ship-release <plan-slug>
-/ce-ship-document <plan-slug> --voice conversational    # generate docs; optional Stage-3.5 naturalize pass (fenced examples held immutable)
-/ce-doc-audit docs/getting-started.md --role new-user   # then validate a reader can actually follow them (findings only)
+/core-engineering:ce-ship-release <plan-slug>
+/core-engineering:ce-ship-document <plan-slug> --voice conversational    # generate docs; optional Stage-3.5 naturalize pass (fenced examples held immutable)
+/core-engineering:ce-doc-audit docs/getting-started.md --role new-user   # then validate a reader can actually follow them (findings only)
 ```
 
 **Expected artifacts:** release decision package, changelog entry on consent,
 supply-chain evidence inventory, and user-facing docs grounded
 in verified behavior. The doc lifecycle is **generate → naturalize → validate**:
-`/ce-ship-document`'s `--voice` folds an optional `/ce-humanize` pass in after its
-Accuracy Gate (fenced examples held immutable), then `/ce-doc-audit` walks the
+`/core-engineering:ce-ship-document`'s `--voice` folds an optional `/core-engineering:ce-humanize` pass in after its
+Accuracy Gate (fenced examples held immutable), then `/core-engineering:ce-doc-audit` walks the
 result as a target reader. For prose *outside* a plan (release notes, an existing
-README), run `/ce-humanize` standalone — it edits a named file only after a
+README), run `/core-engineering:ce-humanize` standalone — it edits a named file only after a
 consent gate, and never touches the spec/evidence layer.
 
 **Done when:** the human has a GO/NO-GO release package and docs that match
@@ -324,12 +325,12 @@ not accept the gap.
 ## Recipe 10: Run The Full Spine Autonomously
 
 **Use when:** the team accepts an unattended pass with batched human review at
-the end. Run `/ce-plan-audit <plan-slug>` first — a flawed plan multiplies
+the end. Run `/core-engineering:ce-plan-audit <plan-slug>` first — a flawed plan multiplies
 across every feature of an unattended run, and the audit is cheap insurance.
 
 ```text
-/ce-plan-audit <plan-slug>
-/ce-auto-build <plan-slug>
+/core-engineering:ce-plan-audit <plan-slug>
+/core-engineering:ce-auto-build <plan-slug>
 ```
 
 **Expected artifacts:** per-feature specs, implementations, gate results,
@@ -349,7 +350,7 @@ resuming — is Recipe 20.
 **Use when:** a maintainer needs to own code they did not write.
 
 ```text
-/ce-onboard <plan-slug-or-path>
+/core-engineering:ce-onboard <plan-slug-or-path>
 ```
 
 **Expected output:** paced walkthrough, evidence citations, gotchas, and optional
@@ -359,7 +360,7 @@ internal learning guide.
 risks.
 
 **Stop or escalate when:** the walkthrough reveals a real defect. Use
-`/ce-review`, `/ce-verify`, `/ce-debug`, or `/ce-plan-audit` depending on
+`/core-engineering:ce-review`, `/core-engineering:ce-verify`, `/core-engineering:ce-debug`, or `/core-engineering:ce-plan-audit` depending on
 the defect type.
 
 ## Recipe 12: Shape Product Direction
@@ -368,19 +369,20 @@ the defect type.
 
 > These three skills ship in the companion **`product-discovery`** plugin
 > (`claude plugin install product-discovery@vg-coding`), not `core-engineering`.
-> The invocation names are unchanged.
+> Their `ce-*` identifiers are stable, but direct calls use the
+> `/product-discovery:` namespace shown below.
 
 ```text
-/ce-idea-scout <market-or-domain>
-/ce-idea-score <one-product-idea>
-/ce-market-scan <one-product-idea>
+/product-discovery:ce-idea-scout <market-or-domain>
+/product-discovery:ce-idea-score <one-product-idea>
+/product-discovery:ce-market-scan <one-product-idea>
 ```
 
 **Expected artifacts:** idea shortlist, evidence-tagged scorecard, market scan,
 strategic tensions, positioning options, and load-bearing unknowns.
 
 **Done when:** the human has enough evidence to drop, reframe, rescan, or adopt
-the direction into `/ce-brief`.
+the direction into `/core-engineering:ce-brief`.
 
 **Stop or escalate when:** the evidence is thin or source quality is weak. Keep
 the idea in discovery; do not feed unsupported claims into planning.
@@ -391,7 +393,7 @@ the idea in discovery; do not feed unsupported claims into planning.
 engineering fork with multiple viable options.
 
 ```text
-/ce-decide <situation, options, constraints>
+/core-engineering:ce-decide <situation, options, constraints>
 ```
 
 **Expected artifacts:** option scorecards, knockout gates, recommendation, DEAD-IF,
@@ -408,8 +410,8 @@ release authority. Those stay with the human or the owning workflow.
 pipeline signals after work completes.
 
 ```text
-/ce-plan-audit <plan-slug>
-/ce-retro <plan-slug>
+/core-engineering:ce-plan-audit <plan-slug>
+/core-engineering:ce-retro <plan-slug>
 ```
 
 **Expected artifacts:** plan-audit findings, structural lint results, process
@@ -419,7 +421,7 @@ signals, recurring review-dismissal candidates, and optional audit export.
 the human.
 
 **Stop or escalate when:** the audit finds a scope/decomposition flaw. Route to
-`/ce-plan`; do not let audit rewrite the plan directly.
+`/core-engineering:ce-plan`; do not let audit rewrite the plan directly.
 
 ## Recipe 15: Check Planned UX
 
@@ -427,7 +429,7 @@ the human.
 cross-journey experiential layer checked.
 
 ```text
-/ce-ux-audit <plan-slug>
+/core-engineering:ce-ux-audit <plan-slug>
 ```
 
 **Expected artifacts:** dated UX audit with screenshots, journey findings, and
@@ -445,7 +447,7 @@ available. Record the coverage gap rather than pretending the layer was checked.
 agent tracker API write authority.
 
 ```text
-/ce-ship-backlog <feature-id>
+/core-engineering:ce-ship-backlog <feature-id>
 ```
 
 **Expected output:** paste-ready ADO-style work items traced to the spec and
@@ -454,7 +456,7 @@ task list.
 **Done when:** a human has reviewed and pasted the items into the tracker.
 
 **Stop or escalate when:** the spec is incomplete or unapproved. Finish
-`/ce-spec` before exporting backlog work.
+`/core-engineering:ce-spec` before exporting backlog work.
 
 ## Recipe 17: Use The Plugin's Focused Agents
 
@@ -462,8 +464,8 @@ task list.
 implementation while staying inside the Claude Code plugin's hooks and skill
 contracts.
 
-Choose `spec-author` for `/ce-plan` + `/ce-spec`, or `spec-impl` for an approved
-`/ce-implement` task, from Claude Code's agent picker. Both are leaf agents:
+Choose `spec-author` for `/core-engineering:ce-plan` + `/core-engineering:ce-spec`, or `spec-impl` for an approved
+`/core-engineering:ce-implement` task, from Claude Code's agent picker. Both are leaf agents:
 they cannot fan out to nested agents and have no push, merge, release, or deploy
 authority.
 
@@ -484,17 +486,17 @@ production authority. Return to the owning skill or human decision-maker.
 needs the starter SDLC policy artifacts before planning or auto-build.
 
 ```text
-/ce-init --write
+/core-engineering:ce-init --write
 ```
 
 **Expected artifacts:** `docs/plans/repo-profile.json`,
 `docs/plans/vc-policy.md`, `docs/plans/review-policy.md`, and
 `docs/plans/patterns.md` when missing, plus the `.claude/ce-write-scope.json`
 deny-only write-scope baseline (git internals and the lease file itself are
-never agent-writable) and `.gitignore` entries for the four runtime
+never agent-writable) and `.gitignore` entries for the five runtime
 guard/session files (`.claude/ce-write-scope.json`,
 `.claude/ce-write-scope.session.json`, `.claude/ce-guard-log.jsonl`,
-`.claude/ce-session-model.json`) appended when absent. Existing policy files
+`.claude/ce-session-model.json`, `.claude/ce-net-policy.json`) appended when absent. Existing policy files
 are never overwritten silently.
 
 **Done when:** detected commands, package managers, CI, ownership files, and
@@ -503,22 +505,18 @@ left untouched unless explicitly overwritten.
 
 **Stop or escalate when:** build/test commands, protected branch, review bar, or
 release policy cannot be inferred. Ask the human to supply those defaults before
-running `/ce-auto-build` or delivery skills.
+running `/core-engineering:ce-auto-build` or delivery skills.
 
 ## Recipe 19: Return To A Plan Mid-Flight
 
 **Use when:** coming back to a repo after time away, mid-plan, and needing to
 know where the work stands before touching anything.
 
-```bash
-python3 plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py docs/plans/<slug>
-```
-
-The script ships inside the `ce-auto-build` skill directory (in an installed
-plugin, skills invoke it as `${CLAUDE_SKILL_DIR}/scripts/status-board.py`).
-It prints the board to stdout; add `--write` to refresh
-`docs/plans/<slug>/STATUS.md` instead. Stdlib-only — no Claude Code, no
-network.
+Open `docs/plans/<slug>/STATUS.md`, then compare it with `plan.json` and the
+feature's `specs/<id>/` artifacts. The board is generated by auto-build; its
+private helper is not a stable installed-plugin command. Use
+`/core-engineering:ce-auto-build <slug> --resume` only when you intend to
+continue a halted run, not merely to inspect it.
 
 **Expected output:** a disk-derived status board — one row per feature, each
 state derived from the same on-disk checks the auto-build gates use
@@ -534,37 +532,34 @@ or degraded — ends with exactly one `Next:` footer naming the first actionable
 feature; against the shipped eval fixture it reads:
 
 ```text
-Next: /ce-implement 01-invite-user  (suggestion — a projection, never a gate)
+Next: /core-engineering:ce-implement 01-invite-user  (suggestion — a projection, never a gate)
 ```
 
 **Done when:** you know each feature's state and take the matching route: an
-unspecced feature → `/ce-spec`, a specced-but-unbuilt feature →
-`/ce-implement`, everything implemented → `/ce-verify <slug>`, an interrupted
-auto-build run → `/ce-auto-build <slug> --resume` (Recipe 20).
+unspecced feature → `/core-engineering:ce-spec`, a specced-but-unbuilt feature →
+`/core-engineering:ce-implement`, everything implemented → `/core-engineering:ce-verify <slug>`, an interrupted
+auto-build run → `/core-engineering:ce-auto-build <slug> --resume` (Recipe 20).
 
 **Stop or escalate when:** the board shows `invalid-id`, an unreadable-artifact
 note, or a state that contradicts what you remember shipping. The board is a
 projection, never a gate — inspect `docs/plans/<slug>/specs/` directly before
-acting, and route structural doubts to `/ce-plan-audit`.
+acting, and route structural doubts to `/core-engineering:ce-plan-audit`.
 
 ## Recipe 20: Operate An Unattended Run
 
-**Use when:** an `/ce-auto-build` run is in flight — or just halted — and you
+**Use when:** a `/core-engineering:ce-auto-build` run is in flight — or just halted — and you
 are supervising it rather than driving each feature by hand.
 
 ```text
-/ce-auto-build <plan-slug>
+/core-engineering:ce-auto-build <plan-slug>
 ```
 
 **Watch:** `docs/plans/<slug>/STATUS.md` — the generated, never-hand-edited
 supervision board the orchestrator regenerates as each feature reaches a
 terminal state (done / parked / failed). It is a point-in-time projection, not
 a live feed: it goes stale mid-feature and freezes at the last terminal
-feature after a halt. Regenerate it on demand:
-
-```bash
-python3 plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py docs/plans/<slug> --write
-```
+feature after a halt. Inspect the underlying state/spec artifacts when it is
+stale; resuming the workflow regenerates it at the next terminal transition.
 
 **What a halt looks like:** a circuit-break is a designed halt, not a crash.
 The run stops when a breaker trips (verification failures beyond the retry
@@ -578,7 +573,7 @@ terminal feature.
 **Resume:**
 
 ```text
-/ce-auto-build <plan-slug> --resume
+/core-engineering:ce-auto-build <plan-slug> --resume
 ```
 
 Resume treats the persisted run state as a convenience cache and re-validates
@@ -594,22 +589,22 @@ resolution or a clear route.
 
 **Stop or escalate when:** parks repeat on the same decision class or the same
 feature circuit-breaks again after a resume. Resolve the underlying decision —
-or re-examine the plan via `/ce-plan-audit` and route structural flaws to
-`/ce-plan` — before resuming again.
+or re-examine the plan via `/core-engineering:ce-plan-audit` and route structural flaws to
+`/core-engineering:ce-plan` — before resuming again.
 
 ## Recipe 21: Revise An Existing Plan
 
 **Use when:** a plan is already written at `docs/plans/<slug>/` and the shape must
 change — a feature added, re-cut, re-ordered, or removed, or a threat / interaction
-boundary row moved. This is also where every downstream "escalate to `/ce-plan` and
-stop" lands: a `/ce-spec` structural Boundary Conflict, a `/ce-implement` Boundary
-Conflict, or a `/ce-patch` that graduated.
+boundary row moved. This is also where every downstream "escalate to `/core-engineering:ce-plan` and
+stop" lands: a `/core-engineering:ce-spec` structural Boundary Conflict, a `/core-engineering:ce-implement` Boundary
+Conflict, or a `/core-engineering:ce-patch` that graduated.
 
 ```text
-/ce-plan revise:docs/plans/<slug>  Add an audit-log feature that every write touches.
+/core-engineering:ce-plan revise:docs/plans/<slug>  Add an audit-log feature that every write touches.
 ```
 
-`/ce-plan` detects the existing plan at Stage 0 and runs **Stage R** — a revision, not
+`/core-engineering:ce-plan` detects the existing plan at Stage 0 and runs **Stage R** — a revision, not
 a fresh decomposition. It diffs the requested delta against the frozen shape, then
 re-runs **only** the gates the delta touches (Reachability if a journey's step-owners
 moved, Session-Fit if a feature is re-cut, the threat / interaction attestations if a
@@ -622,7 +617,7 @@ entry), re-projected `threat-model.md` / `interaction-contract.md` only if a bou
 row moved, and `plan.json` with `plan_revision` bumped (absent ⇒ was 1 ⇒ becomes 2).
 
 **Done when:** the revised plan is written with the delta applied, untouched work
-preserved, and each touched feature whose spec is now stale pointed back at `/ce-spec`.
+preserved, and each touched feature whose spec is now stale pointed back at `/core-engineering:ce-spec`.
 
 **Stop or escalate when:** the "revision" is actually a new project that only collides
 on slug — take the new-slug branch, never overwrite the existing plan. If a re-run gate
@@ -638,18 +633,18 @@ identity — with each cited artifact copied verbatim and sha256-stamped.
 
 ```text
 # on explicit request, from a retrospective:
-/ce-retro <plan-slug>          # then its evidence-pack export mode
+/core-engineering:ce-retro <plan-slug>          # then its evidence-pack export mode
 # or automatically, per release:
-/ce-ship-release <plan-slug>   # Stage 5 compiles the per-release pack
+/core-engineering:ce-ship-release <plan-slug>   # Stage 5 compiles the per-release pack
 ```
 
-Both invoke the same `evidence-pack.py`. It writes one dated, never-overwritten
+Both invoke the same evidence-pack helper. It writes one dated
 `docs/plans/<slug>/evidence-pack/<date>/pack.json` plus verbatim copies of every
 cited artifact; point `--merge-verdict` at a `gate_runner.py` verdict (the CI
 verdict for a per-merge pack, the release's for a per-release one) to bind the
-policy sha256 and pinned base/head SHAs. Its sections map to EU AI Act Art 11/12/18
-and SLSA provenance vocabulary — see `docs/ENTERPRISE-HARDENING.md`
-§ *Regulatory Mapping — EU AI Act*.
+policy sha256 and pinned base/head SHAs. Its sections can support an SDLC/QMS
+evidence mapping; they do not implement EU AI Act obligations or SLSA build
+provenance. See `docs/ENTERPRISE-HARDENING.md`.
 
 **Expected artifacts:** a `pack.json` whose every section is populated or listed in
 `gaps[]`, a verbatim `artifacts/` tree, and a loud `guard_decisions.verify` failure
@@ -670,17 +665,17 @@ behaviors and latencies no spec ever recorded, and post-refactor arguments would
 otherwise devolve into "it feels slower" because nobody captured a before-picture.
 
 ```text
-/ce-probe-perf http://localhost:<port>      # baseline; opt into the Load tier
-/ce-ux-audit http://localhost:<port>        # adversarial-discovery probe of the legacy surface
+/core-engineering:ce-probe-perf http://localhost:<port>      # baseline; opt into the Load tier
+/core-engineering:ce-ux-audit http://localhost:<port>        # adversarial-discovery probe of the legacy surface
 # HUMAN DECISION: from both dated reports, declare the contract-to-preserve —
 # which numbers and behaviors must survive, and what may change
-/ce-plan <refactor description>             # offer both reports as reference documents
-/ce-spec <plan-slug> <feature-id>           # encode the baseline numbers as EARS perf criteria
-/ce-implement <plan-slug> <feature-id>
-/ce-probe-perf http://localhost:<port> --against <spec-id>   # re-measure, graded
-# HUMAN DECISION: measured breach → /ce-implement fix loop, or record the
+/core-engineering:ce-plan <refactor description>             # offer both reports as reference documents
+/core-engineering:ce-spec <plan-slug> <feature-id>           # encode the baseline numbers as EARS perf criteria
+/core-engineering:ce-implement <plan-slug> <feature-id>
+/core-engineering:ce-probe-perf http://localhost:<port> --against <spec-id>   # re-measure, graded
+# HUMAN DECISION: measured breach → /core-engineering:ce-implement fix loop, or record the
 # consciously accepted regression
-/ce-ux-audit                                # journey-walk mode re-walks the planned journeys
+/core-engineering:ce-ux-audit                                # journey-walk mode re-walks the planned journeys
 ```
 
 Baseline against a local or dedicated staging instance — the consent gate
@@ -692,7 +687,7 @@ ceiling are Load-tier `measured` findings — and only a *measured* breach of an
 `--against` criterion can grade High. Keep the two runs' intensity identical so
 the numbers compare.
 
-The load-bearing handoff is the spec: `/ce-spec` encodes the declared baseline
+The load-bearing handoff is the spec: `/core-engineering:ce-spec` encodes the declared baseline
 numbers as performance acceptance criteria with real values, and the later probe
 loads exactly those criteria (`--against <spec-id>`, the refactor feature's
 spec) and grades measurements against them. The comparison travels through the
@@ -703,7 +698,7 @@ human still triages every finding.
 
 The two UX legs need a browser MCP and a web-rendered surface; for a backend or
 CLI subsystem, run the perf loop alone. Both mode flips are automatic: the first
-`/ce-ux-audit` detects that no plan owns the target and probes adversarially;
+`/core-engineering:ce-ux-audit` detects that no plan owns the target and probes adversarially;
 the closing no-argument run detects the plan's implemented user-facing features
 and re-walks every planned journey. Recipe 8 covers each probe singly and
 Recipe 4 the spec/implement middle; Recipe 15 is the journey walk on its own.
@@ -721,8 +716,8 @@ never silence.
 
 **Stop or escalate when:** the only reachable target is production or shared —
 the probe refuses; stand up a local instance first. A measured breach routes to
-`/ce-implement <id>`; a criterion that proves wrong or missing routes to
-`/ce-spec <id>`; a cross-feature performance obligation routes to `/ce-plan`.
+`/core-engineering:ce-implement <id>`; a criterion that proves wrong or missing routes to
+`/core-engineering:ce-spec <id>`; a cross-feature performance obligation routes to `/core-engineering:ce-plan`.
 The probes record and escalate — they never optimize code themselves.
 
 ## Recipe 24: Mid-Sprint Scope Change Without Losing The Plan
@@ -734,24 +729,24 @@ revision that does not trash the in-flight features' specs, and a tracker that
 matches the revised specs before the next standup.
 
 ```text
-/ce-impact <the change request text, e.g. the pasted work item>
-# bounded, off-plan change → /ce-patch <description> and stop here
-# (a wrong call is safe: a patch that proves big graduates to /ce-plan losslessly)
+/core-engineering:ce-impact <the change request text, e.g. the pasted work item>
+# bounded, off-plan change → /core-engineering:ce-patch <description> and stop here
+# (a wrong call is safe: a patch that proves big graduates to /core-engineering:ce-plan losslessly)
 # touches the plan's shape → continue:
-/ce-plan revise:docs/plans/<slug> <the change, stated as a delta>
-/ce-plan-audit <slug>
+/core-engineering:ce-plan revise:docs/plans/<slug> <the change, stated as a delta>
+/core-engineering:ce-plan-audit <slug>
 # then, per feature the revision stamped stale (revised_by: plan-revision <N>):
-/ce-spec <slug>/<feature-id>
-/ce-ship-backlog <slug>/<feature-id> --format ado-md
+/core-engineering:ce-spec <slug>/<feature-id>
+/core-engineering:ce-ship-backlog <slug>/<feature-id> --format ado-md
 ```
 
 Step 1 is the decision that matters most, made on evidence instead of vibes:
-`/ce-impact` reports blast radius against the current commit — which planned
+`/core-engineering:ce-impact` reports blast radius against the current commit — which planned
 features the change touches, durable-state and contract exposure, an approximate
-sizing hint. Genuinely bounded and off-plan routes to `/ce-patch`; anything that
+sizing hint. Genuinely bounded and off-plan routes to `/core-engineering:ce-patch`; anything that
 moves the plan's shape continues down the chain.
 
-`/ce-plan` detects the existing plan at Stage 0 and runs **Stage R** — a revision,
+`/core-engineering:ce-plan` detects the existing plan at Stage 0 and runs **Stage R** — a revision,
 not a re-decomposition. It diffs the delta against the frozen shape, re-runs only
 the gates the delta touches (untouched gates are held from the prior revision),
 bumps `plan_revision` in `plan.json`, and preserves every untouched feature's
@@ -759,15 +754,16 @@ bumps `plan_revision` in `plan.json`, and preserves every untouched feature's
 change. The Final Revision Approval names each touched feature whose existing
 spec is now stale.
 
-`/ce-plan-audit` then reads the just-revised plan in a fresh context: scope-drift,
+`/core-engineering:ce-plan-audit` then reads the just-revised plan in a fresh context: scope-drift,
 decomposition, reachability, and re-projection-closure lenses catch what the
 person who made the change cannot see. Hard lint FAILs are High findings;
-decision-quality findings feed the next `/ce-spec`'s Challenge gate rather than
-being re-decided in the audit.
+decision-quality findings route to `/core-engineering:ce-decide` when a scored technical
+recommendation is needed, then feed the chosen decision into `/core-engineering:ce-spec` rather
+than being re-decided in the audit.
 
-Re-spec only what the revision stamped stale — `/ce-spec` detects the existing
+Re-spec only what the revision stamped stale — `/core-engineering:ce-spec` detects the existing
 spec, revises rather than overwrites, and increments `spec_revision`; Scope Lock
-now binds to the revised boundary. Finally, `/ce-ship-backlog` per changed
+now binds to the revised boundary. Finally, `/core-engineering:ce-ship-backlog` per changed
 feature overwrites `docs/plans/<slug>/backlog/` in place, and the
 `spec_revision` stamp on every ticket makes the delta visible; after the Write
 gate, paste or import so the board's Stories match the revised spec. Recipe 2 is
@@ -785,10 +781,10 @@ byte-identical), a dated report under `docs/plan-audits/`, re-specced
 audit's findings are triaged, every stale spec is re-specced, and the tracker's
 Stories carry the new `spec_revision` stamp.
 
-**Stop or escalate when:** `/ce-impact`'s Thin-Description Gate refuses — get a
+**Stop or escalate when:** `/core-engineering:ce-impact`'s Thin-Description Gate refuses — get a
 real description before deciding the lane. A patch that breaches its boundary
-graduates to `/ce-plan` Stage R and stops — the safety net for a wrong step-1
-call. An audit lint FAIL (structural break) loops back to `/ce-plan` before any
+graduates to `/core-engineering:ce-plan` Stage R and stops — the safety net for a wrong step-1
+call. An audit lint FAIL (structural break) loops back to `/core-engineering:ce-plan` before any
 re-spec; the revision itself is only a "new project" if it merely collides on
 slug — take the new-slug branch, never overwrite the plan.
 
@@ -800,16 +796,15 @@ for the morning.
 
 ```text
 # Evening
-/ce-plan-audit <plan-slug>
-/ce-auto-build <plan-slug> [01..05]   # approve scope, budget, retry cap, park cap
+/core-engineering:ce-plan-audit <plan-slug>
+/core-engineering:ce-auto-build <plan-slug> [01..05]   # approve scope, budget, failure-attempt cap, park cap
 
 # Resume only after resolving the recorded stop
-/ce-auto-build <plan-slug> --resume
+/core-engineering:ce-auto-build <plan-slug> --resume
 
-# Morning
-python3 plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py docs/plans/<slug> --write
-/ce-verify <plan-slug>                # optional independent behavior rerun
-/ce-onboard <plan-slug>               # own the code nobody hand-wrote
+# Morning — open docs/plans/<slug>/STATUS.md and inspect the underlying artifacts
+/core-engineering:ce-verify <plan-slug>                # optional independent behavior rerun
+/core-engineering:ce-onboard <plan-slug>               # own the code nobody hand-wrote
 ```
 
 The run has one profile: features execute in ship order, one at a time, through
@@ -836,7 +831,7 @@ verification is recorded, and a maintainer can explain the changed flows.
 
 **Stop or escalate when:** parks repeat on one decision class or the same
 feature circuit-breaks after a resume — resolve the underlying decision, or
-route structural flaws through `/ce-plan-audit` to `/ce-plan` before resuming
+route structural flaws through `/core-engineering:ce-plan-audit` to `/core-engineering:ce-plan` before resuming
 (Recipe 20). Verification and review failures route to their owning skill.
 Never land the working-tree output on the agent's say-so: the human owns what
 enters shared history.
@@ -850,36 +845,32 @@ structural residue scheduled before the adrenaline fades.
 
 ```text
 # 1 — confirm, then route (HUMAN DECISION: the classification / route gate)
-/ce-debug <component-or-feature-id> "orders stuck in PENDING since 01:40"
+/core-engineering:ce-debug <component-or-feature-id> "orders stuck in PENDING since 01:40"
 
 # 2 — plan-free discrimination loop (skip when planned mode confirms at once):
 #     fetch the cheapest discriminating observation yourself, then re-invoke
-/ce-debug <same component> "<same symptom + the log excerpt / metric / config>"
-/ce-decide docs/investigations/<date>-<slug>.md --evidence measured
+/core-engineering:ce-debug <same component> "<same symptom + the log excerpt / metric / config>"
+/core-engineering:ce-decide docs/investigations/<date>-<slug>.md --evidence measured
 #     optional — several viable fixes for a CONFIRMED cause
 
 # 3 — fix down the routed lane only
-/ce-implement <plan-slug>/<id>    # bug (planned) — diagnosis.md loads as the lead
-/ce-patch <the bounded fix>       # plan-free, ≤2 files, no trigger surface
-/ce-spec <id>                     # spec-gap
-#     structural → the closing /ce-plan move below
+/core-engineering:ce-implement <plan-slug>/<id>    # bug (planned) — diagnosis.md loads as the lead
+/core-engineering:ce-patch <the bounded fix>       # plan-free, ≤2 files, no trigger surface
+/core-engineering:ce-spec <id>                     # spec-gap
+#     structural → the closing /core-engineering:ce-plan move below
 
 # 4 — prove closure (HUMAN DECISION: is the incident actually closed?)
-/ce-verify <journey>                                   # planned lane
-/ce-probe-perf <staging-target> --against <spec-id>    # numeric symptom — never prod
+/core-engineering:ce-verify <journey>                                   # planned lane
+/core-engineering:ce-probe-perf <staging-target> --against <spec-id>    # numeric symptom — never prod
 
-# 5 — the machine half of the postmortem, judged on the committed fix
-python3 scripts/gate_runner.py --repo . --base <pre-fix-sha> --json | tee merge-verdict.json
+# 5 — merge through the configured merge-bar CI check and retain its verdict artifact
 
-# 6 — the morning bookend: read, pack, schedule the real fix
-python3 plugins/core-engineering/hooks/guard_log.py --verify .claude/ce-guard-log.jsonl
-python3 plugins/core-engineering/skills/ce-retro/scripts/evidence-pack.py \
-  docs/plans/<slug> --guard-log .claude/ce-guard-log.jsonl \
-  --merge-verdict merge-verdict.json --out docs/plans/<slug>/evidence-pack/<date>
-/ce-plan revise:docs/plans/<slug>  <the structural residue the diagnosis named>
+# 6 — the morning bookend: compile evidence and schedule the real fix
+/core-engineering:ce-retro <plan-slug>   # evidence-pack export verifies any guard chain it includes
+/core-engineering:ce-plan revise:docs/plans/<slug>  <the structural residue the diagnosis named>
 ```
 
-`/ce-debug` auto-detects its mode from plan state. Planned (a spec owns the
+`/core-engineering:ce-debug` auto-detects its mode from plan state. Planned (a spec owns the
 failing feature): reproduce → `file:line` root cause → the material
 classification gate — bug / spec-gap / structural — the single human call that
 sets the fix lane, and where panic-patching dies. Plan-free (nobody's plan owns
@@ -892,26 +883,26 @@ The loop exists because of the Static Ceiling: code-reading alone caps every
 cause at `suspected`. Feed runtime evidence back (a same-day re-run writes a
 `-2`-suffixed sibling, never an overwrite) until the cause confirms or the next
 discrimination round is named. When several viable fixes exist for the
-confirmed cause, `/ce-decide` renders a seven-axis, evidence-tagged verdict
+confirmed cause, `/core-engineering:ce-decide` renders a seven-axis, evidence-tagged verdict
 with a falsifiable DEAD-IF — and it refuses to weigh fixes against a
 merely-suspected cause, the built-in brake on 2am guess-fixes. Skip it when
 one fix is obvious.
 
 Fix only down the routed lane. A planned bug resumes as
-`/ce-implement <plan-slug>/<id>` — implement auto-loads the bug-classified
+`/core-engineering:ce-implement <plan-slug>/<id>` — implement auto-loads the bug-classified
 `diagnosis.md` as its lead, so the fix starts from the confirmed `file:line`
-cause, not a re-derivation. A plan-free fix may use `/ce-patch` only when its
+cause, not a re-derivation. A plan-free fix may use `/core-engineering:ce-patch` only when its
 mechanical screen proves the change stays within two files and avoids every
 reviewer-trigger, durable-state, dependency, schema, and public-contract
-surface. Otherwise it stops and routes to `/ce-plan`; incident pressure never
+surface. Otherwise it stops and routes to `/core-engineering:ce-plan`; incident pressure never
 widens the lane. An accepted patch leaves test/diff evidence in the append-only
 `docs/plans/express-log.jsonl`, not a per-patch plan directory.
 
-Prove, don't hope. On the planned lane, `/ce-verify <journey>` runs the whole
+Prove, don't hope. On the planned lane, `/core-engineering:ce-verify <journey>` runs the whole
 suite and walks the exact broken journey with your verdict per step; a
-cross-feature regression routes straight back to `/ce-implement`, and the run
+cross-feature regression routes straight back to `/core-engineering:ce-implement`, and the run
 writes `verification-report.md` as the closure artifact. For a numeric symptom,
-`/ce-probe-perf --against <spec-id>` is the only tool that can prove an NFR
+`/core-engineering:ce-probe-perf --against <spec-id>` is the only tool that can prove an NFR
 breach is gone — it **refuses production**, so aim it at a staging or local
 replica. On the patch lane, the closure evidence is the external
 `patch-lint --post` result, test output, accepted diff, and ledger entry.
@@ -928,9 +919,9 @@ merge verdict, absences listed in `gaps[]` and never papered over — the
 postmortem writes itself from evidence, not Slack archaeology. For an express
 patch, include the relevant ledger entry and merge verdict directly. And if the
 diagnosis classified anything structural — a missing retry policy, no
-idempotency, a wrong boundary — schedule the real fix now: `/ce-plan
+idempotency, a wrong boundary — schedule the real fix now: `/core-engineering:ce-plan
 revise:docs/plans/<slug>` (Recipe 21) when a plan owns the area, or a fresh
-`/ce-plan` when none does.
+`/core-engineering:ce-plan` when none does.
 
 **Expected artifacts:** `diagnosis.md` (planned) or a dated
 `docs/investigations/<date>-<slug>.md` + `evidence/` (plan-free); the routed
@@ -948,9 +939,9 @@ plan feature — not a memory.
 
 **Stop or escalate when:** the cause is still `suspected` and nobody has
 accepted that risk — run the discrimination plan instead of patching; patch
-admission fails — route to `/ce-plan`, never shrink the change to fit;
-the merge bar goes red — the fix re-enters `/ce-implement` or `/ce-debug`,
-never gets hand-waved past; or `guard_log.py --verify` fails — treat the
+admission fails — route to `/core-engineering:ce-plan`, never shrink the change to fit;
+the merge bar goes red — the fix re-enters `/core-engineering:ce-implement` or `/core-engineering:ce-debug`,
+never gets hand-waved past; or `/core-engineering:ce-retro` reports guard-chain verification failure — treat the
 session's writes as untrusted and re-review the diff before merging.
 
 ## Recipe 27: Close A Security Finding On A Clock
@@ -962,21 +953,19 @@ reporter, not asserted.
 
 ```text
 # Entry — pick the door that matches the signal:
-/ce-probe-deps .                            # advisory: scan pinned manifests vs OSV
-/ce-probe-sec <staging-url> --type http     # claim: reproduce on staging, never prod
+/core-engineering:ce-probe-deps .                            # advisory: scan pinned manifests vs OSV
+/core-engineering:ce-probe-sec <staging-url> --type http     # claim: reproduce on staging, never prod
 
 # Route each confirmed finding down the probe's own triage table:
-/ce-plan <dependency remediation for finding F-N>            # manifest edits are not patch-eligible
-/ce-spec <feature-id>                       # spec gap in a plan-owned feature
-/ce-review <feature-id>                     # spec-lane fixes only: Security-lens follow-up
+/core-engineering:ce-plan <dependency remediation for finding F-N>            # manifest edits are not patch-eligible
+/core-engineering:ce-spec <feature-id>                       # spec gap in a plan-owned feature
+/core-engineering:ce-review <feature-id>                     # spec-lane fixes only: Security-lens follow-up
 
-# Merge through the bar (the action/merge-bar PR check, or locally):
-python3 scripts/gate_runner.py --repo . --base origin/main \
-  --declared <pkg> --json | tee merge-verdict.json
+# Merge through the configured action/merge-bar PR check and retain its verdict artifact.
 
 # Re-run the SAME entry probe for the dated after-report:
-/ce-probe-deps .                            # or:
-/ce-probe-sec <staging-url> --type http     # opt into the same active category
+/core-engineering:ce-probe-deps .                            # or:
+/core-engineering:ce-probe-sec <staging-url> --type http     # opt into the same active category
 ```
 
 **Reproduce before you fix.** The advisory door writes
@@ -991,17 +980,17 @@ shipped on faith; a confirmed finding reaches a human security professional
 before remediation begins — that boundary is the probe's own, not optional.
 
 **Right-size the lane per finding.** Dependency-manifest changes route to
-`/ce-plan`, including API-compatible version bumps; `/ce-patch` deliberately
-has no manifest-edit fallback. Optionally run `/ce-impact` first for a
+`/core-engineering:ce-plan`, including API-compatible version bumps; `/core-engineering:ce-patch` deliberately
+has no manifest-edit fallback. Optionally run `/core-engineering:ce-impact` first for a
 commit-stamped blast radius the SLA ticket can cite. A spec gap in
-a plan-owned feature routes to `/ce-spec` through the plan's locks, and a
+a plan-owned feature routes to `/core-engineering:ce-spec` through the plan's locks, and a
 structural fix lands `TZ-NNN` threat-model rows that future specs convert to
 `[SECURITY]` criteria. A probe-sec verdict of "no path from any documented
 trust boundary" is legitimate evidence for consciously deferring a noisy
-advisory — record the defer with that basis. `/ce-review <feature-id>` (the
+advisory — record the defer with that basis. `/core-engineering:ce-review <feature-id>` (the
 six lenses plus the adversarial pass tagging Highs `confirmed | suspected`)
 follows up spec-lane fixes and catches the sibling instance of the bug class.
-Do not reach for `/ce-debug` (Recipe 7): nothing here is
+Do not reach for `/core-engineering:ce-debug` (Recipe 7): nothing here is
 failing — the signal is external, and reproduction belongs to the probes.
 
 **The closure packet is mechanical.** Dated probe reports never overwrite a
@@ -1036,45 +1025,45 @@ look at this." Run it on a repo you can already navigate; this recipe starts
 where triage becomes committed scope.
 
 ```text
-/ce-init                          # dry profile first; skip both if bootstrapped
-/ce-init --write                  # grouped setup question; overwriting the
+/core-engineering:ce-init                          # dry profile first; skip both if bootstrapped
+/core-engineering:ce-init --write                  # grouped setup question; overwriting the
                                   # previous team's policy files needs --force
                                   # plus explicit consent — never silent
-/ce-probe-deps
-/ce-probe-infra                   # skip if the repo has no IaC/k8s/Dockerfile
+/core-engineering:ce-probe-deps
+/core-engineering:ce-probe-infra                   # skip if the repo has no IaC/k8s/Dockerfile
 # Triage BOTH dated reports — the campaign's scope decision, three piles:
 #   plan (all manifest fixes and structural gaps) · accept-or-defer,
 #   each acceptance with its reason recorded
-/ce-plan <remediation project: dependency upgrades + structural infra gaps;
+/core-engineering:ce-plan <remediation project: dependency upgrades + structural infra gaps;
           cite both dated reports as reference documents>
-/ce-plan-audit <remediation-slug>       # audit BEFORE the quarter is committed
-/ce-spec <remediation-slug>/<first-feature>
-/ce-ship-backlog <remediation-slug>/<first-feature> --format ado-md
+/core-engineering:ce-plan-audit <remediation-slug>       # audit BEFORE the quarter is committed
+/core-engineering:ce-spec <remediation-slug>/<first-feature>
+/core-engineering:ce-ship-backlog <remediation-slug>/<first-feature> --format ado-md
 # repeat spec → backlog per feature as the team pulls work
-/ce-onboard <remediation-slug-or-path>  # optional, for the assigned maintainer
+/core-engineering:ce-onboard <remediation-slug-or-path>  # optional, for the assigned maintainer
 ```
 
-The probes arrive pre-routed. `/ce-probe-deps` sends every dependency-manifest
-or lock-file change to `/ce-plan`, whether the bump appears compatible or
+The probes arrive pre-routed. `/core-engineering:ce-probe-deps` sends every dependency-manifest
+or lock-file change to `/core-engineering:ce-plan`, whether the bump appears compatible or
 breaking; unparsed manifest formats are recorded as unscanned — the census's
-honest boundary, never an implied clean result. `/ce-probe-infra` labels
+honest boundary, never an implied clean result. `/core-engineering:ce-probe-infra` labels
 live-only exposures `inferred` and routes them to a future consented
-`/ce-probe-sec` rather than asserting them statically.
+`/core-engineering:ce-probe-sec` rather than asserting them statically.
 
 The planned burn-down is auditable through the remediation plan: dependency
-manifest edits fail `/ce-patch` admission and enter the normal plan/spec/task
+manifest edits fail `/core-engineering:ce-patch` admission and enter the normal plan/spec/task
 traceability chain instead of a hidden larger patch lane.
 
-The plan step is the conversion nobody improvises correctly: hand `/ce-plan`
+The plan step is the conversion nobody improvises correctly: hand `/core-engineering:ce-plan`
 the two dated reports as reference documents, so the remediation plan's risk
 register cites findings rather than vibes and upgrade sequencing runs through
 the dependency gates. Final Plan Approval is the moment debt stops being a scan
 and becomes committed scope — so audit first (Recipe 14): a structural
-plan-audit finding routes to `/ce-plan`, received as a Stage R revision
-(Recipe 21), while a weak-but-sound decision carries into the first
-`/ce-spec`'s Challenge gate instead of blocking the quarter.
+plan-audit finding routes to `/core-engineering:ce-plan`, received as a Stage R revision
+(Recipe 21), while a weak-but-sound technical decision routes through
+`/core-engineering:ce-decide` before the first affected `/core-engineering:ce-spec` instead of blocking the quarter.
 
-`/ce-ship-backlog` structurally requires `ce-spec.md` and `tasks.json` on
+`/core-engineering:ce-ship-backlog` structurally requires `ce-spec.md` and `tasks.json` on
 disk — you cannot export tickets straight from a scan. The spec is what makes
 each Story's acceptance criteria verbatim EARS and every ticket spec-revision
 stamped (Recipe 16); the backlog Write gate (Write / Adjust / Abort) is the
@@ -1099,7 +1088,7 @@ fold it into the remediation plan (Recipe 21) rather than forcing the patch
 lane. Stop on a probe degradation (offline OSV, missing
 scanners) when the team needs a clean census: re-run with the capability
 restored or record the gap as accepted — never report clean. If the plan-audit
-lint FAILs structurally, resolve it via `/ce-plan` before speccing anything.
+lint FAILs structurally, resolve it via `/core-engineering:ce-plan` before speccing anything.
 
 ## Recipe 29: Roll Out The Merge Bar
 
@@ -1114,19 +1103,19 @@ a written bar that still drifts per-reviewer because nothing calibrates it.
 ```text
 # 1. the 60-second stakeholder proof — offline, throwaway repo
 bash scripts/demo-cheat-catch.sh
-# 2. per repo: write the policy substrate the gates read
-/ce-init --write
-# 3. baseline dry run BEFORE any PR check exists
-python3 scripts/gate_runner.py --repo . --base <base-sha> --json
-# 4. wire the PR check to what the repo can prove today
+# 2. per repo: initialize the plugin's guard/session policy files
+/core-engineering:ce-init --write
+# 3. explicitly adopt the merge-bar action or copy-in template, including any
+#    base-ref policy override and declared-dependency file
+# 4. baseline it in a draft PR before making the check required
 #    plan-less interim: action/test-integrity@<40-hex-commit-sha>
 #    full bar: action/merge-bar@<40-hex-commit-sha>, or a copy-in template
-# 5. branch protection: required human review per the policy's validity
+# 5. branch protection: require the status plus 2 approving reviews globally
 # 6. arm the post-merge patrol (advisory first week, then arm)
 #    copy templates/adopter-ci/drift.yml
 # 7. the calibration cadence
-/ce-review <feature-id>        # per built feature
-/ce-retro <plan-slug>          # sprint-end
+/core-engineering:ce-review <feature-id>        # per built feature
+/core-engineering:ce-retro <plan-slug>          # sprint-end
 ```
 
 **Demo before the budget ask.** `scripts/demo-cheat-catch.sh` builds a
@@ -1136,7 +1125,7 @@ name, the revert passes. Bash + git + python3, no Claude, no network — the
 pitch artifact for skeptical seniors: the bar catches the failure mode they
 actually fear from AI-assisted PRs.
 
-**Init before the gates.** `/ce-init --write` (Recipe 18) writes the substrate
+**Init before the gates.** `/core-engineering:ce-init --write` (Recipe 18) writes the substrate
 the gates and reviews read — `docs/plans/repo-profile.json`, `vc-policy.md`,
 `review-policy.md`, `patterns.md`, the write-scope baseline. Its one grouped
 setup question — protected branch, test command, review bar, forbidden paths —
@@ -1156,7 +1145,7 @@ the BASE ref only, so a PR can never weaken its own bar).
 **Wire to what the repo can prove.** A repo with no plans or specs still gets
 the genie-catch today: `action/test-integrity` fails a PR that deletes or
 empties test files, removes net assertions, or adds skips — one gate, no
-scaffolding. The full two-conjunct bar (`action/merge-bar`, or the air-gapped
+scaffolding. The full two-conjunct bar (`action/merge-bar`, or the
 checksum-pinned copy-ins `templates/adopter-ci/gates.yml`,
 `templates/adopter-ci/gates.gitlab-ci.yml`,
 `templates/adopter-ci/azure-pipelines-gates.yml`) lands once plan/spec
@@ -1167,24 +1156,24 @@ verdicts only where both `id-token: write` and `attestations: write` are
 grantable (public repos, or private on GitHub Enterprise Cloud).
 
 **Configure the validity conjunct — the runner cannot do it for you.** The
-runner enforces integrity only; validity is host branch protection: required
-approving reviews set to 1 where the class says `human`, 2 where it says
-`two-human`. Skipping this step is the most common rollout failure — it
+runner enforces integrity only. Because GitHub's approval-count rule is static,
+require 2 approving reviews globally; this covers both runtime classes while
+`human` remains a reported minimum. Skipping this step is the most common rollout failure — it
 silently recreates the "green = merge license" anti-pattern the two-conjunct
 rule exists to forbid.
 
 **Arm the patrol.** `templates/adopter-ci/drift.yml` (weekly cron +
 push-to-main) re-projects committed HEAD against every registered plan and
 routes findings in the same lock vocabulary the skills use (plan-layer drift →
-`/ce-plan`, spec-layer → `/ce-spec`). Set `DRIFT_ADVISORY_ONLY: '1'` for the
+`/core-engineering:ce-plan`, spec-layer → `/core-engineering:ce-spec`). Set `DRIFT_ADVISORY_ONLY: '1'` for the
 first week, read the findings, then clear it to arm; enable issue escalation
 with `DRIFT_ESCALATE: '1'` plus `issues: write`. The rollout is not done when
 PRs are gated — it is done when post-merge decay is also watched.
 
-**Run the calibration loop.** Per built feature, `/ce-review` reads the
+**Run the calibration loop.** Per built feature, `/core-engineering:ce-review` reads the
 human-owned `docs/plans/review-policy.md` as its calibration and appends a
 suppression rule to `review-learnings.md` only on a human Dismiss. Sprint-end,
-`/ce-retro` (Recipe 14) surfaces recurring dismissals as
+`/core-engineering:ce-retro` (Recipe 14) surfaces recurring dismissals as
 promote-to-review-policy candidates — read-only; the lead, never the tool,
 edits `review-policy.md`, recalibrating every future review. This loop is what
 makes the bar consistent instead of merely written.
@@ -1208,8 +1197,8 @@ lead, not another dismissal.
 
 ## Recipe 30: AI-Governance Evidence Trail
 
-**Use when:** compliance, legal, or a customer audit will ask "prove what the
-AI agent did on this codebase" — EU AI Act Art 11/12/18 vocabulary, an internal
+**Use when:** compliance, legal, or a customer audit needs evidence about an
+AI-assisted change — EU AI Act Art 11/12/18 vocabulary, an internal
 AI-usage policy, or a vendor questionnaire. The fatal failure mode is
 retroactive: evidence you did not collect cannot be packed. This recipe wires
 collection **before** the work, captures the CI verdict **during**, and
@@ -1218,62 +1207,59 @@ recipe is the ordering constraint around it.
 
 ```text
 # BEFORE any AI-assisted work starts — instrument the repo:
-/ce-init --write
+/core-engineering:ce-init --write
 
 # DURING — the AI-does-work phase, now instrumented:
-/ce-auto-build <slug>            # or the interactive /ce-spec → /ce-implement spine
+/core-engineering:ce-auto-build <slug>            # or the interactive /core-engineering:ce-spec → /core-engineering:ce-implement spine
 
 # DURING — in CI, the merge verdict exists only if you saved it as a file.
 # templates/adopter-ci/gates.yml already does (copy the template, don't re-type):
 #   python3 .merge-bar-toolkit/scripts/gate_runner.py ... --json | tee merge-verdict.json
 # or use action/merge-bar with attest: 'true' for a sigstore-signed verdict.
 
-# AFTER — verify the guard chain, then compile the consented pack:
-python3 plugins/core-engineering/hooks/guard_log.py --verify .claude/ce-guard-log.jsonl
-/ce-retro <plan-slug>            # then its evidence-pack export mode:
-#   python3 ${CLAUDE_SKILL_DIR}/scripts/evidence-pack.py docs/plans/<slug> \
-#     --guard-log .claude/ce-guard-log.jsonl --merge-verdict merge-verdict.json \
-#     --out docs/plans/<slug>/evidence-pack/<date>
+# AFTER — compile the consented pack; the skill verifies any guard chain included:
+/core-engineering:ce-retro <plan-slug>            # then choose its evidence-pack export mode
 ```
 
-**Instrument (before).** `/ce-init --write` seeds the deny-only write-scope
+**Instrument (before).** `/core-engineering:ce-init --write` seeds the deny-only write-scope
 baseline (`.claude/ce-write-scope.json`) and the egress allowlist
 (`.claude/ce-net-policy.json`). From that point the guard hooks — git-guard,
-env-guard, net-guard, write-scope-guard — append every decision to the
+env-guard, net-guard, write-scope-guard — append their asks and denials to the
 sha256-chained `.claude/ce-guard-log.jsonl` through the shared writer, and
 `plugins/core-engineering/hooks/model-attest.py` separately records which model
-actually executed in the `.claude/ce-session-model.json` sidecar that skills
-stamp onto their metric lines. Honest limit: a runtime outside the Claude Code
+actually executed in the `.claude/ce-session-model.json` sidecar. Workflows
+using the shared metric helper can stamp that identity, but auto-build does not
+currently stamp every state/metric record. Honest limit: a runtime outside the Claude Code
 plugin loads no hooks, records `model: null`, and produces no guard chain (see
 `plugins/core-engineering/hooks/README.md`). Confirm the work is running on the
 supported plugin surface before relying on this evidence.
 
 **Capture (during).** The instrumented run leaves the trail as a side effect:
-the run report's `Substrate:` and `Worker selection:` lines, the decisions
-ledger, and one `attestation` line in `.metrics.jsonl` per HITL gate — the
-printed `Gate N of M` locator verbatim, plus `confirm|override|edit|loop`. The
-human decisions here are `/ce-auto-build`'s Stage-0 approved bounds and Stage-3
-end-review (Recipe 20); those attestations become pack contents. In CI, copy
+the run report's `Worker selection:` line, the approved Stage-0 bounds in
+`ce-auto-build/<date>-state.json`, the decisions ledger, deterministic gate and
+stage transitions in `.metrics.jsonl`, and the human-owned Stage-3 outcome in the
+run report. These are evidence records, not signed human attestations. In CI, copy
 `templates/adopter-ci/gates.yml` (its gate step tees the verdict and reads the
 merge-policy override from the base ref so a PR cannot weaken its own bar) or
 adopt `action/merge-bar`; with `attest: 'true'` the action additionally
 sigstore-signs the verdict via keyless OIDC. Keep `merge-verdict.json` where
 the packing step can reach it.
 
-**Pack (after).** Run `--verify` before packing. It proves **internal chain
-consistency only** — the chain is unkeyed, so verify catches corruption and a
+**Pack (after).** The export verifies any included guard chain before packing.
+That proves **internal chain consistency only** — the chain is unkeyed, so it catches corruption and a
 naive tamperer, not an adversary who re-chains; the pack records the chain
 head, which anchors history only against a prior pack retained off this disk.
 A broken chain fails loudly **inside** the pack — it is never hidden — so the
 decision is yours: investigate the break first, or ship the pack with the
 failure documented. Then review `gaps[]` and any `model: null` "unattested"
 lines: remediate what you can, and hand the rest to the auditor as documented
-limitations. Section vocabulary maps to EU AI Act Art 11/12/18 — see
+limitations. The section vocabulary can support a broader control mapping for
+EU AI Act Art 11/12/18; it does not implement those obligations. See
 `docs/ENTERPRISE-HARDENING.md`.
 
 **Expected artifacts:** the two seeded policy files and a growing
-`.claude/ce-guard-log.jsonl` from step one; a run report with substrate and
-worker lines, a decisions ledger, and attestation metrics from the work phase;
+`.claude/ce-guard-log.jsonl` from step one; an auto-build state file, a run report
+with its worker line and human outcome, a decisions ledger, and gate/stage metrics;
 `merge-verdict.json` (optionally sigstore-signed) from CI; and one dated,
 never-overwritten `docs/plans/<slug>/evidence-pack/<date>/pack.json` with a
 verbatim `artifacts/` tree, populated sections or honest `gaps[]`, and
@@ -1303,9 +1289,9 @@ repository.
 
 ```text
 # 1. paste the review comments straight into the skill — the mode is auto-detected
-/ce-review
+/core-engineering:ce-review
 #    (or, when you have saved them to a file)
-/ce-review --comments review-round-1.txt
+/core-engineering:ce-review --comments review-round-1.txt
 
 # 2. each comment is verified AGAINST THE CODE, then triaged gate by gate:
 #      Gate 1 of M — the parsed comment set + classes                 [material]
@@ -1315,10 +1301,10 @@ repository.
 # 3. one paste-ready reply per comment is rendered; YOU post them.
 #
 # 4. route the accepted fixes — the skill never patches:
-/ce-patch <the bounded fix>       # no plan on disk: the common PR
-/ce-implement <feature-id>        # a plan/spec owns the code
-/ce-spec <feature-id>             # the reviewer is right and the SPEC is wrong
-/ce-decide                        # "this whole approach is wrong" — an option choice
+/core-engineering:ce-patch <the bounded fix>       # no plan on disk: the common PR
+/core-engineering:ce-implement <feature-id>        # a plan/spec owns the code
+/core-engineering:ce-spec <feature-id>             # the reviewer is right and the SPEC is wrong
+/core-engineering:ce-decide                        # "this whole approach is wrong" — an option choice
 ```
 
 **A comment is a claim, not an instruction.** Inbound mode reads every pasted
@@ -1336,15 +1322,15 @@ in the triage table so a human learns someone tried.
 adversarial verification pass runs per claim: `substantiated` (the trace upholds
 the reviewer), `refuted` (the path is unreachable, the guard the reviewer missed is
 present, the cited ADR actually permits the behavior), or `unverifiable` (no
-anchor, or it needs runtime proof — route that to `/ce-probe-sec` or
-`/ce-probe-perf`). `refuted` is the outcome a self-generated finding can never
+anchor, or it needs runtime proof — route that to `/core-engineering:ce-probe-sec` or
+`/core-engineering:ce-probe-perf`). `refuted` is the outcome a self-generated finding can never
 have, and it is what makes a review round converge: you answer a wrong comment
 with a trace, not with a concession.
 
 **Nothing is written.** The dominant PR is a branch with no `docs/plans/<slug>/`,
 so inbound renders a triage table and reply blocks and stops. When a plan *does*
 resolve, the only file it may touch is the append-only `.metrics.jsonl`, so the
-gate decisions land in `/ce-retro`'s confirm-vs-override telemetry.
+gate decisions land in `/core-engineering:ce-retro`'s confirm-vs-override telemetry.
 
 **Expected artifacts:** none on disk, by design. In the conversation: a triage
 table (comment → class → location → verdict → disposition → route) and one
@@ -1354,16 +1340,16 @@ AI-assisted and carrying `Verified against: <repo>@<short-sha>`.
 **Done when:** every comment has a **disposition** and a drafted reply — and a
 verdict wherever it was a verifiable claim (praise, process notes, and questions get
 a disposition and an answer, not a verdict) — you have posted the replies yourself,
-and each accepted fix has been routed to the lane that owns it: `/ce-patch`,
-`/ce-implement`, `/ce-spec`, or `/ce-plan`.
+and each accepted fix has been routed to the lane that owns it: `/core-engineering:ce-patch`,
+`/core-engineering:ce-implement`, `/core-engineering:ce-spec`, or `/core-engineering:ce-plan`.
 
 **Stop or escalate when:** the payload will not segment into discrete comments (it
 is a diff, or free prose), or every item is praise and process — inbound refuses
 rather than fabricating replies, and states what would make the round triageable.
 Escalate to a human conversation, not a drafted rebuttal, when a design objection
-is contested: `/ce-decide` produces the evidence and a proposed ADR, but the
+is contested: `/core-engineering:ce-decide` produces the evidence and a proposed ADR, but the
 agreement is made by people. And when the reviewer is right about behavior the
-spec permits, the fix is a `/ce-spec` escalation — never re-litigate a settled
+spec permits, the fix is a `/core-engineering:ce-spec` escalation — never re-litigate a settled
 decision inside a PR reply.
 
 ## Recipe 32: Divide A Plan Among N Developers
@@ -1373,9 +1359,9 @@ and the team needs explicit ownership without introducing a second worktree
 orchestration system.
 
 ```text
-/ce-plan-audit <plan-slug>
-/ce-spec <feature-id>             # repeat for the features being assigned
-/ce-ship-backlog <feature-id>     # publish each reviewed assignment to the tracker
+/core-engineering:ce-plan-audit <plan-slug>
+/core-engineering:ce-spec <feature-id>             # repeat for the features being assigned
+/core-engineering:ce-ship-backlog <feature-id>     # publish each reviewed assignment to the tracker
 ```
 
 Read `plan.json` for dependency order and each `tasks.json` for declared file
@@ -1392,7 +1378,7 @@ is respected, and overlapping file reach has an explicit coordination plan.
 
 **Stop or escalate when:** boundaries or file reach are unclear, dependencies
 form a serial chain, or several features need the same files. Re-cut the plan
-with `/ce-plan` instead of adding orchestration machinery around a bad split.
+with `/core-engineering:ce-plan` instead of adding orchestration machinery around a bad split.
 
 ## Recipe 33: Pick The Next Sprint's Slate
 
@@ -1402,28 +1388,26 @@ feature's Final Complexity, and the board's own next-action projection — but n
 composes them.
 
 ```text
-# 1. what is actually next, per the plan's own state machine
-python3 plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py \
-  docs/plans/<slug>
+# 1. open docs/plans/<slug>/STATUS.md and verify it against the plan/spec artifacts
 
 # 2. read the plan's ship order + per-feature Final Complexity
 #    (docs/plans/<slug>/plan.json: ship_order, final_complexity, dependencies.hard)
 
 # 3. sanity-check the plan before committing a sprint to it
-/ce-plan-audit <plan-slug>
+/core-engineering:ce-plan-audit <plan-slug>
 
 # 4. export the chosen slate to the tracker
-/ce-ship-backlog <feature-id>    # once per selected feature
+/core-engineering:ce-ship-backlog <feature-id>    # once per selected feature
 ```
 
 **Select in dependency order, not in preference order.** A feature whose `hard`
 dependency is unbuilt cannot be worked, however attractive it looks. The board's
-footer prints exactly one next action (`Next: /ce-spec <id>` → `Next: /ce-implement
-<id>` → `Next: /ce-verify <slug>`), and it labels itself *"(suggestion — a
+footer prints exactly one next action (`Next: /core-engineering:ce-spec <id>` → `Next: /core-engineering:ce-implement
+<id>` → `Next: /core-engineering:ce-verify <slug>`), and it labels itself *"(suggestion — a
 projection, never a gate)"*. Take it as the head of the slate, not the whole of it.
 
 **Size against stated capacity, and let the plan's own number do the work.**
-`final_complexity` is the value `/ce-plan`'s sizing gate already argued about with a
+`final_complexity` is the value `/core-engineering:ce-plan`'s sizing gate already argued about with a
 human. Re-estimating it at sprint planning discards that reasoning and substitutes a
 worse one made under time pressure.
 
@@ -1435,7 +1419,7 @@ The slate itself lives in your tracker, not in the framework.
 also in the slate, ordered before it), the summed complexity fits the stated capacity,
 and each is in the tracker with its spec linked.
 
-**Stop or escalate when:** `/ce-plan-audit` reports a dependency-DAG failure or a
+**Stop or escalate when:** `/core-engineering:ce-plan-audit` reports a dependency-DAG failure or a
 reachability finding. Do not plan a sprint on a plan that does not lint — fix the
 plan first, or the sprint inherits the defect.
 
@@ -1444,7 +1428,7 @@ plan first, or the sprint inherits the defect.
 **Use when:** the person who owns a subsystem is leaving, rotating off, going on long
 leave, or a contractor is rolling off. The knowledge that dies is never the code — it
 is *why* the code is like this, and which of the obvious-looking changes are traps.
-This is the inverse of `/ce-onboard`: there, the AI teaches a human; here, a human
+This is the inverse of `/core-engineering:ce-onboard`: there, the AI teaches a human; here, a human
 teaches the AI, and every claim is checked before it becomes durable.
 
 ```text
@@ -1454,21 +1438,21 @@ teaches the AI, and every claim is checked before it becomes durable.
 #    - what they would fix if they had another month
 
 # 2. verify EVERY claim against the actual code — this is the whole point
-/ce-ask Does the code confirm: "<claim>"? Cite file:line, or say it is unsupported.
+/core-engineering:ce-ask Does the code confirm: "<claim>"? Cite file:line, or say it is unsupported.
 
 # 3. file what survived. A settled decision becomes an ADR backfill:
-/ce-decide <the still-live tradeoff>      # when the choice is genuinely still open
+/core-engineering:ce-decide <the still-live tradeoff>      # when the choice is genuinely still open
 #    otherwise write the ADR yourself into docs/adr/ from the verified claim
 
 # 4. the successor, weeks later, learns from those artifacts:
-/ce-onboard <plan-slug>
+/core-engineering:ce-onboard <plan-slug>
 ```
 
 **Verify before you enshrine.** A departing engineer's memory is a *claim*, not a
-citation — the same posture `/ce-review`'s inbound mode takes toward a PR comment.
+citation — the same posture `/core-engineering:ce-review`'s inbound mode takes toward a PR comment.
 Sort every claim into one of three buckets and label it in the artifact:
 
-- **cited** — `/ce-ask` found it at a `file:line`. This is knowledge.
+- **cited** — `/core-engineering:ce-ask` found it at a `file:line`. This is knowledge.
 - **CONTRADICTED** — the code says otherwise. This is the most valuable output of the
   whole exercise: a belief the team has been operating on that is false. Capture it
   loudly, and find out when it stopped being true.
@@ -1482,28 +1466,28 @@ person. It is also exactly what an ADR's *Alternatives Considered* section is fo
 
 **Expected artifacts:** ADR files under `docs/adr/` (backfilled, dated, with the
 verified basis cited), and — where a plan owns the subsystem — gotchas recorded in the
-plan's own notes, which `/ce-onboard` already reads when it teaches.
+plan's own notes, which `/core-engineering:ce-onboard` already reads when it teaches.
 
 **Done when:** every claim carries one of the three labels, every settled decision has
-an ADR with its alternatives, and a successor can run `/ce-onboard` and be taught from
+an ADR with its alternatives, and a successor can run `/core-engineering:ce-onboard` and be taught from
 artifacts rather than from someone's absent memory.
 
 **Stop or escalate when:** the owner has already left. Then this recipe cannot run —
 there is no one to interview, and reconstructing intent from code alone produces
 plausible fiction. Say so plainly rather than generating it; the honest artifact is
-`/ce-ask`'s file-cited answer to a specific question, not an invented rationale.
+`/core-engineering:ce-ask`'s file-cited answer to a specific question, not an invented rationale.
 **Run this before the last day, not after.**
 
 ## Recipe 35: Onboard Into The Business Domain
 
 **Use when:** someone must speak the product's language before touching a file — a new
 engineer joining the team, a PM or analyst inheriting the product, or an engineer
-landing in an unfamiliar subdomain. `/ce-onboard` teaches how the code was built; this
+landing in an unfamiliar subdomain. `/core-engineering:ce-onboard` teaches how the code was built; this
 teaches the world the code serves.
 
 ```text
-/ce-domain                # whole repo
-/ce-domain src/billing    # one subdomain
+/core-engineering:ce-domain                # whole repo
+/core-engineering:ce-domain src/billing    # one subdomain
 ```
 
 **Expected artifacts:** a paced six-lesson walkthrough (context, actors & roles, nouns &
@@ -1517,7 +1501,7 @@ and state the load-bearing invariants with their enforcing lines — and knows w
 *why*s are recorded versus open questions for the team.
 
 **Stop or escalate when:** the learner needs the implementation layer (architecture,
-gotchas, verified behavior) — that is `/ce-onboard`. And when the register's rationale
+gotchas, verified behavior) — that is `/core-engineering:ce-onboard`. And when the register's rationale
 questions still have a reachable owner, run Recipe 34 to capture the answers while you
 can: a repository cannot answer them, and reconstructing intent from code alone
-produces plausible fiction — exactly what `/ce-domain` refuses to do.
+produces plausible fiction — exactly what `/core-engineering:ce-domain` refuses to do.

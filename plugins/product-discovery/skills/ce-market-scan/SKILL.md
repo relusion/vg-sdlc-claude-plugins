@@ -1,8 +1,8 @@
 ---
 name: ce-market-scan
 description: |
-  Evidence-bound market & competitive scan to validate a raw idea before /ce-brief — three-state evidence, every claim sourced and dated; frames the decision space and routes a disposition but renders NO go/no-go verdict (the Scope Lock).
-  Triggers: market/competitor/differentiation research for an idea. For an opinionated score use /ce-idea-score; to first brainstorm MANY raw ideas into a ranked shortlist use /ce-idea-scout.
+  Evidence-bound market & competitive scan to validate a raw idea before /core-engineering:ce-brief — three-state evidence, every claim sourced and dated; frames the decision space and routes a disposition but renders NO go/no-go verdict (the Scope Lock).
+  Triggers: market/competitor/differentiation research for an idea. For an opinionated score use /product-discovery:ce-idea-score; to first brainstorm MANY raw ideas into a ranked shortlist use /product-discovery:ce-idea-scout.
 argument-hint: "[raw idea or product concept]"
 allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill
 ---
@@ -13,7 +13,7 @@ allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuesti
 
 
 Produce a dated, evidence-bound **market context** document for a raw idea, so a
-human can judge whether the idea is worth pursuing **before** `/ce-brief` shapes it
+human can judge whether the idea is worth pursuing **before** `/core-engineering:ce-brief` shapes it
 into planning input. The skill both **surfaces findings** *and* (Stage 3.5)
 **assembles them into the decision space the reader faces** — Strategic Tensions,
 Positioning Options, and Load-Bearing Unknowns — then (Stage 5) **closes the loop**:
@@ -28,14 +28,14 @@ the fixed Question Bank below (extensible — this is a STUB), rather than
 free-generating a research plan.
 
 > **Where it sits.** This is a **separate, optional, upstream** skill. It runs
-> **before** `/ce-brief` and is **not** part of it. Its output is consumed downstream
+> **before** `/core-engineering:ce-brief` and is **not** part of it. Its output is consumed downstream
 > only as a **labeled Reference Document**; its claims never enter a brief's Project
-> Description directly, and `/ce-brief` never performs or fabricates market research.
+> Description directly, and `/core-engineering:ce-brief` never performs or fabricates market research.
 
 ## Expanded Authority Surface
 
 Unlike the elicitation skills, this skill **reads the open web** (WebSearch /
-WebFetch) — a wider authority surface than `/ce-brief`'s repo glance. Web access is
+WebFetch) — a wider authority surface than `/core-engineering:ce-brief`'s repo glance. Web access is
 therefore **gated** at Stage 0 (the user confirms scope + budget before any fetch),
 and every external claim is bound to a citation.
 
@@ -312,9 +312,9 @@ lives entirely outside the Scope Lock's framing tier and never re-opens Stage 3.
   | Disposition | Annotated by (factual, optional) | Routes to |
   |---|---|---|
   | **Drop** | the squeeze each option fails to escape / kill-conditions evidenced | Stop — the scan stands as the recorded rationale |
-  | **Adopt as-is** | — | `/ce-brief`, idea unchanged |
-  | **Adopt with changes** | the named option's escape it narrows to | `/ce-brief`, carrying the narrowing |
-  | **Reframe** | the named Positioning Option it pivots to | `/ce-brief`, carrying that option |
+  | **Adopt as-is** | — | `/core-engineering:ce-brief`, idea unchanged |
+  | **Adopt with changes** | the named option's escape it narrows to | `/core-engineering:ce-brief`, carrying the narrowing |
+  | **Reframe** | the named Positioning Option it pivots to | `/core-engineering:ce-brief`, carrying that option |
   | **Re-scan a gap** | the named open Load-Bearing Unknown | a fresh dated scan scoped to that gap |
 
 - **5.4 Record + route the human's pick** (never the tool's):
@@ -322,8 +322,8 @@ lives entirely outside the Scope Lock's framing tier and never re-opens Stage 3.
     plus the routed next step. The `by human` stamp is mandatory (`scan-lint.py` H9); the
     tool may not record a disposition the human did not choose.
   - **Drop** → stop. **Adopt / Reframe** → **name the skill** ("Run
-    `/ce-brief`; start from `<the idea | Option X's positioning>`; this scan
-    is your context") — **never auto-launch `/ce-brief`, and never feed its claims forward**
+    `/core-engineering:ce-brief`; start from `<the idea | Option X's positioning>`; this scan
+    is your context") — **never auto-launch `/core-engineering:ce-brief`, and never feed its claims forward**
     (the claim-consumption seam stays unwired; see Honest Limitations). **Re-scan a gap**
     → name the unknown and offer a fresh dated scan scoped to that segment.
   - **Re-lint:** re-run `scan-lint.py` over the updated artifact so the appended record is
@@ -335,8 +335,8 @@ lives entirely outside the Scope Lock's framing tier and never re-opens Stage 3.
 ## Escalation
 
 This skill frames and routes; it never decides. Human-selected dispositions route to
-`/ce-brief` for planning input, `/ce-idea-score` for an opinionated idea verdict,
-another `/ce-market-scan` for a named evidence gap, or stop/drop. Claims remain
+`/core-engineering:ce-brief` for planning input, `/product-discovery:ce-idea-score` for an opinionated idea verdict,
+another `/product-discovery:ce-market-scan` for a named evidence gap, or stop/drop. Claims remain
 context, not automatically consumed requirements.
 
 ## Honest Limitations
@@ -380,8 +380,8 @@ context, not automatically consumed requirements.
   an idiom its lexicon doesn't list will slip past; the guarantee is the *composition* of
   the shape-checks plus the human, not the verb grep. A lint hit is a material finding the
   human adjudicates.
-- **Separate from /ce-brief.** This skill performs research; it does not elicit intent
+- **Separate from /core-engineering:ce-brief.** This skill performs research; it does not elicit intent
   or plan. Its output — including the Stage-3.5 tier — crosses into the pipeline only as
   a labeled Reference Document; raw claims never enter a brief's Project Description as
-  fact. *(A future, optional `/ce-brief` seam may let the Sparring Partner consume the tier's
+  fact. *(A future, optional `/core-engineering:ce-brief` seam may let the Sparring Partner consume the tier's
   options one probe at a time, state-labeled — deliberately not wired here.)*

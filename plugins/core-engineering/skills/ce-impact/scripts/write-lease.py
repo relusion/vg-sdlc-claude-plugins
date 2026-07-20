@@ -5,7 +5,7 @@ Read-only-on-code skills call `--set` at their Stage 0 (declaring the only
 paths this session may Write/Edit) and `--restore-baseline` at exit. The lease
 lives at .claude/ce-write-scope.json, where the write-scope-guard hook
 enforces it structurally; the baseline it restores is the deny-only floor
-`/ce-init` seeds (git internals and the lease file itself are never
+`/core-engineering:ce-init` seeds (git internals and the lease file itself are never
 agent-writable).
 
 The lease is cooperative: it makes accidental tool-mediated drift structural
@@ -70,6 +70,14 @@ def write_policy(path: Path, policy: dict) -> None:
     path.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
 
 
+def command_name(skill: str) -> str:
+    """Return the installed Claude Code command for a stored skill name."""
+    normalized = skill.strip().lstrip("/")
+    if ":" not in normalized:
+        normalized = f"core-engineering:{normalized}"
+    return f"/{normalized}"
+
+
 def set_lease(root: Path, skill: str, allow: list[str]) -> int:
     path = lease_path(root)
     existing = read_existing(path)
@@ -81,6 +89,7 @@ def set_lease(root: Path, skill: str, allow: list[str]) -> int:
             file=sys.stderr,
         )
     writes = ", ".join(allow) if allow else "nothing (report is rendered, not written)"
+    command = command_name(skill)
     policy = {
         "schema_version": 1,
         "enabled": True,
@@ -89,14 +98,14 @@ def set_lease(root: Path, skill: str, allow: list[str]) -> int:
         "lease_id": str(uuid.uuid4()),
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "reason": (
-            f"session write lease set by /{skill} Stage 0 — this session "
+            f"session write lease set by {command} Stage 0 — this session "
             f"writes only: {writes}"
         ),
         "allow": allow,
         "deny": list(BASELINE_DENY),
     }
     write_policy(path, policy)
-    print(f"write-lease: lease set for /{skill} ({len(allow)} allow pattern(s))")
+    print(f"write-lease: lease set for {command} ({len(allow)} allow pattern(s))")
     return 0
 
 

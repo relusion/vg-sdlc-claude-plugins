@@ -124,7 +124,7 @@ marked **`[CONTRACT: IC-NNN]`** on the AC's heading line itself (e.g.
 Tag each interaction criterion's test cases `auto` or `manual:harness-gap`, **never
 `manual:judgment`** — a behavioural guarantee *is* checkable (a duplicate suppressed, an
 out-of-order event rejected, a stale write 409'd) and a numeric target *is* measurable. A
-numeric-NFR criterion's realistic harness is a load/perf run; `/ce-probe-perf`
+numeric-NFR criterion's realistic harness is a load/perf run; `/core-engineering:ce-probe-perf`
 is the tool that *proves* a numeric breach (it records, doesn't block), so the criterion
 degrades to `manual:harness-gap` when no load harness is available — never `manual:judgment`.
 
@@ -218,8 +218,8 @@ to dodge the check, the same dodge §2.1 forbids for conformance and security. R
 
 The full discipline — the six-dimension rubric, the functional-vs-taste classifier,
 the three-tier evidence model, and the canvas-vs-DOM honesty — is defined in
-**`${CLAUDE_SKILL_DIR}/surface-critique.md`**; downstream stages (`/ce-implement`,
-`/ce-verify`, `/ce-auto-build`, the UX skills) critique the running surface against the
+**`${CLAUDE_SKILL_DIR}/surface-critique.md`**; downstream stages (`/core-engineering:ce-implement`,
+`/core-engineering:ce-verify`, `/core-engineering:ce-auto-build`, the UX skills) critique the running surface against the
 contract authored here.
 
 ### 2.2 Test Cases
@@ -320,7 +320,7 @@ required, a plan assumption is false, or a hard dependency is missing — raise 
   (`revised_by: spec`, date, reason), log it in the Boundary-Conflict Log, then
   re-enter Stage 1 (if unknowns changed) or Stage 2 (if criteria changed).
 - **Structural fix** (dependencies, IDs, ship order, other features): the spec
-  cannot make it — escalate to `/ce-plan` and stop.
+  cannot make it — escalate to `/core-engineering:ce-plan` and stop.
 
 Never expand Scope to absorb a conflict.
 
@@ -364,7 +364,7 @@ a **consumer-impact reconciliation** before the change can stand:
    - **Breaking** → the change crosses into another feature's contract, so a single
      feature edit cannot make it. Raise it as a **Boundary Conflict** (the §3.3
      *structural* disposition): present it as a *material* decision, log it in the
-     Boundary-Conflict Log, escalate to `/ce-plan`, and stop. The
+     Boundary-Conflict Log, escalate to `/core-engineering:ce-plan`, and stop. The
      plan owns the migration, ship-order, and the consumers' adaptation — not this
      spec.
 
@@ -379,12 +379,11 @@ additive-vs-breaking call, and the block's completeness are **human-attested** �
 at the §3.4 design review and again at the Stage 5.3 Validation Checklist; the
 spec stage carries no mechanical check for them.
 
-**Under autonomous `/ce-auto-build`** the call can't be human-attested in-dialog, so the
-spec agent instead **returns** each NEW-vs-SHARED split and additive-vs-breaking
-classification as a *discrete material decision* (spec *Autonomous Mode*) for
-the Challenge gate to interrogate and the end-review to confirm (auto-build's
-shared-shape attestation). The no-mechanical-check property is exactly why *surfacing*
-the call is the only backstop in both modes — interactive or autonomous.
+**Under autonomous `/core-engineering:ce-auto-build`** the call cannot be human-attested in-dialog,
+so any SHARED-shape modification **parks** with the affected shape, consumers,
+per-consumer impact, and cost-if-wrong (spec *Autonomous Mode*). The end-review
+routes it to `/core-engineering:ce-decide` or an interactive `/core-engineering:ce-spec`. The lack of a mechanical
+check is exactly why the autonomous run cannot authorize the classification.
 
 Because additive-vs-breaking is a **model-derived assertion with no mechanical gate**,
 it must not ride through as a bulk §3.4 line — present each modified SHARED shape as its
@@ -395,11 +394,11 @@ Decision [D-n] — <shape> change: additive or breaking?   [material]
 Consumers (enumerated from real code/specs): <feature A reads field X; migration Y; …>
 Per consumer:  <A — additive (new optional field) | breaking (renamed field)> …
 If you call this additive but it is breaking: the change ships with only a back-compat
-criterion and SKIPS the /ce-plan Boundary Conflict — a contract break to A's shipped code
+criterion and SKIPS the /core-engineering:ce-plan Boundary Conflict — a contract break to A's shipped code
 with no migration owner.
 Options:
   A. Additive — record the block + a back-compat AC, continue here.
-  B. Breaking — escalate to /ce-plan as a Boundary Conflict and stop.
+  B. Breaking — escalate to /core-engineering:ce-plan as a Boundary Conflict and stop.
 Recommendation: <A/B> — <reasoning>
 ```
 
@@ -414,8 +413,8 @@ feature consumes, this reconciles a *flow* the plan never traced. §3.3 catches 
 wires steps that are **each already in-scope** into an **end-to-end sequence the plan's
 Journey Map never traced** — a new *path*, not new *scope*. The Scope Lock is
 single-feature and scope-keyed, so a new cross-feature path widens nothing and would
-otherwise ship **untraced**: never reachability-checked at `/ce-plan`, never journey-walked
-at `/ce-verify`.
+otherwise ship **untraced**: never reachability-checked at `/core-engineering:ce-plan`, never journey-walked
+at `/core-engineering:ce-verify`.
 
 After §3.2's design exists, run the check from its **Integration points**:
 
@@ -433,7 +432,7 @@ After §3.2's design exists, run the check from its **Integration points**:
    - **New cross-feature flow** → journeys are **plan-owned**, so a single feature edit
      cannot mint one. Raise it as a **Boundary Conflict** (the §3.3 *structural*
      disposition): present it as a *material* decision, log it in the Boundary-Conflict
-     Log, escalate to `/ce-plan` (which owns the Journey Map and its
+     Log, escalate to `/core-engineering:ce-plan` (which owns the Journey Map and its
      reachability trace), and **stop**. The spec **detects and hands up — it authors no
      journey.**
 
@@ -449,17 +448,17 @@ Decision [D-n] — cross-feature flow: traced or new?   [material]
 Realized sequence (from §3.2 integration points): <feature A step → feature B step → …>
 Journey Map rows matched: <none | "<journey> · steps i–k">
 If you call this traced but it is a new flow: the path ships untraced — never
-reachability-checked at /ce-plan, never journey-walked at /ce-verify.
+reachability-checked at /core-engineering:ce-plan, never journey-walked at /core-engineering:ce-verify.
 Options:
   A. Traced / N/A — record in §5 Design, continue here.
-  B. New flow — escalate to /ce-plan as a Boundary Conflict and stop.
+  B. New flow — escalate to /core-engineering:ce-plan as a Boundary Conflict and stop.
 Recommendation: <A/B> — <reasoning>
 ```
 
-**Under autonomous `/ce-auto-build`** the traced-vs-new-flow call can't be human-attested
+**Under autonomous `/core-engineering:ce-auto-build`** the traced-vs-new-flow call can't be human-attested
 in-dialog, so the spec agent instead **returns** it as a *discrete material decision*
 (spec *Autonomous Mode*): a `new flow` call **parks** (the §3.3 structural
-escalation — the autonomous catch-all for any condition that would escalate to `/ce-plan`),
+escalation — the autonomous catch-all for any condition that would escalate to `/core-engineering:ce-plan`),
 while a `traced` / `N/A` call **rides through as a named decision surfaced at the
 end-review** (among the self-approved design calls it confirms), never a silent inline
 record. As with §3.5, the no-mechanical-check property is exactly why *surfacing* the

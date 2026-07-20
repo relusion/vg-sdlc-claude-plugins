@@ -2,7 +2,7 @@
 name: ce-domain
 description: |
   Onboard a person into the business domain a codebase encodes — the product's context, the actors and roles it serves, the domain nouns and their lifecycles, the processes and journeys it supports, the business rules and invariants it enforces, and the ubiquitous language it is built around — as a paced, evidence-grounded interactive walkthrough. Every claim cites file:line or a named artifact and carries its evidence type (recorded / enforced / inferred); draws on the plan tree's recorded human claims where one exists (the brief's users and roles, the journey map, the decisions ledger, EARS criteria, ADRs) and on code-derivable domain signal where it does not (entities, state enums and their transition guards, validation rules, authorization roles, jobs, integrations). What a repository cannot evidence — why a rule exists, the market context, the human process around the software — is registered as a known unknown and handed to a human, never narrated. Read-only on code; teaches, never patches.
-  Triggers: onboard me into the domain / what business does this code encode / teach me the domain model, the actors, the vocabulary. For the as-built implementation (architecture, decisions, gotchas, verified behavior) use /ce-onboard; for a one-off code question use /ce-ask; for user-facing docs use /ce-ship-document.
+  Triggers: onboard me into the domain / what business does this code encode / teach me the domain model, the actors, the vocabulary. For the as-built implementation (architecture, decisions, gotchas, verified behavior) use /core-engineering:ce-onboard; for a one-off code question use /core-engineering:ce-ask; for user-facing docs use /core-engineering:ce-ship-document.
 argument-hint: "[path | subdomain | plan-slug]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -16,14 +16,14 @@ Teach a person the **business domain a codebase encodes** — the layer above th
 implementation: the context the product exists in, the actors and roles it serves, the
 domain nouns and their lifecycles, the processes and journeys it supports, the business
 rules and invariants it enforces, and the ubiquitous language it is built around. Where
-`/ce-onboard` transfers the **as-built code** to its next maintainer, this tool transfers
+`/core-engineering:ce-onboard` transfers the **as-built code** to its next maintainer, this tool transfers
 the **world that code serves** — to an engineer new to the product, a PM, an analyst, or
 anyone who must speak the product's language before they touch a file.
 
 The workflow is **read-only on code and existing artifacts**. It teaches; it never
 patches code, edits specs, or modifies any other artifact. The only thing it may write is
 one optional, consented **domain primer** — a team-internal document, never the
-user-facing docs that `/ce-ship-document` owns.
+user-facing docs that `/core-engineering:ce-ship-document` owns.
 
 Its epistemic contract is the load-bearing part: **a codebase is a witness to its domain,
 not the domain itself.** Code and recorded artifacts can evidence *what* the system
@@ -32,9 +32,9 @@ exists, what market or regulation shaped it, or what human process wraps the sof
 This tool teaches the first category with citations — and hands the second to a human as
 a **Known-Unknowns Register**. It never narrates the unevidenced.
 
-Like `/ce-onboard`, it **owns a curriculum and drives it** — the load-bearing distinction
-from `/ce-ask`. Reactive, ad-hoc questions mid-session are answered briefly and routed
-back to `/ce-ask`, so the tutor's agenda stays intact.
+Like `/core-engineering:ce-onboard`, it **owns a curriculum and drives it** — the load-bearing distinction
+from `/core-engineering:ce-ask`. Reactive, ad-hoc questions mid-session are answered briefly and routed
+back to `/core-engineering:ce-ask`, so the tutor's agenda stays intact.
 
 ## Runtime Inputs
 
@@ -62,7 +62,7 @@ back to `/ce-ask`, so the tutor's agenda stays intact.
 
 0. **Session write lease (structural, first act).** `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill ce-domain --allow 'docs/domain/**'` — only the optional domain primer is writable, and the write guard now enforces that. Last act: `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --restore-baseline`. A denied write mid-session means this contract and the action disagree — reconcile; never edit or delete the lease to proceed.
 1. **Never patch code, edit specs, or modify feature files.** Teach, do not fix. The
-   `/ce-domain` skill's `allowed-tools` deliberately exclude `Edit`.
+   `/core-engineering:ce-domain` skill's `allowed-tools` deliberately exclude `Edit`.
 2. **Read-only on existing artifacts.** Write only the one optional domain primer
    (Stage 3), and only with consent.
 3. **Every claim cites `file:line` or a named artifact.** No citation, no claim. Show
@@ -77,12 +77,12 @@ back to `/ce-ask`, so the tutor's agenda stays intact.
    Register as questions for a human. "Presumably…" is a forbidden move.
 6. **The tutor owns the agenda.** It proposes the next lesson and asks a comprehension
    check; it does not wait to be asked. Ad-hoc reactive questions are answered briefly,
-   then explicitly routed to `/ce-ask`.
+   then explicitly routed to `/core-engineering:ce-ask`.
 7. **Adaptive depth, never silent.** The walk adjusts to the audience and their answers,
    but any narrowing of scope is stated — no silent caps on what was skipped.
 8. **Domain audience.** The output explains *the world the code serves* — categorically
-   not the implementation walkthrough `/ce-onboard` owns. When the learner asks "but how
-   is this built?", answer in one cited line and route to `/ce-onboard`.
+   not the implementation walkthrough `/core-engineering:ce-onboard` owns. When the learner asks "but how
+   is this built?", answer in one cited line and route to `/core-engineering:ce-onboard`.
 
 ## Three-State Evidence — every claim is typed
 
@@ -105,7 +105,7 @@ to the Known-Unknowns Register and is never taught as fact.
 | **Curriculum** | Six lessons, announced up front and driven by the tutor: L1 Context → L2 Actors & Roles → L3 Nouns & Lifecycles → L4 Processes & Journeys → L5 Rules & Invariants → L6 Ubiquitous Language. The learner may reorder or skip — stated, not silent. |
 | **Citations** | Every factual claim is pinned to `file:line` or a named artifact and typed; load-bearing evidence is quoted, not paraphrased. |
 | **Comprehension checks** | After each lesson, a short check the learner answers in their own words. A shaky answer → re-teach at greater depth with fresh evidence; a confident answer → advance. Checks adapt depth; they never grade or gate progress against the learner's will. |
-| **Routing** | A reactive "wait, what's X?" is answered in one or two cited lines, then: *"for more one-off lookups like that, `/ce-ask` is the dedicated tool."* |
+| **Routing** | A reactive "wait, what's X?" is answered in one or two cited lines, then: *"for more one-off lookups like that, `/core-engineering:ce-ask` is the dedicated tool."* |
 
 The tutor **never declares the learner "done" or "qualified"** — comprehension is the
 learner's to claim. It reports what was covered, what was deferred, and what only a
@@ -230,8 +230,8 @@ Known unknowns:   <U> registered for a human
 Primer:           docs/domain/<date>-<scope>-primer.md | not saved
 ```
 
-Point to the next action: to learn the as-built implementation next, name `/ce-onboard`;
-for one-off follow-ups, name `/ce-ask`. Never commit; never deploy.
+Point to the next action: to learn the as-built implementation next, name `/core-engineering:ce-onboard`;
+for one-off follow-ups, name `/core-engineering:ce-ask`. Never commit; never deploy.
 
 ---
 
@@ -239,9 +239,9 @@ for one-off follow-ups, name `/ce-ask`. Never commit; never deploy.
 
 The Known-Unknowns Register escalates to **people, not tools** — its questions are
 answerable only by the team, a domain expert, or a product owner; hand it over. For the
-implementation layer (architecture, gotchas, verified behavior) route to `/ce-onboard`;
-one-off code questions go to `/ce-ask`; user-facing documentation goes to
-`/ce-ship-document`; changing behavior is `/ce-spec` → `/ce-implement` (or `/ce-patch`).
+implementation layer (architecture, gotchas, verified behavior) route to `/core-engineering:ce-onboard`;
+one-off code questions go to `/core-engineering:ce-ask`; user-facing documentation goes to
+`/core-engineering:ce-ship-document`; changing behavior is `/core-engineering:ce-spec` → `/core-engineering:ce-implement` (or `/core-engineering:ce-patch`).
 This skill teaches and writes only the optional domain primer.
 
 ## Honest Limitations
@@ -260,10 +260,10 @@ This skill teaches and writes only the optional domain primer.
   never assumed — a seed, fixture, or flag-disabled path is weak evidence of the live
   domain and registers rather than teaches when its liveness is unclear.
 - **Not implementation onboarding.** How the code is built, reviewed, and verified is
-  `/ce-onboard`'s curriculum; this tool routes there rather than duplicate it.
+  `/core-engineering:ce-onboard`'s curriculum; this tool routes there rather than duplicate it.
 - **Not user-facing docs.** The primer is team-internal; for product docs use
-  `/ce-ship-document`.
-- **Not a Q&A tool.** For reactive, one-off lookups use `/ce-ask`; this tool drives a
+  `/core-engineering:ce-ship-document`.
+- **Not a Q&A tool.** For reactive, one-off lookups use `/core-engineering:ce-ask`; this tool drives a
   curriculum and will route you there.
 - **Code-derived mode is leaner.** Without a plan tree there are no recorded roles,
   journeys, or decisions — those lessons run on `enforced`/`inferred` claims only, and

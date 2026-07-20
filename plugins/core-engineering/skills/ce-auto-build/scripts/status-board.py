@@ -8,7 +8,7 @@ spec.md accepted, tasks.json
 all-done, verification.md present, review-summary.json blocking_high) — disk
 wins, claims are never trusted. The only states that have no disk artifact of
 their own (parked / failed) are overlaid from the newest (by mtime)
-auto-build/<date>-state.json when one exists, and are labeled as such.
+ce-auto-build/<date>-state.json when one exists, and are labeled as such.
 
 STATUS.md is GENERATED, never hand-edited — it is a projection over the
 artifacts, not a second source of truth. The board never gates anything;
@@ -21,7 +21,7 @@ feature-plan.md, the board degrades instead of failing: it lists specs/<id>/
 dirs and derives states from disk only, labeled
 `degraded (no plan.json — states only, no ship order)`. Every board — normal
 or degraded — ends with exactly one `Next:` footer line naming the first
-actionable feature (/ce-spec, /ce-implement, or /ce-verify); it is a
+actionable feature (/core-engineering:ce-spec, /core-engineering:ce-implement, or /core-engineering:ce-verify); it is a
 suggestion — a projection, never a gate.
 
 Usage:
@@ -275,8 +275,8 @@ def next_action(rows: list, slug: str) -> str:
     """The one `Next:` footer line — first actionable feature, or verify.
 
     Walks rows in the order given (ship order normally, listing order when
-    degraded): first feature with no spec → /ce-spec, first specced-but-not-
-    implemented → /ce-implement, all terminal → /ce-verify <slug>. Rows whose
+    degraded): first feature with no spec → /core-engineering:ce-spec, first specced-but-not-
+    implemented → /core-engineering:ce-implement, all terminal → /core-engineering:ce-verify <slug>. Rows whose
     artifacts couldn't be read (invalid-id) are skipped, never guessed at.
     A suggestion only — a projection, never a gate.
     """
@@ -284,10 +284,10 @@ def next_action(rows: list, slug: str) -> str:
         if r.get("spec_present") is None:
             continue
         if not r["spec_present"]:
-            return f"Next: /ce-spec {r['id']}{FOOTER_SUFFIX}"
+            return f"Next: /core-engineering:ce-spec {r['id']}{FOOTER_SUFFIX}"
         if not r.get("implemented_on_disk"):
-            return f"Next: /ce-implement {r['id']}{FOOTER_SUFFIX}"
-    return f"Next: /ce-verify {slug}{FOOTER_SUFFIX}"
+            return f"Next: /core-engineering:ce-implement {r['id']}{FOOTER_SUFFIX}"
+    return f"Next: /core-engineering:ce-verify {slug}{FOOTER_SUFFIX}"
 
 
 def sort_key(r: dict):

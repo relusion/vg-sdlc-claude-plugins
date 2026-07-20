@@ -1,6 +1,6 @@
 # Sec-Probe Module — HTTP (web / API)
 
-Probe content for **web and API** targets. Loaded by the `/ce-probe-sec` spine
+Probe content for **web and API** targets. Loaded by the `/core-engineering:ce-probe-sec` spine
 (`SKILL.md`) at Stage 0 when the target is a URL. The spine owns the arc, evidence
 model, triage, and report; this module owns the consent-gate choice, preconditions,
 tool detection, and the probe taxonomy.

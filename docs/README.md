@@ -19,8 +19,8 @@ you only need to choose a command, use the [Usage Matrix](USAGE-MATRIX.md).
 
 ## Evaluate or adopt the project
 
-- [Benchmarks and Measured Costs](BENCHMARKS.md) — current eval evidence,
-  deterministic validation coverage, cost floors, and known gaps.
+- [Benchmarks and Evaluation Budgets](BENCHMARKS.md) — current eval evidence,
+  deterministic validation coverage, configured budget caps, and known gaps.
 - [Choosing a Spec-Driven Toolchain](COMPARISON.md) — dated comparison with
   alternative approaches.
 - [Team Rollout](TEAM-ROLLOUT.md) — pilot, branch-protection, measurement, and

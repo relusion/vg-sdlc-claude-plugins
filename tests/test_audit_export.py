@@ -27,7 +27,7 @@ def make_fixture(root: Path) -> Path:
     plan = root / "demo-plan"
     (plan / "specs" / "01-core").mkdir(parents=True)
     (plan / "specs" / "02-api").mkdir(parents=True)
-    (plan / "auto-build").mkdir()
+    (plan / "ce-auto-build").mkdir()
     (plan / "plan.json").write_text(json.dumps({"features": [
         {"id": "01-core", "title": "Core", "ship_order": 1,
          "final_complexity": "Moderate"},
@@ -53,7 +53,7 @@ def make_fixture(root: Path) -> Path:
     (s1 / "verification.md").write_text("# verified\n")
     (s1 / "review-summary.json").write_text(json.dumps(
         {"blocking_high": 0, "findings_total": 3, "suppressed": 1}))
-    # per-feature (auto-build) diagnosis lives under specs/<id>/
+    # Legacy pre-0.10 auto-build diagnosis lived under specs/<id>/.
     (s1 / "diagnosis.md").write_text("# DX-1 per-feature\n")
     s2 = plan / "specs" / "02-api"
     # 02-api: spec present but NO TC verification tags -> testability zero (honest)
@@ -76,14 +76,14 @@ def make_fixture(root: Path) -> Path:
                     "est": {"tokens": 0}}),
         json.dumps({"ts": "2026-06-11", "stage": "spec", "plan": "demo-plan",
                     "feature": "02-api", "event": "escalation", "gate": None,
-                    "escalation_type": "/ce-plan", "detail": "boundary conflict",
+                    "escalation_type": "/core-engineering:ce-plan", "detail": "boundary conflict",
                     "est": {"tokens": 0}}),
         "{this line is not json",
         json.dumps(["not", "an", "object"]),
     ]) + "\n")
-    (plan / "auto-build" / "2026-06-11-run.md").write_text("# run\n")
+    (plan / "ce-auto-build" / "2026-06-11-run.md").write_text("# run\n")
     (plan / "shared-context.md").write_text("# ctx\n")
-    # plan-root diagnosis.md is /ce-debug's INTERACTIVE (cumulative) output
+    # plan-root diagnosis.md is /core-engineering:ce-debug's INTERACTIVE (cumulative) output
     (plan / "diagnosis.md").write_text("# DX-1 plan-root\n")
     return plan
 
@@ -106,8 +106,8 @@ class Export(unittest.TestCase):
             self.assertEqual(f1["review"]["blocking_high"], 0)
             self.assertEqual(f1["review"]["suppressed"], 1)
 
-            # both diagnosis locations reported: plan-root (interactive) at the
-            # top level, per-feature (auto-build) under the feature's evidence
+            # Both diagnosis locations remain readable: current plan-root at the
+            # top level, legacy pre-0.10 per-feature under feature evidence.
             self.assertTrue(doc["diagnosis_present"])
             self.assertTrue(f1["diagnosis_present"])
 
@@ -121,7 +121,7 @@ class Export(unittest.TestCase):
             self.assertEqual(doc["metrics"]["retries_by_feature"], {"01-core": 1})
             self.assertEqual(len(doc["metrics"]["escalations"]), 1)
             self.assertEqual(doc["metrics"]["escalations"][0]["escalation_type"],
-                             "/ce-plan")
+                             "/core-engineering:ce-plan")
             self.assertEqual(doc["run_reports"], ["2026-06-11-run.md"])
             self.assertTrue(doc["decisions_ledger"]["shared_context_present"])
             self.assertTrue(doc["honest_limitations"])  # the contract, in-band
@@ -147,6 +147,16 @@ class Export(unittest.TestCase):
             self.assertEqual(drift["02-api"], {
                 "id": "02-api", "final_complexity": "Simple",
                 "task_count": 1, "retries": 0})
+
+    def test_legacy_auto_build_report_directory_remains_readable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_fixture(Path(tmp))
+            (plan / "ce-auto-build").rename(plan / "auto-build")
+            res = run(str(plan))
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(
+                json.loads(res.stdout)["run_reports"], ["2026-06-11-run.md"]
+            )
 
     def test_out_writes_file(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,15 +1,23 @@
 """Tests for scripts/eval_check.py, the offline eval-corpus validator."""
 
+import ast
+import hashlib
+import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "eval_check.py"
+sys.path.insert(0, str(REPO / "scripts"))
+
+import eval_check  # noqa: E402
 
 
 def run(*args):
@@ -26,6 +34,71 @@ def copy_eval_repo(tmp: Path) -> Path:
     for sub in ("scripts", "plugins", "evals"):
         shutil.copytree(REPO / sub, dst / sub, ignore=shutil.ignore_patterns("__pycache__"))
     return dst
+
+
+def git_state(repo: Path) -> dict:
+    def out(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+    branch = subprocess.run(
+        ["git", "-C", str(repo), "symbolic-ref", "--quiet", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip() or None
+    local_config = out("config", "--local", "--list", "--null")
+    changed = {
+        path for path in out("diff", "--name-only", "-z", "HEAD").split("\0") if path
+    }
+    changed.update(
+        path
+        for path in out("ls-files", "--others", "--exclude-standard", "-z").split("\0")
+        if path
+    )
+    ignored_files_sha256 = {}
+    ignored_paths = (
+        path
+        for path in out(
+            "ls-files", "--others", "--ignored", "--exclude-standard", "-z"
+        ).split("\0")
+        if path
+    )
+    for relative_path in ignored_paths:
+        if any(
+            part in eval_check.IGNORED_STATE_EXCLUDED_DIRS
+            for part in Path(relative_path).parts
+        ):
+            continue
+        path = repo / relative_path
+        digest = hashlib.sha256()
+        if path.is_symlink():
+            digest.update(b"symlink\0")
+            digest.update(os.fsencode(os.readlink(path)))
+        elif path.is_file():
+            digest.update(b"file\0")
+            digest.update(path.read_bytes())
+        else:
+            continue
+        ignored_files_sha256[relative_path] = digest.hexdigest()
+    return {
+        "head": out("rev-parse", "HEAD").strip(),
+        "branch": branch,
+        "refs": sorted(
+            line
+            for line in out("for-each-ref", "--format=%(objectname) %(refname)").splitlines()
+            if line
+        ),
+        "worktrees": [
+            line for line in out("worktree", "list", "--porcelain").splitlines() if line
+        ],
+        "local_config_sha256": hashlib.sha256(local_config.encode("utf-8")).hexdigest(),
+        "changed_paths": sorted(changed),
+        "ignored_files_sha256": dict(sorted(ignored_files_sha256.items())),
+    }
 
 
 class EvalCheck(unittest.TestCase):
@@ -59,6 +132,19 @@ class EvalCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("full-profile scenarios must include artifact_checks", res.stderr)
 
+    def test_spec_workflow_scenarios_require_canonical_ce_spec_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-005")
+            scenario["output_checks"]["required_substrings"][0] = "spec.md"
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("uses legacy spec.md", res.stderr)
+            self.assertIn("canonical ce-spec.md", res.stderr)
+
     def test_required_citation_scenario_must_pin_expected_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_eval_repo(Path(tmp))
@@ -80,6 +166,17 @@ class EvalCheck(unittest.TestCase):
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("prefer smaller deterministic anchors", res.stderr)
+
+    def test_scenario_timeout_must_be_a_positive_integer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            data["scenarios"][0]["timeout_seconds"] = 0
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("timeout_seconds must be a positive integer", res.stderr)
 
     def test_missing_expected_fixture_file_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -103,6 +200,329 @@ class EvalCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("EVAL-003", res.stderr)
             self.assertIn("should not contain file:line citations", res.stderr)
+
+    def test_output_substring_checks_can_opt_into_case_insensitive_semantics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            checks = data["scenarios"][2]["output_checks"]
+            checks["required_substrings"] = []
+            checks["required_substrings_case_insensitive"] = [
+                "Not analyzable yet",
+                "too thin to ground",
+            ]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            out = Path(tmp) / "runs"
+            out.mkdir()
+            (out / "EVAL-003.md").write_text(
+                "NOT ANALYZABLE YET — TOO THIN TO GROUND\n",
+                encoding="utf-8",
+            )
+            res = run("--root", str(repo), "--outputs-dir", str(out))
+            self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_output_identifiers_remain_case_sensitive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            data["scenarios"][2]["output_checks"] = {
+                "required_substrings": ["WEBHOOK_TOKEN"]
+            }
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            out = Path(tmp) / "runs"
+            out.mkdir()
+            (out / "EVAL-003.md").write_text("webhook_token\n", encoding="utf-8")
+            res = run("--root", str(repo), "--outputs-dir", str(out))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("missing required text 'WEBHOOK_TOKEN'", res.stderr)
+
+    def test_patch_red_evidence_does_not_match_word_fragment(self):
+        catalog = json.loads((REPO / "evals" / "scenarios.json").read_text())
+        checks = next(
+            scenario["output_checks"]
+            for scenario in catalog["scenarios"]
+            if scenario["id"] == "EVAL-009"
+        )
+        text = (
+            "Gate 1 of 1 Patch acceptance required Green command/result: pass "
+            "Accept /core-engineering:ce-plan"
+        )
+        errors = eval_check.grade_one_output("EVAL-009", text, checks)
+        self.assertTrue(any("Red command/result:" in error for error in errors))
+
+    def test_eval017_retry_sentinel_is_unconditional(self):
+        path = (
+            REPO / "evals/fixtures/auto-build-three-feature/checks/export_check.py"
+        )
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        test_fn = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "test_export_csv_matches_golden"
+        )
+        final = test_fn.body[-1]
+        self.assertIsInstance(final, ast.Expr)
+        self.assertIsInstance(final.value, ast.Call)
+        self.assertIsInstance(final.value.func, ast.Attribute)
+        self.assertEqual(final.value.func.attr, "fail")
+        self.assertIn(
+            "EVAL-017_RETRY_SENTINEL",
+            ast.literal_eval(final.value.args[0]),
+        )
+
+    def test_eval017_sentinel_activates_when_feature_spec_exists(self):
+        class SentinelFailure(Exception):
+            pass
+
+        class Mark:
+            @staticmethod
+            def skipif(condition, reason):
+                def decorate(fn):
+                    fn.eval_skip = bool(condition)
+                    fn.eval_skip_reason = reason
+                    return fn
+                return decorate
+
+        fake_pytest = types.SimpleNamespace(
+            mark=Mark(),
+            fail=lambda message: (_ for _ in ()).throw(SentinelFailure(message)),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp) / "fixture"
+            shutil.copytree(REPO / "evals/fixtures/auto-build-three-feature", fixture)
+            export_check = fixture / "checks/export_check.py"
+            old_pytest = sys.modules.get("pytest")
+            old_snippets = sys.modules.get("snippets")
+            sys.modules["pytest"] = fake_pytest
+            sys.path.insert(0, str(fixture))
+
+            def load(name):
+                sys.modules.pop("snippets", None)
+                spec = importlib.util.spec_from_file_location(name, export_check)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                return module
+
+            try:
+                dormant = load("export_check_dormant")
+                self.assertTrue(dormant.test_export_csv_matches_golden.eval_skip)
+
+                spec_dir = (
+                    fixture
+                    / "docs/plans/snippet-vault/specs/03-export-snippets"
+                )
+                spec_dir.mkdir(parents=True)
+                (spec_dir / "ce-spec.md").write_text("# active\n", encoding="utf-8")
+                missing = load("export_check_missing")
+                self.assertFalse(missing.test_export_csv_matches_golden.eval_skip)
+                with self.assertRaisesRegex(AssertionError, "started without export_csv"):
+                    missing.test_export_csv_matches_golden()
+
+                with (fixture / "snippets.py").open("a", encoding="utf-8") as stream:
+                    stream.write(
+                        "\ndef add_snippet(store, *, title, body, language):\n"
+                        "    item = Snippet(store._next_id, title, body, language)\n"
+                        "    store._next_id += 1\n"
+                        "    store.snippets.append(item)\n"
+                        "    return item\n"
+                        "\ndef export_csv(store):\n"
+                        "    return 'id,title\\n' + ''.join(\n"
+                        "        f'{item.id},{item.title}\\n' for item in store.snippets\n"
+                        "    )\n"
+                    )
+                correct = load("export_check_correct")
+                with self.assertRaisesRegex(SentinelFailure, "EVAL-017_RETRY_SENTINEL"):
+                    correct.test_export_csv_matches_golden()
+            finally:
+                sys.path.remove(str(fixture))
+                if old_pytest is None:
+                    sys.modules.pop("pytest", None)
+                else:
+                    sys.modules["pytest"] = old_pytest
+                if old_snippets is None:
+                    sys.modules.pop("snippets", None)
+                else:
+                    sys.modules["snippets"] = old_snippets
+
+    def test_jsonl_records_correlate_and_count_repair_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ledger.jsonl"
+            repair = {
+                "event": "repair-attempt",
+                "feature": "03-export-snippets",
+                "attempt": 1,
+                "outcome": "gates-fail",
+                "evidence": "EVAL-017_RETRY_SENTINEL",
+            }
+            path.write_text(
+                json.dumps({"event": "park", "feature": "02-share-snippet"})
+                + "\n" + json.dumps(repair) + "\n",
+                encoding="utf-8",
+            )
+            check = {
+                "type": "jsonl_records",
+                "where": {"event": "repair-attempt", "feature": "03-export-snippets"},
+                "equals": {"attempt": 1, "outcome": "gates-fail"},
+                "contains": {"evidence": ["EVAL-017_RETRY_SENTINEL"]},
+                "count": 1,
+            }
+            self.assertEqual(
+                eval_check.grade_artifact_target(
+                    REPO, "EVAL-017", check, "jsonl_records", path
+                ),
+                [],
+            )
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(repair) + "\n")
+            errors = eval_check.grade_artifact_target(
+                REPO, "EVAL-017", check, "jsonl_records", path
+            )
+            self.assertTrue(any("matched 2" in error for error in errors))
+
+    def test_git_checks_reject_post_run_untracked_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "runs"
+            work = out / "work" / "EVAL-010"
+            shutil.copytree(REPO / "evals/fixtures/schema-change-service", work)
+            (work / ".gitignore").write_text(".claude/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(work), "init", "--quiet"], check=True)
+            subprocess.run(["git", "-C", str(work), "add", "--all"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(work),
+                    "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                    "commit", "--quiet", "--no-gpg-sign", "-m", "baseline",
+                ],
+                check=True,
+            )
+            snapshot = git_state(work)
+            out.mkdir(exist_ok=True)
+            (out / "EVAL-010.md").write_text(
+                "E1 E5 schema /core-engineering:ce-plan\nWorking tree: no patch edit\n",
+                encoding="utf-8",
+            )
+            (out / "metadata.json").write_text(json.dumps({
+                "schema_version": 1,
+                "records": [{
+                    "id": "EVAL-010",
+                    "status": "pass",
+                    "work_dir": str(work),
+                    "git_state": {"before": snapshot, "after": snapshot},
+                }],
+            }), encoding="utf-8")
+
+            ignored = work / ".claude" / "unexpected-policy.md"
+            ignored.parent.mkdir()
+            ignored.write_text("unexpected = true\n", encoding="utf-8")
+            ignored_res = run("--outputs-dir", str(out))
+            self.assertEqual(ignored_res.returncode, 1)
+            self.assertIn("changed after the runner captured", ignored_res.stderr)
+            self.assertIn(".claude/unexpected-policy.md", ignored_res.stderr)
+            ignored.unlink()
+            ignored.parent.rmdir()
+
+            subprocess.run(["git", "-C", str(work), "tag", "unexpected-tag"], check=True)
+            tagged = run("--outputs-dir", str(out))
+            self.assertEqual(tagged.returncode, 1)
+            self.assertIn("Git refs changed", tagged.stderr)
+
+            subprocess.run(
+                ["git", "-C", str(work), "config", "eval.unexpected", "true"],
+                check=True,
+            )
+            configured = run("--outputs-dir", str(out))
+            self.assertEqual(configured.returncode, 1)
+            self.assertIn("local Git config changed", configured.stderr)
+
+            (work / "rogue.py").write_text("unexpected = True\n", encoding="utf-8")
+
+            res = run("--outputs-dir", str(out))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("changed after the runner captured", res.stderr)
+            self.assertIn("expected exactly []", res.stderr)
+
+            subprocess.run(["git", "-C", str(work), "add", "rogue.py"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(work),
+                    "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                    "commit", "--quiet", "--no-gpg-sign", "-m", "unauthorized",
+                ],
+                check=True,
+            )
+            committed = run("--outputs-dir", str(out))
+            self.assertEqual(committed.returncode, 1)
+            self.assertIn("Git HEAD changed", committed.stderr)
+            self.assertIn("Git refs changed", committed.stderr)
+
+    def test_git_checks_include_relevant_ignored_file_deltas_but_skip_caches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "runs"
+            work = out / "work" / "EVAL-010"
+            shutil.copytree(REPO / "evals/fixtures/schema-change-service", work)
+            (work / ".gitignore").write_text(
+                ".claude/\n.pytest_cache/\nnode_modules/\nbuild/\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(work), "init", "--quiet"], check=True)
+            subprocess.run(["git", "-C", str(work), "add", "--all"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(work),
+                    "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                    "commit", "--quiet", "--no-gpg-sign", "-m", "baseline",
+                ],
+                check=True,
+            )
+
+            ignored = work / ".claude"
+            ignored.mkdir()
+            (ignored / "modified-policy.md").write_text("before\n", encoding="utf-8")
+            (ignored / "removed-policy.md").write_text("before\n", encoding="utf-8")
+            before = git_state(work)
+
+            (ignored / "unexpected-policy.md").write_text("added\n", encoding="utf-8")
+            (ignored / "modified-policy.md").write_text("after\n", encoding="utf-8")
+            (ignored / "removed-policy.md").unlink()
+            for relative in (
+                ".pytest_cache/state.json",
+                "node_modules/example/index.js",
+                "build/generated.txt",
+            ):
+                path = work / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("ephemeral\n", encoding="utf-8")
+            after = git_state(work)
+
+            out.mkdir(exist_ok=True)
+            (out / "EVAL-010.md").write_text(
+                "E1 E5 schema /core-engineering:ce-plan\nWorking tree: no patch edit\n",
+                encoding="utf-8",
+            )
+            (out / "metadata.json").write_text(json.dumps({
+                "schema_version": 1,
+                "records": [{
+                    "id": "EVAL-010",
+                    "status": "pass",
+                    "work_dir": str(work),
+                    "git_state": {"before": before, "after": after},
+                }],
+            }), encoding="utf-8")
+
+            res = run("--outputs-dir", str(out))
+            self.assertEqual(res.returncode, 1)
+            self.assertNotIn("changed after the runner captured", res.stderr)
+            self.assertIn(
+                "final changed paths ['.claude/modified-policy.md', "
+                "'.claude/removed-policy.md', '.claude/unexpected-policy.md']",
+                res.stderr,
+            )
+            self.assertNotIn(".pytest_cache", res.stderr)
+            self.assertNotIn("node_modules", res.stderr)
+            self.assertNotIn("build/generated.txt", res.stderr)
 
     def test_required_citation_file_failure_is_attributed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -130,6 +550,25 @@ class EvalCheck(unittest.TestCase):
             res = run("--outputs-dir", str(out))
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertIn("1 output(s) graded", res.stdout)
+
+    def test_require_all_outputs_uses_metadata_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "runs"
+            out.mkdir()
+            (out / "metadata.json").write_text(json.dumps({
+                "schema_version": 1,
+                "records": [{"id": "EVAL-003", "status": "pass"}],
+            }), encoding="utf-8")
+            (out / "EVAL-003.md").write_text(
+                "Not analyzable yet — too thin to ground\n", encoding="utf-8"
+            )
+            selected = run("--outputs-dir", str(out), "--require-all-outputs")
+            self.assertEqual(selected.returncode, 0, selected.stderr)
+
+            (out / "EVAL-003.md").unlink()
+            missing = run("--outputs-dir", str(out), "--require-all-outputs")
+            self.assertEqual(missing.returncode, 1)
+            self.assertIn("EVAL-003: missing output file", missing.stderr)
 
     def test_failed_run_metadata_is_reported_before_grading(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -214,7 +653,7 @@ class EvalCheck(unittest.TestCase):
             )
             spec_dir.mkdir(parents=True)
             (out / "EVAL-005.md").write_text(
-                "Wrote spec.md and tasks.json with [SECURITY: TZ-001].\n",
+                "Wrote ce-spec.md and tasks.json with [SECURITY: TZ-001].\n",
                 encoding="utf-8",
             )
             (out / "metadata.json").write_text(json.dumps({
@@ -225,7 +664,7 @@ class EvalCheck(unittest.TestCase):
                     "work_dir": str(out / "work" / "EVAL-005")
                 }]
             }), encoding="utf-8")
-            (spec_dir / "spec.md").write_text(
+            (spec_dir / "ce-spec.md").write_text(
                 "### AC-\n### TC-\n### T-\n"
                 "[SECURITY: TZ-001]\n[CONTRACT: IC-001]\nTraceability Matrix\n",
                 encoding="utf-8",
@@ -319,7 +758,7 @@ class EvalCheck(unittest.TestCase):
             checks.mkdir(parents=True)
             (out / "EVAL-010.md").write_text(
                 "patch-eligible C2 C6 durable noun persistence "
-                "/ce-plan Nothing was written to disk\n",
+                "/core-engineering:ce-plan Nothing was written to disk\n",
                 encoding="utf-8",
             )
             (out / "metadata.json").write_text(json.dumps({

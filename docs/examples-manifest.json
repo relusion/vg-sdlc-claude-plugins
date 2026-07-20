@@ -4,7 +4,7 @@
   "examples": [
     {
       "id": "EVAL-001",
-      "doc_anchor": "## 1. `/ce-ask`",
+      "doc_anchor": "## 1. `/core-engineering:ce-ask`",
       "source": "live-eval",
       "deterministic": false,
       "command": ["python3", "scripts/eval_run.py", "--execute", "--scenario", "EVAL-001", "--max-budget-usd", "1.00"],
@@ -13,7 +13,7 @@
     },
     {
       "id": "EVAL-007",
-      "doc_anchor": "## 2. `/ce-review`",
+      "doc_anchor": "## 2. `/core-engineering:ce-review`",
       "source": "live-eval",
       "deterministic": false,
       "command": ["python3", "scripts/eval_run.py", "--execute", "--scenario", "EVAL-007", "--max-budget-usd", "2.00"],
@@ -22,7 +22,7 @@
     },
     {
       "id": "EVAL-005",
-      "doc_anchor": "## 3. `/ce-spec`",
+      "doc_anchor": "## 3. `/core-engineering:ce-spec`",
       "source": "golden",
       "deterministic": true,
       "command": ["python3", "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py", "evals/golden/EVAL-005/specs/01-invite-user", "--json"],

@@ -15,28 +15,28 @@ then the gates as merge norms.
 ## Week 0 — setup (lead + one senior, ~2 hours)
 
 1. **Install** per [GETTING-STARTED.md](./GETTING-STARTED.md) and run
-   `/ce-init --write` in the pilot repo — it profiles the repo and writes the
+   `/core-engineering:ce-init --write` in the pilot repo — it profiles the repo and writes the
    starter policy artifacts.
 2. **Calibrate the policies as a team decision, not a default:**
    - `review-policy.md` — what severity blocks a merge, what's advisory.
-     `/ce-review` runs uncalibrated without it *and says so*.
+     `/core-engineering:ce-review` runs uncalibrated without it *and says so*.
    - `vc-policy.md` — branch/commit conventions the skills must respect.
 3. **Set the budget expectation** — share
-   [BENCHMARKS.md](./BENCHMARKS.md)'s measured floors (~US$1 for a grounded
-   question, ≈US$12 for a tiny feature through the spine, more on real repos)
+   [BENCHMARKS.md](./BENCHMARKS.md)'s historical successful-run caps (US$1 for a grounded
+   question; up to US$12 across four tiny-fixture spine calls; actual spend unknown)
    so nobody is surprised by model spend, and agree who approves
-   `/ce-auto-build` runs (they're budget-capped at Stage 0 by design).
+   `/core-engineering:ce-auto-build` runs (they're budget-capped at Stage 0 by design).
 
 ## Weeks 1–2 — the pilot (about 5 engineers)
 
 **Days 1–3, read-only skills** (no write authority — nothing to review, no
-risk): `/ce-ask` for codebase questions, `/ce-impact` on real tickets before
-estimating them, `/ce-probe-infra` on the manifests. This builds the habit of
+risk): `/core-engineering:ce-ask` for codebase questions, `/core-engineering:ce-impact` on real tickets before
+estimating them, `/core-engineering:ce-probe-infra` on the manifests. This builds the habit of
 *cited* answers and gives everyone a feel for output quality on your code.
 
 **Days 4–10, one real feature through the spine:** pick something
-medium-sized and non-critical; run `/ce-brief` → `/ce-plan` → `/ce-spec` →
-`/ce-implement`, then `/ce-review` + `/ce-verify` before the PR.
+medium-sized and non-critical; run `/core-engineering:ce-brief` → `/core-engineering:ce-plan` → `/core-engineering:ce-spec` →
+`/core-engineering:ce-implement`, then `/core-engineering:ce-review` + `/core-engineering:ce-verify` before the PR.
 
 **The one norm that makes the pilot honest:** the generated artifacts
 (`docs/plans/<slug>/…`, `ce-spec.md`, `tasks.json`, `verification.md`,
@@ -48,12 +48,12 @@ is a plan nobody owns.
 
 - **Artifacts in PRs** — reviewers read the spec before the diff.
 - **Honor the locks** — when a skill escalates (the Scope Lock, the
-  patch lane graduating to `/ce-plan`), that's the framework working; don't
+  patch lane graduating to `/core-engineering:ce-plan`), that's the framework working; don't
   pressure it to "just do it here."
 - **Humans triage findings** — review/probe findings get an explicit
   Escalate / Defer / Dismiss from a person, recorded in the artifact.
 - **Gates are merge conditions, not suggestions** — once the pilot ends,
-  `/ce-review` + `/ce-verify` before merge is the team bar for
+  `/core-engineering:ce-review` + `/core-engineering:ce-verify` before merge is the team bar for
   framework-built features. The mechanical floor under that norm is the
   **merge bar**: the same `spec-lint` / `test-guard` / `dep-guard` scripts
   run as a required CI status on every PR (see
@@ -65,11 +65,11 @@ is a plan nobody owns.
 
 | Tier | Skills | Norm |
 |---|---|---|
-| Free use, anytime | `/ce-ask`, `/ce-impact`, `/ce-onboard`, `/ce-debug`, probes | encouraged; read-only by contract |
-| Per feature | `/ce-brief` → `/ce-plan` → `/ce-spec` → `/ce-implement` | the default path for planned work |
-| Before merge | `/ce-review`, `/ce-verify` | required for framework-built features; the `merge-bar` required status (below) is the mechanical floor for every PR |
-| Gated | `/ce-auto-build`, `/ce-patch` | auto-build needs a named budget owner; patch ends at one human acceptance gate |
-| As needed | ship genre, `/ce-decide`, `/ce-plan-audit`, `/ce-retro` | when the situation calls |
+| Free use, anytime | `/core-engineering:ce-ask`, `/core-engineering:ce-impact`, `/core-engineering:ce-onboard`, `/core-engineering:ce-debug`, probes | encouraged; read-only by contract |
+| Per feature | `/core-engineering:ce-brief` → `/core-engineering:ce-plan` → `/core-engineering:ce-spec` → `/core-engineering:ce-implement` | the default path for planned work |
+| Before merge | `/core-engineering:ce-review`, `/core-engineering:ce-verify` | required for framework-built features; the `merge-bar` required status (below) is the mechanical floor for every PR |
+| Gated | `/core-engineering:ce-auto-build`, `/core-engineering:ce-patch` | auto-build needs a named budget owner; patch ends at one human acceptance gate |
+| As needed | ship genre, `/core-engineering:ce-decide`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-retro` | when the situation calls |
 
 ## Wire it to branch protection
 
@@ -129,7 +129,7 @@ edit. CODEOWNERS on `.github/**` (step 6 below) is the *prevention* control;
 **signed verdicts add the *detection* control** so post-hoc tampering is
 evident even when prevention fails. It uses GitHub's built-in keyless OIDC
 attestation — **no stored secret, no signing key** — and is opt-in
-(GHES/air-gapped runners have no OIDC, so it stays off by default).
+(GHES or runners without GitHub-hosted OIDC cannot use it, so it stays off by default).
 
 1. **Turn signing on** — set the action's `attest: 'true'` input and grant the
    caller workflow `permissions: {contents: read, id-token: write,
@@ -152,16 +152,17 @@ attestation — **no stored secret, no signing key** — and is opt-in
    check. Copy-paste workflow: [`action/merge-bar/README.md`](../action/merge-bar/README.md),
    "Signed verdicts". A green bar is then provable to have judged *these*
    commits under *this* policy hash, regardless of what the workflow file says.
-3. **Air-gapped orgs cannot sign** — the copy-in `gates.yml` fallback has no
-   attestation path (no OIDC). Those orgs lean entirely on the CODEOWNERS
-   prevention control; this is a hosted-runner capability, not a parity feature.
+3. **The copy-in template does not sign** — `gates.yml` has no attestation
+   path. Those adopters lean entirely on the CODEOWNERS prevention control
+   unless they add a separately reviewed OIDC signing job.
 
-### Air-gapped fallback: the copy-in template
+### Checksum-pinned copy-in fallback
 
 For orgs that forbid third-party GitHub Actions,
 `templates/adopter-ci/gates.yml` is the documented fallback — the same
 runner, policy, and verdict, pinned by hand-verified checksums instead of an
-actions fetch. Under 30 minutes:
+external composite action. It still fetches the toolkit at run time, so a
+disconnected environment needs an approved internal mirror. Under 30 minutes:
 
 1. **Copy the template** — `templates/adopter-ci/gates.yml` from the toolkit
    repo to `.github/workflows/gates.yml` in your repo.
@@ -213,10 +214,11 @@ actions fetch. Under 30 minutes:
    rule → require the status check **`merge-bar`** *alongside* your own
    build/test required check (integrity, not function — the bar never builds
    the project or runs its test suite; see above).
-5. **Map the validity conjunct** — the policy's `validity` is reported in the
-   verdict but only branch protection can enforce it: set required approving
-   reviews to **1 for `human`**, **2 for `two-human`**, with the reviewer not
-   the person who ran the pipeline (segregation of duties). Skipping this
+5. **Enforce the validity conjunct** — the policy's `validity` is reported in
+   the verdict but only branch protection can enforce it. GitHub's review-count
+   rule is static, so require **2 approving reviews globally**, with reviewers
+   other than the person who ran the pipeline (segregation of duties). This
+   safely covers both classes; `human` is a reported minimum. Skipping this
    step silently degrades the bar to integrity-only.
 6. **Protect the bar's own inputs** — add `.github/**` to CODEOWNERS (or a
    repository ruleset requiring review from the platform/security owners).
@@ -237,8 +239,9 @@ never hand-kept.
   Copy to `.gitlab-ci.yml`; it runs on `merge_request_event`. The diff gates
   compare against `CI_MERGE_REQUEST_TARGET_BRANCH_NAME` (fetched explicitly), the
   toolkit is `git clone`d and `git checkout`ed at the 40-hex `TOOLKIT_REF`, and
-  the base-ref reads use `.gitlab/merge-bar/**`. Map the **validity** conjunct to
-  a Merge Request **approval rule** (human → 1, two-human → 2), mark the job
+  the base-ref reads use `.gitlab/merge-bar/**`. Use a Merge Request
+  **approval rule requiring 2 reviewers globally** (the verdict's runtime
+  value is not itself a host-side dynamic rule), mark the job
   required via "Pipelines must succeed", and protect `.gitlab-ci.yml` +
   `.gitlab/merge-bar/**` with **CODEOWNERS + a protected-branch push rule**.
 - **Azure Pipelines** — [`templates/adopter-ci/azure-pipelines-gates.yml`](../templates/adopter-ci/azure-pipelines-gates.yml).
@@ -246,7 +249,7 @@ never hand-kept.
   bash/coreutils/git/python3), base ref from `System.PullRequest.TargetBranch`,
   base-ref reads under `.azure/merge-bar/**`. Enforce it with an Azure Repos
   **branch policy**: a required **Build validation** running this pipeline plus a
-  **Minimum-reviewers** policy (human → 1, two-human → 2, "requestors can't
+  **Minimum-reviewers** policy set to **2 globally** ("requestors can't
   approve their own changes"), and a required-reviewers path policy protecting the
   pipeline file + `.azure/merge-bar/**`.
 
@@ -263,8 +266,8 @@ security gate can rot for weeks behind a long-green history.
 `scripts/drift_scan.py`, which re-projects the repo's committed `HEAD` against
 every `docs/plans/plans.json`-registered plan directory and reports drift in the
 **same lock vocabulary** the skills use, so a red run routes straight to the
-owning skill (**Scope Lock drift → `/ce-plan`**, **Scope Lock drift →
-`/ce-spec`**). It is the post-merge complement to the pre-merge bar; adopting
+owning skill (**Scope Lock drift → `/core-engineering:ce-plan`**, **Scope Lock drift →
+`/core-engineering:ce-spec`**). It is the post-merge complement to the pre-merge bar; adopting
 both is what closes "live-and-verified". Under 30 minutes, mirroring the fallback
 template above:
 
@@ -304,7 +307,7 @@ not branch protection.
 
 ## Measuring whether it's working
 
-- **Per plan:** `/ce-retro` aggregates the pipeline's own `.metrics.jsonl`
+- **Per plan:** `/core-engineering:ce-retro` aggregates the pipeline's own `.metrics.jsonl`
   stream into descriptive signals — escalation rate, park/retry rate, review
   disposition, testability.
 - **Across plans:** `python3 scripts/metrics_report.py --json` gives a
@@ -319,7 +322,7 @@ not branch protection.
 ## Cost control
 
 Floors and the failure log are published in [BENCHMARKS.md](./BENCHMARKS.md).
-Practical rules: budget-cap every `/ce-auto-build` run; prefer `/ce-patch`
+Practical rules: budget-cap every `/core-engineering:ce-auto-build` run; prefer `/core-engineering:ce-patch`
 for genuinely small changes (it's cheaper and self-gating); treat a
 budget-exceeded eval or run as calibration data, not something to retry
 blindly.

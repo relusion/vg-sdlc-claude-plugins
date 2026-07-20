@@ -95,8 +95,8 @@ def main(argv=None) -> int:
     if not scripts:
         # The require() principle from check.py: an empty glob is a layout
         # change, never a green result.
-        print("portability: no shipped scripts matched plugins/*/hooks/*.py, "
-              "or plugins/*/skills/*/scripts/*.py — did the layout change?",
+        print("portability: no shipped scripts matched plugins/*/hooks/*.py or "
+              "plugins/*/skills/*/scripts/*.py — did the layout change?",
               file=sys.stderr)
         return 1
 

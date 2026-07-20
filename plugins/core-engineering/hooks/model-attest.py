@@ -18,7 +18,7 @@ On every `Bash` PreToolUse event it:
 Skills then stamp that `model` id onto their gate-stage / attestation metric
 lines (reading `null` when the sidecar is absent, so it records the *absence*,
 never a guess), and
-`/ce-retro` maps the recorded id through `model-policy.json`'s `tier_patterns` to
+`/core-engineering:ce-retro` maps the recorded id through `model-policy.json`'s `tier_patterns` to
 surface any gate stage that ran below its policy tier as an accepted degradation.
 
 Posture — a **passive recorder**, deliberately the opposite of the guard hooks:

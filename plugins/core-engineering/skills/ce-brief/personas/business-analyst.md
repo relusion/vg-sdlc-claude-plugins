@@ -41,7 +41,7 @@ This lens asks the questions a seasoned business analyst would put to a stakehol
 
 **Current-state process & data**
 - What is the end-to-end journey a user takes today to reach the outcome, step by step, and which steps must the new way preserve, remove, or change?
-- What information or records does this process create, read, or depend on, and does any of it already live somewhere we must respect or reconcile? *(intent only — the codebase data profile is /ce-plan's job)*
+- What information or records does this process create, read, or depend on, and does any of it already live somewhere we must respect or reconcile? *(intent only — the codebase data profile is /core-engineering:ce-plan's job)*
 
 **Success criteria & acceptance**
 - **[always-ask]** How will we know this is working in the real world — what observable outcome, behavior, or number tells us it succeeded?
@@ -58,7 +58,7 @@ This lens must ensure the following are captured as **Open Questions** or **Assu
 - **Unmeasurable success:** if success is a slogan with no observable signal, surface "no observable success criterion yet" as an Open Question.
 - **Undefined acceptance bar:** if no stakeholder acceptance threshold was elicited, record its absence as an Open Question so downstream success criteria are not invented.
 - **Assumed-but-unconfirmed current process:** any current-state step the user implied but did not confirm — record as an Assumption flagged for confirmation, never as established fact.
-- **Hidden dependency on existing data or records:** an intent-level dependency the user mentioned — record as an Assumption and note that its *codebase reality* is for /ce-plan to profile, not this lens to assert.
+- **Hidden dependency on existing data or records:** an intent-level dependency the user mentioned — record as an Assumption and note that its *codebase reality* is for /core-engineering:ce-plan to profile, not this lens to assert.
 
 ## Boundary
 

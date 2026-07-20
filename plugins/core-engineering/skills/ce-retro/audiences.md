@@ -47,7 +47,7 @@ model-tier attestation, express-patch activity, per-feature review breakdown.
 Retro — <slug> · standup (<window or "all time">)
 Stuck:      <feature> parked (<detail>) | none
 Churn:      <N> retries (<feature>: <n>), <N> circuit-breaks | none
-Escalated:  <feature> → </ce-spec|/ce-implement|/ce-plan> (<count>)
+Escalated:  <feature> → </core-engineering:ce-spec|/core-engineering:ce-implement|/core-engineering:ce-plan> (<count>)
 Gates:      <pass>/<fail> in window
 Watch:      <the single loudest signal, or "nothing new">
 ```

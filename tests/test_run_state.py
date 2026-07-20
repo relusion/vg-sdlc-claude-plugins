@@ -2,7 +2,7 @@
 
 Covers the init schema, the fixed status-lattice transitions (legal / illegal /
 bounded review repair / fail-from-anywhere), the counter
-mechanics (consecutive-park bump + done-reset, retry cap → exit 1), the
+mechanics (consecutive-park bump + done-reset, failure-attempt cap → exit 1), the
 provisional ledger, budget accrual, the circuit-breaker exit-code verdicts, and
 the canonical .metrics.jsonl line schema — asserting the documented behavior is
 reproduced purely via exit codes. A final integration test proves status-board

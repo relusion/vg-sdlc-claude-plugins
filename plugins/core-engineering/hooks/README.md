@@ -155,9 +155,9 @@ calls proceed silently. Two modes:
   a *cooperative* convention that makes accidental tool-mediated drift
   structural, not an adversarial sandbox.
 - **`deny-only`**: a standing baseline — denylist matches are denied,
-  everything else is allowed, no allowlist needed. `/ce-init` seeds this with
+  everything else is allowed, no allowlist needed. `/core-engineering:ce-init` seeds this with
   always-true denials (`.git/**` and the lease file itself), so the baseline
-  never fights a writing skill like `/ce-implement`.
+  never fights a writing skill like `/core-engineering:ce-implement`.
 
 Every deny names the lease holder and its allowed globs once, then a single
 audience-split lift path (the agent reconciles with the holder's write
@@ -200,7 +200,7 @@ Two Bash-only posture rules:
 1. **Out-of-workspace targets stay permissive.** `/tmp` scratch and any write
    resolving outside the workspace root are not a workspace lease's concern, so
    the Bash branch allows them (unlike the Write/Edit path, which denies
-   out-of-workspace targets). Under the `/ce-init` deny-only baseline this means a
+   out-of-workspace targets). Under the `/core-engineering:ce-init` deny-only baseline this means a
    `Bash` write is denied **only** when it lands on a denylisted in-workspace path
    (`.git/**`) or the lease file — everything else, including temp files, passes.
 2. **The lease file is guarded across the recognized shell write vectors.** A
@@ -299,7 +299,7 @@ not only lintable: on every `Bash` PreToolUse event it reads the payload's
 O(1) in transcript length, never a full parse) for the most recent assistant
 turn's `model` id, and refreshes `.claude/ce-session-model.json`
 `{session_id, model, ts}` under the workspace root. Skills then stamp that
-`model` id onto their gate-stage / `attestation` metric lines, and `/ce-retro`
+`model` id onto their gate-stage / `attestation` metric lines, and `/core-engineering:ce-retro`
 maps it through `model-policy.json`'s `tier_patterns` to surface any gate stage
 that ran below its policy tier as an **accepted degradation**.
 
@@ -320,7 +320,7 @@ reading it records `model: null` (never a guessed tier). It captures the model o
 the *session's* most recent assistant turn, not a per-subagent identity, so a
 spawned agent running on a different tier is not separately attributed. And the
 same is true on any surface without plugin hooks: every `model` field is `null`,
-and `/ce-retro` reports those as `unattested` rather than assuming a pass. This is
+and `/core-engineering:ce-retro` reports those as `unattested` rather than assuming a pass. This is
 an audit aid, not an enforcement gate: it records what ran; it never changes what
 runs.
 
@@ -335,7 +335,7 @@ data-driven per-repo allowlist and confirms (or denies) the ones that leave it.
 **Inert without a policy.** Like `write-scope-guard.py`, this guard does nothing
 until `.claude/ce-net-policy.json` exists — so it is safe to leave always-on and a
 no-policy session sees **zero friction** (a non-network `Bash` command like `ls`
-or `git status` is never touched even with a policy active). `/ce-init` seeds a
+or `git status` is never touched even with a policy active). `/core-engineering:ce-init` seeds a
 conservative starter; `CE_NET_POLICY` overrides the path (tests/operators). The
 policy:
 

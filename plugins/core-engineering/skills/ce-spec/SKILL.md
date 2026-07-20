@@ -2,7 +2,7 @@
 name: ce-spec
 description: |
   Turn ONE planned feature into an implementation-ready spec — resolve unknowns, EARS acceptance criteria → tagged test cases, design against the real codebase, an ordered tasks.json — without widening the planned boundary (Scope Lock).
-  Triggers: spec/specify/detail one planned feature for implementation. /ce-plan produces the decomposition; /ce-spec details one feature of it.
+  Triggers: spec/specify/detail one planned feature for implementation. /core-engineering:ce-plan produces the decomposition; /core-engineering:ce-spec details one feature of it.
 argument-hint: "[feature-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -14,7 +14,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 
 Turn one planned feature into an implementation-ready specification.
 
-The feature comes from a plan directory produced by `/ce-plan`
+The feature comes from a plan directory produced by `/core-engineering:ce-plan`
 (`docs/plans/[slug]/`). This workflow closes the four gaps the plan
 deliberately left open:
 
@@ -64,7 +64,7 @@ Follow the workflow exactly. Do not skip stages, gates, or validation.
 
 *Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant.
 
-*Proportionality:* invoked **ad hoc** (no plan behind the request) on a patch-shaped change — one bounded behavior, no new durable state, no cross-feature surface — offer `/ce-patch` before authoring a full spec, stating the cost difference. A **planned** feature is never silently re-routed: if it turns out patch-sized, say so and route the observation back to the plan's Sizing Gate; the Scope Lock still governs this run.
+*Proportionality:* invoked **ad hoc** (no plan behind the request) on a patch-shaped change — one bounded behavior, no new durable state, no cross-feature surface — offer `/core-engineering:ce-patch` before authoring a full spec, stating the cost difference. A **planned** feature is never silently re-routed: if it turns out patch-sized, say so and route the observation back to the plan's Sizing Gate; the Scope Lock still governs this run.
 
 1. **Never write the spec before Final Approval** (Stage 5.4 → `Write`).
 2. **Honor the Scope Lock** (below). Scope changes only through an approved, logged Boundary Conflict — never silently.
@@ -91,7 +91,7 @@ frozen boundary. Three invariants:
   validation target. Anything **structural** — dependencies, IDs, ship order,
   impact on other features, or a **new cross-feature flow the plan never traced**
   (§3.6) — is beyond a single feature edit: escalate to a plan
-  revision (`/ce-plan`) and stop.
+  revision (`/core-engineering:ce-plan`) and stop.
 
 Scope changes only via a **Boundary Conflict**, applied to `features/<id>.md` by
 the canonical procedure in **Stage 3.3** (detect → present as *material* → human
@@ -134,19 +134,19 @@ Record every decision: id, question, options, choice, rationale, tier,
 `decided_by: human`. These become the spec's **Resolved Decisions** and
 **Boundary-Conflict Log**.
 
-**Escalating a hard fork to `/ce-decide` (optional, human-triggered).** When a material
+**Escalating a hard fork to `/core-engineering:ce-decide` (optional, human-triggered).** When a material
 decision has **no dominant option** *and* is genuinely consequential — a **one-way door**
 (an irreversible schema / contract / data choice), a **wide or cross-feature blast
 radius**, or a choice that hinges on a **load-bearing unmeasured number** — the single
 `Recommendation: <A/B>` line is too thin to carry it. The human may escalate *that one
-decision* to `/ce-decide` for a situation-weighted, evidence-tagged scorecard
-(gate-then-weight + a falsifiable DEAD-IF). `/ce-decide` **drafts** a proposed ADR that flows
+decision* to `/core-engineering:ce-decide` for a situation-weighted, evidence-tagged scorecard
+(gate-then-weight + a falsifiable DEAD-IF). `/core-engineering:ce-decide` **drafts** a proposed ADR that flows
 back through the ADR-promotion path below — the human promotes it and the Resolved
 Decisions entry references it (`see ADR-NNNN`); no new artifact shape. This is a **rigorous
 upgrade of the Recommendation line, not a replacement**: where one option dominates (the
 common case), stay inline — do not manufacture a scorecard. The escalation is always the
 human's call, never automatic, and the **Scope Lock still binds** — a fork that changes
-*scope* is a Boundary Conflict to `/ce-plan`, not a `/ce-decide`.
+*scope* is a Boundary Conflict to `/core-engineering:ce-plan`, not a `/core-engineering:ce-decide`.
 
 ## Architecture Decision Records
 
@@ -216,7 +216,7 @@ auto-build runs this same script as a **blocking** spec-artifact gate.
 
 ## Autonomous Mode
 
-When invoked by `/ce-auto-build`, load `${CLAUDE_SKILL_DIR}/autonomous-mode.md` and apply it before Stage 0; outside autonomous mode, the Tiered HITL gates in this file apply as written.
+When invoked by `/core-engineering:ce-auto-build`, load `${CLAUDE_SKILL_DIR}/autonomous-mode.md` and apply it before Stage 0; outside autonomous mode, the Tiered HITL gates in this file apply as written.
 
 ---
 
@@ -237,7 +237,7 @@ At the write step, `${CLAUDE_SKILL_DIR}/stage-4-5-tasks-write.md` directs you to
 for the `ce-spec.md` + `tasks.json` formats and to the **Mechanical Lint Gate** above.
 Do not reconstruct the artifact format from memory.
 
-When Stage 2.1 reaches a feature that renders a user-facing surface, it directs you to **`${CLAUDE_SKILL_DIR}/surface-critique.md`** — the canonical definition of the **Surface Critique** discipline (the six-dimension rubric, the functional-vs-taste classifier, the three-tier evidence model, the canvas-vs-DOM honesty) that the Surface-Quality criteria authored here are later checked against by `/ce-implement`, `/ce-verify`, `/ce-auto-build`, and the UX skills.
+When Stage 2.1 reaches a feature that renders a user-facing surface, it directs you to **`${CLAUDE_SKILL_DIR}/surface-critique.md`** — the canonical definition of the **Surface Critique** discipline (the six-dimension rubric, the functional-vs-taste classifier, the three-tier evidence model, the canvas-vs-DOM honesty) that the Surface-Quality criteria authored here are later checked against by `/core-engineering:ce-implement`, `/core-engineering:ce-verify`, `/core-engineering:ce-auto-build`, and the UX skills.
 
 To begin: load `${CLAUDE_SKILL_DIR}/stage-0-1-frame-resolve.md` and start Stage 0.
 
@@ -247,12 +247,12 @@ To begin: load `${CLAUDE_SKILL_DIR}/stage-0-1-frame-resolve.md` and start Stage 
 
 | From | Trigger | To |
 |---|---|---|
-| Stage 0.4 | Boundary needs revision | Escalate to `/ce-plan` |
+| Stage 0.4 | Boundary needs revision | Escalate to `/core-engineering:ce-plan` |
 | Stage 2 | New unknown surfaces | Stage 1 |
 | Stage 3.3 | Local Boundary Conflict, approved | Stage 1 or Stage 2 |
-| Stage 3.3 | Structural Boundary Conflict | Escalate to `/ce-plan` |
-| Stage 3.5 | Breaking shared-shape change | Boundary Conflict → escalate to `/ce-plan` |
-| Stage 3.6 | New cross-feature flow the plan never traced | Boundary Conflict → escalate to `/ce-plan` |
+| Stage 3.3 | Structural Boundary Conflict | Escalate to `/core-engineering:ce-plan` |
+| Stage 3.5 | Breaking shared-shape change | Boundary Conflict → escalate to `/core-engineering:ce-plan` |
+| Stage 3.6 | New cross-feature flow the plan never traced | Boundary Conflict → escalate to `/core-engineering:ce-plan` |
 | Stage 4.3 | Orphan task reveals missing scope | Stage 3.3 (Boundary Conflict) |
 | Stage 5.4 | User selects Adjust | Relevant earlier stage |
 | Any stage | User selects Abort | Exit without writing |
@@ -264,16 +264,16 @@ Allow at most ~3 loops on any one decision before escalating to the human.
 ## Escalation
 
 Boundary revisions, breaking shared-shape changes, and new cross-feature flows
-(§3.3 / §3.5 / §3.6) escalate to `/ce-plan` **Stage R**, which revises the existing
+(§3.3 / §3.5 / §3.6) escalate to `/core-engineering:ce-plan` **Stage R**, which revises the existing
 plan in place — diffing the delta against the frozen shape and re-running only the
 affected gates — rather than re-planning from scratch. Technical forks with no dominant
-option may route to `/ce-decide`. Implementation infeasibility returns here from
-`/ce-implement` as a Spec Conflict; this skill narrows the contract and never widens the plan.
+option may route to `/core-engineering:ce-decide`. Implementation infeasibility returns here from
+`/core-engineering:ce-implement` as a Spec Conflict; this skill narrows the contract and never widens the plan.
 
 ## Honest Limitations
 
-- **Designs, does not build.** Produces an implementation-ready spec + task list; it writes no production code and runs no tests. Whether the design survives contact with the real code is `/ce-implement`'s to prove (a Spec Conflict escalates back here).
-- **Narrows, never widens.** Bound by the feature's planned Scope / Excluded (the Scope Lock): it can defer within boundary but cannot grow it — a structural change escalates to `/ce-plan` and stops. The spec is only as right as the plan it refines.
+- **Designs, does not build.** Produces an implementation-ready spec + task list; it writes no production code and runs no tests. Whether the design survives contact with the real code is `/core-engineering:ce-implement`'s to prove (a Spec Conflict escalates back here).
+- **Narrows, never widens.** Bound by the feature's planned Scope / Excluded (the Scope Lock): it can defer within boundary but cannot grow it — a structural change escalates to `/core-engineering:ce-plan` and stops. The spec is only as right as the plan it refines.
 - **The human owns every judgment call.** Material decisions are the human's; the workflow recommends and never commits a judgment silently. Its "done" means *executable without further design decisions*, not *correct* — correctness is verified downstream.
 - **Shares the model's blind spots.** Unknowns are resolved by research and reasoning on the same model that will later help implement them; an error shared across both can pass into the spec unflagged.
 - **Spec §8 is the artifact's limits, not the skill's.** The `Assumptions & Limitations` section inside the emitted `ce-spec.md` records *that feature's* caveats — distinct from these limits of the spec **process** itself.

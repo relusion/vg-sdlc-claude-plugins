@@ -2,7 +2,7 @@
 name: ce-idea-scout
 description: |
   Generate, triage, and rank a shortlist of software/startup ideas — a verdict-rendering funnel (generate → cheap filter → seven-axis score → ranked directions). Opinionated rankings; decision support, not validated fact.
-  Triggers: brainstorm/scout/generate/triage MANY ideas into a ranked shortlist. For ONE idea use /ce-idea-score; for market validation /ce-market-scan.
+  Triggers: brainstorm/scout/generate/triage MANY ideas into a ranked shortlist. For ONE idea use /product-discovery:ce-idea-score; for market validation /product-discovery:ce-market-scan.
 argument-hint: "[domains / constraints, e.g. 'devtools, climate; 3 people, no outside capital']"
 allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill
 ---
@@ -20,7 +20,7 @@ deep-dive *is* the `ce-idea-score` engine; this skill owns the generation, the t
 the cross-idea ranking around it.
 
 > **A verdict tool, deliberately — and a funnel, deliberately.** Like `ce-idea-score`
-> (and unlike `/ce-market-scan`), this skill ranks and recommends. Two failure modes it is
+> (and unlike `/product-discovery:ce-market-scan`), this skill ranks and recommends. Two failure modes it is
 > built to avoid: (1) **shallow-everywhere** — analyzing 12 ideas at full depth in one
 > pass produces generic filler and thinner late ideas, then ranks them as if analyzed
 > equally; the funnel fixes this by deep-diving only survivors. (2) **fabricated
@@ -30,9 +30,9 @@ the cross-idea ranking around it.
 
 > **Where it sits.** Furthest upstream:
 > **`ce-idea-scout`** (generate + triage → shortlist) → human picks → `ce-idea-score` (deep
-> verdict on one idea) → human commits → `/ce-market-scan` (optional — the **stakes dial**:
+> verdict on one idea) → human commits → `/product-discovery:ce-market-scan` (optional — the **stakes dial**:
 > skip for a fast pick, run it to validate before committing real planning effort) →
-> `/ce-brief` → `/ce-plan`. Its shortlist is **directions to pressure-test**, never
+> `/core-engineering:ce-brief` → `/core-engineering:ce-plan`. Its shortlist is **directions to pressure-test**, never
 > a build decision (see *Directions, not decisions* below).
 
 ## Disciplines
@@ -45,7 +45,7 @@ the cross-idea ranking around it.
   `unknown` (no basis — flagged). In `judgment-only` mode nothing is `confirmed`. *No
   invented company names, funding rounds, or trend statistics* — an unsourced market
   claim is `suspected` at most and marked. This is the discipline borrowed from
-  `/ce-market-scan` that keeps the ranking off fiction.
+  `/product-discovery:ce-market-scan` that keeps the ranking off fiction.
 - **Directions, not decisions** — ideas are generated *without a team attached*, so the
   ranking is structurally blind to founder-market fit (the largest seed-stage variable).
   The shortlist is therefore a set of **directions to pressure-test against your own
@@ -88,7 +88,7 @@ Stuck-rule question.
 5. **Rank as directions** — the shortlist is opinionated and ranked, labeled a set of
    directions to pressure-test, never a build mandate; founder-fit is named as unseen.
 6. **Hand off, don't decide for them** — the human picks which directions advance to a
-   full `/ce-idea-score` or `/ce-market-scan`.
+   full `/product-discovery:ce-idea-score` or `/product-discovery:ce-market-scan`.
 
 ---
 
@@ -133,7 +133,7 @@ the **knockout floors** (Feasibility/Distribution ≤ 3 → disqualified), the b
 kill-conditions, a falsifiable **DEAD IF** line per survivor, and the **gate-then-weight**
 composite (weights + per-axis vector + disclaimer; never a bare sum). Render a compact
 inline scorecard per survivor (reuse `ce-idea-score`'s Scorecard columns — Axis · Score ·
-Evidence · justification — abbreviated). Promote any survivor to a full `/ce-idea-score` run for the
+Evidence · justification — abbreviated). Promote any survivor to a full `/product-discovery:ce-idea-score` run for the
 rigorous standalone artifact and its `score-lint.py` gate.
 
 ## Stage 4 — Rank, Shortlist & Read-Back
@@ -159,8 +159,8 @@ docs/idea-scout/<date>.md
 ```
 
 For each direction the human carries forward, **name the next skill** — *"Run
-`/ce-idea-score` on \<direction\> for a full standalone verdict, or
-`/ce-market-scan` for an evidence-bound validation"* — never auto-launch it,
+`/product-discovery:ce-idea-score` on \<direction\> for a full standalone verdict, or
+`/product-discovery:ce-market-scan` for an evidence-bound validation"* — never auto-launch it,
 never feed the ranking forward as fact.
 
 ### Document Sections
@@ -183,9 +183,9 @@ date: <date>   evidence-mode: <researched | judgment-only>   generated: <N>   de
 ## Escalation
 
 - A survivor that needs facts the budget can't reach → mark the axis `unknown` and route
-  it to a scoped `/ce-market-scan` before scoring stands.
-- The human wants to commit to one direction → hand to `/ce-idea-score` (full verdict) then
-  `/ce-market-scan` → `/ce-brief` → `/ce-plan`.
+  it to a scoped `/product-discovery:ce-market-scan` before scoring stands.
+- The human wants to commit to one direction → hand to `/product-discovery:ce-idea-score` (full verdict) then
+  `/product-discovery:ce-market-scan` → `/core-engineering:ce-brief` → `/core-engineering:ce-plan`.
 
 ## Honest Limitations
 
@@ -209,6 +209,6 @@ date: <date>   evidence-mode: <researched | judgment-only>   generated: <N>   de
 - **Shape, not truth.** The funnel and the evidence tags keep the ranking *accountable*,
   not *correct*. `ce-idea-score`'s `score-lint.py` gates a promoted survivor's standalone
   artifact; this skill relies on the same discipline in prose for the inline scorecards.
-- **Separate from `/ce-market-scan` and `/ce-brief`.** It generates and ranks; it neither runs
+- **Separate from `/product-discovery:ce-market-scan` and `/core-engineering:ce-brief`.** It generates and ranks; it neither runs
   market-scan's disciplined evidence base nor elicits intent. Its shortlist crosses into
   the pipeline only as a labeled reference — never into a brief's Project Description as fact.

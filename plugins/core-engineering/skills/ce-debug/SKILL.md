@@ -1,7 +1,7 @@
 ---
 name: ce-debug
 description: |
-  Diagnose a FAILING target and route one fix — auto-detecting whether a plan/spec owns it. Planned mode (a plan/spec owns the failing feature): reproduce → file:line root cause → classify (bug/spec-gap/structural) → route one targeted fix to /ce-implement, /ce-spec, or /ce-plan. Plan-free mode (a misbehaving component with no plan/spec — a stuck consumer, silent worker, or job that stopped): ranked, evidence-bound root-cause hypotheses + a discrimination plan (the cheapest observation that settles each). Read-only on code; never patches.
+  Diagnose a FAILING target and route one fix — auto-detecting whether a plan/spec owns it. Planned mode (a plan/spec owns the failing feature): reproduce → file:line root cause → classify (bug/spec-gap/structural) → route one targeted fix to /core-engineering:ce-implement, /core-engineering:ce-spec, or /core-engineering:ce-plan. Plan-free mode (a misbehaving component with no plan/spec — a stuck consumer, silent worker, or job that stopped): ranked, evidence-bound root-cause hypotheses + a discrimination plan (the cheapest observation that settles each). Read-only on code; never patches.
   Triggers: debug/root-cause/find why a feature, test, or journey fails; or investigate/troubleshoot why a service/worker/queue is stuck or silently failing. Auto-detects planned vs plan-free mode from plan state — you need not know which.
 argument-hint: "[feature-id | failing-test | component-or-path] [symptom or error]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
@@ -14,10 +14,10 @@ allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 
 Diagnose why something is failing and route the fix — without fixing it here.
 
-`/ce-debug` is invoked on a **failure or a symptom**: a red `auto` test, a failed
-acceptance criterion or broken journey from `/ce-verify`, a `Fail` / `Blocked`
-verdict, a correctness finding from `/ce-review`, a task that has hit
-`/ce-implement`'s `~3-attempt` limit, a pasted error / stack trace — **or** a live
+`/core-engineering:ce-debug` is invoked on a **failure or a symptom**: a red `auto` test, a failed
+acceptance criterion or broken journey from `/core-engineering:ce-verify`, a `Fail` / `Blocked`
+verdict, a correctness finding from `/core-engineering:ce-review`, a task that has hit
+`/core-engineering:ce-implement`'s `~3-attempt` limit, a pasted error / stack trace — **or** a live
 component making no progress: a consumer that stopped, a worker that went silent, a
 job that never fires. It **reproduces or investigates**, **localizes** the cause,
 and **routes** a targeted fix to the layer that owns it. It writes one artifact and
@@ -46,7 +46,7 @@ plan ◄── spec ◄── implement ◄── { verify · review }
   any repo · a misbehaving component ──► debug ──► ranked hypotheses + plan  (plan-free mode)
 ```
 
-Like its read-only siblings `/ce-verify` and `/ce-review`, debug **escalates, never
+Like its read-only siblings `/core-engineering:ce-verify` and `/core-engineering:ce-review`, debug **escalates, never
 mutates** — in both modes.
 
 ## Runtime Inputs
@@ -66,8 +66,7 @@ mutates** — in both modes.
   suspect mechanism and the provided runtime evidence.
 
 Writes only the mode's artifact: **planned** → `diagnosis.md` + an `evidence/`
-directory in the plan directory (`docs/plans/<slug>/`), or the per-feature
-`specs/<id>/` under auto-build; **plan-free** → a dated
+directory in the plan directory (`docs/plans/<slug>/`); **plan-free** → a dated
 `docs/investigations/<date>-<slug>.md` + its `evidence/` directory (never
 overwritten — a same-day re-run suffixes `-2`, `-3`, …).
 
@@ -145,38 +144,15 @@ Stage-5 route) are counted per that mode's stage files.
   question.
 - **Planned mode** — a **material** Scope checkpoint (confirm the failure, feature,
   and contract); localization is autonomous but a `git bisect` / tree-moving probe
-  is **material** (consent before, restore after; skipped under auto-build); the
+  is **material** (consent before, restore after); the
   **classification** is a **material** human call (a `bug` vs a `spec-gap` route
   very different work).
 - **Plan-free mode** — a **material** Stage-0 scope + execution gate (default: no
   execution of the target); a mid-run stuck-rule single question for a cheap
   evidence request; and a **material** Stage-5 route (the same evidence can justify
-  a `/ce-patch`, a `/ce-plan`, or "go fetch discriminator #1 first").
+  a `/core-engineering:ce-patch`, a `/core-engineering:ce-plan`, or "go fetch discriminator #1 first").
 
 No fix is ever applied by this workflow, in either mode.
-
-## Autonomous Mode
-
-`/ce-auto-build` invokes debug — **in planned mode only** — through its **Diagnose
-Gate** (off by default, enabled as a consented Stage-0 choice). Plan-free mode is
-interactive-only and is never auto-spawned (its execution/route gates need a human).
-When spawned by auto-build, run planned mode without interactive gates: reproduce →
-localize → classify → write `specs/<id>/diagnosis.md` → **return the routed
-outcome** to the orchestrator:
-
-- **`bug`** → return the diagnosis so the orchestrator can re-spawn implement **with
-  `diagnosis.md` as input**. The debug spawn does **not** consume an implement
-  retry; the subsequent re-implement consumes exactly one, under the same retry cap
-  and circuit-breaker as today.
-- **`spec-gap` / `structural`** → **park** (matches auto-build's existing
-  park-on-spec-conflict / plan-change).
-- **`not-a-code-defect`** (environmental / flaky / external, or an unreproducible or
-  `indeterminate` outcome) → **park** with the evidence — never burn a retry on a
-  cause no code change fixes.
-
-History bisection is **skipped** when autonomous (it needs the consent gate it
-cannot get here); a cause that would have needed it stays `suspected`. Never patch;
-never escalate interactively; defer any judgment to the end-review.
 
 ## Modes — how to run
 
@@ -197,11 +173,11 @@ it. Read each at `${CLAUDE_SKILL_DIR}/<file>` by absolute path.
 
 Debug never fixes; every outcome routes to the layer that owns the fix — the mode's
 route table carries the `Means` column and the pitfall / discrimination detail this
-summary would only duplicate. **Planned mode** routes `bug → /ce-implement`,
-`spec-gap → /ce-spec`, `structural → /ce-plan` (see `mode-planned.md` Stage 3).
-**Plan-free mode** routes to `/ce-patch` (small, bounded), `/ce-plan` (structural),
+summary would only duplicate. **Planned mode** routes `bug → /core-engineering:ce-implement`,
+`spec-gap → /core-engineering:ce-spec`, `structural → /core-engineering:ce-plan` (see `mode-planned.md` Stage 3).
+**Plan-free mode** routes to `/core-engineering:ce-patch` (small, bounded), `/core-engineering:ce-plan` (structural),
 the pipeline's own planned-mode diagnosis where a spec exists, the prover tools
-(`/ce-probe-perf`, `/ce-probe-sec`), `/ce-review`'s Security lens, or the human/ops
+(`/core-engineering:ce-probe-perf`, `/core-engineering:ce-probe-sec`), `/core-engineering:ce-review`'s Security lens, or the human/ops
 armed with the discrimination plan (see `mode-planfree-4-5-report.md` Stage 5).
 
 Planned mode completes the escalate-up chain: `plan ◄── spec ◄── implement ◄── { verify · review · debug }`.

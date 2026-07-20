@@ -72,7 +72,7 @@ class ModelPolicy(unittest.TestCase):
                 f"tier '{tier}' is used by a skill but has no pattern list")
 
     def test_ship_backlog_is_the_only_down_routable_skill(self):
-        # CLAUDE.md: "/ce-ship-backlog is the one safe cheap-tier candidate".
+        # CLAUDE.md: "/core-engineering:ce-ship-backlog is the one safe cheap-tier candidate".
         # Widening this set is a policy decision — change CLAUDE.md and this
         # test together, deliberately.
         down = sorted(n for n, e in self.policy["skills"].items()

@@ -43,7 +43,7 @@ Two policy modes:
   must match the allowlist and miss the denylist. Read-only skills set this at
   their Stage 0 and clear it at exit (cooperative — see hooks/README.md).
 * ``deny-only`` — a standing baseline: targets matching the denylist are
-  denied, everything else is allowed. No allowlist required. `/ce-init` seeds
+  denied, everything else is allowed. No allowlist required. `/core-engineering:ce-init` seeds
   this with always-true denials (`.git/**` internals and the lease file
   itself) so the baseline never fights a writing skill.
 
@@ -156,6 +156,16 @@ BASELINE_POLICY = {
 }
 
 
+def skill_command_name(value) -> str:
+    """Render a stored skill id as its installed, namespaced command."""
+    if not isinstance(value, str) or not value.strip():
+        return "the lease-holding skill"
+    normalized = value.strip().lstrip("/")
+    if ":" not in normalized:
+        normalized = f"core-engineering:{normalized}"
+    return f"/{normalized}"
+
+
 def deny_message(verdict: str, policy: dict) -> str:
     """Compose a deny: the verdict, which skill holds the lease and what it may
     write, then ONE audience-split lift path. The lease path appears exactly
@@ -164,11 +174,7 @@ def deny_message(verdict: str, policy: dict) -> str:
     verdict = verdict.rstrip(". ")
     lift_target = f"{DEFAULT_POLICY} (or the CE_WRITE_SCOPE_POLICY target)"
     if policy.get("mode", "lease") == "lease":
-        skill = policy.get("skill")
-        holder = (
-            f"/{skill.strip()}" if isinstance(skill, str) and skill.strip()
-            else "the lease-holding skill"
-        )
+        holder = skill_command_name(policy.get("skill"))
         allow = policy.get("allow") if isinstance(policy.get("allow"), list) else []
         globs = (
             ", ".join(str(pat) for pat in allow) if allow
@@ -941,9 +947,9 @@ def _degrade_stale_lease(root: Path, policy: dict, session_id: str, tool: str,
     """Warn-and-replace a dead session's lease: rewrite it to the baseline, drop
     the orphaned binding, log the replacement, and emit a single `ask` naming the
     stale holder and its age. `hook_decide` raises SystemExit, ending the hook."""
-    holder = policy.get("skill")
-    holder = (f"/{holder.strip()}" if isinstance(holder, str) and holder.strip()
-              else "an earlier session's read-only skill")
+    holder = skill_command_name(policy.get("skill"))
+    if holder == "the lease-holding skill":
+        holder = "an earlier session's read-only skill"
     age = lease_age_phrase(policy.get("created_at"))
     reason = (
         f"core-engineering write-scope-guard: the write lease held by {holder} "

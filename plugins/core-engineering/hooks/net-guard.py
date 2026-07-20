@@ -11,7 +11,7 @@ allowlist and confirms (or denies) the ones that leave it.
 INERT WITHOUT A POLICY. Like write-scope-guard, this guard does nothing until a
 policy file exists — so it is safe to leave always-on and a no-policy session sees
 ZERO friction. The policy lives at `.claude/ce-net-policy.json` (override the path
-with `CE_NET_POLICY`, for tests/operators) and is seeded by `/ce-init`:
+with `CE_NET_POLICY`, for tests/operators) and is seeded by `/core-engineering:ce-init`:
 
   {
     "schema_version": 1,

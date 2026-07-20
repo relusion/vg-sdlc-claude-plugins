@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""decide-lint.py — the Decision-Honesty gate for /ce-decide.
+"""decide-lint.py — the Decision-Honesty gate for /core-engineering:ce-decide.
 
 `decide` is a VERDICT-RENDERING tool, on the ENGINEERING side of the line (unlike
-/ce-idea-score, which renders a PRODUCT verdict; unlike /ce-market-scan, whose scan-lint.py
+/product-discovery:ce-idea-score, which renders a PRODUCT verdict; unlike /product-discovery:ce-market-scan, whose scan-lint.py
 forbids verdicts via the Scope Lock — both ship in the companion `product-discovery` plugin). A recommendation among technical options is
 permitted here; an *unaccountable* one is not. This external checker over the composed
 scorecard enforces the **Decision-Honesty Contract**: the recommendation may be rendered,
@@ -472,7 +472,7 @@ def emit(path: Path, hard: list, advisory: list, as_json: bool) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Decision-Honesty gate for a /ce-decide artifact.")
+    p = argparse.ArgumentParser(description="Decision-Honesty gate for a /core-engineering:ce-decide artifact.")
     p.add_argument("artifact", help="the composed decide markdown file (docs/decisions/<slug>/<date>.md)")
     p.add_argument("--json", action="store_true", help="machine-readable result")
     args = p.parse_args(argv)

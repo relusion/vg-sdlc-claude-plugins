@@ -80,13 +80,13 @@ class CatalogCheck(unittest.TestCase):
             readme = repo / "README.md"
             readme.write_text(
                 readme.read_text(encoding="utf-8").replace(
-                    ", `/ce-probe-infra`", "", 1),
+                    ", `/core-engineering:ce-probe-infra`", "", 1),
                 encoding="utf-8",
             )
             res = self._check(repo)
             self.assertEqual(res.returncode, 1)
             self.assertIn("skill catalog missing skill(s)", res.stderr)
-            self.assertIn("/ce-probe-infra", res.stderr)
+            self.assertIn("/core-engineering:ce-probe-infra", res.stderr)
 
     def test_agent_filename_must_match_frontmatter_name(self):
         with tempfile.TemporaryDirectory() as tmp:

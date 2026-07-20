@@ -131,7 +131,7 @@ class NextFooter(unittest.TestCase):
             res = run(str(plan))
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertEqual(last_line(res.stdout),
-                             f"Next: /ce-spec 01-a{FOOTER_SUFFIX}")
+                             f"Next: /core-engineering:ce-spec 01-a{FOOTER_SUFFIX}")
 
     def test_implemented_then_specced_suggests_implement_second(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,7 +141,7 @@ class NextFooter(unittest.TestCase):
             res = run(str(plan))
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertEqual(last_line(res.stdout),
-                             f"Next: /ce-implement 02-b{FOOTER_SUFFIX}")
+                             f"Next: /core-engineering:ce-implement 02-b{FOOTER_SUFFIX}")
 
     def test_all_implemented_suggests_ce_verify_slug(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -152,7 +152,7 @@ class NextFooter(unittest.TestCase):
             res = run(str(plan))
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertEqual(last_line(res.stdout),
-                             f"Next: /ce-verify plan{FOOTER_SUFFIX}")
+                             f"Next: /core-engineering:ce-verify plan{FOOTER_SUFFIX}")
 
     def test_footer_present_and_actionable_on_degraded_board(self):
         # Listing order when degraded: 01 implemented, 02 specced → implement 02.
@@ -165,7 +165,7 @@ class NextFooter(unittest.TestCase):
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertIn("degraded (no plan.json", res.stdout)
             self.assertEqual(last_line(res.stdout),
-                             f"Next: /ce-implement 02-b{FOOTER_SUFFIX}")
+                             f"Next: /core-engineering:ce-implement 02-b{FOOTER_SUFFIX}")
 
     def test_footer_walks_ship_order_not_json_order(self):
         # Feature listed first in plan.json but shipping SECOND must not win.
@@ -179,7 +179,7 @@ class NextFooter(unittest.TestCase):
             res = run(str(plan))
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertEqual(last_line(res.stdout),
-                             f"Next: /ce-spec 01-a{FOOTER_SUFFIX}")
+                             f"Next: /core-engineering:ce-spec 01-a{FOOTER_SUFFIX}")
 
 
 if __name__ == "__main__":

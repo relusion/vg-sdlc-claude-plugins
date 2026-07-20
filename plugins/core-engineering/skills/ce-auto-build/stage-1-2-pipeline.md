@@ -101,6 +101,12 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/implement-scope-guard.py" \
 
 Dispose of results conservatively:
 
+- An implementation worker that returns `parked`: call `run-state.py park` with
+  its returned class and evidence, then mark hard dependents blocked. Partial
+  writes never convert a park into a pass.
+- A returned functional `surface_findings` item that is bound to a contract clause
+  or proves a blocked use is a `spec-gap` park. Record taste findings in the ledger
+  for end-review; they do not block by themselves.
 - Artifact, task, test, build, lint, or acceptance failure: call `retry`. Below the
   cap, spawn a fresh implementation attempt with the exact failure evidence. At the
   cap, mark `failed` and halt for end-review.
@@ -111,6 +117,23 @@ Dispose of results conservatively:
 - All gates pass: `run-state.py advance <id> verifying`. Retain this feature's
   `.test-guard/<id>/` snapshots until integration verification so a later feature
   cannot erase or weaken its tests undetected.
+
+A non-zero deterministic gate is authoritative. Never replace it with a manual Git
+inspection or reinterpret generated-looking paths as a pass. Expected caches and
+hook logs must be ignored by the repository before the run; once the gate fails,
+apply the disposition above and preserve its evidence for end-review.
+
+`retry` counts failed gate attempts, including the first failure; a cap of two
+therefore authorizes one fresh repair. After each repair worker returns and its gates
+run, append this durable worker-result row before calling `retry` again:
+
+```json
+{"event":"repair-attempt","feature":"<id>","attempt":1,"outcome":"gates-pass|gates-fail|worker-parked","evidence":"<exact short result>"}
+```
+
+Use the attempt number returned by the preceding successful `retry` call. This row
+is evidence that a repair worker ran; the retry counter alone records only gate
+failures.
 
 ### 3. Review
 
@@ -125,16 +148,30 @@ docs/plans/<slug>/specs/<id>/code-review.md
 docs/plans/<slug>/specs/<id>/review-summary.json
 ```
 
+Direct the worker to the existing review contract at
+`${CLAUDE_SKILL_DIR}/../ce-review/SKILL.md` and require it to load
+`${CLAUDE_SKILL_DIR}/../ce-review/artifact-template.md` before writing. The machine
+summary must use that exact `status` / `blocking_high` schema; do not reconstruct a
+new verdict format from memory. Then validate it externally:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/review-gate.py" \
+  "docs/plans/<slug>/specs/<id>" --json
+```
+
 Every high-severity correctness or security finding receives an adversarial
 confirmation pass and is labeled `confirmed` or `suspected`.
 
-- Missing or unreadable review artifacts: park as `tooling-gap`.
-- Confirmed high correctness/security finding: call `retry`; below the cap, return
-  to a fresh implementation worker with that evidence, re-run every implementation
-  gate, then review again. At the cap, mark failed and halt.
+- Missing, unreadable, or schema-invalid review artifacts (gate exit `2`): park as
+  `tooling-gap`.
+- Confirmed high correctness/security finding (gate exit `1`): call `retry`; below
+  the cap, run `run-state.py advance <id> implementing`, then return to a fresh
+  implementation worker with that evidence, re-run every implementation gate, and
+  review again. At the cap, mark failed and halt.
 - Suspected high, medium, and low findings: record for the final human review. They
   do not silently disappear and do not block the batch.
-- No blocking finding: `run-state.py advance <id> reviewed`, then `done`.
+- No blocking finding (gate exit `0`): `run-state.py advance <id> reviewed`, then
+  `done`.
 
 Append worker decisions through `ledger-append`. Regenerate `STATUS.md`, then run
 `breaker-check`. Exit `1` halts at the named budget or park bound; exit `2` halts

@@ -1,7 +1,7 @@
 ---
 name: ce-go
 description: |
-  The front door — take a plain-language request ("why does export fail", "score this idea", "is the code good"), inspect repo state (a plan on disk? a spec for the named feature? a running target?), and route to the one right `/ce-*` skill with its reasoning shown before it hands off. Routes, never executes: it invokes exactly one downstream skill through the Skill tool and writes nothing itself.
+  The front door — take a plain-language request ("why does export fail", "score this idea", "is the code good"), inspect repo state (a plan on disk? a spec for the named feature? a running target?), and route to the one right `/ce-*` skill with its reasoning shown first. Routes, never executes: it starts one model-invocable skill or returns the exact command for a direct-only skill, and writes nothing itself.
   Triggers: you know what you want but not which of the ~28 `/ce-*` skills runs it. ce-go picks; the routed skill does the work (and auto-detects any plan-existence mode itself, so you never have to).
 argument-hint: "[what you want, in plain language]"
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
@@ -14,9 +14,9 @@ allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
 You are the single entry point a week-one user reaches for instead of learning
 ~30 skill names and the plan-existence splits between them. Your whole job is to
 **read the request and the repo, decide which one `/ce-*` skill owns it, show the
-evidence for that call, and hand off**. You are a router, **never an executor**:
-you invoke exactly one downstream skill through the `Skill` tool and you write
-nothing to disk yourself.
+evidence for that call, and hand off or hand back the direct command**. You are a
+router, **never an executor**: start one model-invocable skill through the `Skill`
+tool or return one direct-only command, and write nothing to disk yourself.
 
 ## Runtime Inputs
 
@@ -48,7 +48,7 @@ Route on evidence you gather, not on what the user already knows:
 The table below is the single source of truth for where each request goes. It is
 kept in lock-step with `docs/USAGE-MATRIX.md` by `check_front_door_parity()` in
 `scripts/product_layer_check.py`: every `/ce-*` skill the matrix routes to
-appears here, and vice versa (excluding `/ce-go` itself). Do not add prose routes
+appears here, and vice versa (excluding `/core-engineering:ce-go` itself). Do not add prose routes
 outside the markers — the parity lint reads only what is between them.
 
 <!-- routing-table:start -->
@@ -57,68 +57,68 @@ outside the markers — the parity lint reads only what is between them.
 
 | The request is… | Route to | Because |
 |---|---|---|
-| a question about how existing code works, no change intended | `/ce-ask` | grounded, file-cited answer; writes nothing |
-| "how big is this change / what does it touch" for a work item | `/ce-impact` | read-only blast-radius read with open questions |
-| "teach me the system that was built" and a plan exists | `/ce-onboard` | paced, evidence-grounded walkthrough of the as-built code |
-| "teach me the business domain this code serves" — actors, nouns, rules, vocabulary | `/ce-domain` | paced domain walkthrough with every claim typed; the unevidenced *why*s go to a known-unknowns register, never narrated |
-| "which of these technical options should we pick" | `/ce-decide` | evidence-tagged engineering recommendation + proposed ADR |
+| a question about how existing code works, no change intended | `/core-engineering:ce-ask` | grounded, file-cited answer; writes nothing |
+| "how big is this change / what does it touch" for a work item | `/core-engineering:ce-impact` | read-only blast-radius read with open questions |
+| "teach me the system that was built" and a plan exists | `/core-engineering:ce-onboard` | paced, evidence-grounded walkthrough of the as-built code |
+| "teach me the business domain this code serves" — actors, nouns, rules, vocabulary | `/core-engineering:ce-domain` | paced domain walkthrough with every claim typed; the unevidenced *why*s go to a known-unknowns register, never narrated |
+| "which of these technical options should we pick" | `/core-engineering:ce-decide` | evidence-tagged engineering recommendation + proposed ADR |
 
 **Something is broken**
 
 | The request is… | Route to | Because |
 |---|---|---|
-| a **planned** feature misbehaving — a `docs/plans/<slug>/specs/<id>/` owns it | `/ce-debug` | planned mode: reproduces to a file:line cause and routes one fix against the spec |
-| a component misbehaving with **no** plan/spec owning it | `/ce-debug` | plan-free mode: ranked root-cause hypotheses + a discrimination plan — `/ce-debug` auto-detects the mode, so route here either way |
+| a **planned** feature misbehaving — a `docs/plans/<slug>/specs/<id>/` owns it | `/core-engineering:ce-debug` | planned mode: reproduces to a file:line cause and routes one fix against the spec |
+| a component misbehaving with **no** plan/spec owning it | `/core-engineering:ce-debug` | plan-free mode: ranked root-cause hypotheses + a discrimination plan — `/core-engineering:ce-debug` auto-detects the mode, so route here either way |
 
 **Build or change something**
 
 | The request is… | Route to | Because |
 |---|---|---|
-| a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/ce-patch` | one express-only gate; any failed or uncertain screen routes to `/ce-plan` |
-| a raw idea that needs shaping before planning | `/ce-brief` | persona-lens interview → a planning-ready brief |
-| a real project/feature to decompose | `/ce-plan` | ordered, dependency-aware feature plan with gates |
-| ONE already-planned feature to detail | `/ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |
-| a specified feature's task list to build | `/ce-implement` | test-first execution to done under Scope Lock |
-| a whole plan to run unattended | `/ce-auto-build` | bounded sequential spec/implement/verify/review orchestration |
-| a first run in a repo with no `repo-profile.json` | `/ce-init` | profiles commands/CI/surfaces, writes starter policy artifacts |
+| a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/core-engineering:ce-patch` | one express-only gate; any failed or uncertain screen routes to `/core-engineering:ce-plan` |
+| a raw idea that needs shaping before planning | `/core-engineering:ce-brief` | persona-lens interview → a planning-ready brief |
+| a real project/feature to decompose | `/core-engineering:ce-plan` | ordered, dependency-aware feature plan with gates |
+| ONE already-planned feature to detail | `/core-engineering:ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |
+| a specified feature's task list to build | `/core-engineering:ce-implement` | test-first execution to done under Scope Lock |
+| a whole plan to run unattended | `/core-engineering:ce-auto-build` | bounded sequential spec/implement/verify/review orchestration |
+| a first run in a repo with no `repo-profile.json` | `/core-engineering:ce-init` | profiles commands/CI/surfaces, writes starter policy artifacts |
 
 **Probe a risk surface**
 
 | The request is… | Route to | Because |
 |---|---|---|
-| a **running** web/API/CLI security target is named | `/ce-probe-sec` | dynamic security probing under explicit consent |
-| IaC / Kubernetes / Dockerfile / cloud manifests to audit statically | `/ce-probe-infra` | manifest-read + scanner-confirmed infra findings |
-| pinned dependency versions to check for known CVEs | `/ce-probe-deps` | OSV-backed advisory findings per dependency |
-| a **running** target to measure for latency/throughput | `/ce-probe-perf` | measured performance signals; records, does not block |
+| a **running** web/API/CLI security target is named | `/core-engineering:ce-probe-sec` | dynamic security probing under explicit consent |
+| IaC / Kubernetes / Dockerfile / cloud manifests to audit statically | `/core-engineering:ce-probe-infra` | manifest-read + scanner-confirmed infra findings |
+| pinned dependency versions to check for known CVEs | `/core-engineering:ce-probe-deps` | OSV-backed advisory findings per dependency |
+| a **running** target to measure for latency/throughput | `/core-engineering:ce-probe-perf` | measured performance signals; records, does not block |
 
 **Review / verify / audit**
 
 | The request is… | Route to | Because |
 |---|---|---|
-| "does the implemented behavior actually work" across a plan | `/ce-verify` | whole-suite regression + journey + acceptance gate |
-| "is this feature well written" | `/ce-review` | six-lens code review with adversarial verification |
-| "a reviewer left these comments on my PR — are they right, how do I reply" (comments pasted) | `/ce-review` | auto-detects inbound mode: verifies each claim against the code, drafts paste-ready replies; posts nothing, patches nothing |
-| "is the written plan sound" before building | `/ce-plan-audit` | structural lint + model-judged plan findings |
-| "how did this plan's pipeline perform" | `/ce-retro` | descriptive metrics/process signals; mutates nothing |
-| UX problems in a **running** app — walk a plan's **traced** journeys, or hunt unknown problems plan-free | `/ce-ux-audit` | auto-detects journey-walk (plan owns the surface) vs adversarial-discovery (no plan) mode itself |
-| validate that a role can follow an existing doc / runbook / quickstart | `/ce-doc-audit` | ⌨ human-initiated — executes the doc's steps as a reader role in a sandbox; inline findings, not verdicts |
+| "does the implemented behavior actually work" across a plan | `/core-engineering:ce-verify` | whole-suite regression + journey + acceptance gate |
+| "is this feature well written" | `/core-engineering:ce-review` | six-lens code review with adversarial verification |
+| "a reviewer left these comments on my PR — are they right, how do I reply" (comments pasted) | `/core-engineering:ce-review` | auto-detects inbound mode: verifies each claim against the code, drafts paste-ready replies; posts nothing, patches nothing |
+| "is the written plan sound" before building | `/core-engineering:ce-plan-audit` | structural lint + model-judged plan findings |
+| "how did this plan's pipeline perform" | `/core-engineering:ce-retro` | descriptive metrics/process signals; mutates nothing |
+| UX problems in a **running** app — walk a plan's **traced** journeys, or hunt unknown problems plan-free | `/core-engineering:ce-ux-audit` | auto-detects journey-walk (plan owns the surface) vs adversarial-discovery (no plan) mode itself |
+| validate that a role can follow an existing doc / runbook / quickstart | `/core-engineering:ce-doc-audit` | ⌨ human-initiated — executes the doc's steps as a reader role in a sandbox; inline findings, not verdicts |
 
 **Product direction** — these three ship in the companion **`product-discovery`** plugin (not `core-engineering`); if a route below fires and the skill is not installed, tell the user to `claude plugin install product-discovery@vg-coding`.
 
 | The request is… | Route to | Because |
 |---|---|---|
-| "generate and rank many ideas" | `/ce-idea-scout` | a verdict-rendering funnel to a ranked shortlist (product-discovery plugin) |
-| "score this one idea" | `/ce-idea-score` | seven-axis Pursue/Park/Drop verdict (product-discovery plugin) |
-| "validate the market/competitors first" | `/ce-market-scan` | evidence-bound scan; frames, renders no go/no-go (product-discovery plugin) |
+| "generate and rank many ideas" | `/product-discovery:ce-idea-scout` | a verdict-rendering funnel to a ranked shortlist (product-discovery plugin) |
+| "score this one idea" | `/product-discovery:ce-idea-score` | seven-axis Pursue/Park/Drop verdict (product-discovery plugin) |
+| "validate the market/competitors first" | `/product-discovery:ce-market-scan` | evidence-bound scan; frames, renders no go/no-go (product-discovery plugin) |
 
 **Deliver / ship**
 
 | The request is… | Route to | Because |
 |---|---|---|
-| "turn this spec into work items" | `/ce-ship-backlog` | paste-ready ADO items, one-way, no tracker writes |
-| "decide release readiness / write the changelog" | `/ce-ship-release` | release decision package + changelog on consent |
-| "generate the user-facing docs" | `/ce-ship-document` | docs grounded in verified behavior with run examples |
-| "make this prose sound natural / less AI-generated" | `/ce-humanize` | rewrites tone of existing prose; preserves facts and markup; ephemeral, edits a named file only on consent |
+| "turn this spec into work items" | `/core-engineering:ce-ship-backlog` | paste-ready ADO items, one-way, no tracker writes |
+| "decide release readiness / write the changelog" | `/core-engineering:ce-ship-release` | release decision package + changelog on consent |
+| "generate the user-facing docs" | `/core-engineering:ce-ship-document` | docs grounded in verified behavior with run examples |
+| "make this prose sound natural / less AI-generated" | `/core-engineering:ce-humanize` | rewrites tone of existing prose; preserves facts and markup; ephemeral, edits a named file only on consent |
 
 <!-- routing-table:end -->
 
@@ -146,14 +146,14 @@ name both in the gate and let the human pick.
    - **Model-invocable route** (the default) → invoke the chosen `/ce-*` skill
      via the `Skill` tool, passing the user's request through as its argument.
      You do not do the downstream skill's work yourself; you start it.
-   - **Human-initiated route** — `/ce-patch`, `/ce-auto-build`, `/ce-probe-sec`,
-     `/ce-probe-perf`, `/ce-ship-release`, and `/ce-doc-audit`
+   - **Human-initiated route** — `/core-engineering:ce-patch`, `/core-engineering:ce-auto-build`, `/core-engineering:ce-probe-sec`,
+     `/core-engineering:ce-probe-perf`, `/core-engineering:ce-ship-release`, and `/core-engineering:ce-doc-audit`
      carry `disable-model-invocation: true`, so the `Skill` tool cannot start them by
      design (these lanes write code, act on live targets, or cut releases, and
      must be human-pulled). Do **not** attempt a `Skill` handoff, and do **not**
      report them as "not installed" — they are installed, just human-only. Hand
      *back*: print the exact command for the user to run —
-     `Run:  /ce-patch <request>` — with the one-line reason from the table.
+     `Run:  /core-engineering:ce-patch <request>` — with the one-line reason from the table.
    - **Not-installed route** (e.g. the `product-discovery` trio when that plugin
      is absent) → tell the user the `claude plugin install …` command.
 6. **Never chain.** Route to one skill and stop. The routed skill (or the user)
@@ -200,7 +200,7 @@ another route, re-render the gate for the new choice.
 - **Only as good as the repo signals** — if `plans.json` is missing or a spec
   dir is half-written, the fork it informs degrades to the ambiguity path (the
   gate shows both routes), never to a silent wrong guess.
-- **One hop, no orchestration** — it is not `/ce-auto-build`; it starts a single
+- **One hop, no orchestration** — it is not `/core-engineering:ce-auto-build`; it starts a single
   skill and stops. It does not sequence a pipeline or resume a run.
 - **Writes nothing** — no artifact, no ledger line; its `allowed-tools`
   deliberately exclude `Write` and `Edit`. The only trace it leaves is the

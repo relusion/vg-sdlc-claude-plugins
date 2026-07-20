@@ -36,11 +36,14 @@ env:
   # Pinned for reproducible runs; must equal plugin-validate.yml's pin —
   # parity is CI-enforced by supply_chain_check.py.
   CLAUDE_VERSION: 2.1.195
+  EVAL_RUN_DIR: /tmp/eval-live-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   live-evals:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The full profile's sequential scenario deadlines total 180 minutes.
+    # Leave setup/artifact headroom so the runner can write timeout receipts.
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -87,40 +90,21 @@ jobs:
           python3 scripts/eval_run.py --execute --bare \
             --profile "$PROFILE" \
             --max-budget-usd "$BUDGET_USD" \
-            --out-dir /tmp/eval-live-run
+            --out-dir "$EVAL_RUN_DIR"
 
-      - name: Distill run summary
+      - name: Show runner-generated summary
         if: always() && steps.gate.outputs.have-key == 'true'
         run: |
-          python3 - <<'PYEOF'
-          import json
-          from pathlib import Path
-
-          out = Path("/tmp/eval-live-run")
-          meta_path = out / "metadata.json"
-          if not meta_path.is_file():
-              print("no metadata.json — run failed before any scenario executed")
-              raise SystemExit(0)
-          meta = json.loads(meta_path.read_text(encoding="utf-8"))
-          summary = {
-              "schema_version": 1,
-              "run_id": meta.get("run_id"),
-              "dry_run": meta.get("dry_run"),
-              "max_budget_usd": meta.get("max_budget_usd"),
-              "scenarios": [
-                  {k: r.get(k) for k in
-                   ("id", "skill", "profile", "status", "returncode", "failure_kind")}
-                  for r in meta.get("records", [])
-              ],
-          }
-          (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-          print(json.dumps(summary, indent=2))
-          PYEOF
+          if [ ! -f "$EVAL_RUN_DIR/summary.json" ]; then
+            echo "::notice::No summary.json — the runner failed before it could write a receipt."
+            exit 0
+          fi
+          python3 -m json.tool "$EVAL_RUN_DIR/summary.json"
 
       - name: Upload run records
         if: always() && steps.gate.outputs.have-key == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: eval-live-${{ github.run_id }}
-          path: /tmp/eval-live-run
+          name: eval-live-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVAL_RUN_DIR }}
           retention-days: 90

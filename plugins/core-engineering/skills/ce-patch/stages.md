@@ -1,6 +1,6 @@
 # Patch Workflow — Express-Only Stages
 
-Run this file after reading `SKILL.md`. `/ce-patch` has one path; `--express` is a
+Run this file after reading `SKILL.md`. `/core-engineering:ce-patch` has one path; `--express` is a
 backward-compatible no-op alias. Load `${CLAUDE_SKILL_DIR}/artifact-reference.md`
 before creating the transient candidate stub or appending the accepted ledger line.
 
@@ -12,14 +12,14 @@ before creating the transient candidate stub or appending the accepted ledger li
    `base_ref`.
 2. Inspect `git status --short`. Preserve all pre-existing user changes. If a
    candidate file is already modified and patch ownership cannot be separated with
-   confidence, stop and route to `/ce-plan`.
+   confidence, stop and route to `/core-engineering:ce-plan`.
 3. Read the requested file(s), their direct callers/consumers (one hop), and the
    relevant test/build configuration. Do not create a repository-wide profile.
 4. Enumerate the complete candidate set, including the test file. It must contain one
    or two repository-relative paths. If the set is unknown, wider, or likely to grow,
-   stop and route to `/ce-plan`.
+   stop and route to `/core-engineering:ce-plan`.
 5. Check for product or architecture unknowns and runtime blast radius that path
-   heuristics cannot see. Any uncertainty routes to `/ce-plan`.
+   heuristics cannot see. Any uncertainty routes to `/core-engineering:ce-plan`.
 
 No code or durable workflow artifact may be written during this probe.
 
@@ -42,9 +42,13 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/patch-lint.py" <tmp>/express.json --express
 Disposition is fixed:
 
 - **PASS (0):** freeze the stub's candidate paths and continue.
-- **FAIL (1):** show the named E-check and route directly to `/ce-plan`.
+- **FAIL (1):** show the named E-check and route directly to `/core-engineering:ce-plan`.
 - **ERROR (2):** admission is inconclusive; show the error and route directly to
-  `/ce-plan`.
+  `/core-engineering:ce-plan`.
+
+The first non-zero admission result is terminal. Do not try alternate candidate
+stubs, continue into later stages, or add hypothetical blockers after the handoff
+evidence is complete.
 
 There is no manual fallback and no full patch lane. Delete the transient stub after
 the run ends.
@@ -60,7 +64,7 @@ before changing production behavior and capture:
 
 The failure must demonstrate the requested gap. A missing tool, unrelated failure,
 already-green test, or required test/fixture outside the frozen set makes the lane
-inconclusive: stop and route to `/ce-plan` before implementation.
+inconclusive: stop and route to `/core-engineering:ce-plan` before implementation.
 
 ## Stage 2 — Implement and Reach Green
 
@@ -69,11 +73,11 @@ conventions and keep unrelated user changes intact.
 
 1. Make one bounded implementation pass, then rerun the Stage 1 command once. If it
    is still red, fails for a different reason, or cannot run, stop and route directly
-   to `/ce-plan`; do not start a repair loop.
+   to `/core-engineering:ce-plan`; do not start a repair loop.
 2. Run each proportionate lint, type, build, or nearby regression check once. Any
-   failure or could-not-run result routes directly to `/ce-plan`.
+   failure or could-not-run result routes directly to `/core-engineering:ce-plan`.
 3. Inspect `git diff --name-only` before continuing. Needing or touching any file
-   outside the frozen set is a Scope Lock breach; stop and route to `/ce-plan`.
+   outside the frozen set is a Scope Lock breach; stop and route to `/core-engineering:ce-plan`.
 
 Do not change the candidate stub to legitimize a wider diff.
 
@@ -93,7 +97,7 @@ The post-check re-runs admission, then checks:
 - **H10:** no destructive/irreversible operation;
 - **H11:** no new public API, route, CLI option, or other contract surface.
 
-Only exit `0` proceeds. Exit `1` or `2` routes directly to `/ce-plan`. Show the exact
+Only exit `0` proceeds. Exit `1` or `2` routes directly to `/core-engineering:ce-plan`. Show the exact
 finding and leave any partial diff visible; do not auto-revert it, waive it, or add a
 file to the candidate set after the fact.
 
@@ -103,7 +107,8 @@ Print `Gate 1 of 1 — Patch acceptance` and render one compact evidence bundle:
 
 - request and frozen files;
 - actual diff;
-- red command/result and green command/result;
+- `Red command/result:` followed by the exact failing command and result;
+- `Green command/result:` followed by the exact passing command and result;
 - proportionate regression checks;
 - E1–E5 and H8–H11 results;
 - explicit no-sensitive-surface and no-open-unknown statements;
@@ -116,7 +121,7 @@ Ask the human to choose:
 | **Accept** | keep the diff; append one line to `docs/plans/express-log.jsonl` |
 | **Revise** | stay inside the frozen set; repeat Stages 1–4 |
 | **Discard** | confirm and remove only patch-owned changes; append nothing |
-| **Route to `/ce-plan`** | keep the diff visible; append nothing; emit the handoff below |
+| **Route to `/core-engineering:ce-plan`** | keep the diff visible; append nothing; emit the handoff below |
 
 Do not interpret silence or an unrelated reply as acceptance.
 
@@ -129,7 +134,7 @@ the changed files and commands run, then leave the diff uncommitted.
 ### Revise
 
 If the revision still fits the frozen request and paths, return to Stage 1 so the
-changed behavior again has red-to-green evidence. Otherwise route to `/ce-plan`.
+changed behavior again has red-to-green evidence. Otherwise route to `/core-engineering:ce-plan`.
 
 ### Discard
 
@@ -137,12 +142,12 @@ Show the exact patch-owned changes that will be removed and require the explicit
 Discard choice. Restore only those edits. If a file contained pre-existing user work,
 do not use a whole-file restore; stop and ask the human how to preserve it.
 
-### Route to `/ce-plan`
+### Route to `/core-engineering:ce-plan`
 
 Emit a text handoff with:
 
 ```text
-Next: /ce-plan <original request>
+Next: /core-engineering:ce-plan <original request>
 Candidate files: <paths>
 Reason: <failed or uncertain E/H check, scope breach, or open question>
 Evidence: <repository reads and test commands/results>

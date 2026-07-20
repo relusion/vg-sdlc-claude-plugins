@@ -91,6 +91,19 @@ DISARM_NEEDLE = "matched no security_obligations entry"
 
 
 class H5StatusRan(unittest.TestCase):
+    def test_auto_build_fixture_declares_every_feature_obligation(self):
+        threat_model = (
+            REPO
+            / "evals/fixtures/auto-build-three-feature/docs/plans/snippet-vault/threat-model.md"
+        )
+        expected = {
+            "01-create-snippet": {"TZ-001"},
+            "02-share-snippet": {"TZ-002"},
+            "03-export-snippets": {"TZ-003"},
+        }
+        for feature, threat_ids in expected.items():
+            self.assertEqual(sl.read_feature_threat_ids(threat_model, feature), threat_ids)
+
     def test_matching_threat_model_reports_ran_and_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             spec_dir = write_plan(Path(tmp), THREAT_MODEL_MATCHING)

@@ -15,15 +15,11 @@ and no park.
 
 ## Acceptance Criteria (EARS)
 
-- **AC-1:** When `add_snippet` is called with a non-empty `title`, a `body` no longer
-  than `MAX_BODY`, and a `language` in `ALLOWED_LANGUAGES`, the system shall append a
-  `Snippet` with the next id and return it. `[CONTRACT: IC-001]`
+- **AC-1:** When `add_snippet` is called with a non-empty `title`, the system shall
+  append a `Snippet` containing the supplied title, body, and language with the next
+  id, then return it. `[CONTRACT: IC-001]`
 - **AC-2:** When `title` is empty or whitespace-only, the system shall raise `ValueError`
   and add nothing. `[SECURITY: TZ-001]`
-- **AC-3:** When `body` exceeds `MAX_BODY`, the system shall raise `ValueError` and add
-  nothing. `[SECURITY: TZ-001]`
-- **AC-4:** When `language` is not in `ALLOWED_LANGUAGES`, the system shall raise
-  `ValueError` and add nothing.
 
 ## Test Guidance
 

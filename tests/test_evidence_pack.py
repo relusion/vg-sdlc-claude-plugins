@@ -285,6 +285,21 @@ class EvidencePack(unittest.TestCase):
             res = run(str(plan), "--out", str(plan / "specs" / "01-core"))
             self.assertEqual(res.returncode, 1)
 
+    def test_out_refuses_to_overwrite_existing_pack(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan, guard_log, mv = make_fixture(Path(tmp))
+            out = plan / "evidence-pack" / "2026-07-04"
+            first = run(str(plan), "--guard-log", str(guard_log),
+                        "--merge-verdict", str(mv), "--out", str(out))
+            self.assertEqual(first.returncode, 0, first.stderr)
+            original = (out / "pack.json").read_bytes()
+
+            second = run(str(plan), "--guard-log", str(guard_log),
+                         "--merge-verdict", str(mv), "--out", str(out))
+            self.assertEqual(second.returncode, 1)
+            self.assertIn("target already exists", second.stderr)
+            self.assertEqual((out / "pack.json").read_bytes(), original)
+
     def test_empty_dir_exits_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             res = run(tmp)

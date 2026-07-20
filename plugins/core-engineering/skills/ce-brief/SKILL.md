@@ -1,8 +1,8 @@
 ---
 name: ce-brief
 description: |
-  Interview a user about a raw idea via library-selected persona lenses and synthesize a structured brief whose lead section is a self-sufficient Project Description for /ce-plan. Elicits and records intent only — never profiles code, decides, or decomposes.
-  Triggers: shape a raw idea or thin feature request into planning input. Feeds /ce-plan, which does the codebase-grounded decomposition.
+  Interview a user about a raw idea via library-selected persona lenses and synthesize a structured brief whose lead section is a self-sufficient Project Description for /core-engineering:ce-plan. Elicits and records intent only — never profiles code, decides, or decomposes.
+  Triggers: shape a raw idea or thin feature request into planning input. Feeds /core-engineering:ce-plan, which does the codebase-grounded decomposition.
 argument-hint: "[raw idea or feature request]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -28,7 +28,7 @@ lens file **only when you select it** (Stage 0.5) — never all up front, and yo
 > **Optional upstream:** a separate, evidence-bound **ce-market-scan** skill
 > (in the companion `product-discovery` plugin — source + date, three-state
 > evidence, unverified items labeled) may be composed
-> **before** `/ce-brief`. It is **not** part of this skill; if such a research doc
+> **before** `/core-engineering:ce-brief`. It is **not** part of this skill; if such a research doc
 > exists, treat it only as an input Reference Document. Do not perform or fabricate
 > market research here.
 
@@ -81,9 +81,9 @@ or the invariant. In particular:
 10. **Never write the final brief before Brief Approval** (Stage 3). The one
     exception is the per-round `docs/briefs/.drafts/<slug>.md` **draft
     checkpoint** — a crash-resume artifact, never the brief and never a plan
-    input; the dot-directory plus the DRAFT header keep `/ce-plan` from ever
+    input; the dot-directory plus the DRAFT header keep `/core-engineering:ce-plan` from ever
     reading it (its `brief:` channel takes `docs/briefs/<slug>.md` only).
-11. **Never launch /ce-plan** without an explicit user choice.
+11. **Never launch /core-engineering:ce-plan** without an explicit user choice.
 12. The synthesized **Project Description** must stand alone as plan's
     required input.
 
@@ -128,7 +128,7 @@ its consequence (HITL Gate Standard R1):
 - **Start fresh** → **deletes the draft** and restarts the interview from round 1;
   the earlier draft's answers are gone.
 - **Abort** → stop now, write nothing, **leave the draft in place** so a later
-  `/ce-brief` on the same idea can resume it.
+  `/core-engineering:ce-brief` on the same idea can resume it.
 
 ## Stage 0.5 — Meta-Prompt: Select Persona Lenses
 
@@ -227,7 +227,7 @@ unresolved becomes an **Assumption** or **Open Question** (findings, not verdict
 with every section filled *so far*, topped by a
 `> DRAFT — round <n> of interview, not approved` header (`<n>` = rounds
 completed). This is a crash-resume checkpoint only: the dot-directory and the
-DRAFT header keep it from ever being read as a brief or a `/ce-plan` input, so an
+DRAFT header keep it from ever being read as a brief or a `/core-engineering:ce-plan` input, so an
 interrupted run degrades to *resume-from-round-`<n>`* instead of total loss.
 
 If a first synthesis reveals blocking ambiguity, run one optional follow-up round
@@ -251,12 +251,12 @@ restate a lens's hypothesis as an asserted fact in any other section.
    destructive, so say so:
    - **Approve & write** → write `docs/briefs/<slug>.md`, **delete the
      `docs/briefs/.drafts/<slug>.md` draft**, and **stop here**; you run
-     `/ce-plan` yourself later when ready.
+     `/core-engineering:ce-plan` yourself later when ready.
    - **Adjust** → return to Stage 1 with their corrections; **the final brief is
      not written yet** — the draft keeps absorbing each further round.
    - **Approve, write & plan now** → write the brief, **delete the draft**, then
      **immediately launch the full
-     `/ce-plan` decomposition interview** (the heavier, multi-gate workflow) — invoking the
+     `/core-engineering:ce-plan` decomposition interview** (the heavier, multi-gate workflow) — invoking the
      `ce-plan` skill, passing **two distinct inputs**:
      1. the **Project Description** as plan's required free-text input, and
      2. the brief as a **dedicated, named brief input** — `brief: docs/briefs/<slug>.md`
@@ -275,7 +275,7 @@ restate a lens's hypothesis as an asserted fact in any other section.
    `docs/briefs/<slug>.md`, also write `docs/briefs/<slug>.json` —
    `{"schema_version": 1, "sections": {"<section-slug>": "answered"|"open"|"disputed"}, "lenses": [<applied lenses>], "open_questions": <N>}`
    — one entry per Brief-Template section (unresolved → `open`; a claim the code
-   may contradict → `disputed`). This sidecar arms `/ce-plan` Stage 1.4's skip
+   may contradict → `disputed`). This sidecar arms `/core-engineering:ce-plan` Stage 1.4's skip
    **from data** rather than prose (see **The Brief → Plan Seam**), so run
    `python3 "${CLAUDE_SKILL_DIR}/scripts/brief-lint.py" docs/briefs/<slug>.md`
    and render its verdict in this gate: **PASS** → hand off; **hard FAIL (exit
@@ -284,7 +284,7 @@ restate a lens's hypothesis as an asserted fact in any other section.
 4. On a write-only approval, print the exact next skills and note the brief path,
    so the brief is handed off through the dedicated channel rather than as a loose
    reference:
-   `/ce-plan <one-line description> brief=docs/briefs/<slug>.md`
+   `/core-engineering:ce-plan <one-line description> brief=docs/briefs/<slug>.md`
 
 ---
 
@@ -301,7 +301,7 @@ slug: <slug>
 <personas that ran (e.g. solutions-architect, business-analyst) + personas considered and dropped with the one-line reason (e.g. sparring-partner — premise looked solid); record any named range exception taken (under-selection <2, or zero-lens generic-spine fallback) and its reason>
 
 ## Project Description
-<synthesized 1–2 paragraphs — the required input for /ce-plan>
+<synthesized 1–2 paragraphs — the required input for /core-engineering:ce-plan>
 
 ## Problem & Goals
 ## Users & Roles
@@ -331,9 +331,9 @@ slug: <slug>
 
 ## The Brief → Plan Seam
 
-This section describes the **contract the brief offers** to `/ce-plan` — the inputs
+This section describes the **contract the brief offers** to `/core-engineering:ce-plan` — the inputs
 this skill supplies and the skip behavior the plan side is **expected to perform**
-once it implements the matching step. It does **not** assert that `/ce-plan` performs
+once it implements the matching step. It does **not** assert that `/core-engineering:ce-plan` performs
 that skip today: stating a skip the receiving layer silently fails to do would
 itself be a silent cap. The contract is live only when both halves ship.
 
@@ -341,16 +341,16 @@ The brief carries **intent**: problem, users, journeys, scope, success criteria,
 stack preferences, integrations-as-intent, constraints, risks, pitfalls,
 references. It does **not** carry codebase-grounded answers.
 
-`/ce-plan` owns the **codebase-grounded residue**: the nine-dimension profile,
+`/core-engineering:ce-plan` owns the **codebase-grounded residue**: the nine-dimension profile,
 brownfield friction, existing-surface extend-vs-isolate, foundations forced by
 current code, ordering forced by hot files, migration against real data surfaces.
 
 **The offered contract.** When a brief is supplied through the dedicated `brief:`
-input, `/ce-plan` Stage 1.4 is **expected to**: map the brief's sections onto its
+input, `/core-engineering:ce-plan` Stage 1.4 is **expected to**: map the brief's sections onto its
 decomposition question list, **skip the questions the brief already answered**, ask
 only the codebase-grounded residue plus the brief's Open Questions that affect
 decomposition, and **state which questions it skipped because the brief answered
-them**. The brief therefore *reduces* the `/ce-plan` interview without *replacing* it.
+them**. The brief therefore *reduces* the `/core-engineering:ce-plan` interview without *replacing* it.
 
 **This half supplies the inputs that make that skip possible** — a self-sufficient
 Project Description, sectioned intent that maps cleanly onto the plan's
@@ -358,14 +358,14 @@ decomposition questions, and an explicit Open Questions list flagging what is st
 undecided. **The matching plan-side step ships alongside this skill** — `plan`
 Stage 1.4's Brief-Aware Skip Contract reads the `brief:` input and prints its skips
 — so the seam is live when both are present. The skip arms **only** through the
-dedicated `brief:` channel: pass no brief and `/ce-plan` simply re-asks — no silent
+dedicated `brief:` channel: pass no brief and `/core-engineering:ce-plan` simply re-asks — no silent
 skip occurs. This skill's output alone (a brief left unpassed) does not arm it.
 
 ## Escalation
 
-If the idea needs evidence before commitment, route to `/ce-market-scan` or
-`/ce-idea-score` (both in the companion `product-discovery` plugin — install it if
-not present). If the user is ready to decompose, hand off to `/ce-plan` with the
+If the idea needs evidence before commitment, route to `/product-discovery:ce-market-scan` or
+`/product-discovery:ce-idea-score` (both in the companion `product-discovery` plugin — install it if
+not present). If the user is ready to decompose, hand off to `/core-engineering:ce-plan` with the
 brief path. If a product decision blocks the brief, record it as an Open Question or
 Decision Log entry rather than deciding it here.
 
@@ -387,12 +387,12 @@ Decision Log entry rather than deciding it here.
   findings, not expert verdicts.
 - **Reduces, never eliminates the plan interview** — a brief hands off via the
   **Brief → Plan Seam** above, and codebase-grounded questions still arise
-  downstream in `/ce-plan`.
+  downstream in `/core-engineering:ce-plan`.
 - **The Brief → Plan skip is a two-part contract, not a guarantee from this skill.**
   This skill supplies the inputs through a dedicated `brief:` channel; the actual
   skip is performed by `plan` Stage 1.4's Brief-Aware Skip Contract (which
-  ships alongside it). When no `brief:` argument is passed, `/ce-plan` re-asks normally
+  ships alongside it). When no `brief:` argument is passed, `/core-engineering:ce-plan` re-asks normally
   — nothing is silently skipped, and this skill does not claim otherwise.
 - **No market research** — an upstream evidence-bound research skill (composed
-  before `/ce-brief`) is the place for that, and its output is consumed here only as a
+  before `/core-engineering:ce-brief`) is the place for that, and its output is consumed here only as a
   labeled Reference Document.

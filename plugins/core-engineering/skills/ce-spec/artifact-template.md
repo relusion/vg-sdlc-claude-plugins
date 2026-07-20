@@ -193,18 +193,18 @@ Implement the task list in order. Each task is complete when its test cases pass
 ```
 
 `tasks` is in execution order. Every `verifies` entry must be a test case id that
-exists in `ce-spec.md`. `/ce-spec` authors each task with `status: "todo"` and writes
+exists in `ce-spec.md`. `/core-engineering:ce-spec` authors each task with `status: "todo"` and writes
 **none** of the evidence fields below — they are the spec's contract, not its outcome.
 
-**Implement-written evidence fields (additive; `/ce-spec` never writes them).** When
-`/ce-implement` marks a task `done`, it *stamps* it with proof of completion
+**Implement-written evidence fields (additive; `/core-engineering:ce-spec` never writes them).** When
+`/core-engineering:ce-implement` marks a task `done`, it *stamps* it with proof of completion
 (`task-evidence.py`) rather than flipping a bare flag — three fields land on the task
 object:
 
 | Field | Written | Meaning |
 |---|---|---|
 | `completed_at` | task marked `done` | UTC ISO-8601 (`YYYY-MM-DDTHH:MM:SSZ`) — when done-ness was recorded. |
-| `commit_sha` | done (per-task) / feature commit (per-feature/none) | full sha of the commit holding the proven change; `null` until committed. The freshness check (`/ce-verify`, `/ce-ship-release`) reads it to verdict a task `fresh` vs `stale` against HEAD. |
+| `commit_sha` | done (per-task) / feature commit (per-feature/none) | full sha of the commit holding the proven change; `null` until committed. The freshness check (`/core-engineering:ce-verify`, `/core-engineering:ce-ship-release`) reads it to verdict a task `fresh` vs `stale` against HEAD. |
 | `test_run_digest` | task marked `done` | `sha256:<hex>` test-run fingerprint, projected **verbatim** from the task's PASS marker in `.test-guard/<id>/passes.json` (the source of truth); `null` for a task with no `auto` test and no captured log — never fabricated. |
 
 These are **additive and optional**: `spec-lint.py`'s H1–H4 read only `id`, `verifies`,

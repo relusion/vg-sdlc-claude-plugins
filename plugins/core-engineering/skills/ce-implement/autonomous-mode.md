@@ -1,13 +1,13 @@
-# Autonomous Mode — the auto-build execution overlay for `/ce-implement`
+# Autonomous Mode — the auto-build execution overlay for `/core-engineering:ce-implement`
 
-Loaded **only** when `/ce-implement` runs under `/ce-auto-build` (a spawned
-implementation worker). The interactive `/ce-implement` never loads this file —
+Loaded **only** when `/core-engineering:ce-implement` runs under `/core-engineering:ce-auto-build` (a spawned
+implementation worker). The interactive `/core-engineering:ce-implement` never loads this file —
 its review-and-approve gates apply as written. Read it once, before Stage 0, and
 apply it for the whole run.
 
 ---
 
-When invoked by `/ce-auto-build`, run without interactive gates, applying auto-build's **Decision Classification**:
+When invoked by `/core-engineering:ce-auto-build`, run without interactive gates, applying auto-build's **Decision Classification**:
 
 - **Auto-resolve** routine implementation choices (record notable ones in the run ledger).
 - **Working tree + version control are the orchestrator's.** Do not check, acknowledge, or stop on a dirty working tree, and do not establish a VC policy or branch — auto-build owns the **clean-tree gate** (its Stage 0) and all git (Spawn Contract). Stage 0's working-tree ack and VC-policy prompts are suppressed here.

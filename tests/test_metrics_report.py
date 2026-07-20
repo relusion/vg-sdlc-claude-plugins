@@ -30,7 +30,7 @@ def make_fixture(root: Path) -> None:
     }), encoding="utf-8")
     (plan / ".metrics.jsonl").write_text("\n".join([
         json.dumps({"event": "gate", "gate": "pass"}),
-        json.dumps({"event": "escalation", "escalation_type": "/ce-plan"}),
+        json.dumps({"event": "escalation", "escalation_type": "/core-engineering:ce-plan"}),
         "{not json",
     ]) + "\n", encoding="utf-8")
     (spec / "verification.md").write_text("# verified\n", encoding="utf-8")
@@ -39,8 +39,8 @@ def make_fixture(root: Path) -> None:
         "blocking_high": 1,
         "by_severity": {"high": {"confirmed": 1}, "medium": 1},
     }), encoding="utf-8")
-    (plan / "auto-build").mkdir()
-    (plan / "auto-build" / "2026-06-28-run.md").write_text("# run\n", encoding="utf-8")
+    (plan / "ce-auto-build").mkdir()
+    (plan / "ce-auto-build" / "2026-06-28-run.md").write_text("# run\n", encoding="utf-8")
 
     run_dir = root / "evals" / "runs" / "20260628"
     run_dir.mkdir(parents=True)
@@ -70,7 +70,7 @@ class MetricsReport(unittest.TestCase):
             self.assertEqual(doc["metrics"]["lines_total"], 3)
             self.assertEqual(doc["metrics"]["lines_unparseable"], 1)
             self.assertEqual(doc["metrics"]["gates"]["pass"], 1)
-            self.assertEqual(doc["metrics"]["escalations_by_type"]["/ce-plan"], 1)
+            self.assertEqual(doc["metrics"]["escalations_by_type"]["/core-engineering:ce-plan"], 1)
             self.assertEqual(doc["reviews"]["findings_total"], 2)
             self.assertEqual(doc["reviews"]["blocking_high"], 1)
             self.assertEqual(doc["verifications"]["files"], 1)

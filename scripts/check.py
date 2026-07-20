@@ -450,7 +450,7 @@ CATALOG_END = "<!-- skill-catalog:end -->"
 
 
 def skill_invocation(plugin_dir: Path, skill_md: Path) -> str:
-    return f"/{skill_md.parent.name}"
+    return f"/{plugin_dir.name}:{skill_md.parent.name}"
 
 
 if CORE.is_dir():
@@ -492,7 +492,10 @@ if CORE.is_dir():
         else:
             checked += 1
             block = text.split(CATALOG_START, 1)[1].split(CATALOG_END, 1)[0]
-            listed = re.findall(r"`(/ce-[^`]+)`", block)
+            listed = re.findall(
+                r"`(/[A-Za-z_][A-Za-z0-9_-]*:ce-[A-Za-z0-9-]+)`",
+                block,
+            )
             listed_set = set(listed)
             duplicate = sorted({x for x in listed if listed.count(x) > 1})
             missing = sorted(expected_skills - listed_set)

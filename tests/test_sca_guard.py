@@ -1,4 +1,4 @@
-"""Tests for sca-guard.py — the OSV-backed known-vulnerability floor of /ce-probe-deps."""
+"""Tests for sca-guard.py — the OSV-backed known-vulnerability floor of /core-engineering:ce-probe-deps."""
 
 import http.server
 import json

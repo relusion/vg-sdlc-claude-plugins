@@ -44,7 +44,7 @@ symptom. Draft an **ephemeral module skeleton** in the exact module shape —
 applies-when signals, class-specific intake additions, a mechanism-map checklist,
 and candidate failure families *each with static signatures and a runtime
 discriminator* — from the symptom, the intake answers, and general failure
-knowledge. *(The deliberate echo of `/ce-brief`'s Stage 0.5: a meta-step that
+knowledge. *(The deliberate echo of `/core-engineering:ce-brief`'s Stage 0.5: a meta-step that
 selects/shapes content, never one that decides or relaxes the contract.)*
 
 The rules that keep it honest:

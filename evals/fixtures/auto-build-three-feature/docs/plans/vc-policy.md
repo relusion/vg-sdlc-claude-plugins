@@ -9,4 +9,5 @@
 
 Auto-build may edit only the copied fixture and its plan evidence. It must not
 initialize version control, create branches or commits, push, open or merge a pull
-request, or deploy. The Stage-3 report leaves the complete diff for human review.
+request, or deploy. The Gate-2 evidence leaves the complete diff for human review;
+the post-decision Stage-3 report is not written before that review.

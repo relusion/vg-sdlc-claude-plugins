@@ -2,7 +2,7 @@
 
 > Scope: <feature ids/range> · Status: complete | halted (<reason>) · Baseline: <commit>
 > Worker selection: plugin agents | generic Task workers
-> Budget: <spent>/<approved estimate> · Retry cap: <N> · Park cap: <N>
+> Budget: <spent>/<approved estimate> · Failure-attempt cap: <N> · Park cap: <N>
 > Features: <done> done · <parked> parked · <failed> failed · <blocked> blocked
 
 ## End-Review Triage

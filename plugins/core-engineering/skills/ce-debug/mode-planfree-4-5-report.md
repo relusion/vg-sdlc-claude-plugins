@@ -26,12 +26,12 @@ is recorded in the report.
 
 | Outcome | Route |
 |---|---|
-| `confirmed` cause; small, bounded fix | `/ce-patch` |
+| `confirmed` cause; small, bounded fix | `/core-engineering:ce-patch` |
 | Top-ranked `suspected` whose discriminator the human **declines to fetch** | stop without a code-change route; record the accepted uncertainty and the unfetched discriminator |
-| Cause is structural — cross-component, design, ownership | `/ce-plan` |
+| Cause is structural — cross-component, design, ownership | `/core-engineering:ce-plan` |
 | Component turns out to be a spec-owned pipeline feature | switch to **planned mode** — load `${CLAUDE_SKILL_DIR}/mode-planned.md` and diagnose against the contract (this report is the failure signal) |
-| Cause needs numeric / performance proof | `/ce-probe-perf` |
-| Security-shaped cause | `/ce-review` Security lens (static) · `/ce-probe-sec` (dynamic) |
+| Cause needs numeric / performance proof | `/core-engineering:ce-probe-perf` |
+| Security-shaped cause | `/core-engineering:ce-review` Security lens (static) · `/core-engineering:ce-probe-sec` (dynamic) |
 | Environmental / external — no code change fixes it | the human + ops, armed with the discrimination-plan items |
 | Nothing above `suspected` | run the discrimination plan; re-invoke with the new evidence |
 

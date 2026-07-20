@@ -12,7 +12,7 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "docs_drift.py"
 MANIFEST_REL = "docs/examples-manifest.json"
 EXAMPLES_REL = "docs/EXAMPLES.md"
-GOLDEN_SPEC_REL = "evals/golden/EVAL-005/specs/01-invite-user/spec.md"
+GOLDEN_SPEC_REL = "evals/golden/EVAL-005/specs/01-invite-user/ce-spec.md"
 
 
 def run(*args):
@@ -77,7 +77,7 @@ class DocsDrift(unittest.TestCase):
             examples = repo / EXAMPLES_REL
             examples.write_text(
                 examples.read_text(encoding="utf-8")
-                + "\n## 9. `/ce-plan` — a new uncovered example\n\n"
+                + "\n## 9. `/core-engineering:ce-plan` — a new uncovered example\n\n"
                 "Provenance: live `EVAL-099`, 2026-07-05.\n",
                 encoding="utf-8",
             )

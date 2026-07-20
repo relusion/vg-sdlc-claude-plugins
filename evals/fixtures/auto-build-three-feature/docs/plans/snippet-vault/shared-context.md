@@ -3,13 +3,12 @@
 ## Codebase Profile
 
 - **Language / runtime:** Python 3 (standard library only; no third-party deps).
-- **Core module:** `snippets.py` — an in-memory `Store` of `Snippet` records plus
-  validation constants (`MAX_BODY`, `ALLOWED_LANGUAGES`) and the `list_snippets` reader.
-  Features extend this one module; there is no database.
+- **Core module:** `snippets.py` — an in-memory `Store` of `Snippet` records plus the
+  `list_snippets` reader. Features extend this one module; there is no database.
 - **Entry point:** `app.py` (a smoke target for integration verify).
 - **Tests:** `checks/` holds pytest files. `checks/snippets_check.py` is the green
-  baseline; `checks/export_check.py` is a dormant acceptance test that activates only
-  once `export_csv` exists (see `features/03-export-snippets.md`).
+  baseline; `checks/export_check.py` is a dormant acceptance test that activates once
+  feature 03's spec exists (see `features/03-export-snippets.md`).
 
 ## Build / Test / Lint
 
@@ -27,11 +26,12 @@ There is no separate lint tool configured; the parse-floor above stands in.
 
 ## Known Pitfalls
 
-- `checks/export_check.py` asserts a **deliberately unsatisfiable** golden — do not
-  weaken or delete it. It exists to exercise the retry-exhaustion path; the fix is not
-  to touch the test but to record the failure (see 03's feature file).
+- `checks/export_check.py` validates the correct export, then raises the deliberate
+  `EVAL-017_RETRY_SENTINEL`. Do not weaken or delete it. It exists to exercise the
+  retry-exhaustion path; record the fixture failure (see 03's feature file).
 
 ## Resolved Project Decisions
 
 - Storage is **in-memory only** for this plan — no persistence, no schema, no migrations.
-- Validation lives in `snippets.py`; every feature reuses `ALLOWED_LANGUAGES` and `MAX_BODY`.
+- Feature 01 validates only the plan's non-empty-title requirement; this fixture does
+  not add unrelated content-policy rules.

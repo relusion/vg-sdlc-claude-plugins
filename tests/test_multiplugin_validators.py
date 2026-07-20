@@ -126,6 +126,15 @@ class AuthoringMultiPlugin(unittest.TestCase):
             dst = repo / "plugins/_probe/skills/ce-market-scan"
             dst.parent.mkdir(parents=True)
             shutil.move(str(src), str(dst))
+            for sibling in ("ce-idea-score", "ce-idea-scout"):
+                skill = repo / f"plugins/product-discovery/skills/{sibling}/SKILL.md"
+                skill.write_text(
+                    skill.read_text(encoding="utf-8").replace(
+                        "/product-discovery:ce-market-scan",
+                        "/_probe:ce-market-scan",
+                    ),
+                    encoding="utf-8",
+                )
             res = run("authoring_check.py", repo)
             self.assertEqual(res.returncode, 0, res.stderr)
 
@@ -157,14 +166,14 @@ class CorpusMultiPlugin(unittest.TestCase):
 
     def test_known_name_universe_is_the_plugin_union(self):
         # A core doc referencing a second-plugin skill (the T6 case: core skills
-        # route to /ce-market-scan) stays valid because the known-name universe
+        # route to /product-discovery:ce-market-scan) stays valid because the known-name universe
         # is the union across plugins.
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy(Path(tmp), self.SUBS, self.FILES)
             add_skill(repo, "_probe", "ce-widget", valid_skill("ce-widget"))
             readme = repo / "README.md"
             readme.write_text(
-                readme.read_text(encoding="utf-8") + "\nRoute to /ce-widget for widgets.\n",
+                readme.read_text(encoding="utf-8") + "\nRoute to /_probe:ce-widget for widgets.\n",
                 encoding="utf-8",
             )
             res = run("corpus_lint.py", repo)
@@ -188,7 +197,7 @@ class ProductLayerMultiPlugin(unittest.TestCase):
             res = run("product_layer_check.py", repo)
             self.assertEqual(res.returncode, 1, res.stdout)
             self.assertIn("missing shipped skill", res.stderr)
-            self.assertIn("/ce-widget", res.stderr)
+            self.assertIn("/_probe:ce-widget", res.stderr)
 
 
 class EvalCoverageMultiPlugin(unittest.TestCase):
@@ -254,7 +263,7 @@ class CheckPyMultiPlugin(unittest.TestCase):
             res = self._check(repo)
             self.assertEqual(res.returncode, 1, res.stdout)
             self.assertIn("skill catalog missing skill(s)", res.stderr)
-            self.assertIn("/ce-widget", res.stderr)
+            self.assertIn("/_probe:ce-widget", res.stderr)
 
 
 if __name__ == "__main__":

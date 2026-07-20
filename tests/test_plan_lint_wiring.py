@@ -1,4 +1,4 @@
-"""WS6-T4 — plan-lint wired as a write-time gate in /ce-plan + /ce-auto-build kickoff.
+"""WS6-T4 — plan-lint wired as a write-time gate in /core-engineering:ce-plan + /core-engineering:ce-auto-build kickoff.
 
 Behaviour of plan-lint.py itself is covered by test_plan_lint.py; this suite locks
 the *wiring* so a future edit cannot silently unhook the gate or let a fork drift:

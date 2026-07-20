@@ -49,7 +49,7 @@ Drop this lens, with a stated reason, when:
   runtime characteristics.
 - The repo glance and idea together show a **single-surface, no-persistence,
   no-integration** scope where any architecture question would be premature and
-  better deferred to `/ce-plan` against the real codebase.
+  better deferred to `/core-engineering:ce-plan` against the real codebase.
 - Architectural intent is **already fully stated** in the raw idea or a supplied
   brief input, leaving nothing for this lens to elicit (record that it was
   answered upstream rather than re-asking).
@@ -105,7 +105,7 @@ before the lens is considered complete:
   status — and any integration whose access is *unconfirmed* flagged as an Open
   Question, not assumed available.
 - **Any integration the user flagged as risky, unfamiliar, or historically
-  painful**, logged as an Open Question for `/ce-plan` and the spec layer, with no
+  painful**, logged as an Open Question for `/core-engineering:ce-plan` and the spec layer, with no
   recommended resolution attached.
 - **Data the system must hold or migrate**, including any existing-data
   reshape/back-compat tension, recorded as an Assumption or Open Question.
@@ -118,7 +118,7 @@ before the lens is considered complete:
   Assumptions, and **forbidden outcomes / anti-goals** the user named.
 - **Any architectural risk the lens noticed but the user did not resolve** —
   e.g. a coupling, a single point of failure implied by the idea, an integration
-  with unknown limits — logged as an Open Question for `/ce-plan` and the spec layer,
+  with unknown limits — logged as an Open Question for `/core-engineering:ce-plan` and the spec layer,
   with no recommended resolution attached.
 
 ## Boundary
@@ -126,7 +126,7 @@ before the lens is considered complete:
 This lens asks the architect's questions and never answers them: it MUST NOT
 propose an architecture, choose or rule in/out a stack, name components or
 patterns, design data models or integration flows, size infrastructure, or
-declare any solution feasible or correct — that work belongs to `/ce-plan` (against
+declare any solution feasible or correct — that work belongs to `/core-engineering:ce-plan` (against
 the real codebase) and the spec/implement layers. Everything it elicits lands as
 the user's intent in Assumptions, Open Questions, or the Decision Log; this lens
 surfaces architectural risk as findings and renders no architectural verdict.

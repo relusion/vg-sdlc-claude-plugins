@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """task-evidence.py — stamp evidence-bound done-ness onto a feature's tasks.json.
 
-`/ce-implement` marks a task `done` when its tests are green. A bare status flag is
+`/core-engineering:ce-implement` marks a task `done` when its tests are green. A bare status flag is
 cheap to lie to (a reverted commit leaves `done` behind) and carries no proof. This
 script replaces the bare flip with an EVIDENCE STAMP: when a task reaches done it also
 records WHERE it was proven and WITH WHAT — three additive fields on the task object.
@@ -50,12 +50,12 @@ against THIS checkout and NEVER writes:
                    stamped-but-uncommitted (commit_sha null), or no git HEAD here:
                    WARNED, never a hard fail, so pre-WS3-T3 plans do not brick.
       Exit 0 when no `done` task is stale, 1 when any is (unstamped never fails). The
-      three done-ness consumers — `/ce-implement` resume, `/ce-verify` Stage 0, and
-      `/ce-ship-release` rule 2 — run this and DOWNGRADE a stale task from done rather
+      three done-ness consumers — `/core-engineering:ce-implement` resume, `/core-engineering:ce-verify` Stage 0, and
+      `/core-engineering:ce-ship-release` rule 2 — run this and DOWNGRADE a stale task from done rather
       than trust the flag; each ships its own byte-identical fork copy (fork-manifest).
 
 The write is ATOMIC (tmp + rename) so a crash mid-stamp never truncates tasks.json.
-The three fields are additive: `/ce-spec` writes `status: "todo"` and no evidence
+The three fields are additive: `/core-engineering:ce-spec` writes `status: "todo"` and no evidence
 fields; they are IMPLEMENT-written, so spec-lint.py's H1-H4 (which read `id`,
 `verifies`, `status`) are unaffected by their presence.
 

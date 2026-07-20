@@ -40,7 +40,7 @@ Record any missing scanner as **degraded coverage** — never a silent skip.
 - **Missing `NetworkPolicy`** (default-allow), `runAsNonRoot` absent, **`automountServiceAccountToken`**
   defaults, **Ingress without TLS**, and **`Service type: LoadBalancer/NodePort`** exposure —
   the last is often `inferred` (real reachability depends on the cluster/cloud); route those to
-  `/ce-probe-sec`.
+  `/core-engineering:ce-probe-sec`.
 
 ## Module limitations (layered on the spine's)
 - The floor reads YAML line-wise, not structurally: it cannot associate a setting with its

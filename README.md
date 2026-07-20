@@ -15,7 +15,9 @@ changes — with **zero Claude Code installed**, and emits one SHA-anchored
 machine verdict an auditor can read. It wires into any PR in three workflow
 lines via the [`action/merge-bar`](./action/merge-bar/README.md) composite
 action, or a copy-in [`templates/adopter-ci/gates.yml`](./templates/adopter-ci/gates.yml)
-for air-gapped orgs. A prompt cannot override a deterministic failure without
+for organizations that forbid third-party composite actions. The copy-in still
+fetches the toolkit at a pinned commit; it is not an offline/air-gapped path. A
+prompt cannot override a deterministic failure without
 changing its committed inputs or the protected policy/workflow. The
 [architecture guide](./docs/HOW-IT-WORKS.md) explains the full control model,
 and the [comparison](./docs/COMPARISON.md) places it alongside alternative
@@ -32,83 +34,115 @@ claude plugin marketplace add relusion/vg-sdlc-claude-plugins
 claude plugin install core-engineering@vg-coding
 ```
 
-Skills then fire automatically when relevant or run directly by their `ce-`-prefixed name (`/ce-plan`, `/ce-review`, …). The merge bar needs no install — it runs in CI from the pinned [`action/merge-bar`](./action/merge-bar/README.md) or the copy-in template. The upstream idea/market skills ship as a separate [`product-discovery`](#the-product-discovery-plugin) plugin; add it only if you want the discovery front-end.
+Most model-invocable skills can be selected automatically when relevant. Every
+skill can also be called directly by its plugin-qualified name (`/core-engineering:ce-plan`,
+`/core-engineering:ce-review`, …). The bounded or safety-sensitive workflows `/core-engineering:ce-auto-build`,
+`/core-engineering:ce-patch`, `/core-engineering:ce-probe-perf`, `/core-engineering:ce-probe-sec`, `/core-engineering:ce-ship-release`, and
+`/core-engineering:ce-doc-audit` are direct-invocation only.
+
+The merge bar needs no plugin install; it runs in CI from the pinned
+[`action/merge-bar`](./action/merge-bar/README.md) or the copy-in template. The
+upstream idea/market skills ship as a separate
+[`product-discovery`](#the-product-discovery-plugin) plugin; add it only when
+you want the discovery front-end.
 
 ## Week one — eight verbs
 
-Most of the first-week value comes from eight skills ([full results & costs](./docs/BENCHMARKS.md));
+Most of the first-week value comes from eight skills ([evaluation status and budgets](./docs/BENCHMARKS.md));
 everything else routes through [`docs/USAGE-MATRIX.md`](./docs/USAGE-MATRIX.md).
 
 | Verb | Use when |
 |---|---|
-| `/ce-init` | First-run repo bootstrap: profile commands, CI, surfaces; write starter policy |
-| `/ce-ask` | Grounded, `file:line`-cited answer to a codebase question |
-| `/ce-impact` | Blast-radius read of a proposed change or work item before building |
-| `/ce-patch` | One low-risk change of at most two files through a single approval gate |
-| `/ce-plan` | Decompose a project into an ordered, dependency-aware feature plan |
-| `/ce-spec` | Detail one planned feature into EARS criteria + `tasks.json` |
-| `/ce-implement` | Build one specified feature test-first, task by task |
-| `/ce-review` | Independently code-review a built feature across six lenses |
+| `/core-engineering:ce-init` | First-run repo bootstrap: profile commands, CI, surfaces; write starter policy |
+| `/core-engineering:ce-ask` | Grounded, `file:line`-cited answer to a codebase question |
+| `/core-engineering:ce-impact` | Blast-radius read of a proposed change or work item before building |
+| `/core-engineering:ce-patch` | One low-risk change of at most two files through a single approval gate |
+| `/core-engineering:ce-plan` | Decompose a project into an ordered, dependency-aware feature plan |
+| `/core-engineering:ce-spec` | Detail one planned feature into EARS criteria + `tasks.json` |
+| `/core-engineering:ce-implement` | Build one specified feature test-first, task by task |
+| `/core-engineering:ce-review` | Independently code-review a built feature across six lenses |
 
-**Measured, with dates:** a 2026-06-27 live batch passed ten scenarios — including grounded Q&A for ~$1, an implementation-ready lint-clean spec for ~$4, and a seeded IDOR caught by review for ~$2. The skills have changed since that batch, so the recency ratchet now labels every current row **design-verified, not live-run** until it is rerun ([results, costs, and caveats](./docs/BENCHMARKS.md); [historical outputs and current goldens](./docs/EXAMPLES.md)). Structural claims are enforced in CI by deterministic repository, authoring, and unit-test gates. Evaluating options? See [the comparison vs. spec-kit / Kiro / aider](./docs/COMPARISON.md); rolling it out to a team, see [the pilot guide](./docs/TEAM-ROLLOUT.md).
+**Historical, with explicit limits:** a curated 2026-06-27 summary records ten
+scenario passes under configured per-run caps of $1–$4. It did not retain raw
+runs or actual spend. The skills and receipt contract have changed since then,
+so every current row is **design-verified, not live-run** until rerun.
+
+See the [results, budget caps, and caveats](./docs/BENCHMARKS.md) and the
+[historical outputs and current goldens](./docs/EXAMPLES.md). Deterministic
+repository, authoring, and unit-test gates enforce the structural claims in CI.
+For adoption decisions, use the [comparison](./docs/COMPARISON.md) and
+[pilot guide](./docs/TEAM-ROLLOUT.md).
 
 ## The `core-engineering` plugin
 
-The core plugin carries the whole engineering framework: **28 skills** and **2 plugin-shipped custom agents**, organized as one spec-driven spine plus a set of discovery, probe, and release utilities (the upstream idea/market trio now ships as the companion `product-discovery` plugin, described [below](#the-product-discovery-plugin)). The skills hold the workflows and are the public slash-invocation surface. The **[documentation index](./docs/README.md)** routes by audience; start with **[Getting Started](./docs/GETTING-STARTED.md)** for the first session, use the **[Usage Matrix](./docs/USAGE-MATRIX.md)** to pick a skill, and follow **[Workflow Recipes](./docs/WORKFLOW-RECIPES.md)** for complete paths.
+The core plugin carries **28 skills** and **2 plugin-shipped custom agents**. It
+centers on one spec-driven spine, with supporting codebase, probe, and release
+workflows. The upstream idea/market trio lives in the companion
+`product-discovery` plugin described [below](#the-product-discovery-plugin).
+
+The [documentation index](./docs/README.md) routes by audience. Start with
+[Getting Started](./docs/GETTING-STARTED.md), use the
+[Usage Matrix](./docs/USAGE-MATRIX.md) to pick a skill, and follow
+[Workflow Recipes](./docs/WORKFLOW-RECIPES.md) for complete paths.
 
 The production spine — each skill escalates conflicts *up* a layer, never expands its own scope:
 
 ```
 brief → plan → spec → implement
                        gated by verify · review · debug
-       auto-build  orchestrates the whole chain unattended
+       auto-build  runs the bounded loop after kickoff approval
        patch       handles one low-risk change of at most two files
        ux-audit    walks the plan's journeys against the running app (or, plan-free, adversarially probes it)
        then the release tail:   release → document
 ```
 
-Plugin skills are invoked directly with `ce-`-prefixed names, e.g. `/ce-plan`, `/ce-probe-sec`, and `/ce-ship-release`.
+Plugin skills are invoked directly with plugin-qualified names, e.g. `/core-engineering:ce-plan`, `/core-engineering:ce-probe-sec`, and `/core-engineering:ce-ship-release`.
 
 ### Skill map
 
 <!-- skill-catalog:start -->
 | Family | Skills | Use when |
 |---|---|---|
-| Front door | `/ce-go` | Not sure which skill runs your request: inspect repo state and route to the one right skill (it routes, never executes). |
-| Repository setup | `/ce-init` | First-run repo bootstrap: profile commands, CI, surfaces, and write starter SDLC policy artifacts. |
-| Production spine | `/ce-brief`, `/ce-plan`, `/ce-spec`, `/ce-implement` | Turn an idea into a plan, specs, tasks, and working code under the Scope Lock (planned boundary, then approved spec). |
-| Spine gates | `/ce-verify`, `/ce-review`, `/ce-debug`, `/ce-ux-audit` | Check behavior, code quality, and UX journeys (planned, or adversarially probed plan-free), and diagnose any failure — a planned feature or a plan-free component (a stuck service/worker) — without widening scope. |
-| Autonomous / small change | `/ce-auto-build`, `/ce-patch` | Run the spine sequentially under explicit bounds, or handle one low-risk change of at most two files through one gate. |
-| Codebase bridging | `/ce-ask`, `/ce-impact`, `/ce-onboard`, `/ce-domain`, `/ce-decide`, `/ce-plan-audit`, `/ce-retro` | Ask grounded questions, analyze change impact, teach the implementation (or the business domain the code encodes), choose technical options, audit plans, and review pipeline signals. |
-| Probes | `/ce-probe-sec`, `/ce-probe-perf`, `/ce-probe-infra`, `/ce-probe-deps` | Probe security, performance, infrastructure, and dependency advisories from the appropriate static or dynamic surface (adversarial UX probing now lives in the ce-ux-audit plan-free mode above). |
-| Delivery | `/ce-ship-backlog`, `/ce-ship-release`, `/ce-ship-document`, `/ce-humanize`, `/ce-doc-audit` | Convert specs into work items, decide release readiness, produce docs, rewrite generated prose to read naturally, and validate that a reader can follow existing docs (findings only, never edits). |
+| Front door | `/core-engineering:ce-go` | Not sure which skill runs your request: inspect repo state and route to the one right skill (it routes, never executes). |
+| Repository setup | `/core-engineering:ce-init` | First-run repo bootstrap: profile commands, CI, surfaces, and write starter SDLC policy artifacts. |
+| Production spine | `/core-engineering:ce-brief`, `/core-engineering:ce-plan`, `/core-engineering:ce-spec`, `/core-engineering:ce-implement` | Turn an idea into a plan, specs, tasks, and working code under the Scope Lock (planned boundary, then approved spec). |
+| Spine gates | `/core-engineering:ce-verify`, `/core-engineering:ce-review`, `/core-engineering:ce-debug`, `/core-engineering:ce-ux-audit` | Check behavior, code quality, and UX journeys (planned, or adversarially probed plan-free), and diagnose any failure — a planned feature or a plan-free component (a stuck service/worker) — without widening scope. |
+| Autonomous / small change | `/core-engineering:ce-auto-build`, `/core-engineering:ce-patch` | Run the spine sequentially under explicit bounds, or handle one low-risk change of at most two files through one gate. |
+| Codebase bridging | `/core-engineering:ce-ask`, `/core-engineering:ce-impact`, `/core-engineering:ce-onboard`, `/core-engineering:ce-domain`, `/core-engineering:ce-decide`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-retro` | Ask grounded questions, analyze change impact, teach the implementation (or the business domain the code encodes), choose technical options, audit plans, and review pipeline signals. |
+| Probes | `/core-engineering:ce-probe-sec`, `/core-engineering:ce-probe-perf`, `/core-engineering:ce-probe-infra`, `/core-engineering:ce-probe-deps` | Probe security, performance, infrastructure, and dependency advisories from the appropriate static or dynamic surface (adversarial UX probing now lives in the ce-ux-audit plan-free mode above). |
+| Delivery | `/core-engineering:ce-ship-backlog`, `/core-engineering:ce-ship-release`, `/core-engineering:ce-ship-document`, `/core-engineering:ce-humanize`, `/core-engineering:ce-doc-audit` | Convert specs into work items, decide release readiness, produce docs, rewrite generated prose to read naturally, and validate that a reader can follow existing docs (findings only, never edits). |
 
-**Companion `product-discovery` plugin** (installed separately — see [below](#the-product-discovery-plugin)). Invocation names are unchanged, so these still fire once it is installed:
+**Companion `product-discovery` plugin** (installed separately — see [below](#the-product-discovery-plugin)). Use that plugin's namespace once it is installed:
 
 | Family | Skills | Use when |
 |---|---|---|
-| Idea and market | `/ce-idea-scout`, `/ce-idea-score`, `/ce-market-scan` | Generate, score, and evidence-check product directions before planning. |
+| Idea and market | `/product-discovery:ce-idea-scout`, `/product-discovery:ce-idea-score`, `/product-discovery:ce-market-scan` | Generate, score, and evidence-check product directions before planning. |
 <!-- skill-catalog:end -->
 
 ### Practical starting paths
 
-- First run in an existing repo: `/ce-init --write`, then `/ce-ask` or `/ce-impact`.
-- New product or feature: `/ce-brief` → `/ce-plan` → `/ce-spec` → `/ce-implement`.
-- Small bounded fix: `/ce-patch`; it graduates to `/ce-plan` if the change proves structural.
-- Existing code question: `/ce-ask` for one answer, `/ce-onboard` when a maintainer needs a paced walkthrough, or `/ce-domain` to learn the business domain the code encodes.
-- Work-item refinement: `/ce-impact` for a grounded, file-cited blast-radius read before planning or estimating.
-- Risk discovery: `/ce-probe-infra` for static manifests, `/ce-probe-deps` for known-vulnerable dependency pins, `/ce-probe-sec` for a live target, `/ce-probe-perf` for measured performance, `/ce-ux-audit` for adversarial UX exploration (plan-free) or a plan's traced-journey walk.
-- Pre-implementation confidence: `/ce-plan-audit` for a written plan, then `/ce-review` and `/ce-verify` after implementation.
+- First run in an existing repo: `/core-engineering:ce-init --write`, then `/core-engineering:ce-ask` or `/core-engineering:ce-impact`.
+- New product or feature: `/core-engineering:ce-brief` → `/core-engineering:ce-plan` → `/core-engineering:ce-spec` → `/core-engineering:ce-implement`.
+- Small bounded fix: `/core-engineering:ce-patch`; it graduates to `/core-engineering:ce-plan` if the change proves structural.
+- Existing code question: `/core-engineering:ce-ask` for one answer, `/core-engineering:ce-onboard` when a maintainer needs a paced walkthrough, or `/core-engineering:ce-domain` to learn the business domain the code encodes.
+- Work-item refinement: `/core-engineering:ce-impact` for a grounded, file-cited blast-radius read before planning or estimating.
+- Risk discovery: `/core-engineering:ce-probe-infra` for static manifests, `/core-engineering:ce-probe-deps` for known-vulnerable dependency pins, `/core-engineering:ce-probe-sec` for a live target, `/core-engineering:ce-probe-perf` for measured performance, `/core-engineering:ce-ux-audit` for adversarial UX exploration (plan-free) or a plan's traced-journey walk.
+- Pre-implementation confidence: `/core-engineering:ce-plan-audit` for a written plan, then `/core-engineering:ce-review` and `/core-engineering:ce-verify` after implementation.
 
 ## The `product-discovery` plugin
 
-The three upstream idea/market skills — `/ce-idea-scout`, `/ce-idea-score`, `/ce-market-scan` — ship as a small **companion plugin** in this same marketplace. They score *product* directions before any engineering starts, so they live one plugin over from the core engineering spine; install core alone and you never carry them, add this plugin when you want the discovery front-end.
+The three upstream idea/market skills — `/product-discovery:ce-idea-scout`, `/product-discovery:ce-idea-score`, `/product-discovery:ce-market-scan` — ship as a small **companion plugin** in this same marketplace. They score *product* directions before any engineering starts, so they live one plugin over from the core engineering spine; install core alone and you never carry them, add this plugin when you want the discovery front-end.
 
 ```bash
 claude plugin install product-discovery@vg-coding
 ```
 
-**Moved, not renamed.** These skills used to live in `core-engineering`; the invocation names are unchanged (`/ce-idea-score`, `/ce-idea-scout`, `/ce-market-scan`), so any muscle memory or doc that names them still works once the companion plugin is installed. The [Usage Matrix](./docs/USAGE-MATRIX.md) shows when to use each one and how the selected direction flows into `/ce-brief`.
+**Moved, with stable skill identifiers.** These skills used to live in
+`core-engineering`; their `ce-*` identifiers are unchanged, but direct calls
+must use the owning plugin namespace: `/product-discovery:ce-idea-score`,
+`/product-discovery:ce-idea-scout`, and `/product-discovery:ce-market-scan`.
+The [Usage Matrix](./docs/USAGE-MATRIX.md) shows when to use each one and how
+the selected direction flows into `/core-engineering:ce-brief`.
 
 ## Plugin-shipped custom agents
 
@@ -132,7 +166,7 @@ plugins/
   core-engineering/              # primary plugin
     agents/                      # 2 Claude Code custom agents: spec-author · spec-impl
     skills/<name>/               # the workflows; SKILL.md + optional stage files + scripts/
-    hooks/                       # git-guard.py + env-guard.py + write-scope-guard.py + hooks.json
+    hooks/                       # lifecycle safety, egress, integrity, and model-attestation hooks
     model-policy.json            # machine-readable model-tier policy (validated by check.py)
   product-discovery/             # companion plugin: idea-scout · idea-score · market-scan
     skills/<name>/               # discovery workflows and their lint helpers
@@ -142,7 +176,7 @@ action/
   merge-bar/                     # composite GitHub Action — the merge bar as a 3-line CI adoption
   test-integrity/                # composite GitHub Action — the standalone test-integrity gate (genie-catcher)
 templates/
-  adopter-ci/                    # copy-in air-gapped fallback workflow for adopter repos (gates.yml)
+  adopter-ci/                    # checksum-pinned copy-in workflow for adopter repos (gates.yml)
 scripts/                         # check.py · corpus_lint.py · portability_check.py · product_layer_check.py
                                  #   · eval_check.py · eval_run.py · supply_chain_check.py · version_bump.py
 tests/                           # offline unittest suite for the repo + gate scripts (CI-run)
@@ -161,13 +195,21 @@ Everything is file-based — markdown, JSON, and a little Python. No build step.
 
 ### Claude Code
 
-Install the plugin as shown under [Install](#install) above. Once installed, skills fire automatically when relevant or can be invoked directly — e.g. `/ce-init`, `/ce-plan`, `/ce-spec`, `/ce-implement`, `/ce-review` (spine), `/ce-ask`, `/ce-probe-infra`, `/ce-ship-release`.
+Install the plugin as shown under [Install](#install). Model-invocable skills may
+be selected automatically; every skill remains directly callable. The six
+direct-only workflows are listed in the install section above.
+
+Typical direct calls include `/core-engineering:ce-init`, `/core-engineering:ce-plan`, `/core-engineering:ce-spec`,
+`/core-engineering:ce-implement`, `/core-engineering:ce-review`, `/core-engineering:ce-ask`, `/core-engineering:ce-probe-infra`, and
+`/core-engineering:ce-ship-release`.
 The plugin-shipped `spec-author` and `spec-impl` custom agents are available from
 Claude Code's agent picker after installation.
 
 ### The merge bar in CI (any repo — no plugin required)
 
-The same integrity gates the skills enforce also ship as a composite GitHub Action: an agent-agnostic, offline, stdlib-only merge bar that gates every PR identically no matter what wrote the code. Adoption is three workflow lines:
+The same integrity gates also ship as an agent-agnostic, offline composite
+GitHub Action. It judges every PR the same way, regardless of what wrote the
+code. Adoption is three workflow lines:
 
 ```yaml
 - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -175,9 +217,21 @@ The same integrity gates the skills enforce also ship as a composite GitHub Acti
 - uses: relusion/vg-sdlc-claude-plugins/action/merge-bar@<PIN-ME-40-HEX-COMMIT-SHA>
 ```
 
-Pin the full 40-hex commit SHA of the release commit you trust — the action refuses movable refs, and that one pin fetches the runner, policy, and gate scripts atomically. A green verdict proves **integrity, not function** (traceability held, tests not weakened, no undeclared dependency — never that the code compiles or its tests pass), so keep your own build/test job as a second required check. Details and threat model: [action/merge-bar/README.md](./action/merge-bar/README.md); air-gapped orgs copy [templates/adopter-ci/gates.yml](./templates/adopter-ci/gates.yml) instead; branch-protection wiring: [docs/TEAM-ROLLOUT.md](./docs/TEAM-ROLLOUT.md).
+Pin the full 40-hex commit SHA of the release commit you trust. The action
+refuses movable refs, and that one pin fetches the runner, policy, and gate
+scripts atomically.
 
-Want only the **test-integrity** half — the genie-catcher that fails a PR when a test was deleted, emptied, stripped of assertions, skipped, or stubbed trivially-true — without adopting specs or a merge policy? The same three-line adoption pins [`action/test-integrity`](./action/test-integrity/README.md) instead: one gate wrapping `test-guard.py`, catching by name the agent that makes tests pass by weakening tests. Integrity, never sufficiency — it never runs your suite, so keep your own build/test job alongside it.
+A green verdict proves **integrity, not function**: traceability held, tests
+were not weakened, and dependency changes were declared. It does not prove the
+code compiles or its tests pass, so keep your own build/test job as a second
+required check. See the [action guide](./action/merge-bar/README.md), the
+[checksum-pinned copy-in template](./templates/adopter-ci/gates.yml), and the
+[branch-protection guidance](./docs/TEAM-ROLLOUT.md).
+
+Want only the **test-integrity** half without adopting specs or a merge policy?
+Pin [`action/test-integrity`](./action/test-integrity/README.md) instead. It
+flags deleted, emptied, skipped, assertion-free, or trivially true tests. It
+does not run the suite, so keep your build/test job alongside it.
 
 ## Making It Yours
 

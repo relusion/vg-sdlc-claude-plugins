@@ -50,9 +50,11 @@ Then wire branch protection (details in
 
 1. Require the `merge-bar` status check **alongside your own build/test
    required check** (see the scope statement below).
-2. Set required approving reviews per the policy's `validity`: **1 for
-   `human`, 2 for `two-human`** — only branch protection can enforce the
-   validity conjunct; the verdict merely reports it.
+2. Require **2 approving reviews globally** in branch protection. GitHub's
+   review-count rule is static and cannot vary per PR from the verdict's runtime
+   class. This safely enforces both `human` and `two-human`; `human` is a
+   reported minimum, not a dynamically lowered host rule. The verdict does not
+   count reviews or authorize merge.
 3. Protect `.github/**` with CODEOWNERS or a repository ruleset — on
    `pull_request` your calling workflow file runs from the PR merge ref, so
    without this a PR can rewrite the workflow that invokes the action.
@@ -73,7 +75,7 @@ required status check alongside `merge-bar`.
 A `uses:` pin fetches this **entire repository** at that immutable commit,
 so the action, `scripts/gate_runner.py`, the shipped merge policy, and every
 gate script the policy registers arrive **atomically under one SHA** — there
-is nothing left to checksum. The air-gapped fallback (below) verifies five
+is nothing left to checksum. The checksum-pinned copy-in fallback (below) verifies five
 files by hand precisely because it fetches them at a ref it must then prove;
 the action collapses that whole step into the pin itself.
 
@@ -101,14 +103,15 @@ Same threat model as the copy-in template:
   control — [docs/TEAM-ROLLOUT.md](../../docs/TEAM-ROLLOUT.md) and
   [docs/ENTERPRISE-HARDENING.md](../../docs/ENTERPRISE-HARDENING.md)).
 
-## Signed verdicts — verifiable independently of the workflow
+## Signed verdicts — authenticating stored verdict bytes
 
 The threat above ("NOT covered here") has a residue no base-ref read can close:
 on `pull_request` the calling workflow runs from the PR merge ref, so a green
 `merge-bar` status is only as trustworthy as the workflow file — and a PR can
-edit that file. CODEOWNERS on `.github/**` is the prevention control; **signed
-verdicts are the detection control** that makes post-hoc tampering evident even
-when prevention fails.
+edit that file. CODEOWNERS or a protected ruleset on `.github/**` is therefore
+required. Signing authenticates the exact verdict bytes and signer workflow
+identity; it does **not** prove that an untrusted workflow ran the merge bar
+honestly or used the expected policy.
 
 With `attest: 'true'`, after a **green** verdict the action projects
 `merge-verdict.json` down to a minimal whitelisted predicate
@@ -120,9 +123,10 @@ keyless OIDC attestation ([`actions/attest`](https://github.com/actions/attest),
 SHA-pinned) to sigstore-sign it under the workflow's OIDC identity. **No stored
 secret, no user-supplied signing key** — the certificate binds the repository,
 the workflow path, and the trigger commit. A separate required check then
-*verifies* the signature and asserts the predicate judged the PR's real commits,
-so a green check can be proven to have judged **these** commits under **this**
-policy hash — regardless of what the workflow file says today.
+*verifies* the signature and asserts that the stored predicate names the PR's
+real commits. This makes later byte tampering detectable. Trust still depends
+on verifying the expected signer workflow/ref and protecting that workflow;
+the custom predicate is not SLSA build provenance.
 
 > **Availability:** GitHub Artifact Attestations require a **public repository** (all plans), or a **private/internal repository on GitHub Enterprise Cloud** (not GitHub Enterprise Server). On a user-owned *private* repo `actions/attest` refuses with *"Feature not available for user-owned private repositories."* — and an org-owned private repo on Free/Team plans is likewise unsupported. Leave `attest: 'false'` there (the integrity verdict is unaffected; only the independent signature is), or make the repo public / move it under Enterprise Cloud. The predicate transform and wiring are validated regardless; only the E2E signature depends on the plan tier.
 
@@ -135,17 +139,23 @@ name: merge-bar
 on: pull_request
 permissions:
   contents: read
-  id-token: write        # required by actions/attest to mint the OIDC token
-  attestations: write    # required by actions/attest to store the attestation
 jobs:
   merge-bar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # actions/attest mints the OIDC token
+      attestations: write    # actions/attest stores the attestation
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with: { fetch-depth: 0 }
       - uses: relusion/vg-sdlc-claude-plugins/action/merge-bar@<PIN-ME-40-HEX-COMMIT-SHA>
         with:
           attest: 'true'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: merge-bar-verdict
+          path: merge-verdict.json
 ```
 
 Default (`attest: 'false'`) needs neither permission — leave the two `write`
@@ -163,25 +173,27 @@ name: verify-signed-verdict
 on: pull_request
 permissions:
   contents: read
-  id-token: write        # gh attestation verify needs no secret; read-only otherwise
 jobs:
   verify:
+    needs: merge-bar
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with: { fetch-depth: 0 }
-      # merge-verdict.json is produced by the merge-bar job — pass it between
-      # jobs with actions/upload-artifact + actions/download-artifact, or
-      # re-run the bar here with attest:false purely to regenerate the file to
-      # verify against the stored attestation.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: merge-bar-verdict
+          path: .
       - name: Verify the signed verdict
         env:
           GH_TOKEN: ${{ github.token }}
           PTYPE: https://github.com/relusion/vg-sdlc-claude-plugins/attestations/merge-verdict/v1
+          SIGNER: ${{ github.repository }}/.github/workflows/merge-bar.yml
         run: |
           set -euo pipefail
           gh attestation verify merge-verdict.json \
             --repo ${{ github.repository }} \
+            --signer-workflow "$SIGNER" \
             --predicate-type "$PTYPE"
           # A valid signature over the WRONG commits is worthless: assert the
           # signed predicate judged THIS PR's real merge-base and head. Pull the
@@ -191,6 +203,7 @@ jobs:
           head_sha="$(git rev-parse HEAD)"
           gh attestation verify merge-verdict.json \
             --repo ${{ github.repository }} \
+            --signer-workflow "$SIGNER" \
             --predicate-type "$PTYPE" --format json \
             | jq -e --arg b "$base_sha" --arg h "$head_sha" '
                 .[0].verificationResult.statement.predicate as $p
@@ -201,25 +214,33 @@ jobs:
 ```
 
 Require **both** checks (`merge-bar` and `verify-signed-verdict`) in branch
-protection. The verify job needs no secret — `gh attestation verify` reaches
-GitHub's public transparency log with the ambient `github.token`.
+protection. The verify job needs no secret and no OIDC permission. Public-repo
+attestations use the public Sigstore transparency log; private-repo attestations
+on GitHub Enterprise Cloud use GitHub's private Sigstore service without a
+public transparency log.
+
+For protection against a PR-controlled execution context, put signing in a
+trusted reusable workflow whose ref and inputs the PR cannot modify, then verify
+that workflow with `--signer-workflow` (and an organization-approved signer
+policy). Predicate fields are workflow-supplied claims, not trusted facts by
+themselves.
 
 > The exact command an adopter runs to check a verdict by hand:
 > ```bash
 > gh attestation verify merge-verdict.json \
 >   --repo <org>/<repo> \
+>   --signer-workflow <org>/<repo>/.github/workflows/merge-bar.yml \
 >   --predicate-type https://github.com/relusion/vg-sdlc-claude-plugins/attestations/merge-verdict/v1
 > ```
 
-### Honest bound — the air-gapped fallback cannot sign
+### Honest bound — the copy-in fallback does not sign
 
-`actions/attest` requires GitHub's OIDC identity provider. GHES/air-gapped orgs
-that run the copy-in [`templates/adopter-ci/gates.yml`](../../templates/adopter-ci/gates.yml)
-instead have **no attestation path** — the template produces the identical
+The copy-in [`templates/adopter-ci/gates.yml`](../../templates/adopter-ci/gates.yml)
+has **no attestation path** — the template produces the identical
 verdict but cannot sigstore-sign it. What that forfeits: an unsigned verdict is
 only as trustworthy as the workflow that produced it, so those orgs must lean
 entirely on the prevention control (CODEOWNERS / protected-path rules on the
-pipeline file and inputs) with no post-hoc detection. Signed verdicts are a
+pipeline file and inputs) without an authenticated stored verdict. Signed verdicts are a
 GitHub-hosted-runner capability, not a parity feature — this README states that
 rather than implying the fallback signs.
 
@@ -246,7 +267,7 @@ does not touch, by choice.
 | `policy-path` | `.github/merge-bar/merge-policy.json` | local policy override, read from the **base ref**; absent → the shipped policy |
 | `gate-timeout` | `120` | per-gate-run subprocess timeout, seconds |
 | `repo-path` | `${{ github.workspace }}` | repository under judgment; override when your checkout used `path:` (also how the self-test drives a fixture repo) |
-| `attest` | `'false'` | opt-in [signed verdicts](#signed-verdicts--verifiable-independently-of-the-workflow); `'true'` sigstore-signs a **green** verdict via GitHub's keyless OIDC attestation. Requires the caller to grant `permissions: {id-token: write, attestations: write}`. Default off keeps the 3-line adoption and air-gapped/GHES compatibility (`contents: read` only) |
+| `attest` | `'false'` | opt-in [signed verdicts](#signed-verdicts--verifiable-independently-of-the-workflow); `'true'` sigstore-signs a **green** verdict via GitHub's keyless OIDC attestation. Requires the caller to grant `permissions: {id-token: write, attestations: write}`. Default off keeps the 3-line adoption and GHES/no-OIDC compatibility (`contents: read` only) |
 
 ## Outputs
 
@@ -256,14 +277,16 @@ does not touch, by choice.
 | `verdict-path` | absolute path of the `merge-verdict.json` produced — upload it with `actions/upload-artifact` as merge evidence |
 | `predicate-path` | absolute path of the signed-verdict predicate JSON — non-empty only when `attest: 'true'` and the bar came back green |
 
-## Air-gapped fallback
+## Checksum-pinned copy-in fallback
 
 Orgs that forbid third-party GitHub Actions copy
 [`templates/adopter-ci/gates.yml`](../../templates/adopter-ci/gates.yml)
 instead: the same runner, policy, and gate scripts, fetched at a pinned
 commit SHA and verified by five SHA-256 checksums before anything runs.
 Same verdict, more pin maintenance — six values change per upgrade instead
-of one.
+of one. Because it fetches the toolkit at run time, disconnected environments
+must point the checkout step at an approved internal mirror; this template is
+not itself an offline distribution.
 
 ## Self-test and Marketplace note
 

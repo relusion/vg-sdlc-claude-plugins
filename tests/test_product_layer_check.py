@@ -51,6 +51,59 @@ def copy_repo(tmp: Path) -> Path:
     return dst
 
 
+def init_git_repo(root: Path) -> str:
+    (root / "receipt-anchor.txt").write_text("anchor\n", encoding="utf-8")
+    (root / "evals").mkdir(exist_ok=True)
+    (root / "evals" / "scenarios.json").write_text(json.dumps({
+        "schema_version": 1,
+        "scenarios": [
+            {"id": "EVAL-901", "skill": "ce-x", "fixture": "receipt-fixture"},
+            {"id": "EVAL-902", "skill": "ce-x", "fixture": "receipt-fixture"},
+        ],
+    }), encoding="utf-8")
+    skill_dir = root / "plugins/core-engineering/skills/ce-x"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text("# ce-x\n", encoding="utf-8")
+    fixture_dir = root / "evals/fixtures/receipt-fixture"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    (fixture_dir / "README.md").write_text("fixture\n", encoding="utf-8")
+    scripts_dir = root / "scripts"
+    scripts_dir.mkdir(exist_ok=True)
+    for name in ("eval_run.py", "eval_check.py"):
+        (scripts_dir / name).write_text(f"# {name}\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "init", "--quiet"], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "--all"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(root),
+            "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+            "commit", "--quiet", "--no-gpg-sign", "-m", "receipt anchor",
+        ],
+        check=True,
+    )
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+
+def commit_all(root: Path, message: str = "commit receipt") -> str:
+    """Commit a synthetic result so provenance tests exercise HEAD bytes."""
+    subprocess.run(["git", "-C", str(root), "add", "--all"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(root),
+            "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+            "commit", "--quiet", "--no-gpg-sign", "-m", message,
+        ],
+        check=True,
+    )
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+
 class ProductLayerCheck(unittest.TestCase):
     def test_this_repo_product_layer_passes(self):
         res = run()
@@ -62,15 +115,17 @@ class ProductLayerCheck(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             matrix = repo / "docs" / "USAGE-MATRIX.md"
             # Strip every mention (the skill also appears in Default Routes),
-            # without minting an unknown /ce-* name.
+            # without minting an unknown namespaced command.
             matrix.write_text(
-                matrix.read_text(encoding="utf-8").replace("/ce-probe-infra", "/probe-infra"),
+                matrix.read_text(encoding="utf-8").replace(
+                    "/core-engineering:ce-probe-infra", "/probe-infra"
+                ),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("missing shipped skill", res.stderr)
-            self.assertIn("/ce-probe-infra", res.stderr)
+            self.assertIn("/core-engineering:ce-probe-infra", res.stderr)
 
     def test_readme_must_link_product_docs(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,6 +183,54 @@ class Freshness(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("days old", res.stderr)
 
+
+class SupportedSurface(unittest.TestCase):
+    def test_comparison_inventory_must_match_shipped_surface(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            comparison = repo / "docs" / "COMPARISON.md"
+            text = comparison.read_text(encoding="utf-8")
+            changed = text.replace(
+                "(31 skills across 2 plugins)", "(32 skills across 2 plugins)"
+            )
+            self.assertNotEqual(text, changed, "fixture drift: inventory not found")
+            comparison.write_text(changed, encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("supported inventory says 32 skills", res.stderr)
+            self.assertIn("contains 31 skills", res.stderr)
+
+    def test_retired_delivery_claims_and_duplicate_validator_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            enterprise = repo / "docs" / "ENTERPRISE-HARDENING.md"
+            enterprise.write_text(
+                enterprise.read_text(encoding="utf-8")
+                + "\nrelease/delivery prompts\n"
+                + "python3 scripts/check.py --no-install-hooks\n"
+                + "python3 scripts/supply_chain_check.py\n",
+                encoding="utf-8",
+            )
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("retired surface claim", res.stderr)
+            self.assertIn("already delegates to it", res.stderr)
+
+    def test_retired_auto_build_diagnose_mode_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            debug = repo / "plugins/core-engineering/skills/ce-debug/SKILL.md"
+            debug.write_text(
+                debug.read_text(encoding="utf-8")
+                + "\n`/core-engineering:ce-auto-build` invokes debug through its Diagnose Gate.\n",
+                encoding="utf-8",
+            )
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("retired surface claim", res.stderr)
+            self.assertIn("Diagnose Gate", res.stderr)
+
+
 class SupervisionSurface(unittest.TestCase):
     """The mid-flight/unattended orientation surface must not silently vanish."""
 
@@ -144,19 +247,19 @@ class SupervisionSurface(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("Return To A Plan Mid-Flight", res.stderr)
 
-    def test_recipes_losing_resume_and_status_board_fails(self):
+    def test_recipes_losing_resume_and_status_file_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             recipes = repo / "docs" / "WORKFLOW-RECIPES.md"
             text = recipes.read_text(encoding="utf-8")
             gutted = text.replace("--resume", "--continue").replace(
-                "status-board", "statusboard")
+                "STATUS.md", "STATE.md")
             self.assertNotEqual(text, gutted, "fixture drift: supervision needles not found")
             recipes.write_text(gutted, encoding="utf-8")
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("'--resume'", res.stderr)
-            self.assertIn("'status-board'", res.stderr)
+            self.assertIn("'STATUS.md'", res.stderr)
 
     def test_readme_must_reference_docs_index(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -179,7 +282,7 @@ class SupervisionSurface(unittest.TestCase):
             self.assertIn("missing: docs/README.md", res.stderr)
 
     def test_autobuild_recipe_must_route_plan_audit(self):
-        # /ce-plan-audit elsewhere in the file (Recipe 14) must not satisfy the
+        # ce-plan-audit elsewhere in the file (Recipe 14) must not satisfy the
         # section-scoped check: strip it from Recipe 10's section only.
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -189,18 +292,21 @@ class SupervisionSurface(unittest.TestCase):
             self.assertNotEqual(start, -1, "fixture drift: Recipe 10 heading not found")
             end = text.find("\n## ", start + 1)
             section = text[start:end]
-            self.assertIn("/ce-plan-audit", section, "fixture drift: audit step not in Recipe 10")
-            gutted = text[:start] + section.replace("/ce-plan-audit", "/ce-plan") + text[end:]
+            audit = "/core-engineering:ce-plan-audit"
+            self.assertIn(audit, section, "fixture drift: audit step not in Recipe 10")
+            gutted = text[:start] + section.replace(
+                audit, "/core-engineering:ce-plan"
+            ) + text[end:]
             recipes.write_text(gutted, encoding="utf-8")
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("Recipe 10", res.stderr)
-            self.assertIn("/ce-plan-audit", res.stderr)
+            self.assertIn(audit, res.stderr)
 
 
 class FrontDoorParity(unittest.TestCase):
     """check_front_door_parity: ce-go's routing table and USAGE-MATRIX must
-    route to exactly the same skills (excluding /ce-go itself)."""
+    route to exactly the same skills (excluding ce-go itself)."""
 
     CE_GO = ("plugins", "core-engineering", "skills", "ce-go", "SKILL.md")
     START = "<!-- routing-table:start -->"
@@ -218,13 +324,14 @@ class FrontDoorParity(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             skill = repo.joinpath(*self.CE_GO)
             head, block, tail = self._slice_block(skill.read_text(encoding="utf-8"))
-            self.assertIn("/ce-review", block, "fixture drift: /ce-review not routed")
-            block = block.replace("/ce-review", "/ce_review")  # break the token
+            review = "/core-engineering:ce-review"
+            self.assertIn(review, block, "fixture drift: ce-review not routed")
+            block = block.replace(review, "/ce_review")  # break the token
             skill.write_text(head + block + tail, encoding="utf-8")
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("routing table missing", res.stderr)
-            self.assertIn("/ce-review", res.stderr)
+            self.assertIn(review, res.stderr)
 
     def test_routing_a_skill_not_in_the_matrix_fails(self):
         # The reverse direction: a ce-go route naming a skill the matrix does
@@ -233,12 +340,12 @@ class FrontDoorParity(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             skill = repo.joinpath(*self.CE_GO)
             head, block, tail = self._slice_block(skill.read_text(encoding="utf-8"))
-            block += "\n| a bogus request | `/ce-bogus` | not a real skill |\n"
+            block += "\n| a bogus request | `/core-engineering:ce-bogus` | not a real skill |\n"
             skill.write_text(head + block + tail, encoding="utf-8")
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("not in", res.stderr)
-            self.assertIn("/ce-bogus", res.stderr)
+            self.assertIn("/core-engineering:ce-bogus", res.stderr)
 
     def test_missing_routing_markers_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -309,6 +416,207 @@ class DocLinkIntegrity(unittest.TestCase):
 
 
 class LiveEvalProvenance(unittest.TestCase):
+    def test_ci_summary_top_level_run_id_backs_scenario(self):
+        # eval-live's distiller writes one run_id at the summary root and omits
+        # it from each scenario. That documented CI shape is a complete receipt.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs").mkdir()
+            (root / "evals" / "results").mkdir(parents=True)
+            head = init_git_repo(root)
+            (root / "docs" / "BENCHMARKS.md").write_text(
+                "| EVAL-901 | ce-x | ci receipt | $1.00 | pass (2026-07-20) |\n",
+                encoding="utf-8",
+            )
+            (root / "evals" / "results" / "ci-summary.json").write_text(
+                json.dumps({
+                    "schema_version": 1,
+                    "run_id": "20260720-120000Z",
+                    "completed_at": "2026-07-20T12:00:00Z",
+                    "git_head": head,
+                    "source_clean": True,
+                    "dry_run": False,
+                    "grade_status": "pass",
+                    "grade_returncode": 0,
+                    "graded_scenarios": ["EVAL-901", "EVAL-902"],
+                    "scenarios": [
+                        {
+                            "id": "EVAL-901",
+                            "skill": "ce-x",
+                            "status": "pass",
+                            "returncode": 0,
+                        },
+                        {
+                            "id": "EVAL-902",
+                            "skill": "ce-x",
+                            "status": "pass",
+                            "returncode": 0,
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            commit_all(root)
+            scripts = str(REPO / "scripts")
+            if scripts not in sys.path:
+                sys.path.insert(0, scripts)
+            import product_layer_check  # noqa: E402
+
+            errors = []
+            product_layer_check.check_live_eval_provenance(root, errors)
+            self.assertEqual(errors, [])
+
+            (root / "evals" / "results" / "duplicate-id.json").write_text(
+                json.dumps({
+                    "schema_version": 1,
+                    "run_id": "20260720-120000Z",
+                    "completed_at": "2026-07-20T12:01:00Z",
+                    "dry_run": False,
+                    "scenarios": [],
+                }),
+                encoding="utf-8",
+            )
+            commit_all(root, "commit duplicate receipt")
+            errors = []
+            product_layer_check.check_live_eval_provenance(root, errors)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("unique run_id", errors[0])
+
+    def test_incomplete_or_duplicate_receipt_does_not_back_live_claim(self):
+        scripts = str(REPO / "scripts")
+        if scripts not in sys.path:
+            sys.path.insert(0, scripts)
+        import product_layer_check  # noqa: E402
+
+        invalid_overrides = (
+            {"source_clean": False},
+            {"git_head": None},
+            {"git_head": "f" * 40},
+            {"grade_status": "failed", "grade_returncode": 1},
+            {"graded_scenarios": []},
+        )
+        for override in invalid_overrides:
+            with self.subTest(override=override), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "docs").mkdir()
+                (root / "evals" / "results").mkdir(parents=True)
+                head = init_git_repo(root)
+                (root / "docs" / "BENCHMARKS.md").write_text(
+                    "| EVAL-901 | ce-x | receipt | $1.00 | pass (2026-07-20) |\n",
+                    encoding="utf-8",
+                )
+                summary = {
+                    "schema_version": 1,
+                    "run_id": "eval-live-123-1",
+                    "completed_at": "2026-07-20T12:00:00Z",
+                    "git_head": head,
+                    "source_clean": True,
+                    "dry_run": False,
+                    "grade_status": "pass",
+                    "grade_returncode": 0,
+                    "graded_scenarios": ["EVAL-901"],
+                    "scenarios": [{
+                        "id": "EVAL-901", "status": "pass", "returncode": 0,
+                    }],
+                }
+                summary.update(override)
+                (root / "evals" / "results" / "ci.json").write_text(
+                    json.dumps(summary), encoding="utf-8"
+                )
+                commit_all(root)
+                errors = []
+                product_layer_check.check_live_eval_provenance(root, errors)
+                self.assertEqual(len(errors), 1)
+                self.assertIn("promotable live pass", errors[0])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs").mkdir()
+            (root / "evals" / "results").mkdir(parents=True)
+            head = init_git_repo(root)
+            (root / "docs" / "BENCHMARKS.md").write_text(
+                "| EVAL-901 | ce-x | receipt | $1.00 | pass (2026-07-20) |\n",
+                encoding="utf-8",
+            )
+            (root / "evals" / "results" / "aggregate.json").write_text(
+                json.dumps({
+                    "schema_version": 1,
+                    "completed_at": "2026-07-20T12:00:00Z",
+                    "dry_run": False,
+                    "scenarios": [
+                        {
+                            "id": "EVAL-901",
+                            "status": "pass",
+                            "returncode": 0,
+                            "run_id": "reused-local-id",
+                            "git_head": head,
+                            "source_clean": True,
+                            "grade_status": "pass",
+                            "grade_returncode": 0,
+                            "graded": True,
+                        },
+                        {
+                            "id": "EVAL-902",
+                            "status": "failed",
+                            "returncode": 1,
+                            "run_id": "reused-local-id",
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            commit_all(root)
+            errors = []
+            product_layer_check.check_live_eval_provenance(root, errors)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("unique run_id", errors[0])
+
+    def test_receipt_commit_must_contain_current_eval_contract(self):
+        scripts = str(REPO / "scripts")
+        if scripts not in sys.path:
+            sys.path.insert(0, scripts)
+        import product_layer_check  # noqa: E402
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs").mkdir()
+            (root / "evals" / "results").mkdir(parents=True)
+            old_head = init_git_repo(root)
+            skill = root / "plugins/core-engineering/skills/ce-x/SKILL.md"
+            skill.write_text("# ce-x\nnew contract\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "--all"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(root),
+                    "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                    "commit", "--quiet", "--no-gpg-sign", "-m", "change contract",
+                ],
+                check=True,
+            )
+            (root / "docs" / "BENCHMARKS.md").write_text(
+                "| EVAL-901 | ce-x | receipt | $1.00 | pass (2026-07-20) |\n",
+                encoding="utf-8",
+            )
+            (root / "evals" / "results" / "old.json").write_text(json.dumps({
+                "schema_version": 1,
+                "run_id": "old-run",
+                "completed_at": "2026-07-20T12:00:00Z",
+                "git_head": old_head,
+                "source_clean": True,
+                "dry_run": False,
+                "grade_status": "pass",
+                "grade_returncode": 0,
+                "graded_scenarios": ["EVAL-901"],
+                "scenarios": [{
+                    "id": "EVAL-901", "status": "pass", "returncode": 0,
+                }],
+            }), encoding="utf-8")
+            commit_all(root, "commit stale receipt")
+            errors = []
+            product_layer_check.check_live_eval_provenance(root, errors)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("promotable live pass", errors[0])
+
     def test_benchmarks_must_list_every_catalog_scenario(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

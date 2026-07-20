@@ -596,7 +596,9 @@ def main(argv=None) -> int:
         for f in features
     ]
 
-    run_dir = plan_dir / "auto-build"
+    run_dir = plan_dir / "ce-auto-build"
+    if not run_dir.is_dir():
+        run_dir = plan_dir / "auto-build"  # legacy pre-canonical path
     export = {
         "schema_version": SCHEMA_VERSION,
         "tool": "core-engineering audit-export",
@@ -621,9 +623,9 @@ def main(argv=None) -> int:
             "interaction_contract_present": (plan_dir / "interaction-contract.md").is_file(),
             "note": "read-only plan-root re-projections; presence-only, not machine-parsed",
         },
-        # Plan-root diagnosis.md is /ce-debug's INTERACTIVE output (cumulative
-        # across the plan's features); the per-feature specs/<id>/diagnosis.md
-        # (auto-build) is reported per feature above. Both locations covered;
+        # Plan-root diagnosis.md is /core-engineering:ce-debug's current output (cumulative
+        # across the plan's features); a legacy pre-0.10 per-feature
+        # specs/<id>/diagnosis.md is reported per feature above. Both covered;
         # presence-only, not machine-parsed.
         "diagnosis_present": (plan_dir / "diagnosis.md").is_file(),
         "decisions_ledger": {

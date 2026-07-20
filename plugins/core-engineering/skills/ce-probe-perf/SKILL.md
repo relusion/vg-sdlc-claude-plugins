@@ -2,7 +2,7 @@
 name: ce-probe-perf
 description: |
   Profile a running target's performance — latency, throughput, resource use, hotspots — observe tier by default, load/soak behind opt-in. Refuses production; the only tool that can prove a numeric NFR breach (records, doesn't block).
-  Triggers: performance-test/profile/load-test/measure latency or throughput. For vulnerabilities use /ce-probe-sec.
+  Triggers: performance-test/profile/load-test/measure latency or throughput. For vulnerabilities use /core-engineering:ce-probe-sec.
 argument-hint: "[target (url | command | path)] [--type http|cli|browser|library] [--against <spec-id>]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 disable-model-invocation: true
@@ -15,10 +15,10 @@ disable-model-invocation: true
 
 Measure how a running target *performs* — and where it spends its time. This is the
 **dynamic** performance tool: it exercises a live instance or binary. For *static*,
-code-level review of inefficiency, use `/ce-review`'s **Performance
+code-level review of inefficiency, use `/core-engineering:ce-review`'s **Performance
 lens** (the boundary below).
 
-Sister to `/ce-probe-sec` and `/ce-ux-audit`: same evidence-bound finding *discipline*
+Sister to `/core-engineering:ce-probe-sec` and `/core-engineering:ce-ux-audit`: same evidence-bound finding *discipline*
 (every finding cited, triaged, escalated — though each tool's finding fields and
 evidence-state vocabulary differ), same consent-first discipline, same escalate-up chain. **Not a benchmark suite or an SLA
 certification** — a first cut that surfaces measurements and hotspots as leads;
@@ -26,27 +26,27 @@ mature load generators and profilers do the deep work where installed.
 
 ## Boundary — dynamic vs static
 
-- **`/ce-probe-perf`** (this tool) — *dynamic*: measures a running target under real load.
-- **`/ce-review` Performance lens** — *static*: reads code for structural inefficiency
+- **`/core-engineering:ce-probe-perf`** (this tool) — *dynamic*: measures a running target under real load.
+- **`/core-engineering:ce-review` Performance lens** — *static*: reads code for structural inefficiency
   (algorithmic complexity, N+1, unbounded loads) without running it.
 
-They mirror security's split (`/ce-probe-sec` dynamic · `/ce-review` Security lens static).
-A static lens *suspects*; `/ce-probe-perf` *quantifies* and finds what reading can't (real
-latency under concurrency). Only `/ce-probe-perf` can prove a numeric NFR breach — and it
+They mirror security's split (`/core-engineering:ce-probe-sec` dynamic · `/core-engineering:ce-review` Security lens static).
+A static lens *suspects*; `/core-engineering:ce-probe-perf` *quantifies* and finds what reading can't (real
+latency under concurrency). Only `/core-engineering:ce-probe-perf` can prove a numeric NFR breach — and it
 **records** it, it does not block. Don't duplicate — route accordingly.
 
 ## Architecture — a same-shape sister, surfaces inline
 
-Like `/ce-probe-sec` and `/ce-ux-audit`, `/ce-probe-perf` is a **separate** discovery skill that shares
+Like `/core-engineering:ce-probe-sec` and `/core-engineering:ce-ux-audit`, `/core-engineering:ce-probe-perf` is a **separate** discovery skill that shares
 the consent / evidence / triage **shape**, not a shared spine. Its per-surface
-measurement detail is thin enough to stay **inline** here (unlike `/ce-probe-sec`, which
+measurement detail is thin enough to stay **inline** here (unlike `/core-engineering:ce-probe-sec`, which
 externalized two heavy probe taxonomies into modules). If a surface grows its own
 gate or a heavy probe set, split it into a `measures-<surface>.md` module the way
-`/ce-probe-sec` does — until then, inline is the recorded choice.
+`/core-engineering:ce-probe-sec` does — until then, inline is the recorded choice.
 
 ## Sister tools
 
-| | `/ce-ux-audit` | `/ce-probe-sec` | `/ce-probe-perf` |
+| | `/core-engineering:ce-ux-audit` | `/core-engineering:ce-probe-sec` | `/core-engineering:ce-probe-perf` |
 |---|---|---|---|
 | Mode | Verification (journey-walk) **or** Discovery (adversarial UX, plan-free) | Discovery (security, dynamic) | Discovery (performance, dynamic) |
 | Targets | Web | Web / API / CLI | Web / API / CLI / browser / library |
@@ -116,7 +116,7 @@ A finding is `{surface, tier, state, severity, target, metric, value, baseline?,
 
 | Triage | Result |
 |---|---|
-| **Escalate** | `/ce-implement <id>` (code is inefficient; spec exists) · `/ce-spec <id>` — add or amend the feature's performance acceptance criteria, **after** a measured number shows a risky path with no target (or `/ce-plan` if no owning feature exists — a cross-feature NFR) · `/ce-review` (confirm the static cause of a measured hotspot) · "review" (plan-less) |
+| **Escalate** | `/core-engineering:ce-implement <id>` (code is inefficient; spec exists) · `/core-engineering:ce-spec <id>` — add or amend the feature's performance acceptance criteria, **after** a measured number shows a risky path with no target (or `/core-engineering:ce-plan` if no owning feature exists — a cross-feature NFR) · `/core-engineering:ce-review` (confirm the static cause of a measured hotspot) · "review" (plan-less) |
 | **Defer** | Record as a known limitation |
 | **Dismiss** | Noise / environmental; drop |
 
@@ -158,7 +158,7 @@ Walk all opted-in tiers to completion — no early-exit on the first slow path.
 ### 3.1 Categorize and Score  *(severity is objective — a number needs a target)*
 
 - **High:** a **measured** breach of an `--against` performance criterion; or an unambiguous failure of the run itself under authorized non-mutating load (the target crashes / errors out) — labelled `observed`, not a verdict.
-- **Medium:** a strong hotspot attributable to one function / query; a p95/p99 well outside the baseline with a likely cause; a latency cliff / error storm / soak leak **with no `--against` criterion to grade it** — reported with the observation "no criterion to grade against; confirm whether this breaches an intended target (a missing target is itself a `/ce-spec` escalation)."
+- **Medium:** a strong hotspot attributable to one function / query; a p95/p99 well outside the baseline with a likely cause; a latency cliff / error storm / soak leak **with no `--against` criterion to grade it** — reported with the observation "no criterion to grade against; confirm whether this breaches an intended target (a missing target is itself a `/core-engineering:ce-spec` escalation)."
 - **Low:** minor observed overhead; environmental variance.
 
 A latency cliff or leak **without** an `--against` criterion is never High — it is a measurement awaiting a target, not a proven breach.
@@ -225,14 +225,14 @@ Report:    docs/perf-profiles/<date>-<slug>.md
 ```
 
 Name any escalation skill. A measured hotspot is a lead — confirm its static
-cause via `/ce-review` before optimizing, so a fix targets the real bottleneck.
+cause via `/core-engineering:ce-review` before optimizing, so a fix targets the real bottleneck.
 
 ## Escalation
 
-Measured criteria breaches route to `/ce-spec` when the target is missing or wrong,
-to `/ce-review` when static cause confirmation is needed, and to `/ce-implement`
+Measured criteria breaches route to `/core-engineering:ce-spec` when the target is missing or wrong,
+to `/core-engineering:ce-review` when static cause confirmation is needed, and to `/core-engineering:ce-implement`
 when an owned feature needs a fix. Cross-feature performance obligations route to
-`/ce-plan`. This skill records measurements; it does not optimize.
+`/core-engineering:ce-plan`. This skill records measurements; it does not optimize.
 
 ## Honest Limitations
 
@@ -243,21 +243,21 @@ when an owned feature needs a fix. Cross-feature performance obligations route t
   statistically-controlled benchmarking is a separate exercise, and runs are dated
   snapshots — never compared across runs, so this does not gate perf regressions.
 - **No auto-optimization.** It measures and escalates; it never edits code to make a
-  number better — a fix is an `/ce-implement` (or `/ce-spec`) escalation.
-- **Runs your own, trusted code.** Unlike `/ce-probe-sec` (which sandboxes a
-  possibly-hostile binary), `/ce-probe-perf` measures code you own and trust and only bounds
+  number better — a fix is a `/core-engineering:ce-implement` (or `/core-engineering:ce-spec`) escalation.
+- **Runs your own, trusted code.** Unlike `/core-engineering:ce-probe-sec` (which sandboxes a
+  possibly-hostile binary), `/core-engineering:ce-probe-perf` measures code you own and trust and only bounds
   its scratch to a throwaway dir — it does not security-sandbox local execution. Don't
   point it at code you don't trust.
 - **No serverless / cold-start surface (v1).** Cold-start exists only in the deployed
   cloud env and a local invoke hits real backing services or needs a deploy (refused);
   measuring it needs a function-specific gate this version doesn't ship.
 - **Hotspots are correlational.** Sampling profilers attribute time, they don't prove
-  cause — an `inferred` finding is a lead, confirmed by `/ce-review` + a fix that moves
+  cause — an `inferred` finding is a lead, confirmed by `/core-engineering:ce-review` + a fix that moves
   the number.
 - **Orchestrates installed tools.** No load generator → Observe-only (http with no
   client and no MCP → reachability + status, no latency); depth is the tooling's, and
   false negatives are expected.
 - **A number without a target is just a number.** Without `--against` perf criteria,
   the run reports measurements, not pass/fail — and the missing criterion is itself a
-  `/ce-spec` escalation.
+  `/core-engineering:ce-spec` escalation.
 - **Snapshots, not history.** Dated reports; runs never overwrite prior runs.

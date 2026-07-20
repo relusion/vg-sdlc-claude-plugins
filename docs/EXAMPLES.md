@@ -16,7 +16,7 @@ without an explicit paid model run. The checker also fails if this page grows a
 the current live-evidence status; none of the historical live rows is labeled
 current after subsequent skill changes.
 
-## 1. `/ce-ask` — a grounded answer, cited, no writes
+## 1. `/core-engineering:ce-ask` — a grounded answer, cited, no writes
 
 Provenance: historical live `EVAL-001`, 2026-06-27, $1.00 cap,
 `minimal-service` fixture. Excerpt (opening of the actual answer):
@@ -39,7 +39,7 @@ The full answer also walks the mechanism step-by-step and closes with a
 Rerun the current scenario (paid model call):
 `python3 scripts/eval_run.py --execute --scenario EVAL-001 --max-budget-usd 1.00`
 
-## 2. `/ce-review` — a confirmed security finding, triage left to the human
+## 2. `/core-engineering:ce-review` — a confirmed security finding, triage left to the human
 
 Provenance: historical live `EVAL-007`, 2026-06-27, $2.00 cap,
 `review-target` fixture (seeded IDOR). Excerpt (the actual close-out):
@@ -60,16 +60,16 @@ Provenance: historical live `EVAL-007`, 2026-06-27, $2.00 cap,
 Note the disciplines visible in one screen: confirmed-vs-suspected evidence
 states, a machine-readable summary a pipeline can gate on, honest
 "uncalibrated" self-labeling, and *findings-not-verdicts* — the review blocks
-and routes (`/ce-implement` with the suggested fix) but the human triages.
+and routes (`/core-engineering:ce-implement` with the suggested fix) but the human triages.
 
 Rerun the current scenario (paid model call):
 `python3 scripts/eval_run.py --execute --scenario EVAL-007 --max-budget-usd 2.00`
 
-## 3. `/ce-spec` — an implementation-ready spec that passes its own lint
+## 3. `/core-engineering:ce-spec` — an implementation-ready spec that passes its own lint
 
 Provenance: committed golden artifact `evals/golden/EVAL-005/` (a minimized
-real `/ce-spec` output, kept in-repo as a deterministic gate). Excerpt from
-`specs/01-invite-user/spec.md`:
+real `/core-engineering:ce-spec` output, kept in-repo as a deterministic gate). Excerpt from
+`specs/01-invite-user/ce-spec.md`:
 
 > ## AC-001
 > WHEN a team admin submits an email address and role
@@ -96,7 +96,7 @@ on every CI push. To regenerate the live equivalent:
 
 ## 4. The golden-replay layer — frozen artifacts, replayed through their lints
 
-The `/ce-spec` golden above is one of **five** deterministic gates
+The `/core-engineering:ce-spec` golden above is one of **five** deterministic gates
 `scripts/eval_check.py` replays on every CI push — a frozen known-good artifact
 run back through the same lint or schema check its producing skill emits, with no
 model call. When a validator changes (a new `plan-lint` hard check, a

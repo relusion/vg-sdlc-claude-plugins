@@ -39,16 +39,41 @@ class CorpusLint(unittest.TestCase):
             res = self._lint(repo)
             self.assertEqual(res.returncode, 1)
             self.assertIn("stale public alias", res.stderr)
-            self.assertIn("/ce-probe-sec", res.stderr)
+            self.assertIn("/core-engineering:ce-probe-sec", res.stderr)
 
     def test_unknown_ce_skill_reference_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._copy_repo(Path(tmp))
             readme = repo / "README.md"
-            readme.write_text(readme.read_text(encoding="utf-8") + "\nTry /ce-missing.\n")
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\nTry /core-engineering:ce-missing.\n"
+            )
             res = self._lint(repo)
             self.assertEqual(res.returncode, 1)
-            self.assertIn("unknown skill '/ce-missing'", res.stderr)
+            self.assertIn("unknown skill '/core-engineering:ce-missing'", res.stderr)
+
+    def test_bare_plugin_skill_reference_fails_with_namespaced_route(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            readme = repo / "README.md"
+            readme.write_text(readme.read_text(encoding="utf-8") + "\nTry /ce-plan.\n")
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("unsupported bare plugin skill '/ce-plan'", res.stderr)
+            self.assertIn("/core-engineering:ce-plan", res.stderr)
+
+    def test_wrong_plugin_namespace_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            readme = repo / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\nTry /product-discovery:ce-plan.\n"
+            )
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("belongs to plugin 'core-engineering'", res.stderr)
 
     def test_missing_escalation_heading_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,8 +1,8 @@
 ---
 name: ce-onboard
 description: |
-  Interactively teach a developer the implementation that was built — a paced, evidence-grounded walkthrough of a plan's as-built code (architecture, the decisions behind it, the gotchas, the verified behavior) with comprehension checks, for the maintainer who now owns code they (or /ce-auto-build) didn't hand-write. Reads the plan's own artifacts when present; degrades to code + git grounding when absent. Read-only on code; teaches, never patches.
-  Triggers: onboard/walk me through/teach me/explain how this was built so I can maintain it. For the business domain the code encodes (actors, domain nouns, business rules, vocabulary) use /ce-domain; for a one-off question use /ce-ask; for user-facing docs use /ce-ship-document; for process metrics use /ce-retro.
+  Interactively teach a developer the implementation that was built — a paced, evidence-grounded walkthrough of a plan's as-built code (architecture, the decisions behind it, the gotchas, the verified behavior) with comprehension checks, for the maintainer who now owns code they (or /core-engineering:ce-auto-build) didn't hand-write. Reads the plan's own artifacts when present; degrades to code + git grounding when absent. Read-only on code; teaches, never patches.
+  Triggers: onboard/walk me through/teach me/explain how this was built so I can maintain it. For the business domain the code encodes (actors, domain nouns, business rules, vocabulary) use /core-engineering:ce-domain; for a one-off question use /core-engineering:ce-ask; for user-facing docs use /core-engineering:ce-ship-document; for process metrics use /core-engineering:ce-retro.
 argument-hint: "[plan-slug | feature-id | path]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -14,19 +14,19 @@ allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 
 Teach a developer the **as-built implementation** — a paced, guided walkthrough
 that adapts to their answers — so they can own and extend code they (or
-`/ce-auto-build`) didn't hand-write. This is the missing closure on the autonomous-build
+`/core-engineering:ce-auto-build`) didn't hand-write. This is the missing closure on the autonomous-build
 story: the pipeline produces verified, reviewed code, and this tool **transfers
 understanding of it to a human**.
 
 The workflow is **read-only on code and existing artifacts**. It teaches; it never
 patches code, edits specs, or modifies any other artifact. The only thing it may
 write is one optional, consented **learning guide** — a maintainer-internal document,
-never the user-facing docs that `/ce-ship-document` owns.
+never the user-facing docs that `/core-engineering:ce-ship-document` owns.
 
 It **owns a curriculum and drives it** — that is the load-bearing distinction from
-`/ce-ask`. `/ce-ask` is reactive and human-driven (you ask, it answers); this tool sets the
+`/core-engineering:ce-ask`. `/core-engineering:ce-ask` is reactive and human-driven (you ask, it answers); this tool sets the
 learning path, paces the walk, and **checks that the learner understood**. Reactive,
-ad-hoc questions mid-session are routed back to `/ce-ask`, so the tutor's agenda stays
+ad-hoc questions mid-session are routed back to `/core-engineering:ce-ask`, so the tutor's agenda stays
 intact.
 
 ## Runtime Inputs
@@ -51,18 +51,18 @@ intact.
 
 0. **Session write lease (structural, first act).** `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill ce-onboard --allow 'docs/onboarding/**' --allow 'docs/plans/**/onboarding/**'` — only the optional learning guide is writable, and the write guard now enforces that. Last act: `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --restore-baseline`. A denied write mid-session means this contract and the action disagree — reconcile; never edit or delete the lease to proceed.
 1. **Never patch code, edit specs, or modify feature files.** Teach, do not fix. The
-   `/ce-onboard` skill's `allowed-tools` deliberately exclude `Edit`.
+   `/core-engineering:ce-onboard` skill's `allowed-tools` deliberately exclude `Edit`.
 2. **Read-only on existing artifacts.** Write only the one optional learning guide
    (Stage 6), and only with consent.
 3. **Every claim cites `file:line` or an artifact.** No citation, no claim. Show code
    over paraphrasing it — quote 1–5 load-bearing lines inline. (The `ask` grounding
-   contract, reused verbatim: this tool is a *sibling* of `/ce-ask`, not a rival.)
+   contract, reused verbatim: this tool is a *sibling* of `/core-engineering:ce-ask`, not a rival.)
 4. **No fabrication.** If a file, symbol, or artifact isn't found, say so; never invent
    paths, decisions, or behaviors. Anything not directly evidenced is named as a *known
    unknown*, never papered over.
 5. **The tutor owns the agenda.** It proposes the next lesson and asks a comprehension
    check; it does not wait to be asked. Ad-hoc reactive questions are answered briefly,
-   then explicitly routed to `/ce-ask`.
+   then explicitly routed to `/core-engineering:ce-ask`.
 6. **Teach from evidence, in build order.** The curriculum follows the artifact trail
    (orient → map → per-feature deep-dive → gotchas → behavior); rationale comes from the
    decisions ledger and ADRs, not from guesswork.
@@ -70,7 +70,7 @@ intact.
    any narrowing of scope is stated — no silent caps on what was skipped.
 8. **Maintainer audience.** The output explains *how and why the code was built* for the
    person who must extend it — categorically not the user-facing "how to use it" that
-   `/ce-ship-document` produces.
+   `/core-engineering:ce-ship-document` produces.
 
 ## The Teaching Contract — curriculum, citations, comprehension checks
 
@@ -81,7 +81,7 @@ This tool's job is to *transfer understanding*, measured three ways:
 | **Curriculum** | The tutor sets and announces the path (orient → map → per-feature → gotchas → behavior) and drives it. The learner may reorder or skip — stated, not silent. |
 | **Citations** | Every factual claim is pinned to `file:line` or a named artifact; load-bearing code is quoted, not paraphrased. |
 | **Comprehension checks** | After each deep-dive, a short check the learner answers in their own words. A shaky answer → re-teach at greater depth with a fresh citation; a confident answer → advance, optionally deeper. Checks adapt depth; they never grade or gate progress against the learner's will. |
-| **Routing** | A reactive "wait, what's X?" is answered in one or two cited lines, then: *"for more one-off lookups like that, `/ce-ask` is the dedicated tool."* |
+| **Routing** | A reactive "wait, what's X?" is answered in one or two cited lines, then: *"for more one-off lookups like that, `/core-engineering:ce-ask` is the dedicated tool."* |
 
 The tutor **never declares the learner "done" or "qualified"** — comprehension is the
 learner's to claim. It reports what was covered and what was deferred.
@@ -119,7 +119,7 @@ I'll start there"), **show the basis**, don't ask for blind confirmation (R2 spi
    - **Plan-tied (rich):** a `docs/plans/<slug>/` directory exists — teach from the full
      artifact trail.
    - **Plan-free (lean):** no plan — teach structure + flow from code, citing
-     `git log`/`git blame`/tests for rationale (the `/ce-ask` degradation).
+     `git log`/`git blame`/tests for rationale (the `/core-engineering:ce-ask` degradation).
 3. **State what exists and what doesn't.** Print a short evidence inventory — *"Teaching
    from: plan, 6 specs, code-review (4 confirmed findings), verification. No
    threat-model (attested No Security Surface). No verification-report yet — features are
@@ -132,11 +132,11 @@ I'll start there"), **show the basis**, don't ask for blind confirmation (R2 spi
 
 | Evidence state | How the tutor teaches it |
 |---|---|
-| Accepted `/ce-patch` change | Teach from the matching `express-log.jsonl` entry, the current code and test, and available git history. The ledger records the focused command and red→green result; it does not create a spec or `verification.md`. With no accepted ledger line, do not claim the patch workflow completed. |
+| Accepted `/core-engineering:ce-patch` change | Teach from the matching `express-log.jsonl` entry, the current code and test, and available git history. The ledger records the focused command and red→green result; it does not create a spec or `verification.md`. With no accepted ledger line, do not claim the patch workflow completed. |
 | Single-feature plan (Sizing Gate accepted) | One flat `feature-plan.md`, no `features/` dir — the deep-dive collapses into the orient step. |
 | No `threat-model.md` | If an attested **"No Security Surface"** negative exists, teach the absence as *attested*. Otherwise flag the gap honestly. |
 | No `interaction-contract.md` | If an attested **"No Cross-Feature Protocol"** negative exists, teach the absence as *attested*. Otherwise flag the gap honestly. |
-| No `verification-report.md` | `/ce-verify` hasn't run — teach features as `implemented` (per-feature `verification.md`) but **not** plan-`Verified`; no cross-feature integration proof exists yet. |
+| No `verification-report.md` | `/core-engineering:ce-verify` hasn't run — teach features as `implemented` (per-feature `verification.md`) but **not** plan-`Verified`; no cross-feature integration proof exists yet. |
 | `code-review.md` Highs all `suspected` | The adversarial pass couldn't reproduce them — teach as *open questions to verify*, not confirmed defects. |
 | No `review-policy.md` | Review ran uncalibrated and says so — tell the learner the repo has no codified quality bar yet. |
 | Plan-free | Teach structure + flow from code; rationale from `git log`/`git blame`/tests, flagged explicitly when unrecoverable. |
@@ -243,7 +243,7 @@ learning guide**:
 - **Save the guide** — writes a durable `.md` the learner (and the next maintainer) keeps.
 - **Skip** — the session stays a throwaway walkthrough.
 
-If saved, write to the **internal** tree, never the user-facing doc paths `/ce-ship-document`
+If saved, write to the **internal** tree, never the user-facing doc paths `/core-engineering:ce-ship-document`
 owns:
 - Plan-tied → `docs/plans/<slug>/onboarding/<date>-walkthrough.md`
 - Plan-free → `docs/onboarding/<date>-<target>.md` (dated, never overwritten — the same
@@ -258,7 +258,7 @@ Use the template below.
 ````markdown
 # Onboarding Walkthrough: <target>
 
-> Generated by `/ce-onboard`
+> Generated by `/core-engineering:ce-onboard`
 > Date: YYYY-MM-DD · Mode: plan-tied (<slug>) | patch | plan-free
 > Covered: <N> features · Depth: checked | narrated
 > Evidence taught from: <artifacts present>  ·  Absent (attested/degraded): <list>
@@ -306,17 +306,17 @@ Gotchas covered:  <C> (<confirmed> confirmed, <suspected> suspected)
 Guide:            docs/plans/<slug>/onboarding/<date>-walkthrough.md | not saved
 ```
 
-Point to the next action: if the learner intends to extend a feature, name `/ce-spec <id>`
-or `/ce-patch`; for an isolated follow-up question, name `/ce-ask`. Never commit; never deploy.
+Point to the next action: if the learner intends to extend a feature, name `/core-engineering:ce-spec <id>`
+or `/core-engineering:ce-patch`; for an isolated follow-up question, name `/core-engineering:ce-ask`. Never commit; never deploy.
 
 ---
 
 ## Escalation
 
-If the learner wants to change behavior, route to `/ce-spec` for planned feature
-extensions or `/ce-patch` for a genuinely small change. One-off code questions go to
-`/ce-ask`; user-facing documentation goes to `/ce-ship-document`; process metrics go
-to `/ce-retro`. This skill teaches and writes only optional learning guides.
+If the learner wants to change behavior, route to `/core-engineering:ce-spec` for planned feature
+extensions or `/core-engineering:ce-patch` for a genuinely small change. One-off code questions go to
+`/core-engineering:ce-ask`; user-facing documentation goes to `/core-engineering:ce-ship-document`; process metrics go
+to `/core-engineering:ce-retro`. This skill teaches and writes only optional learning guides.
 
 ## Honest Limitations
 
@@ -326,10 +326,10 @@ to `/ce-retro`. This skill teaches and writes only optional learning guides.
 - **Comprehension is the learner's to claim.** The tutor checks understanding and adapts,
   but never certifies that someone is "qualified" to own the code.
 - **Not a code-modification tool.** It is read-only on code; extending a feature is
-  `/ce-spec` → `/ce-implement` (or `/ce-patch`), not this.
+  `/core-engineering:ce-spec` → `/core-engineering:ce-implement` (or `/core-engineering:ce-patch`), not this.
 - **Not user-facing docs.** The learning guide is maintainer-internal; for product docs
-  use `/ce-ship-document`.
-- **Not a Q&A tool.** For reactive, one-off lookups use `/ce-ask`; this tool drives a
+  use `/core-engineering:ce-ship-document`.
+- **Not a Q&A tool.** For reactive, one-off lookups use `/core-engineering:ce-ask`; this tool drives a
   curriculum and will route you there.
 - **Plan-free mode is leaner.** Without a plan there is no decisions ledger, no journey
   map, and no verification proof — rationale falls back to `git`/tests and is flagged when

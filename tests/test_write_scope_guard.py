@@ -186,7 +186,7 @@ class WriteScopeGuard(unittest.TestCase):
                 "enabled": True,
                 "mode": "lease",
                 "skill": "ce-review",
-                "reason": ("session write lease set by /ce-review Stage 0 — "
+                "reason": ("session write lease set by /core-engineering:ce-review Stage 0 — "
                            "this session writes only: docs/plans/**/code-review.md"),
                 "allow": ["docs/plans/**/code-review.md"],
                 "deny": [".git/**", ".claude/ce-write-scope.json"],
@@ -205,7 +205,7 @@ class WriteScopeGuard(unittest.TestCase):
             self.assertIn("Agent:", msg)
             self.assertIn("Human:", msg)
             self.assertNotIn("..", msg)
-            self.assertIn("/ce-review", msg)
+            self.assertIn("/core-engineering:ce-review", msg)
             self.assertIn("docs/plans/**/code-review.md", msg)
 
     def test_policy_denies_out_of_workspace_target(self):
@@ -246,7 +246,7 @@ def _write_lease(root: Path):
         "enabled": True,
         "mode": "lease",
         "skill": "ce-review",
-        "reason": ("session write lease set by /ce-review Stage 0 — "
+        "reason": ("session write lease set by /core-engineering:ce-review Stage 0 — "
                    "this session writes only: docs/plans/**/code-review.md"),
         "allow": ["docs/plans/**/code-review.md"],
         "deny": [".git/**", ".claude/ce-write-scope.json"],
@@ -283,7 +283,7 @@ class WriteScopeGuardBash(unittest.TestCase):
                 out = json.loads(res.stdout)["hookSpecificOutput"]
                 self.assertEqual(out["permissionDecision"], "deny", cmd)
                 # the deny carries the lease-holder message
-                self.assertIn("/ce-review", out["permissionDecisionReason"], cmd)
+                self.assertIn("/core-engineering:ce-review", out["permissionDecisionReason"], cmd)
 
     def test_bash_lease_allows_allowlisted_report_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -534,7 +534,7 @@ def _seed_session_lease(root: Path, *, lease_id="L1", created_at=None,
         "skill": "ce-review",
         "lease_id": lease_id,
         "created_at": created_at,
-        "reason": "session write lease set by /ce-review Stage 0",
+        "reason": "session write lease set by /core-engineering:ce-review Stage 0",
         "allow": list(allow),
         "deny": [".git/**", DEFAULT_LEASE],
     }), encoding="utf-8")
@@ -607,7 +607,7 @@ class WriteScopeGuardSessionLease(unittest.TestCase):
             self.assertEqual(out["permissionDecision"], "ask")
             reason = out["permissionDecisionReason"]
             self.assertIn("dead session", reason)
-            self.assertIn("/ce-review", reason)     # names the stale holder
+            self.assertIn("/core-engineering:ce-review", reason)     # names the stale holder
             self.assertIn("set 30m ago", reason)    # its age from created_at
             self.assertIn("auto-replac", reason)     # what just happened
 

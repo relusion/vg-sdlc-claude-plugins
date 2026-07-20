@@ -17,8 +17,8 @@ emitter to render the format you pick; the human reviews the output at a
 material Write gate and pastes/imports it into the tracker — **one-way** (the
 full rule lives in *Cross-cutting rule — One-Way Sync* below).
 
-This is a **bridging utility** — sister to `/ce-ask`, `/ce-ux-audit`, and
-`/ce-probe-sec`. Sits outside the SDLC pipeline; reads spec artifacts; runs a
+This is a **bridging utility** — sister to `/core-engineering:ce-ask`, `/core-engineering:ce-ux-audit`, and
+`/core-engineering:ce-probe-sec`. Sits outside the SDLC pipeline; reads spec artifacts; runs a
 deterministic emitter; writes a single re-runnable output file.
 
 ## Runtime Inputs
@@ -191,8 +191,8 @@ To land it:
 
 ## Escalation
 
-If the spec is missing, stale, or internally inconsistent, route to `/ce-spec`.
-If multiple features need coordinated tracker structure, route to `/ce-plan` or a
+If the spec is missing, stale, or internally inconsistent, route to `/core-engineering:ce-spec`.
+If multiple features need coordinated tracker structure, route to `/core-engineering:ce-plan` or a
 human-owned backlog process. This skill emits paste-ready / importable work items
 only; it never syncs with a tracker.
 

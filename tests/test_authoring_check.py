@@ -161,12 +161,12 @@ class AuthoringCheck(unittest.TestCase):
             repo = self._copy_repo(Path(tmp))
             self._mutate(
                 repo, f"{SKILLS}/ce-review/SKILL.md",
-                "/ce-verify",
+                "/core-engineering:ce-verify",
                 "the behavior sibling",
             )
             res = self._lint(repo)
             self.assertEqual(res.returncode, 1)
-            self.assertIn("does not mention /ce-verify", res.stderr)
+            self.assertIn("does not mention /core-engineering:ce-verify", res.stderr)
 
     def test_skill_line_cap_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

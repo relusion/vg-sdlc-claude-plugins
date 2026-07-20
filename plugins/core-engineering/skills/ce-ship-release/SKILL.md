@@ -2,7 +2,7 @@
 name: ce-ship-release
 description: |
   Cut a gated release decision for a verified plan — derive the semver bump + changelog from shipped features, assemble rollback-readiness, propose the tag and notes. Owns CHANGELOG.md; refuses GO over unverified work; never pushes, tags a remote, or deploys.
-  Triggers: cut a release, decide a version bump, draft a changelog or release notes. Writes the CHANGELOG; /ce-ship-document writes user-facing docs.
+  Triggers: cut a release, decide a version bump, draft a changelog or release notes. Writes the CHANGELOG; /core-engineering:ce-ship-document writes user-facing docs.
 argument-hint: "[plan-slug] [--version <v>] [--base <branch>]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 disable-model-invocation: true
@@ -15,7 +15,7 @@ disable-model-invocation: true
 
 Prepare and gate the decision to ship a verified plan — **decide, don't deploy**.
 
-`/ce-ship-release` is the downstream-most pipeline tool. It reads what the pipeline has
+`/core-engineering:ce-ship-release` is the downstream-most pipeline tool. It reads what the pipeline has
 already proven — the verification report, the code review, and the selected git range —
 and turns it into a **ship-release package**: a proposed version bump, a
 changelog derived from the shipped features, rollback-readiness plus
@@ -32,11 +32,11 @@ plan → spec → implement → { verify · review } → release
 
 Distinct from its neighbors:
 
-- **vs `/ce-verify`** — verify proves the software *behaves*; release decides whether
+- **vs `/core-engineering:ce-verify`** — verify proves the software *behaves*; release decides whether
   that proven state *ships*, and at what version. Release never re-tests — it reads
   verify's report and **refuses GO over unverified work**.
-- **vs `/ce-ship-document`** — release owns the versioned `CHANGELOG.md` (it holds the
-  version number); `/ce-ship-document` writes user-facing usage docs and never writes the
+- **vs `/core-engineering:ce-ship-document`** — release owns the versioned `CHANGELOG.md` (it holds the
+  version number); `/core-engineering:ce-ship-document` writes user-facing usage docs and never writes the
   changelog. The two never write the same file.
 - **It is a gate, not a deployer.** Tagging, pushing, and deploying are the
   human's; release prepares the decision and stops at the go/no-go.
@@ -55,12 +55,12 @@ Writes `docs/plans/<slug>/release/<date>-release.md` (the decision package) and,
 *Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant.
 
 1. **Decide, don't deploy.** Prepare the release decision; never push, deploy, or commit to a protected branch — the `git-guard` hook backstops that push / PR / protected-commit boundary. It **never creates or moves a tag**; tagging is held by the Stage-4 go/no-go gate and the human — and git-guard now backstops that too (`git tag <name>` → confirm; listing stays silent; hardenable via `CE_GIT_GUARD_TAG=deny` — see *Honest Limitations* for the surface this covers).
-2. **No GO over unverified *or stale* work.** A release is gated on the verification report: every feature in the range must be `verified` (Stage 0's predicate) **and its recorded done-ness fresh** — `task-evidence.py check` (this skill's bundled copy, Stage 0) finds no `stale` task, i.e. every `done` task's proving commit is still in HEAD's ancestry — or its gap explicitly accepted by the human. Unverified → `/ce-verify`; **stale** (the verified report was cut against code this checkout no longer holds) → `/ce-implement` to re-derive, then `/ce-verify`. Do not certify over either.
+2. **No GO over unverified *or stale* work.** A release is gated on the verification report: every feature in the range must be `verified` (Stage 0's predicate) **and its recorded done-ness fresh** — `task-evidence.py check` (this skill's bundled copy, Stage 0) finds no `stale` task, i.e. every `done` task's proving commit is still in HEAD's ancestry — or its gap explicitly accepted by the human. Unverified → `/core-engineering:ce-verify`; **stale** (the verified report was cut against code this checkout no longer holds) → `/core-engineering:ce-implement` to re-derive, then `/core-engineering:ce-verify`. Do not certify over either.
 3. **Evidence-bound.** Every changelog entry and readiness signal traces to a shipped feature, a verification result, a review finding, or a git fact (commit / tag / file). No claim without a source.
 4. **Version is a proposal, not a verdict.** Derive a semver bump from the shipped features' nature; the human owns the final number (a material decision).
 5. **Rollback-readiness is honest.** The checklist reports what *is* and *is not* reversible, and flags every unknown — it never fakes readiness for a destructive change with no recorded rollback.
 6. **Supply-chain evidence is explicit.** Record whether SBOM, SLSA provenance, artifact signatures, checksums, OpenSSF Scorecard output, secret-scan status, and plugin-validation status exist for the release. Missing evidence is a release finding or accepted gap, never a silent pass.
-7. **Read-only on code, specs, and git history — and owns the changelog.** Writes its decision artifact, and on consent the versioned `CHANGELOG.md`: it **appends** a new version section, **never rewriting prior sections**. `/ce-ship-document` never writes `CHANGELOG.md`.
+7. **Read-only on code, specs, and git history — and owns the changelog.** Writes its decision artifact, and on consent the versioned `CHANGELOG.md`: it **appends** a new version section, **never rewriting prior sections**. `/core-engineering:ce-ship-document` never writes `CHANGELOG.md`.
 8. **Never commit, push, tag a remote, or deploy.**
 
 ## Scope Lock — the release decision  [decide, don't deploy]
@@ -69,7 +69,7 @@ Release holds no authority to ship. It assembles the decision and gates it; the
 human executes `git tag`, the push, and the deploy. If the readiness check is red —
 unverified work, an unaccepted high-severity finding, a destructive change with no
 rollback — release **withholds GO** and routes to the layer that fixes it
-(`/ce-verify`, `/ce-review` triage, or the human release owner), rather than shipping anyway. A release
+(`/core-engineering:ce-verify`, `/core-engineering:ce-review` triage, or the human release owner), rather than shipping anyway. A release
 cut over a red gate is exactly the silent degradation the toolset forbids.
 
 ## Release-Readiness Gate  [material]
@@ -126,13 +126,13 @@ Release decides; when readiness is red it withholds GO and routes:
 
 | Blocker | Route |
 |---|---|
-| A feature in range is not `verified` | `/ce-verify` — prove it first |
-| A feature in range is `stale` (a `done` task's commit left HEAD's ancestry) | `/ce-implement` — re-derive the stale tasks, then `/ce-verify` |
-| Unresolved high-severity review finding | `/ce-review` triage → `/ce-implement` or `/ce-spec` |
-| Destructive change with no rollback the human won't accept | `/ce-spec <id>` — specify the rollback **requirement** as acceptance criteria (forward + reverse steps) that `/ce-implement` builds and `/ce-verify` proves |
-| Missing SBOM / provenance / signature / checksum / OpenSSF Scorecard evidence the human won't accept | Release engineering / CI hardening owns generation; use `/ce-review` if missing evidence changes release risk |
-| The selected base/head range or release branch is stale / wrong | Human release owner corrects the branch or ref, then reruns `/ce-ship-release` |
-| Scope / boundary is wrong | `/ce-plan` |
+| A feature in range is not `verified` | `/core-engineering:ce-verify` — prove it first |
+| A feature in range is `stale` (a `done` task's commit left HEAD's ancestry) | `/core-engineering:ce-implement` — re-derive the stale tasks, then `/core-engineering:ce-verify` |
+| Unresolved high-severity review finding | `/core-engineering:ce-review` triage → `/core-engineering:ce-implement` or `/core-engineering:ce-spec` |
+| Destructive change with no rollback the human won't accept | `/core-engineering:ce-spec <id>` — specify the rollback **requirement** as acceptance criteria (forward + reverse steps) that `/core-engineering:ce-implement` builds and `/core-engineering:ce-verify` proves |
+| Missing SBOM / provenance / signature / checksum / OpenSSF Scorecard evidence the human won't accept | Release engineering / CI hardening owns generation; use `/core-engineering:ce-review` if missing evidence changes release risk |
+| The selected base/head range or release branch is stale / wrong | Human release owner corrects the branch or ref, then reruns `/core-engineering:ce-ship-release` |
+| Scope / boundary is wrong | `/core-engineering:ce-plan` |
 
 *Rehearsing or executing a rollback remains the human's — no skill in this toolset
 runs or tests a production rollback (there is deliberately no `/migrate`).* Release
@@ -164,7 +164,7 @@ never resolves these itself; it gates on them.
   report cut against work that was since reverted or rebased away is downgraded to
   `stale` and **blocks GO** rather than certifying silently. Residual: a report stale
   for a reason freshness can't see — a semantic regression over unchanged commits —
-  still needs a fresh `/ce-verify` run; the freshness check is commit-deep, not
+  still needs a fresh `/core-engineering:ce-verify` run; the freshness check is commit-deep, not
   behaviour-deep.
 - **Changelog is derived from the plan's shipped features**, not from every commit —
   work outside the plan isn't seen.

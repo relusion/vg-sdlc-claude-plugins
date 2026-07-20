@@ -11,9 +11,9 @@ away from the specs they claim.
 It speaks the SAME Scope Lock vocabulary the interactive skills use, so every
 finding routes to the owning layer:
 
-  * plan-layer Scope Lock drift -> route to /ce-plan   (plan artifact / registry
+  * plan-layer Scope Lock drift -> route to /core-engineering:ce-plan   (plan artifact / registry
     integrity broken; a spec dir that resolves to no plan feature)
-  * spec-layer Scope Lock drift -> route to /ce-spec   (spec referential integrity
+  * spec-layer Scope Lock drift -> route to /core-engineering:ce-spec   (spec referential integrity
     broken; a phantom [SECURITY: TZ-NNN]; a disarmed security-coverage gate)
 
 (One brand — "Scope Lock" — spelled out in full in every finding string; the
@@ -364,26 +364,26 @@ class Scan:
             slug = entry.get("slug") if isinstance(entry, dict) else None
             if not (isinstance(slug, str) and slug.strip()):
                 self.hard.append(_finding(
-                    "hard", "registry_break", PLAN_SCOPE_LOCK, "/ce-plan",
+                    "hard", "registry_break", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                     f"{PLAN_SCOPE_LOCK} drift: plans.json entry #{i + 1} has no "
-                    f"`slug` — the plan registry is broken; route to /ce-plan "
+                    f"`slug` — the plan registry is broken; route to /core-engineering:ce-plan "
                     f"revision"))
                 continue
             registered.append(slug)
             if not (plans_root / slug).is_dir():
                 self.hard.append(_finding(
-                    "hard", "registry_break", PLAN_SCOPE_LOCK, "/ce-plan",
+                    "hard", "registry_break", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                     f"{PLAN_SCOPE_LOCK} drift: plans.json registers `{slug}` but "
                     f"docs/plans/{slug}/ does not exist — plan artifact integrity "
-                    f"broken; route to /ce-plan revision", plan=slug))
+                    f"broken; route to /core-engineering:ce-plan revision", plan=slug))
         registered_set = set(registered)
         for d in sorted(p for p in plans_root.iterdir() if p.is_dir()):
             if d.name not in registered_set:
                 self.hard.append(_finding(
-                    "hard", "registry_break", PLAN_SCOPE_LOCK, "/ce-plan",
+                    "hard", "registry_break", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                     f"{PLAN_SCOPE_LOCK} drift: docs/plans/{d.name}/ is present but "
                     f"unregistered in plans.json — plan artifact integrity broken; "
-                    f"route to /ce-plan revision", plan=d.name))
+                    f"route to /core-engineering:ce-plan revision", plan=d.name))
         return [s for s in registered if (plans_root / s).is_dir()]
 
     # -- one plan dir -------------------------------------------------------
@@ -400,9 +400,9 @@ class Scan:
             if isinstance(data, dict) and data.get("hard_failures"):
                 detail = " · ".join(str(x) for x in data["hard_failures"][:4])
             self.hard.append(_finding(
-                "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/ce-plan",
+                "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                 f"{PLAN_SCOPE_LOCK} drift: plan artifact integrity broken — route "
-                f"to /ce-plan revision" + (f" [{detail}]" if detail else ""),
+                f"to /core-engineering:ce-plan revision" + (f" [{detail}]" if detail else ""),
                 plan=slug))
         elif code == 2:
             msg = data.get("message", "") if isinstance(data, dict) else ""
@@ -412,15 +412,15 @@ class Scan:
                     f"plan-lint skipped")
             else:
                 self.hard.append(_finding(
-                    "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/ce-plan",
+                    "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                     f"{PLAN_SCOPE_LOCK} drift: plan-lint could not evaluate "
                     f"docs/plans/{slug}/ ({msg or 'unparseable inputs'}) — route "
-                    f"to /ce-plan revision", plan=slug))
+                    f"to /core-engineering:ce-plan revision", plan=slug))
         elif code is None:
             self.hard.append(_finding(
-                "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/ce-plan",
+                "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                 f"{PLAN_SCOPE_LOCK} drift: plan-lint timed out on docs/plans/{slug}/ "
-                f"— route to /ce-plan revision", plan=slug))
+                f"— route to /core-engineering:ce-plan revision", plan=slug))
 
         # plan.json feature ids (for orphan-spec + surface owner-done gating).
         feature_ids = self._plan_feature_ids(plan_dir)
@@ -462,10 +462,10 @@ class Scan:
         # plan.json exists; a single-feature minimal plan has none).
         if feature_ids is not None and spec_id not in feature_ids:
             self.hard.append(_finding(
-                "hard", "orphan_spec", PLAN_SCOPE_LOCK, "/ce-plan",
+                "hard", "orphan_spec", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                 f"{PLAN_SCOPE_LOCK} drift: spec dir `{spec_id}` resolves to no "
                 f"feature in docs/plans/{slug}/plan.json — traceability broken; "
-                f"route to /ce-plan revision", plan=slug, feature=spec_id))
+                f"route to /core-engineering:ce-plan revision", plan=slug, feature=spec_id))
 
         # spec-lint over the spec dir (h5 auto-discovers threat-model.md).
         code, data = run_lint(self.spec_lint, spec_dir, [], self.tree_root)
@@ -474,22 +474,22 @@ class Scan:
             if isinstance(data, dict) and data.get("hard_failures"):
                 detail = " · ".join(str(x) for x in data["hard_failures"][:4])
             self.hard.append(_finding(
-                "hard", "spec_lint_fail", SPEC_SCOPE_LOCK, "/ce-spec",
-                f"{SPEC_SCOPE_LOCK} drift — route to /ce-spec"
+                "hard", "spec_lint_fail", SPEC_SCOPE_LOCK, "/core-engineering:ce-spec",
+                f"{SPEC_SCOPE_LOCK} drift — route to /core-engineering:ce-spec"
                 + (f" [{detail}]" if detail else ""),
                 plan=slug, feature=spec_id))
         elif code == 2:
             msg = data.get("message", "") if isinstance(data, dict) else ""
             self.hard.append(_finding(
-                "hard", "spec_lint_fail", SPEC_SCOPE_LOCK, "/ce-spec",
+                "hard", "spec_lint_fail", SPEC_SCOPE_LOCK, "/core-engineering:ce-spec",
                 f"{SPEC_SCOPE_LOCK} drift — spec-lint could not evaluate {label} "
-                f"({msg or 'unparseable inputs'}); route to /ce-spec",
+                f"({msg or 'unparseable inputs'}); route to /core-engineering:ce-spec",
                 plan=slug, feature=spec_id))
         elif code is None:
             self.hard.append(_finding(
-                "hard", "spec_lint_fail", SPEC_SCOPE_LOCK, "/ce-spec",
+                "hard", "spec_lint_fail", SPEC_SCOPE_LOCK, "/core-engineering:ce-spec",
                 f"{SPEC_SCOPE_LOCK} drift — spec-lint timed out on {label}; route to "
-                f"/ce-spec", plan=slug, feature=spec_id))
+                f"/core-engineering:ce-spec", plan=slug, feature=spec_id))
 
         # h5 disarmed — the threat-model DECLARES obligations for this feature,
         # yet spec-lint's coverage gate reports it disarmed (it no longer runs).
@@ -500,11 +500,11 @@ class Scan:
             h5_status = data.get("h5_status")
             if h5_status in ("disarmed", "na") and threat_ids_for_feature(tm_text, spec_id):
                 self.hard.append(_finding(
-                    "hard", "h5_disarmed", SPEC_SCOPE_LOCK, "/ce-spec",
+                    "hard", "h5_disarmed", SPEC_SCOPE_LOCK, "/core-engineering:ce-spec",
                     f"threat-model coverage disarmed — H5 no longer runs for "
                     f"{spec_id}: the plan's threat-model assigns threat_ids to "
                     f"this feature but spec-lint reports `{h5_status}`; route to "
-                    f"/ce-spec", plan=slug, feature=spec_id))
+                    f"/core-engineering:ce-spec", plan=slug, feature=spec_id))
 
         # phantom TZ — a spec cites a [SECURITY: TZ-NNN] the threat-model never
         # defines (the inverse of H5, checked nowhere else).
@@ -514,10 +514,10 @@ class Scan:
             for tz in sorted(spec_cited_threat_ids(spec_text)):
                 if tz not in defined:
                     self.hard.append(_finding(
-                        "hard", "phantom_threat_id", SPEC_SCOPE_LOCK, "/ce-spec",
+                        "hard", "phantom_threat_id", SPEC_SCOPE_LOCK, "/core-engineering:ce-spec",
                         f"{SPEC_SCOPE_LOCK} drift — {label} cites `[SECURITY: {tz}]` "
                         f"but docs/plans/{slug}/threat-model.md never defines "
-                        f"{tz} (phantom threat reference); route to /ce-spec",
+                        f"{tz} (phantom threat reference); route to /core-engineering:ce-spec",
                         plan=slug, feature=spec_id, threat_id=tz))
 
         # advisory: spec-claimed files that no longer exist in the committed tree.
@@ -561,10 +561,10 @@ class Scan:
         for rel in self._claimed_files(spec_dir, spec_text):
             if not (self.tree_root / rel).exists():
                 self.advisory.append(_finding(
-                    "advisory", "claimed_file_missing", SPEC_SCOPE_LOCK, "/ce-spec",
+                    "advisory", "claimed_file_missing", SPEC_SCOPE_LOCK, "/core-engineering:ce-spec",
                     f"{SPEC_SCOPE_LOCK} drift (advisory) — {slug}/{spec_dir.name} "
                     f"claims `{rel}` but it is absent from the committed tree "
-                    f"(spec-vs-code traceability drift); route to /ce-spec",
+                    f"(spec-vs-code traceability drift); route to /core-engineering:ce-spec",
                     plan=slug, feature=spec_dir.name, path=rel))
 
     # -- retired-surface residue (advisory) --------------------------------
@@ -607,10 +607,10 @@ class Scan:
             if hit:
                 disp = "hard-break" if is_hardbreak else f"deprecate,removed_by:{owner}"
                 self.advisory.append(_finding(
-                    "advisory", "surface_residue", PLAN_SCOPE_LOCK, "/ce-plan",
+                    "advisory", "surface_residue", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
                     f"{PLAN_SCOPE_LOCK} drift (advisory) — retired surface "
                     f"`{surface}` ({disp}) still appears in `{hit}` though its "
-                    f"removal is due; route to /ce-plan revision",
+                    f"removal is due; route to /core-engineering:ce-plan revision",
                     plan=slug, surface=surface, seen_in=hit))
 
     def _feature_done(self, plan_dir: Path, feature_id: str) -> bool:

@@ -392,7 +392,7 @@ def human_attestations_section(plan_dir: Path, audit_json: dict,
         except OSError:
             gaps.append("verification-report.md present but unreadable")
     else:
-        gaps.append("no verification-report.md — /ce-verify has not produced a "
+        gaps.append("no verification-report.md — /core-engineering:ce-verify has not produced a "
                     "cross-feature acceptance record for this plan")
     out["verification_report"] = vr_out
 
@@ -675,6 +675,11 @@ def main(argv=None) -> int:
         print(f"evidence-pack: refusing --out {out_dir} — it would write onto a "
               f"source location (plan root or specs/). Use the dated "
               f"evidence-pack/<date>/ convention.", file=sys.stderr)
+        return 1
+    if out_dir is not None and (out_dir.exists() or out_dir.is_symlink()):
+        print(f"evidence-pack: refusing --out {out_dir} — the target already "
+              f"exists. Choose a new dated directory; evidence packs are "
+              f"never overwritten.", file=sys.stderr)
         return 1
 
     gaps: list = []

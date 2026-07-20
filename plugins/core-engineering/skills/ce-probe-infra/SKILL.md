@@ -2,7 +2,7 @@
 name: ce-probe-infra
 description: |
   Statically audit Infrastructure-as-Code / Kubernetes / cloud manifests across a repo — least-privilege, workload hardening, secrets, exposure, hygiene, cross-manifest consistency. Orchestrates installed scanners (tfsec/checkov/kube-score/kube-linter/hadolint/trivy) and falls back to a stdlib infra-lint.py floor. Read-only on code; redacts secrets, never exfiltrates; findings, not verdicts.
-  Triggers: audit/lint/review IaC, k8s, Helm, Dockerfile, compose, or cloud manifests for misconfig. Static & plan-free. For a live running target use /ce-probe-sec; for application-code review use /ce-review; for known-vulnerable dependency versions (SCA) use /ce-probe-deps.
+  Triggers: audit/lint/review IaC, k8s, Helm, Dockerfile, compose, or cloud manifests for misconfig. Static & plan-free. For a live running target use /core-engineering:ce-probe-sec; for application-code review use /core-engineering:ce-review; for known-vulnerable dependency versions (SCA) use /core-engineering:ce-probe-deps.
 argument-hint: "[path | scope (default: repo root)] [--format terraform|k8s|dockerfile] [--scope <subpath>]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -54,26 +54,26 @@ bare name finds nothing and triggers a filesystem search.
 
 ## Boundary — what this is NOT, and where else to route
 
-- **vs `/ce-probe-sec` (dynamic security):** `probe:sec` probes a **live** target and its own
+- **vs `/core-engineering:ce-probe-sec` (dynamic security):** `probe:sec` probes a **live** target and its own
   scope note says *"Application-layer only. Network, infra, supply-chain (SCA) out of
   scope."* — that disclaimed region is exactly what `ce-probe-infra` fills, statically. A
   finding this tool can only **infer** statically (an exposed port that *may* be live-
   reachable, an IAM grant whose real blast radius depends on the deployed account) is routed
-  **to `/ce-probe-sec`**, the dynamic confirmer. There is nothing live to refuse here, so this
+  **to `/core-engineering:ce-probe-sec`**, the dynamic confirmer. There is nothing live to refuse here, so this
   tool deliberately **drops the twice-attested consent gate** — inheriting it would be a
   category error — and adds the **Secret-Redaction Rule** instead.
-- **vs `/ce-review` (application-code review):** `review` reasons about **application
+- **vs `/core-engineering:ce-review` (application-code review):** `review` reasons about **application
   code** against a **spec**, is bounded to a feature's **diff + one hop**, refuses a
   whole-repo crawl, and requires an implemented feature to exist. `ce-probe-infra` inverts
   every one of those: it sweeps the **whole repo**, runs **plan-free**, and audits
   **infrastructure manifests**, not code.
-- **vs `/ce-plan-audit` (plan validation):** `ce-plan-audit` lints **plan files** on disk;
+- **vs `/core-engineering:ce-plan-audit` (plan validation):** `ce-plan-audit` lints **plan files** on disk;
   `ce-probe-infra` lints **infra manifests**. They share the *discipline* — a deterministic
   hard-referential lint + a model-judged layer + a severity ceiling that only lets a proven
   fact carry High — but read **disjoint artifacts**; neither reads the other's.
 
-Anything "analyze the running system / cluster / reachable endpoint" → `/ce-probe-sec`.
-Anything "review the application source" → `/ce-review`. This tool reads manifests.
+Anything "analyze the running system / cluster / reachable endpoint" → `/core-engineering:ce-probe-sec`.
+Anything "review the application source" → `/core-engineering:ce-review`. This tool reads manifests.
 
 ## Runtime Inputs
 
@@ -133,7 +133,7 @@ Anything "review the application source" → `/ce-review`. This tool reads manif
 |---|---|---|
 | **`scanner-confirmed`** | an orchestrated scanner reported it with a rule id, **or** the floor's HARD lint (`X-*`) proved a referential/structural fact | **High allowed** |
 | **`manifest-read`** | the model read the setting literally in the manifest and judged it (a `privileged: true`, a wildcard IAM action on the page) — no scanner corroborated it | **Medium** (the static read shares the model's blind spots; it cannot *prove* a defect) |
-| **`inferred`** | the concern needs runtime / cross-account context the static read cannot establish (a LoadBalancer that *may* be internet-reachable) | **Medium**, and **routed to `/ce-probe-sec`** — only a live target confirms it |
+| **`inferred`** | the concern needs runtime / cross-account context the static read cannot establish (a LoadBalancer that *may* be internet-reachable) | **Medium**, and **routed to `/core-engineering:ce-probe-sec`** — only a live target confirms it |
 
 ## Secret-Redaction Rule  *(the static-distinction discipline that replaces a consent gate)*
 
@@ -192,7 +192,7 @@ suggested escalation}`. The agent never declares pass/fail. The human triages:
 
 | Triage | Result |
 |---|---|
-| **Escalate** | `/ce-plan` (any manifest/IaC correction) · `/ce-decide` (a hard architectural fork) · `/ce-probe-sec` (an `inferred` exposure only a live target confirms) |
+| **Escalate** | `/core-engineering:ce-plan` (any manifest/IaC correction) · `/core-engineering:ce-decide` (a hard architectural fork) · `/core-engineering:ce-probe-sec` (an `inferred` exposure only a live target confirms) |
 | **Defer** | Record as a known limitation |
 | **Dismiss** | False positive; drop |
 
@@ -263,7 +263,7 @@ For each detected family, in this order:
 3. **Model judgment** — apply the module's lens taxonomy to read the manifests for what neither
    the floor nor a scanner caught: cross-manifest references (`X-REF`/`X-VAR`/`X-VAL` —
    advisory, never a FAIL; advisory-only under `overlay_context`), least-privilege *reasoning*
-   (is a broad grant load-bearing?), and exposure that is `inferred` (route to `/ce-probe-sec`).
+   (is a broad grant load-bearing?), and exposure that is `inferred` (route to `/core-engineering:ce-probe-sec`).
 4. Capture evidence per finding to `docs/infra-reviews/evidence/<date>-<slug>/F-N.*` (redacted).
 
 ## Stage 2 — Triage and Report
@@ -300,7 +300,7 @@ For each detected family, in this order:
 - **Location:** `path:line`
 - **Observation:** <what the manifest says> (secrets shown as `[REDACTED]`)
 - **Evidence:** `evidence/<date>-<slug>/F-N.*` (scanner output / excerpt)
-- **Suggested action:** `/ce-plan` | `/ce-decide` | `/ce-probe-sec` | review
+- **Suggested action:** `/core-engineering:ce-plan` | `/core-engineering:ce-decide` | `/core-engineering:ce-probe-sec` | review
 - **Triage:** Escalate / Defer / Dismiss — <date>
 
 ## Open Questions / Stops
@@ -338,18 +338,18 @@ patch/commit/apply/deploy a manifest.
 
 - any manifest or IaC correction (a missing `USER`, a `:latest` pin, an over-broad
   security-group rule, cross-file RBAC, NetworkPolicies, or a secrets layer) →
-  `/ce-plan` (then `/ce-implement` per feature); infrastructure findings are not
+  `/core-engineering:ce-plan` (then `/core-engineering:ce-implement` per feature); infrastructure findings are not
   pre-cleared for the express patch lane
-- a missing-policy / no-contract gap (no encryption standard, no resource-limit baseline) → `/ce-plan` (or `/ce-brief` first if the requirement is unshaped)
-- a hard architectural fork (managed-secrets vs sealed-secrets, VPC topology) → `/ce-decide` for an ADR
-- an `inferred` exposure only a live target can confirm → `/ce-probe-sec`
+- a missing-policy / no-contract gap (no encryption standard, no resource-limit baseline) → `/core-engineering:ce-plan` (or `/core-engineering:ce-brief` first if the requirement is unshaped)
+- a hard architectural fork (managed-secrets vs sealed-secrets, VPC topology) → `/core-engineering:ce-decide` for an ADR
+- an `inferred` exposure only a live target can confirm → `/core-engineering:ce-probe-sec`
 - on a plan-free repo with no spine, route to **review** as the plan-less terminal (as `ce-probe-perf` / `ce-probe-sec` do).
 
 ## Honest Limitations
 
 - **Static-only.** It reads manifests on disk — it cannot see RBAC as the API server resolves
   it, admission-controller mutation, runtime drift between manifest and cluster, or the real
-  cloud account's subnet/route topology. An `inferred` exposure is a lead for `/ce-probe-sec`,
+  cloud account's subnet/route topology. An `inferred` exposure is a lead for `/core-engineering:ce-probe-sec`,
   never proof.
 - **Not a CSPM, not a policy engine.** A first cut, not OPA/Sentinel/a posture-management
   product. A clean run means the manifests are well-formed and free of the patterns checked —

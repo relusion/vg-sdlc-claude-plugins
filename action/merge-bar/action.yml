@@ -9,7 +9,7 @@
 #
 # Adoption is three workflow lines (checkout with fetch-depth: 0 + this
 # action's `uses:` line) — see README.md next to this file. The documented
-# air-gapped fallback for orgs that forbid third-party actions is
+# checksum-pinned copy-in fallback for orgs that forbid third-party actions is
 # templates/adopter-ci/gates.yml in this repository.
 #
 # THREAT MODEL — the PR must not grade itself (same defenses as gates.yml):
@@ -27,17 +27,18 @@
 #     action. Protect .github/** with CODEOWNERS or a repository ruleset
 #     (required companion control — see docs/TEAM-ROLLOUT.md).
 #
-# SIGNED VERDICTS (opt-in, default OFF) — `attest: 'true'` closes the "who
-# watches the workflow file" gap: after a GREEN verdict, the action projects
+# SIGNED VERDICTS (opt-in, default OFF) — `attest: 'true'` authenticates the
+# exact GREEN-verdict bytes and signer workflow identity. It does not close the
+# trust gap created by a PR-editable calling workflow. The action projects
 # merge-verdict.json to the whitelisted predicate (scripts/verdict_predicate.py)
 # and calls GitHub's keyless OIDC attestation (actions/attest, SHA-pinned) to
 # sigstore-sign it under the workflow's OIDC identity — no stored secret, no
 # signing key. A second required check running `gh attestation verify` then
-# proves a green bar judged THESE commits under THIS policy hash, independently
-# of the workflow that emitted it. Default OFF preserves the 3-line adoption and
-# air-gapped/GHES compatibility (no OIDC needed, contents:read only). When ON the
+# proves the signed bytes name THESE commits and THIS policy hash; trust still
+# requires the expected signer workflow/ref and protected workflow inputs. Default OFF preserves the 3-line adoption and
+# GHES/no-OIDC compatibility (no OIDC needed, contents:read only). When ON the
 # caller must grant `permissions: {id-token: write, attestations: write}` — see
-# README.md, "Signed verdicts". The air-gapped gates.yml has no attestation path.
+# README.md, "Signed verdicts". The copy-in gates.yml has no attestation path.
 
 name: merge-bar
 description: >-
@@ -84,10 +85,11 @@ inputs:
     description: >-
       Opt-in signed verdicts (default 'false'). When 'true', a GREEN verdict is
       sigstore-signed via GitHub's keyless OIDC attestation (actions/attest) over
-      the whitelisted predicate, so the check is verifiable independently of the
-      workflow that produced it. Requires the CALLER workflow to grant
+      the whitelisted predicate, authenticating the exact bytes and signer
+      workflow identity. It does not prove an untrusted workflow computed the
+      verdict honestly. Requires the CALLER workflow to grant
       `permissions: {id-token: write, attestations: write}`. Leave 'false' for
-      the 3-line adoption and for air-gapped/GHES runners with no OIDC — the
+      the 3-line adoption and for GHES/runners with no OIDC — the
       action then needs only `contents: read` and does nothing new.
     default: 'false'
 

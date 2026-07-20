@@ -37,7 +37,7 @@ and (3) the fixed **dimension rubric**, the pass emits a list of findings, each:
   contract-clause — the bound clause id, or `unbound`
   observation    — "<what is wrong> because <what in the pixels grounds it>"
   evidence-ref   — the screenshot region / file (evidence/ convention)
-  suggested-route — /ce-spec (contract gap) · /ce-implement (defect) · Dismiss (noise) }
+  suggested-route — /core-engineering:ce-spec (contract gap) · /core-engineering:ce-implement (defect) · Dismiss (noise) }
 ```
 
 No composite score. No "the design is good/bad" verdict. The consumer's existing
@@ -166,8 +166,8 @@ every finding's class.
   raises the floor (catches the obvious breakage a human would catch by looking),
   not the ceiling.
 - **Shares the model's blind spots.** When the same model built the surface and
-  critiques it, an error in its visual reading can be shared — like the Challenger
-  and review re-reasoning limits. Independent human triage is the backstop.
+  critiques it, an error in its visual reading can be shared. Independent human
+  triage is the backstop.
 - **No score, no verdict.** It emits findings only; the human owns every disposition,
   and a `taste` finding can never gate.
 - **A model-judgment pass, not a portable script.** Unlike `spec-lint.py` /

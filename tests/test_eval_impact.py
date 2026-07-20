@@ -50,6 +50,7 @@ class PureHelpers(unittest.TestCase):
         dt = eval_impact.parse_run_id("20260627-044925Z")
         self.assertIsNotNone(dt)
         self.assertEqual((dt.year, dt.month, dt.day, dt.hour), (2026, 6, 27, 4))
+        self.assertIsNotNone(eval_impact.parse_run_id("20260627-044925-123456Z"))
         self.assertIsNone(eval_impact.parse_run_id("2026-06-27"))
         self.assertIsNone(eval_impact.parse_run_id(None))
 
@@ -90,11 +91,11 @@ class PureHelpers(unittest.TestCase):
 # Mapping tests against the real committed corpus (deterministic)
 # ---------------------------------------------------------------------------
 class MappingAgainstRealCorpus(unittest.TestCase):
-    def test_prompt_only_ce_review_edit_maps_to_eval_007(self):
+    def test_review_contract_edit_maps_to_review_and_auto_build_scenarios(self):
         res = run("--files", "plugins/core-engineering/skills/ce-review/SKILL.md")
         self.assertEqual(res.returncode, 0, res.stderr)
         data = payload(res)
-        self.assertEqual(data["affected_scenarios"], ["EVAL-007"])
+        self.assertEqual(data["affected_scenarios"], ["EVAL-007", "EVAL-017"])
         self.assertEqual(data["touched_waived_skills"], [])
 
     def test_spec_lint_canonical_edit_maps_to_ce_spec_and_ce_auto_build(self):
@@ -198,13 +199,22 @@ def build_repo(tmp):
 
 def write_result(repo, name, *, run_id="20260627-000000Z", git_head=None,
                  status="pass", returncode=0, dry_run=False):
+    git_head = git_head or git(repo, "rev-parse", "HEAD")
     scenario = {"id": "EVAL-T1", "skill": "ce-foo",
-                "status": status, "returncode": returncode, "run_id": run_id}
-    if git_head:
-        scenario["git_head"] = git_head
+                "status": status, "returncode": returncode, "run_id": run_id,
+                "git_head": git_head, "source_clean": True,
+                "grade_status": "pass", "grade_returncode": 0,
+                "graded": True}
     (repo / "evals" / "results" / name).write_text(json.dumps({
         "schema_version": 1, "dry_run": dry_run, "scenarios": [scenario],
     }), encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", f"record {name}")
+
+
+def commit_result(repo, name="record result"):
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", name)
 
 
 class FreshnessSynthetic(unittest.TestCase):
@@ -235,6 +245,81 @@ class FreshnessSynthetic(unittest.TestCase):
             res = run("--files", SKILL_REL, "--check", root=repo)
             self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
             self.assertEqual(payload(res)["stale"], [])
+
+    def test_ci_summary_top_level_run_id_is_freshness_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_repo(tmp)
+            self._touch_skill(repo, "2026-07-01T00:00:00")
+            (repo / "evals" / "results" / "ci.json").write_text(json.dumps({
+                "schema_version": 1,
+                "run_id": "20260705-000000Z",
+                "git_head": git(repo, "rev-parse", "HEAD"),
+                "source_clean": True,
+                "dry_run": False,
+                "grade_status": "pass",
+                "grade_returncode": 0,
+                "graded_scenarios": ["EVAL-T1"],
+                "scenarios": [{
+                    "id": "EVAL-T1",
+                    "skill": "ce-foo",
+                    "status": "pass",
+                    "returncode": 0,
+                }],
+            }), encoding="utf-8")
+            commit_result(repo)
+            res = run("--files", SKILL_REL, "--check", root=repo)
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            self.assertEqual(payload(res)["stale"], [])
+
+    def test_scenario_run_id_overrides_top_level_run_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_repo(tmp)
+            (repo / "evals" / "results" / "aggregate.json").write_text(json.dumps({
+                "schema_version": 1,
+                "run_id": "20260601-000000Z",
+                "git_head": git(repo, "rev-parse", "HEAD"),
+                "source_clean": True,
+                "dry_run": False,
+                "grade_status": "pass",
+                "grade_returncode": 0,
+                "graded_scenarios": ["EVAL-T1"],
+                "scenarios": [{
+                    "id": "EVAL-T1",
+                    "skill": "ce-foo",
+                    "status": "pass",
+                    "returncode": 0,
+                    "run_id": "20260705-000000Z",
+                }],
+            }), encoding="utf-8")
+            commit_result(repo)
+            candidate = eval_impact.load_result_passes(repo)["EVAL-T1"][0]
+            self.assertEqual(candidate["date"].strftime("%Y%m%d-%H%M%SZ"),
+                             "20260705-000000Z")
+
+    def test_old_commit_with_ci_unique_id_is_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_repo(tmp)
+            old_head = git(repo, "rev-parse", "HEAD")
+            self._touch_skill(repo, "2026-07-05T00:00:00")
+            (repo / "evals" / "results" / "ci.json").write_text(json.dumps({
+                "schema_version": 1,
+                "run_id": "eval-live-123456-1",
+                "git_head": old_head,
+                "source_clean": True,
+                "dry_run": False,
+                "grade_status": "pass",
+                "grade_returncode": 0,
+                "graded_scenarios": ["EVAL-T1"],
+                "scenarios": [{
+                    "id": "EVAL-T1", "skill": "ce-foo",
+                    "status": "pass", "returncode": 0,
+                }],
+            }), encoding="utf-8")
+            commit_result(repo)
+            res = run("--files", SKILL_REL, "--check", root=repo)
+            self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+            self.assertEqual(payload(res)["stale"][0]["reason"],
+                             "live pass predates the change")
 
     def test_fresh_via_git_head_anchor_even_if_date_older(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -2,7 +2,7 @@
 name: ce-doc-audit
 description: |
   Audit an existing document for accuracy and usability by impersonating a named reader role, executing its steps in a local sandbox, and reporting inline, evidence-bound findings — never editing the doc. Executable-doc mode (the doc has runnable steps): run each step exactly as written as the role, observe reality, and flag where it is inaccurate / incomplete / unclear / hard-to-follow. Conceptual-doc mode (no runnable steps): a role-comprehension walk instead of execution. Findings, not verdicts; the human triages; a separate skill addresses approved feedback.
-  Triggers: validate/QA/test-drive whether a role can actually follow a doc, runbook, quickstart, README, or setup guide. To WRITE docs use /ce-ship-document; to teach a maintainer the code use /ce-onboard; to walk a running app's UI use /ce-ux-audit.
+  Triggers: validate/QA/test-drive whether a role can actually follow a doc, runbook, quickstart, README, or setup guide. To WRITE docs use /core-engineering:ce-ship-document; to teach a maintainer the code use /core-engineering:ce-onboard; to walk a running app's UI use /core-engineering:ce-ux-audit.
 argument-hint: "[doc-path] [--role <name|inline text>] [--sandbox <dir>]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 disable-model-invocation: true
@@ -21,9 +21,9 @@ sandbox**, and reports **inline, evidence-bound findings** where the doc is
 
 The workflow is **read-only on the source document and on code** — it finds
 issues and **escalates**; it never edits the doc it is auditing and never
-commits. Same finding-and-escalate discipline as `/ce-ux-audit` and
-`/ce-probe-sec`. Approved findings are addressed later by a *different* skill
-(`/ce-ship-document` to regenerate, `/ce-patch` for a small edit, or by hand).
+commits. Same finding-and-escalate discipline as `/core-engineering:ce-ux-audit` and
+`/core-engineering:ce-probe-sec`. Approved findings are addressed later by a *different* skill
+(`/core-engineering:ce-ship-document` to regenerate, `/core-engineering:ce-patch` for a small edit, or by hand).
 
 It runs in one of **two auto-detected modes**, chosen by a Stage-0 probe of the
 document — you never have to know which:
@@ -38,17 +38,17 @@ document — you never have to know which:
 
 ## Sister tools
 
-|  | `/ce-doc-audit` | `/ce-ship-document` | `/ce-ux-audit` | `/ce-onboard` |
+|  | `/core-engineering:ce-doc-audit` | `/core-engineering:ce-ship-document` | `/core-engineering:ce-ux-audit` | `/core-engineering:ce-onboard` |
 |---|---|---|---|---|
 | Subject | an **existing doc** | user-facing docs | a **running app's UI** | as-built **code** |
 | Direction | **validates** it | **writes** it | walks journeys | **teaches** a human |
 | Output | inline findings | the doc | findings | a walkthrough |
 | Edits source? | **never** | authors it | never | never |
 
-`/ce-ship-document` and `/ce-doc-audit` are inverse operations on the same
+`/core-engineering:ce-ship-document` and `/core-engineering:ce-doc-audit` are inverse operations on the same
 artifact: one generates a doc from verified behavior, the other checks an
 existing doc against executed reality. When a doc-audit finding is *approved*,
-the fix routes back to `/ce-ship-document` or `/ce-patch`.
+the fix routes back to `/core-engineering:ce-ship-document` or `/core-engineering:ce-patch`.
 
 ## Runtime Inputs
 
@@ -146,13 +146,13 @@ The agent never declares pass / fail. The human triages each finding:
 
 | Triage | Result |
 |---|---|
-| **Escalate** | `/ce-ship-document` (regenerate) · `/ce-patch` (small doc edit) · `/ce-debug` or `/ce-implement` (the doc is right, the *code* is wrong) |
+| **Escalate** | `/core-engineering:ce-ship-document` (regenerate) · `/core-engineering:ce-patch` (small doc edit) · `/core-engineering:ce-debug` or `/core-engineering:ce-implement` (the doc is right, the *code* is wrong) |
 | **Defer** | Record as a known limitation in the report |
 | **Dismiss** | False positive — record the dismissal and its reason (kept, never silently dropped) |
 
 A doc-audit finding sometimes reveals a **product** bug, not a doc bug: the doc
 says X, the code does Y, and the doc is the correct spec. Those route to
-`/ce-debug` / `/ce-implement`, not to a doc rewrite — the triage column carries
+`/core-engineering:ce-debug` / `/core-engineering:ce-implement`, not to a doc rewrite — the triage column carries
 the distinction.
 
 **Cluster by root cause.** Before reporting, fold findings that share one root
@@ -264,7 +264,7 @@ bare name finds nothing and triggers a filesystem search. (`docs/doc-audits/` an
 - **Observation:** <what happened / what's missing>
 - **Evidence:** `evidence/<date>-<slug>/F-N.{txt,log}` (command + real output) *or* the cited spans
 - **Suggested fix:** <concrete doc change>
-- **Suggested escalation / Triage:** /ce-ship-document | /ce-patch | /ce-debug — Escalate / Defer / Dismiss — <date>
+- **Suggested escalation / Triage:** /core-engineering:ce-ship-document | /core-engineering:ce-patch | /core-engineering:ce-debug — Escalate / Defer / Dismiss — <date>
 ````
 
 The **annotated copy** `docs/doc-audits/<date>-<slug>.annotated.md` is the source
@@ -286,13 +286,13 @@ Annotated: docs/doc-audits/<date>-<slug>.annotated.md
 ```
 
 **Never edit the audited doc; never commit.** Approved findings are addressed by
-`/ce-ship-document`, `/ce-patch`, or by hand — after your review.
+`/core-engineering:ce-ship-document`, `/core-engineering:ce-patch`, or by hand — after your review.
 
 ## Escalation
 
-Doc rewrites / regeneration route to `/ce-ship-document`; small bounded doc edits
-route to `/ce-patch`; a finding where the doc is correct but the *code* misbehaves
-routes to `/ce-debug` (diagnose) or `/ce-implement` (owned feature). This skill
+Doc rewrites / regeneration route to `/core-engineering:ce-ship-document`; small bounded doc edits
+route to `/core-engineering:ce-patch`; a finding where the doc is correct but the *code* misbehaves
+routes to `/core-engineering:ce-debug` (diagnose) or `/core-engineering:ce-implement` (owned feature). This skill
 records findings and evidence, not fixes.
 
 ## Honest Limitations

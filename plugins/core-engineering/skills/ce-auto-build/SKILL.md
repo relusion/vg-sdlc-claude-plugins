@@ -4,7 +4,7 @@ description: |
   Build a plan through a bounded, sequential spec-to-implementation pipeline with independent review, deterministic gates, and one final human review.
   Triggers: auto-build/autopilot/batch spec and implement a plan in ship order.
 argument-hint: "[plan-slug] [range e.g. 01..05] [--resume]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Task
 disable-model-invocation: true
 ---
 
@@ -18,14 +18,15 @@ independent review before moving on. The workflow is deliberately sequential and
 has one operating profile.
 
 Use this skill when a plan is already approved and the human wants a bounded batch
-run. Use `/ce-plan` when the scope or architecture is still unsettled. Use
-`/ce-spec` or `/ce-implement` when the human wants to drive one feature directly.
+run. Use `/core-engineering:ce-plan` when the scope or architecture is still unsettled. Use
+`/core-engineering:ce-spec` or `/core-engineering:ce-implement` when the human wants to drive one feature directly.
 
 ## Execution Contract
 
 Auto-build provides supervised autonomy, not release authority.
 
-- The human approves the exact scope, token/compute budget, retry cap, and park cap
+- The human approves the exact scope, token/compute budget, failure-attempt cap,
+  and park cap
   at kickoff.
 - Features run one at a time in `ship_order`. There is no parallel or worktree
   mode.
@@ -44,13 +45,13 @@ Auto-build provides supervised autonomy, not release authority.
 ```text
 Stage 0 — kickoff
   resolve and lint plan → confirm clean tree and capabilities
-  → human approves scope + budget + retry/park caps
+  → human approves scope + budget + failure-attempt/park caps
 
 Stage 1+2 — sequential feature loop
   for each feature in ship order:
     spec worker → spec artifacts + spec-lint
     → implementation worker → tests + verification artifacts + external gates
-    → independent review → done, retry, or park
+    → independent review → done, repair, or park
   then one integration verification over the combined result
 
 Stage 3 — human end-review
@@ -71,8 +72,9 @@ stop and route the work to the relevant interactive skill.
 - **`--resume`:** optional. Resume the newest state file after reconciling it with
   artifacts on disk.
 - **Budget:** a required positive token/compute estimate for the whole run.
-- **Retry cap:** a required positive per-feature repair-retry cap. Default recommendation:
-  `3`.
+- **Failure-attempt cap (`--retry-cap`):** a required positive per-feature limit that
+  counts the first failed gate attempt. A cap of `2` permits one fresh repair; the
+  default recommendation is `3`.
 - **Park cap:** a required positive consecutive-park cap. Default recommendation:
   `3`.
 
@@ -105,8 +107,8 @@ worker only when a named worker is unavailable, with the same role, inputs, outp
 artifacts, and no-question contract. Use another fresh Task worker for review.
 
 Do not collapse the work into the orchestrator context when Task is unavailable.
-Stop, record the capability gap, and route the remaining features to `/ce-spec` and
-`/ce-implement`. This keeps loss of the spec/implementation boundary explicit.
+Stop, record the capability gap, and route the remaining features to `/core-engineering:ce-spec` and
+`/core-engineering:ce-implement`. This keeps loss of the spec/implementation boundary explicit.
 
 Each worker receives only the minimum repository context needed for its role. The
 implementation worker receives `ce-spec.md` and `tasks.json` as its specification
@@ -133,6 +135,10 @@ tasks.json exists and every task is done
 verification.md exists
 review-summary.json exists and has no blocking confirmed-high finding
 ```
+
+Validate `review-summary.json` with the existing sibling `ce-review` contract and
+the synchronized local `review-gate.py`; never infer its blocking state from review
+prose or an ad-hoc JSON shape.
 
 If cache and disk disagree, disk wins and the feature returns to the first missing
 gate. An unreadable or unsupported state schema stops the resume; do not invent

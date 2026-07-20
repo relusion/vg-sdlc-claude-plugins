@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """backlog-emit.py — deterministic one-way backlog format emitter.
 
-Consumes the neutral intermediate `backlog.json` that /ce-ship-backlog's model
+Consumes the neutral intermediate `backlog.json` that /core-engineering:ce-ship-backlog's model
 half builds from a feature's `ce-spec.md` + `tasks.json`, and renders it to one
 paste/import format. The model reviews the output at the material Write gate and
 persists it; this script only transforms — it never reads a spec, never writes a

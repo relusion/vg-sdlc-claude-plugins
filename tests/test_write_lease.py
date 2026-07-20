@@ -44,7 +44,7 @@ class WriteLease(unittest.TestCase):
             self.assertIn(LEASE_REL, lease["deny"])
             # The reason is a short statement of the lease; the lift path lives
             # only in the guard's deny message, never in the stored reason.
-            self.assertIn("session write lease set by /ce-review", lease["reason"])
+            self.assertIn("session write lease set by /core-engineering:ce-review", lease["reason"])
             self.assertNotIn("stale", lease["reason"])
             self.assertNotIn(LEASE_REL, lease["reason"])
 

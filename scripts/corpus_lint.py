@@ -5,7 +5,7 @@ This is intentionally a narrow, stdlib-only prose lint. It catches the
 maintenance failures that made P0 necessary:
 
   * stale public names from pre-`ce-*` drafts;
-  * `/ce-*` references that do not correspond to a shipped skill;
+  * bare or incorrectly namespaced plugin-skill references;
   * missing canonical `SKILL.md` skeleton sections;
   * broken `${CLAUDE_SKILL_DIR}/...` companion-file references;
   * runtime references to contributor docs that are outside the shipped plugin.
@@ -31,19 +31,25 @@ REQUIRED_SKILL_HEADINGS = (
 )
 
 FORBIDDEN_PUBLIC_ALIASES = {
-    "UX Chaos": "/ce-ux-audit",
-    "ux-chaos": "/ce-ux-audit",
-    "sec-probe": "/ce-probe-sec",
-    "/security-review": "/ce-review",
+    "UX Chaos": "/core-engineering:ce-ux-audit",
+    "ux-chaos": "/core-engineering:ce-ux-audit",
+    "sec-probe": "/core-engineering:ce-probe-sec",
+    "/security-review": "/core-engineering:ce-review",
 }
 
-CE_COMMAND_RE = re.compile(r"(?<![\w/.-])/(ce-[A-Za-z0-9-]+)\b")
+CE_COMMAND_RE = re.compile(
+    r"(?<![\w/.-])/([A-Za-z_][A-Za-z0-9_-]*):(ce-[A-Za-z0-9-]+)\b"
+)
+BARE_CE_COMMAND_RE = re.compile(
+    r"(?<![\w/.:.-])/(ce-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)"
+    r"(?![A-Za-z0-9/-]|\.(?:md|json|jsonl|py)\b)"
+)
 SKILL_DIR_REF_RE = re.compile(r"\$\{CLAUDE_SKILL_DIR\}/([A-Za-z0-9_.\-/*<>]+)")
 REPO_ONLY_DOC_REF_RE = re.compile(r"docs/contributing/[A-Za-z0-9_./-]+")
 
 def skills_roots(root: Path) -> list[Path]:
     """Every marketplace plugin's skills/ dir — the corpus lint's known-name
-    universe is the union across plugins, so a cross-plugin `/ce-idea-score`
+    universe is the union across plugins, so a cross-plugin `/product-discovery:ce-idea-score`
     mention stays valid after the idea trio moves to its own plugin."""
     return sorted(p for p in (root / "plugins").glob("*/skills") if p.is_dir())
 
@@ -71,6 +77,13 @@ def skill_files(root: Path) -> list[Path]:
 
 def skill_names(root: Path) -> set[str]:
     return {p.parent.name for p in skill_files(root)}
+
+
+def skill_owners(root: Path) -> dict[str, str]:
+    return {
+        path.parent.name: path.parents[2].name
+        for path in skill_files(root)
+    }
 
 
 def has_heading(text: str, heading: str) -> bool:
@@ -104,6 +117,7 @@ def check_required_headings(root: Path, errors: list[str]) -> int:
 
 def check_public_names(root: Path, errors: list[str]) -> int:
     names = skill_names(root)
+    owners = skill_owners(root)
     checked = 0
     alias_patterns = {
         alias: re.compile(rf"(?<![A-Za-z0-9-]){re.escape(alias)}(?![A-Za-z0-9-])")
@@ -126,12 +140,32 @@ def check_public_names(root: Path, errors: list[str]) -> int:
                     f"use {replacement}"
                 )
 
-        for match in CE_COMMAND_RE.finditer(text):
+        for match in BARE_CE_COMMAND_RE.finditer(text):
             command = match.group(1)
+            line = text.count("\n", 0, match.start()) + 1
+            replacement = (
+                f"/{owners[command]}:{command}"
+                if command in owners
+                else "a shipped namespaced skill"
+            )
+            errors.append(
+                f"{rel(root, path)}:{line}: unsupported bare plugin skill '/{command}'; "
+                f"use {replacement}"
+            )
+
+        for match in CE_COMMAND_RE.finditer(text):
+            namespace, command = match.groups()
             if command not in names:
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(
-                    f"{rel(root, path)}:{line}: references unknown skill '/{command}'"
+                    f"{rel(root, path)}:{line}: references unknown skill "
+                    f"'/{namespace}:{command}'"
+                )
+            elif owners[command] != namespace:
+                line = text.count("\n", 0, match.start()) + 1
+                errors.append(
+                    f"{rel(root, path)}:{line}: skill '/{namespace}:{command}' belongs "
+                    f"to plugin '{owners[command]}'"
                 )
     return checked
 

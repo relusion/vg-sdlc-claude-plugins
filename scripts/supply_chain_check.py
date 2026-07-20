@@ -11,7 +11,7 @@ deterministic in this repository:
   that install the CLI (plugin-validate.yml and eval-live.yml).
 * the agent-agnostic merge bar (merge-policy.json, gate_runner.py, the
   composite action under action/merge-bar/, its self-test workflow, and the
-  SHA-verified air-gapped fallback template) cannot be silently unshipped.
+  checksum-pinned copy-in fallback template) cannot be silently unshipped.
 * CI still runs the repo's safety gates.
 * the tag-push release workflow keeps regenerating the adopter pin block
   (scripts/print_pin_block.py, whose checksummed file set is derived from the
@@ -20,7 +20,7 @@ deterministic in this repository:
 * the GitLab CI and Azure Pipelines merge-bar ports keep their checksum
   discipline (the product on platforms with no composite-action equivalent).
 * secret scanning still verifies downloaded tooling by checksum.
-* release/delivery skills surface supply-chain evidence instead of implying it.
+* the release skill surfaces supply-chain evidence instead of implying it.
 * optional evidence and metrics projection scripts remain present and documented.
 * the enterprise hardening control map and adversarial eval fixtures exist.
 
@@ -66,6 +66,47 @@ def require_contains(root: Path, path: Path, text: str, needles: list[str],
     for needle in needles:
         if needle not in text:
             errors.append(f"{rel(root, path)}: missing required text {needle!r}")
+
+
+def top_level_mapping_keys(text: str, block_name: str) -> tuple[list[str] | None, str | None]:
+    """Return the immediate keys in an unquoted top-level YAML mapping block.
+
+    This deliberately implements only the small YAML shape used by the
+    workflow trigger block.  A missing, duplicate, inline, or malformed block
+    fails closed instead of relying on a substring search that can miss a new
+    trigger such as ``workflow_call``.
+    """
+    lines = text.splitlines()
+    header_re = re.compile(rf"{re.escape(block_name)}:\s*(?:#.*)?")
+    headers = [index for index, line in enumerate(lines) if header_re.fullmatch(line)]
+    if len(headers) != 1:
+        return None, f"expected exactly one top-level {block_name!r} mapping block"
+
+    child_indent: int | None = None
+    keys: list[str] = []
+    for line in lines[headers[0] + 1:]:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        leading = line[:len(line) - len(line.lstrip())]
+        if not leading:
+            break
+        if "\t" in leading:
+            return None, f"top-level {block_name!r} mapping uses tab indentation"
+        indent = len(leading)
+        if child_indent is None:
+            child_indent = indent
+        if indent < child_indent:
+            return None, f"top-level {block_name!r} mapping has inconsistent indentation"
+        if indent > child_indent:
+            continue
+        key_match = re.fullmatch(r"([A-Za-z0-9_-]+):(?:\s.*)?", line.lstrip())
+        if key_match is None:
+            return None, f"top-level {block_name!r} mapping contains a malformed key"
+        keys.append(key_match.group(1))
+
+    if not keys:
+        return None, f"top-level {block_name!r} mapping has no triggers"
+    return keys, None
 
 
 def check_workflows(root: Path, errors: list[str]) -> int:
@@ -319,7 +360,7 @@ def check_merge_bar(root: Path, errors: list[str]) -> int:
     """Anti-deregistration lens: the agent-agnostic merge bar cannot be
     silently unshipped. check.py section 14 validates merge-policy.json's
     structure; this lens only asserts the load-bearing surfaces exist and
-    keep their hardening. For the air-gapped fallback template: full checksum
+    keep their hardening. For the checksum-pinned copy-in template: full checksum
     coverage of every decision-making file, the 40-hex TOOLKIT_REF guard,
     base-ref-sourced local inputs (the PR must not grade itself), the
     documented CODEOWNERS/.github/** companion control, the honest-scope
@@ -444,7 +485,7 @@ def check_merge_bar(root: Path, errors: list[str]) -> int:
         # the preferred-path demotion: the header must route adopters to the
         # composite action and state this file's fallback status
         "action/merge-bar",
-        "AIR-GAPPED FALLBACK",
+        "CHECKSUM-PINNED COPY-IN FALLBACK",
     ], errors)
     return checked
 
@@ -695,23 +736,51 @@ def check_live_eval_workflow(root: Path, errors: list[str]) -> int:
     workflow = root / ".github" / "workflows" / "eval-live.yml"
     text = read(root, workflow, errors)
     require_contains(root, workflow, text, [
-        "workflow_dispatch",
-        "schedule:",
         "concurrency:",
         "--execute",
         "--max-budget-usd",
         "--bare",
         "ANTHROPIC_API_KEY",
         "live evals SKIPPED",
+        "github.run_attempt",
+        "Show runner-generated summary",
+        "$EVAL_RUN_DIR/summary.json",
+        "python3 -m json.tool",
         "actions/upload-artifact",
     ], errors)
-    for forbidden in ("pull_request", "push:"):
-        if forbidden in text:
-            errors.append(
-                f"{rel(root, workflow)}: trigger {forbidden!r} must not appear — "
-                "the live-eval workflow runs only via dispatch/schedule so the "
-                "API-key secret is never exposed to unreviewed code"
+    trigger_keys, trigger_error = top_level_mapping_keys(text, "on")
+    allowed_triggers = {"workflow_dispatch", "schedule"}
+    if trigger_error is not None:
+        errors.append(f"{rel(root, workflow)}: {trigger_error}")
+    elif set(trigger_keys or []) != allowed_triggers or len(trigger_keys or []) != 2:
+        actual = ", ".join(trigger_keys or []) or "none"
+        errors.append(
+            f"{rel(root, workflow)}: live-eval triggers must be exactly "
+            f"workflow_dispatch and schedule; found: {actual}"
+        )
+
+    timeout_match = re.search(r"^\s*timeout-minutes:\s*(\d+)\s*$", text, re.MULTILINE)
+    catalog_path = root / "evals" / "scenarios.json"
+    try:
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        profile_seconds: dict[str, int] = {}
+        for scenario in catalog.get("scenarios", []):
+            if not isinstance(scenario, dict) or not isinstance(scenario.get("profile"), str):
+                continue
+            profile = scenario["profile"]
+            profile_seconds[profile] = profile_seconds.get(profile, 0) + int(
+                scenario.get("timeout_seconds", 900)
             )
+        required_minutes = ((max(profile_seconds.values()) + 59) // 60) + 15
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        required_minutes = None
+    if timeout_match is None:
+        errors.append(f"{rel(root, workflow)}: missing job timeout-minutes")
+    elif required_minutes is not None and int(timeout_match.group(1)) < required_minutes:
+        errors.append(
+            f"{rel(root, workflow)}: timeout-minutes must be at least "
+            f"{required_minutes} so the longest sequential profile can write its receipts"
+        )
     return 1
 
 

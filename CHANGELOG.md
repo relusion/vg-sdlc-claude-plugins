@@ -7,21 +7,32 @@ that version and this file.
 
 ## Unreleased
 
-- **Simplified supported product surface (`core-engineering` 0.10.0).** Removed
+- **Simplified supported product surface (`core-engineering` 0.10.1).** Removed
   enforcement-count publishing, duplicate CI validator runs, the built-in MCP
   gate wrapper, and `/ce-ship-deliver`. The Managed Agent beta cookbooks and
   their deploy/orchestration tooling now live in an unsupported experimental
   archive and are excluded from mandatory validation and product navigation.
-  `/ce-auto-build` now has one bounded sequential spec → implement → verify →
+  `/core-engineering:ce-auto-build` now has one bounded sequential spec → implement → verify →
   independent-review profile with no worktrees, checkpoint branches, diagnose
-  enrichment, or advanced modes. `/ce-patch` is now always the conservative
+  enrichment, or advanced modes. `/core-engineering:ce-patch` is now always the conservative
   two-file express lane; any failed or uncertain admission check routes directly
-  to `/ce-plan`, and no patch plan/spec/task bundle is created. `/ce-go`, the
+  to `/core-engineering:ce-plan`, and no patch plan/spec/task bundle is created. `/core-engineering:ce-go`, the
   usage matrix, and workflow recipes remain as the supported routing layer and
   now describe the smaller surface.
-- **Domain onboarding.** Added `/ce-domain` to teach the business domain encoded
+- **Live-eval receipt hardening.** Fixtures now start from realistic
+  ignored-runtime baselines, and scenario-specific timeouts preserve partial
+  failure receipts. Exact identifiers remain case-sensitive while semantic
+  anchors can opt into case-insensitive matching. Local EVAL-009, EVAL-010, and
+  EVAL-017 runs exposed contract gaps in terminal handling, review status/count
+  validation, retry evidence, and final repository-state grading. The grader
+  now checks allowed paths plus HEAD, branch, refs, worktrees, and local Git
+  configuration; EVAL-017 requires one correlated bounded repair record. Promotion
+  requires a unique receipt whose model process and scenario-bound deterministic
+  grade passed from a clean, full-commit source state containing the current
+  skill, fixture, catalog, runner, and grader contract.
+- **Domain onboarding.** Added `/core-engineering:ce-domain` to teach the business domain encoded
   by a repository with cited actors, nouns, lifecycles, rules, and known
-  unknowns, distinct from `/ce-onboard`'s implementation walkthrough.
+  unknowns, distinct from `/core-engineering:ce-onboard`'s implementation walkthrough.
 - **Team operating recipes.** Added verified recipes for knowledge handover,
   business-domain onboarding, and other composed team workflows already
   supported by the skill set.
@@ -43,9 +54,9 @@ that version and this file.
   packages, and the generated package-name corpus carries its required MIT and
   CC BY 4.0 notices. The security policy and pull-request checklist now state
   the private-reporting fallback, response target, and DCO requirement.
-- **Merged: `/ce-probe-ux` → `/ce-ux-audit`.** The plan-free adversarial UX probe
-  `/ce-probe-ux` is retired; its capability folds into `/ce-ux-audit` behind an
-  auto-detected **mode probe**. `/ce-ux-audit` now resolves whether a plan owns the
+- **Merged: `/ce-probe-ux` → `/core-engineering:ce-ux-audit`.** The plan-free adversarial UX probe
+  `/ce-probe-ux` is retired; its capability folds into `/core-engineering:ce-ux-audit` behind an
+  auto-detected **mode probe**. `/core-engineering:ce-ux-audit` now resolves whether a plan owns the
   running surface (via `docs/plans/plans.json`) and picks its mode with a one-line
   announcement — no question, plan-existence is internal state:
   - **journey-walk mode** (a plan owns the surface) — the existing flow that walks
@@ -56,18 +67,18 @@ that version and this file.
     validation gaps, state loss, layout breakage, a11y) on any repo, writing a dated
     `docs/ux-audits/<date>-<slug>.md`, exactly as `/ce-probe-ux` did.
 
-  This is a **description-level redirect, no tombstone skill**: `/ce-ux-audit`'s
+  This is a **description-level redirect, no tombstone skill**: `/core-engineering:ce-ux-audit`'s
   description absorbs the retired trigger vocabulary ("chaos-test/fuzz/
   adversarially-probe a running app"), so intent that used to route to
-  `/ce-probe-ux` now auto-routes to `/ce-ux-audit`. Users who type `/ce-probe-ux`
-  should switch to `/ce-ux-audit` (same probe, adversarial-discovery mode). The
+  `/ce-probe-ux` now auto-routes to `/core-engineering:ce-ux-audit`. Users who type `/ce-probe-ux`
+  should switch to `/core-engineering:ce-ux-audit` (same probe, adversarial-discovery mode). The
   skill count drops by one; `ce-probe-ux`'s model-policy entry, coverage waiver,
   and write-lease fork copy are removed, and the `("ce-probe-ux","ce-ux-audit")`
   router-cluster is dropped (one skill, no contrastive pair to maintain).
 
-- **Merged: `/ce-troubleshoot` → `/ce-debug`.** The plan-free investigator
-  `/ce-troubleshoot` is retired; its capability folds into `/ce-debug` behind an
-  auto-detected **mode probe**. `/ce-debug` now resolves whether a plan/spec owns
+- **Merged: `/ce-troubleshoot` → `/core-engineering:ce-debug`.** The plan-free investigator
+  `/ce-troubleshoot` is retired; its capability folds into `/core-engineering:ce-debug` behind an
+  auto-detected **mode probe**. `/core-engineering:ce-debug` now resolves whether a plan/spec owns
   the failing target (via `docs/plans/plans.json`) and picks its mode with a
   one-line announcement — no question, plan-existence is internal state:
   - **planned mode** (a spec owns it) — the existing reproduce → `file:line` →
@@ -76,11 +87,11 @@ that version and this file.
     stopped) — ranked, evidence-bound root-cause hypotheses + a discrimination plan
     (`docs/investigations/<date>.md`), exactly as `/ce-troubleshoot` did.
 
-  This is a **description-level redirect, no tombstone skill**: `/ce-debug`'s
+  This is a **description-level redirect, no tombstone skill**: `/core-engineering:ce-debug`'s
   description absorbs the retired trigger vocabulary ("investigate/troubleshoot a
   stuck service/worker/queue"), so intent that used to route to `/ce-troubleshoot`
-  now auto-routes to `/ce-debug`. Users who type `/ce-troubleshoot` should switch
-  to `/ce-debug` (same investigation, plan-free mode). The skill count drops by
+  now auto-routes to `/core-engineering:ce-debug`. Users who type `/ce-troubleshoot` should switch
+  to `/core-engineering:ce-debug` (same investigation, plan-free mode). The skill count drops by
   one; `ce-troubleshoot`'s model-policy entry, coverage waiver, and write-lease
   fork copy are removed.
 
@@ -91,16 +102,16 @@ that version and this file.
 
   | Old brand (retired) | Now | Scope it locks |
   |---|---|---|
-  | Boundary Lock (`/ce-spec`) | Scope Lock | the planned feature boundary |
-  | Spec Lock (`/ce-implement`) | Scope Lock | the approved spec |
-  | Patch Lock (`/ce-patch`) | Scope Lock | the frozen file set |
-  | Frame Lock (`/ce-market-scan`, `/ce-idea-score`) | Scope Lock | the framed decision space (the tool frames, the human decides) |
-  | the Decide-Don't-Deploy lock (`/ce-ship-release`) | Scope Lock | the release decision — decide, never deploy |
+  | Boundary Lock (`/core-engineering:ce-spec`) | Scope Lock | the planned feature boundary |
+  | Spec Lock (`/core-engineering:ce-implement`) | Scope Lock | the approved spec |
+  | Patch Lock (`/core-engineering:ce-patch`) | Scope Lock | the frozen file set |
+  | Frame Lock (`/product-discovery:ce-market-scan`, `/product-discovery:ce-idea-score`) | Scope Lock | the framed decision space (the tool frames, the human decides) |
+  | the Decide-Don't-Deploy lock (`/core-engineering:ce-ship-release`) | Scope Lock | the release decision — decide, never deploy |
 
   The term now carries one gloss in the shared consequence-glossary (both A9
   homes), and `authoring_check.py` A4 forbids reintroducing any old brand in
   skill/doc markdown. `drift_scan.py` findings keep the plan-vs-spec layer
-  distinction via their route (`/ce-plan` vs `/ce-spec`), not a second brand.
+  distinction via their route (`/core-engineering:ce-plan` vs `/core-engineering:ce-spec`), not a second brand.
 
 ## [0.9.0] — 2026-07-05
 
@@ -109,7 +120,7 @@ at this tag were `core-engineering` 0.8.16 and `product-discovery` 0.1.1; plugin
 manifest versions remain the update-delivery versions shown by Claude Code.
 
 - **Extracted the idea/market trio into a new `product-discovery` plugin.**
-  `/ce-idea-scout`, `/ce-idea-score`, and `/ce-market-scan` now ship in a
+  `/product-discovery:ce-idea-scout`, `/product-discovery:ce-idea-score`, and `/product-discovery:ce-market-scan` now ship in a
   separate companion plugin (`plugins/product-discovery/`) in the same
   `vg-coding` marketplace — install it with
   `claude plugin install product-discovery@vg-coding`. **Nothing was renamed:**
@@ -121,8 +132,8 @@ manifest versions remain the update-delivery versions shown by Claude Code.
   Registered end-to-end: `marketplace.json`, the new plugin's `plugin.json` +
   `model-policy.json`, README (new `product-discovery` section + install line),
   USAGE-MATRIX / WORKFLOW-RECIPES annotations, HOW-IT-WORKS,
-  GETTING-STARTED, CLAUDE.md, and in-corpus routing pointers from `/ce-brief`,
-  `/ce-decide`, `/ce-review`, `/ce-probe-perf`, `/ce-probe-sec`, and `/ce-go`
+  GETTING-STARTED, CLAUDE.md, and in-corpus routing pointers from `/core-engineering:ce-brief`,
+  `/core-engineering:ce-decide`, `/core-engineering:ce-review`, `/core-engineering:ce-probe-perf`, `/core-engineering:ce-probe-sec`, and `/core-engineering:ce-go`
   that now name the companion plugin so a core-only session says where the trio
   went.
 - New skill `ce-probe-deps` — the SCA gate: scans exactly-pinned dependency
@@ -131,12 +142,12 @@ manifest versions remain the update-delivery versions shown by Claude Code.
   degradation (exit 2 — never a silent pass), unpinned ranges listed rather
   than implied clean, only package coordinates ever leave the machine.
   Registered end-to-end: model-policy, README/USAGE-MATRIX/RECIPES catalogs,
-  router cluster vs `/ce-probe-infra`, write-lease fork, merge-policy
+  router cluster vs `/core-engineering:ce-probe-infra`, write-lease fork, merge-policy
   advisory gate (`sca-guard`), and eval scenario EVAL-016 with the
   `vulnerable-deps` fixture (satisfying the coverage ratchet).
-- Proportionality Gate: `/ce-plan` checks request shape *before* the codebase
-  profile spend, and `/ce-spec` / `/ce-implement` check ad-hoc invocations —
-  each offers the `/ce-patch` lane (cost difference stated) when a request is
+- Proportionality Gate: `/core-engineering:ce-plan` checks request shape *before* the codebase
+  profile spend, and `/core-engineering:ce-spec` / `/core-engineering:ce-implement` check ad-hoc invocations —
+  each offers the `/core-engineering:ce-patch` lane (cost difference stated) when a request is
   patch-shaped; routing is consented and recorded in both directions, planned
   features are never silently re-routed, and WORKFLOW-RECIPES documents the
   thin-spine default. Model-tier down-route widening is explicitly deferred
@@ -155,7 +166,7 @@ manifest versions remain the update-delivery versions shown by Claude Code.
   (ask, impact, review, debug, troubleshoot, plan-audit, retro, onboard, the
   four probes, ux-audit) now sets a write-scope lease at Stage 0 and restores
   the deny-only baseline at exit, enforced by `write-scope-guard.py` (new
-  `deny-only` mode; `/ce-init` seeds the baseline; denies carry the scoped
+  `deny-only` mode; `/core-engineering:ce-init` seeds the baseline; denies carry the scoped
   opt-out and log to `.claude/ce-guard-log.jsonl`). The lease helper is a
   forked script (`write-lease.py`, 13 byte-identical copies registered in
   `fork-manifest.json`). `git-guard.py` now fails closed on
@@ -204,8 +215,8 @@ Initial release baseline; `0.8.0` is the baseline installed users update from.
   re-syncs every copy, and both `check.py` and `supply_chain_check.py` assert
   byte-identity from the same manifest.
 - Externalize the four largest skills to staged progressive disclosure
-  (`/ce-auto-build` 554→205 lines, `/ce-verify` 414→145,
-  `/ce-troubleshoot` 412→217, `/ce-ship-release` 297→162) — stage bodies now
+  (`/core-engineering:ce-auto-build` 554→205 lines, `/core-engineering:ce-verify` 414→145,
+  `/ce-troubleshoot` 412→217, `/core-engineering:ce-ship-release` 297→162) — stage bodies now
   load lazily, cutting per-invocation context cost.
 - Add `scripts/authoring_check.py` (run by `check.py`) enforcing the
   `docs/contributing/SKILL-AUTHORING.md` standard: closed HITL heading vocabulary,
@@ -219,7 +230,7 @@ Initial release baseline; `0.8.0` is the baseline installed users update from.
 - Add prerequisites and a measured "What It Costs" section to
   `docs/GETTING-STARTED.md`; move the contributor validation battery to
   `CONTRIBUTING.md`; add `SECURITY.md`, issue templates, and a PR template.
-- Publish `docs/BENCHMARKS.md` (live eval results + per-skill measured cost
+- Publish `docs/BENCHMARKS.md` (live eval results + per-skill configured budget
   floors), `docs/EXAMPLES.md` (real captured outputs), `docs/COMPARISON.md`
   (positioning vs. spec-kit / Kiro / aider / plain Claude Code), and
   `docs/TEAM-ROLLOUT.md` (pilot guide for team leads).
@@ -234,9 +245,9 @@ Initial release baseline; `0.8.0` is the baseline installed users update from.
   public slash surface directly from `skills/<name>/SKILL.md`.
 - Add plugin-shipped Claude Code custom agents `spec-author` and `spec-impl`,
   plus validation so plugin agents keep matching frontmatter, scoped toolsets,
-  and leaf-agent boundaries; `/ce-auto-build` prefers them when spawning
+  and leaf-agent boundaries; `/core-engineering:ce-auto-build` prefers them when spawning
   per-feature spec and implementation workers.
-- Add the `/ce-impact` and `/ce-init` skills and four Managed Agent cookbooks
+- Add the `/core-engineering:ce-impact` and `/core-engineering:ce-init` skills and four Managed Agent cookbooks
   (`spec-author`, `spec-impl`, `quality-gate`, `release-coordinator`) with
   deploy and validation tooling.
 - Add the behavior-eval platform: scenario catalog, fixture repos, golden

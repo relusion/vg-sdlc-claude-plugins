@@ -1,8 +1,8 @@
 ---
 name: ce-idea-score
 description: |
-  Score ONE software/startup idea on a seven-axis decision rubric and render an opinionated, evidence-tagged Pursue/Pursue-with-changes/Park/Drop verdict — knockout gates, a falsifiable DEAD-IF, the human owns the call. Verdict-rendering (unlike /ce-market-scan, which renders none).
-  Triggers: score/grade/rate/go-no-go ONE idea. Many ideas → /ce-idea-scout.
+  Score ONE software/startup idea on a seven-axis decision rubric and render an opinionated, evidence-tagged Pursue/Pursue-with-changes/Park/Drop verdict — knockout gates, a falsifiable DEAD-IF, the human owns the call. Verdict-rendering (unlike /product-discovery:ce-market-scan, which renders none).
+  Triggers: score/grade/rate/go-no-go ONE idea. Many ideas → /product-discovery:ce-idea-scout.
 argument-hint: "[idea / concept] [--evidence researched|judgment-only] [--from <market-scan path>]"
 allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill
 ---
@@ -19,7 +19,7 @@ gates and a falsifiable kill-condition, aggregate the axes by **gate-then-weight
 recommendation. This is the **engine** the `ce-idea-scout` funnel calls to deep-dive its
 survivors, and it runs standalone on any single idea a human brings.
 
-> **A verdict tool, deliberately.** Unlike `/ce-market-scan` — which is evidence-bound
+> **A verdict tool, deliberately.** Unlike `/product-discovery:ce-market-scan` — which is evidence-bound
 > and structurally refuses to rank or recommend (the Scope Lock) — this skill *does*
 > score, weight, and recommend. That is the requested design. The discipline that
 > keeps it honest is therefore **not** verdict-avoidance but the **Verdict-Honesty
@@ -28,11 +28,11 @@ survivors, and it runs standalone on any single idea a human brings.
 > bury the per-axis shape behind one composite number. The whole artifact is labeled
 > **OPINIONATED decision support — a verdict, not validated fact.**
 
-> **Where it sits.** Furthest upstream, alongside `ce-idea-scout`, *before* `/ce-market-scan`:
+> **Where it sits.** Furthest upstream, alongside `ce-idea-scout`, *before* `/product-discovery:ce-market-scan`:
 > `ce-idea-scout` (generate + triage) → human picks → **`ce-idea-score`** (deep verdict on one
-> idea) → human commits → `/ce-market-scan` (optional — the **stakes dial**: skip for a fast
-> pick, run it to validate before committing real planning effort) → `/ce-brief` → `/ce-plan`. It
-> may **ingest a `/ce-market-scan` artifact as its evidence base** (clean
+> idea) → human commits → `/product-discovery:ce-market-scan` (optional — the **stakes dial**: skip for a fast
+> pick, run it to validate before committing real planning effort) → `/core-engineering:ce-brief` → `/core-engineering:ce-plan`. It
+> may **ingest a `/product-discovery:ce-market-scan` artifact as its evidence base** (clean
 > separation: market-scan supplies the un-collapsed evidence, idea-score adds the
 > opinion layer). It never feeds its verdict into a brief as fact.
 
@@ -78,7 +78,7 @@ Stuck-rule question.
 - **Evidence mode + research budget (Stage 0):** `researched` (gather cited evidence
   within a stated query budget — preferred) or `judgment-only` (no web access; **every**
   score is then `suspected` or `unknown`, never `confirmed`, and the artifact says so).
-- **Optional evidence base:** a path to a prior `/ce-market-scan` artifact whose findings
+- **Optional evidence base:** a path to a prior `/product-discovery:ce-market-scan` artifact whose findings
   seed the evidence pass (each reused finding keeps its state).
 - **Optional weighting:** a non-default axis weighting (Stage 0 only, recorded). Absent →
   the default profile below.
@@ -159,7 +159,7 @@ idea shows its composite struck through / marked informational.
 ## Stage 0 — Scope, Evidence Mode & Weighting Gate
 
 Summarize (Markdown) the idea, the evidence mode (`researched` / `judgment-only`), the
-query budget, the evidence base (if a `/ce-market-scan` artifact was supplied), the
+query budget, the evidence base (if a `/product-discovery:ce-market-scan` artifact was supplied), the
 weighting (default or the user's), and any conscious knockout-floor override. Then ask
 (AskUserQuestion) **Proceed / Adjust / Abort**. Gather nothing before Proceed. In `judgment-only` mode, state up front that no
 score can be `confirmed`.
@@ -168,7 +168,7 @@ score can be `confirmed`.
 
 For each axis, gather what the mode allows and record evidence rows: the claim, its
 state (`confirmed` + URL + access date / `suspected` / `unknown`), and the source.
-Reuse a supplied `/ce-market-scan` artifact's findings, preserving their states. Drop
+Reuse a supplied `/product-discovery:ce-market-scan` artifact's findings, preserving their states. Drop
 unsourced *claims* rather than asserting them — but an axis with no usable evidence is
 **not** dropped; it is still scored in Stage 2 and tagged `unknown`. Honor the budget;
 mark uncovered axes `unknown` (no silent caps).
@@ -204,9 +204,9 @@ gates that fired, the lowest axes, the open `unknown`s):
 
 | Recommendation | When | Routes to |
 |---|---|---|
-| **Pursue** | passes both knockouts, no binary kill fired, strong composite, few `unknown`s | `/ce-market-scan` (validate) → `/ce-brief` |
-| **Pursue-with-changes** | passes knockouts but a named axis is weak / a narrowing is needed | `/ce-brief`, carrying the narrowing |
-| **Park** | a load-bearing axis is `unknown` — verdict can't be earned yet | run the DEAD-IF experiment / a scoped `/ce-market-scan` first |
+| **Pursue** | passes both knockouts, no binary kill fired, strong composite, few `unknown`s | `/product-discovery:ce-market-scan` (validate) → `/core-engineering:ce-brief` |
+| **Pursue-with-changes** | passes knockouts but a named axis is weak / a narrowing is needed | `/core-engineering:ce-brief`, carrying the narrowing |
+| **Park** | a load-bearing axis is `unknown` — verdict can't be earned yet | run the DEAD-IF experiment / a scoped `/product-discovery:ce-market-scan` first |
 | **Drop** | a knockout failed or a binary kill-condition is true | stop — the scorecard is the recorded rationale |
 
 Read the recommendation back to the human (AskUserQuestion): **Accept / Override /
@@ -272,9 +272,9 @@ The weighting is an opinionated profile, not a fact; read the vector, not just t
 ## Escalation
 
 - A score that needs facts the budget can't reach → mark the axis `unknown`, recommend
-  **Park**, and route to a scoped `/ce-market-scan` or the DEAD-IF experiment.
+  **Park**, and route to a scoped `/product-discovery:ce-market-scan` or the DEAD-IF experiment.
 - An idea that is really several ideas, or whose feasibility hinges on architecture →
-  not this tool's job; route to `/ce-plan` once a single idea is chosen.
+  not this tool's job; route to `/core-engineering:ce-plan` once a single idea is chosen.
 - The human disagrees with the verdict → record the **override**; the tool yields.
 
 ## Honest Limitations
@@ -300,7 +300,7 @@ The weighting is an opinionated profile, not a fact; read the vector, not just t
   some ideas a specialist team could ship or reach; that bluntness is the point (a small
   generalist team is the default reader). Override the floor consciously at Stage 0, never
   silently.
-- **Separate from `/ce-market-scan` and `/ce-brief`.** It renders the verdict market-scan
+- **Separate from `/product-discovery:ce-market-scan` and `/core-engineering:ce-brief`.** It renders the verdict market-scan
   refuses, but it is not a substitute for market-scan's disciplined evidence base, and its
   output crosses into the pipeline only as a labeled reference — its claims never enter a
   brief's Project Description as fact.

@@ -16,7 +16,7 @@ that parent link in the shape its importer expects.
 ## `ado-md` (default) — paste-markdown for Azure DevOps Agile
 
 Reproduces the historical paste file. One delimited block per work item; `---`
-is the paste boundary. Back-compat: this is what `/ce-ship-backlog` emitted
+is the paste boundary. Back-compat: this is what `/core-engineering:ce-ship-backlog` emitted
 before the format split, so an existing paste flow is unchanged.
 
 | Block | Fields rendered |
