@@ -5,7 +5,7 @@
 ## Checklist
 
 - [ ] `python3 scripts/check.py` green (runs corpus, authoring, supply-chain,
-      managed-agent, and product-layer checks)
+      and product-layer checks)
 - [ ] `python3 -m unittest discover -s tests -q` green
 - [ ] `CHANGELOG.md` updated under `## Unreleased` (user-visible plugin changes)
 - [ ] Every commit includes the DCO `Signed-off-by:` trailer (`git commit -s`)

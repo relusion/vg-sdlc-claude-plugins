@@ -131,7 +131,7 @@ class AuthoringMultiPlugin(unittest.TestCase):
 
 
 class CorpusMultiPlugin(unittest.TestCase):
-    SUBS = ("scripts", "plugins", "managed-agent-cookbooks", "docs")
+    SUBS = ("scripts", "plugins", "docs")
     FILES = ("README.md", "CLAUDE.md")
 
     def test_required_headings_scanned_in_second_plugin(self):
@@ -174,7 +174,7 @@ class CorpusMultiPlugin(unittest.TestCase):
 class ProductLayerMultiPlugin(unittest.TestCase):
     SUBS = (
         ".github", "action", "docs", "plugins", "scripts", "templates", "tests",
-        "managed-agent-cookbooks", "evals",
+        "evals",
     )
     FILES = ("README.md", "CLAUDE.md", "CONTRIBUTING.md", "COMMERCIAL.md",
              "SECURITY.md", "THIRD_PARTY_NOTICES.md", "LICENSE")
@@ -208,7 +208,7 @@ class EvalCoverageMultiPlugin(unittest.TestCase):
 @unittest.skipUnless(HAVE_YAML, "check.py integration needs pyyaml")
 class CheckPyMultiPlugin(unittest.TestCase):
     SUBS = (
-        ".github", "action", "scripts", "plugins", "managed-agent-cookbooks",
+        ".github", "action", "scripts", "plugins",
         ".claude-plugin", "docs", "evals", "templates", "tests",
     )
     FILES = ("README.md", "CLAUDE.md", "CONTRIBUTING.md", "COMMERCIAL.md",

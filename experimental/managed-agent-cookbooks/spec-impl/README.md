@@ -2,13 +2,13 @@
 
 ## Overview
 
-Approved spec → working code + tests, a ticked `tasks.json`, and the spec's `verification.md`. Built on the [`core-engineering`](../../plugins/core-engineering) plugin's `ce-implement` skill — this directory is the Managed Agent cookbook for `POST /v1/agents`.
+Approved spec → working code + tests, a ticked `tasks.json`, and the spec's `verification.md`. Built on the [`core-engineering`](../../../plugins/core-engineering) plugin's `ce-implement` skill — this directory is an unsupported Managed Agent cookbook snapshot for `POST /v1/agents`.
 
 ## Deploy
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-../../scripts/deploy-managed-agent.sh spec-impl
+../tools/deploy-managed-agent.sh spec-impl --dry-run
 ```
 
 ## Steering events

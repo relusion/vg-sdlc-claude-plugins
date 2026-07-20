@@ -109,17 +109,18 @@ free. Each is a minimized real skill output kept in-repo under `evals/golden/`:
 | EVAL-005 | `evals/golden/EVAL-005/specs/01-invite-user/` | `spec-lint.py --json` | the frozen spec passes referential-integrity + traceability |
 | EVAL-007 | `evals/golden/EVAL-007/review-summary.json` | `json_fields` schema check | `status: blocked`, integer `blocking_high: 1`, the `CR-1` IDOR finding shape auto-build gates on |
 | EVAL-008 | `evals/golden/EVAL-008/infra-summary.json` | `json_fields` schema check | `status: pass`, `blocking_hard: 0`, all three formats detected, secrets redacted |
-| EVAL-009 | `evals/golden/EVAL-009/eligibility.json` | `json_fields` schema check | all seven `C1…C7` clauses present; `C6`/`C7` still `pending` (no silence-as-approval) |
+| EVAL-009 | `evals/golden/EVAL-009/express.json` | `json_fields` schema check | the admitted two-file scope and requested label fix stay frozen for the express-only lane |
 
 Provenance: committed golden artifacts, each a minimized real skill output
 distilled from the live eval batch of 2026-06-27 (`evals/runs/` originals):
-EVAL-004 from `20260627-060527Z`, EVAL-007 from `20260627-045826Z`, EVAL-008
-from `20260627-053616Z`, EVAL-009 from `20260627-055236Z`. The plan golden is
-trimmed to the structural surface `plan-lint.py` reads; the three JSON summaries
-are the real machine artifacts verbatim.
+EVAL-004 from `20260627-060527Z`, EVAL-007 from `20260627-045826Z`, and EVAL-008
+from `20260627-053616Z`. EVAL-009 was replaced in 2026-07 when the patch contract
+became express-only; its current golden is design-verified and awaits a fresh
+live run. The plan golden is trimmed to the structural surface `plan-lint.py`
+reads.
 
 Reproduce (no model call — deterministic replay):
 `python3 scripts/eval_check.py` replays all five goldens and prints
 `5 golden gate(s)`. A mutated golden (a broken `plan.json`, a dropped
-`blocking_high`, a missing eligibility clause) turns the run red — see
+`blocking_high`, a changed admitted file) turns the run red — see
 `tests/test_eval_check.py::GoldenGates`.

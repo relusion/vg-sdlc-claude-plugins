@@ -6,8 +6,8 @@ legacy `spec.md` accepted in dir mode)
 for the *mechanical* traceability invariants the pre-write Validation Checklist
 otherwise asserts by hand. It SUPPLEMENTS that checklist — it does not replace it:
 
-  * An un-runnable lint (missing/garbled inputs) exits 2 so the caller falls back
-    to manual self-attestation, loudly.
+  * An un-runnable lint (missing/garbled inputs) exits 2 so the owning workflow
+    can apply its documented degraded mode; it must never look like a pass.
   * Only the on-disk-checkable subset is covered; genuine-judgment items
     (e.g. "is this `manual:judgment` really un-automatable?") stay with the human.
 
@@ -67,8 +67,8 @@ Usage:
 Exit codes:
     0  PASS  — no hard failures (advisory warnings may still be printed)
     1  FAIL  — at least one hard referential-integrity failure
-    2  ERROR — inputs missing or unparseable; caller should fall back to the
-               manual checklist (loudly)
+    2  ERROR — inputs missing or unparseable; caller must apply its owning
+               workflow's documented exit-2 disposition (never a pass)
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def _canon_tz(tz: str) -> str:
 
 
 class SpecLintError(Exception):
-    """Inputs cannot be loaded/parsed -> exit 2, caller falls back."""
+    """Inputs cannot be loaded/parsed -> exit 2, never a pass."""
 
 
 # ---------------------------------------------------------------------------
@@ -496,11 +496,11 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "message": str(e)}))
         else:
             print(f"spec-lint: ERROR — could not run: {e}", file=sys.stderr)
-            print("  -> fall back to the manual Validation Checklist (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001
         # Any UNEXPECTED failure (e.g. a shape the checks never anticipated) must
-        # honor the exit-2 "could not run -> fall back loudly" contract, never
+        # honor the exit-2 "could not run" contract, never
         # leak as an uncaught traceback that exits 1 and impersonates a hard FAIL
         # to a caller (auto-build) that gates on the exit code. SystemExit is not
         # an Exception subclass, so argparse's own --help/usage exits are unaffected.
@@ -508,7 +508,7 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "message": f"unexpected: {type(e).__name__}: {e}"}))
         else:
             print(f"spec-lint: ERROR — unexpected failure ({type(e).__name__}): {e}", file=sys.stderr)
-            print("  -> fall back to the manual Validation Checklist (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
 
     status = "fail" if hard else "pass"

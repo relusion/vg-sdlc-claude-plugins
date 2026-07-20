@@ -13,7 +13,7 @@
     },
     {
       "date": "2026-11-30",
-      "unblocker": "two-branch-git and verified-plan fixtures for the ship genre and auto-build",
+      "unblocker": "two-branch Git and verified-plan fixtures for the ship genre",
       "max_waivers": 8
     },
     {
@@ -87,11 +87,6 @@
       "skill": "ce-domain",
       "reason": "interactive domain-teaching loop (sibling of ce-onboard); unblocked by WS6-T9's scripted-dialog eval harness — staggered to this tier because the 2026-09-30 tier is at its max_waivers cap",
       "expires": "2026-10-31"
-    },
-    {
-      "skill": "ce-ship-deliver",
-      "reason": "construct-and-handoff flow needs a two-branch git fixture",
-      "expires": "2026-11-30"
     },
     {
       "skill": "ce-ship-document",

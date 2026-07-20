@@ -1,4 +1,8 @@
-# Managed Agent Orchestration
+# Archived Managed Agent orchestration
+
+> **Unsupported reference.** This document and its companion tools are outside
+> the supported product and mandatory validation path. The API and examples may
+> drift. Use them only in an isolated experiment with explicit human ownership.
 
 The managed-agent cookbooks are an **experimental**, secondary surface —
 deployable workers, not a workflow engine, and not co-equal with the Claude Code
@@ -14,7 +18,7 @@ Each worker wraps canonical `core-engineering` skills from
 
 > **Status & prerequisites.** This path targets the **Managed Agents beta**
 > (`anthropic-beta: managed-agents-2026-04-01`) — you need the entitlement on
-> your API key. `scripts/deploy-managed-agent.sh` requires `jq` and Python
+> your API key. `tools/deploy-managed-agent.sh` requires `jq` and Python
 > `pyyaml`. All four cookbooks deploy as **single-process agents**
 > (`callable_agents: []` — subagent fanout is not yet wired), and the
 > `orchestrate.py` loop referenced below is a **reference implementation you
@@ -29,7 +33,7 @@ Each worker wraps canonical `core-engineering` skills from
 | `spec-author` | Plan and implementation-ready specs | `ce-plan`, `ce-spec` | `docs/plans/<slug>/`, `ce-spec.md`, `tasks.json` |
 | `spec-impl` | Test-first implementation | `ce-implement` | code/tests, ticked `tasks.json`, `verification.md` |
 | `quality-gate` | Review, verification, diagnosis | `ce-review`, `ce-verify`, `ce-debug` | `code-review.md`, `review-summary.json`, `verification-report.md`, `diagnosis.md` |
-| `release-coordinator` | Delivery/release/docs preparation | `ce-ship-deliver`, `ce-ship-release`, `ce-ship-document` | delivery manifest, release decision, docs manifest, user docs on consent |
+| `release-coordinator` | Release/docs preparation | `ce-ship-release`, `ce-ship-document` | release decision, docs manifest, user docs on consent |
 
 ## Reference Flow
 
@@ -76,14 +80,14 @@ Each worker wraps canonical `core-engineering` skills from
    }
    ```
 
-7. Human release owner reviews the delivery manifest, release decision, docs,
-   and pending approvals. The human pushes, tags, deploys, or publishes outside
+7. Human release owner reviews the release decision, docs, and pending
+   approvals. The human pushes, tags, deploys, or publishes outside
    the managed-agent loop.
 
 ## Handoff JSON
 
 When a worker needs host routing, it may emit a handoff request in text. The
-reference parser in `scripts/orchestrate.py` accepts only this narrow shape:
+reference parser in `tools/orchestrate.py` accepts only this narrow shape:
 
 ```json
 {
@@ -120,7 +124,7 @@ Run host-side checks between workers. Minimum gates:
 | `quality-gate` -> `spec-impl` | confirmed code defect or failed verification route |
 | `quality-gate` -> `spec-author` | confirmed spec/plan/scope defect route |
 | `quality-gate` -> `release-coordinator` | no unresolved high-severity review finding; verification gaps accepted or closed |
-| `release-coordinator` -> human release owner | delivery/release/docs artifacts exist; no publish action performed by agent |
+| `release-coordinator` -> human release owner | release/docs artifacts exist; no publish action performed by agent |
 
 ## Security Defaults
 
@@ -138,11 +142,8 @@ Run host-side checks between workers. Minimum gates:
 Before changing cookbooks or orchestration docs, run:
 
 ```bash
-python3 scripts/managed_agent_check.py
-bash scripts/test-cookbooks.sh
-python3 scripts/check.py --no-install-hooks
+bash tools/test-cookbooks.sh
 ```
 
-The managed-agent check verifies cookbook inventory, required files, skill
-references, steering examples, `scripts/orchestrate.py` allowlist coverage, and
-this orchestration document.
+This dry run checks payload shape only. The repository's supported validation
+battery deliberately does not validate this archive.

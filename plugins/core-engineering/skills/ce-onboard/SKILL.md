@@ -118,8 +118,6 @@ I'll start there"), **show the basis**, don't ask for blind confirmation (R2 spi
    target (see Runtime Inputs). Classify the mode:
    - **Plan-tied (rich):** a `docs/plans/<slug>/` directory exists — teach from the full
      artifact trail.
-   - **Patch-lane:** registered with `origin:"patch"` — teach from `ce-spec.md` +
-     `verification.md` + the `eligibility.json` lease (no threat-model / review by design).
    - **Plan-free (lean):** no plan — teach structure + flow from code, citing
      `git log`/`git blame`/tests for rationale (the `/ce-ask` degradation).
 3. **State what exists and what doesn't.** Print a short evidence inventory — *"Teaching
@@ -134,7 +132,7 @@ I'll start there"), **show the basis**, don't ask for blind confirmation (R2 spi
 
 | Evidence state | How the tutor teaches it |
 |---|---|
-| `/ce-patch` feature | Teach from spec + verification + the lease's seven clause verdicts (the *why this was small enough to skip ceremony* story). A patch with **no** `verification.md` is an *abandoned patch* — surface it, don't treat it as done. |
+| Accepted `/ce-patch` change | Teach from the matching `express-log.jsonl` entry, the current code and test, and available git history. The ledger records the focused command and red→green result; it does not create a spec or `verification.md`. With no accepted ledger line, do not claim the patch workflow completed. |
 | Single-feature plan (Sizing Gate accepted) | One flat `feature-plan.md`, no `features/` dir — the deep-dive collapses into the orient step. |
 | No `threat-model.md` | If an attested **"No Security Surface"** negative exists, teach the absence as *attested*. Otherwise flag the gap honestly. |
 | No `interaction-contract.md` | If an attested **"No Cross-Feature Protocol"** negative exists, teach the absence as *attested*. Otherwise flag the gap honestly. |

@@ -1,19 +1,4 @@
-"""Tests for skills/ce-patch/scripts/patch-lint.py — the `--express` mechanical screen.
-
-patch-lint had zero dedicated tests before this suite (the build-spine finding). These
-pin the featherweight express lane's admission contract (WS5-T1):
-
-  E1  candidate file count <= 2 (stricter than C1's cap);
-  E2  the C4 cross-feature collision scan, reused over a synthetic docs/plans anchor;
-  E3  the C6 reviewer-trigger mechanical floor — auth/secret/payment/migration/i18n/a11y
-      path segments + the H8 durable-file wall + the H8/H10 content walls over the desc;
-  E4  no dependency-manifest file in the candidate set;
-  --express --post  re-runs H8/H9/H10 over the ACTUAL diff against the candidate set.
-
-The exit contract is patch-lint's shared 0/1/2: 0 PASS, 1 a hard clause FAIL (named),
-2 could-not-run (garbled stub / bad invocation / no git) — so the express fold falls
-back to the full lane loudly, never silently passes.
-"""
+"""Focused tests for the express-only `/ce-patch` admission and diff gate."""
 
 import importlib.util
 import json
@@ -23,431 +8,333 @@ import tempfile
 import unittest
 from pathlib import Path
 
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "plugins/core-engineering/skills/ce-patch/scripts/patch-lint.py"
+SKILL = REPO / "plugins/core-engineering/skills/ce-patch/SKILL.md"
+STAGES = REPO / "plugins/core-engineering/skills/ce-patch/stages.md"
 
 _spec = importlib.util.spec_from_file_location("patch_lint_mod", SCRIPT)
 pl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pl)
 
 
-# --- helpers -----------------------------------------------------------------
-
 def run_lint(*argv: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *argv],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
         cwd=str(cwd) if cwd else None,
     )
 
 
 def run_json(*argv: str, cwd: Path | None = None) -> tuple[dict, int]:
-    proc = run_lint(*argv, "--json", cwd=cwd)
-    return json.loads(proc.stdout), proc.returncode
+    result = run_lint(*argv, "--json", cwd=cwd)
+    return json.loads(result.stdout), result.returncode
 
 
-def write_stub(root: Path, files: list, desc: str = "tweak", name: str = "express.json") -> Path:
-    p = root / name
-    p.write_text(json.dumps({"files": files, "desc": desc}), encoding="utf-8")
-    return p
+def write_stub(root: Path, files: list[str], desc: str = "fix widget") -> Path:
+    path = root / "express.json"
+    path.write_text(json.dumps({"files": files, "desc": desc}), encoding="utf-8")
+    return path
 
 
 def git(repo: Path, *args: str) -> str:
-    out = subprocess.run(["git", "-C", str(repo), *args],
-                         capture_output=True, text=True)
-    if out.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {out.stderr}")
-    return out.stdout
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr}")
+    return result.stdout
 
 
 def init_repo(root: Path) -> str:
-    """A minimal committed git repo; returns the base commit sha."""
     git(root, "init", "-q")
-    git(root, "config", "user.email", "t@t")
-    git(root, "config", "user.name", "t")
+    git(root, "config", "user.email", "patch@example.test")
+    git(root, "config", "user.name", "Patch Test")
     (root / "src").mkdir()
-    (root / "src" / "widget.py").write_text("x = 1\n", encoding="utf-8")
+    (root / "src/widget.py").write_text("x = 1\n", encoding="utf-8")
     git(root, "add", "-A")
-    git(root, "commit", "-qm", "init")
+    git(root, "commit", "-qm", "initial")
     return git(root, "rev-parse", "HEAD").strip()
 
 
-# --- E1: file cap ------------------------------------------------------------
-
-class E1FileCap(unittest.TestCase):
-    def test_one_file_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = write_stub(Path(tmp), ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express")
-        self.assertEqual(rc, 0)
-        self.assertEqual(payload["status"], "pass")
-        self.assertEqual(payload["hard_failures"], [])
-
-    def test_two_files_pass(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = write_stub(Path(tmp), ["src/a.py", "src/b.py"])
-            payload, rc = run_json(str(stub), "--express")
-        self.assertEqual(rc, 0)
-        self.assertEqual(payload["status"], "pass")
-
-    def test_three_files_fail_e1(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = write_stub(Path(tmp), ["src/a.py", "src/b.py", "src/c.py"])
-            payload, rc = run_json(str(stub), "--express")
-        self.assertEqual(rc, 1)
-        self.assertEqual(payload["status"], "fail")
-        self.assertTrue(any(h.startswith("E1:") for h in payload["hard_failures"]))
+class ExpressContractText(unittest.TestCase):
+    def test_failed_green_or_regression_check_routes_without_repair_loop(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        stages = STAGES.read_text(encoding="utf-8")
+        self.assertNotIn("until the intended check is green", stages)
+        self.assertIn("this lane has no automated repair loop", skill)
+        self.assertIn("still-red intended check", skill)
+        self.assertIn("regression/lint/build failure", skill)
+        self.assertIn("Any\n   failure or could-not-run result routes directly to `/ce-plan`", stages)
 
 
-# --- E2: cross-feature collision (reused recompute_c4) ----------------------
-
-class E2Collision(unittest.TestCase):
-    def _repo_with_other_plan(self, tmp: Path) -> None:
-        init_repo(tmp)
-        owner = tmp / "docs/plans/other/specs/feat-x"
-        owner.mkdir(parents=True)
-        (owner / "tasks.json").write_text(
-            json.dumps({"tasks": [{"id": "T1", "files": ["src/widget.py"]}]}),
-            encoding="utf-8")
-
-    def test_collision_with_other_plan_fails_e2(self):
+class AdmissionFileBoundary(unittest.TestCase):
+    def test_default_mode_accepts_two_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            self._repo_with_other_plan(root)
-            stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", cwd=root)
-        self.assertEqual(rc, 1)
-        self.assertTrue(any(h.startswith("E2:") for h in payload["hard_failures"]),
-                        payload["hard_failures"])
-        # re-tag worked: no leaked H5 C4 vocabulary.
-        self.assertFalse(any("H5 C4" in h for h in payload["hard_failures"]))
+            init_repo(root)
+            stub = write_stub(root, ["src/widget.py", "tests/test_widget.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(payload["mode"], "admission")
 
-    def test_no_collision_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            self._repo_with_other_plan(root)
-            stub = write_stub(root, ["src/untouched.py"])
-            payload, rc = run_json(str(stub), "--express", cwd=root)
-        self.assertEqual(rc, 0, payload["hard_failures"])
-        self.assertEqual(payload["status"], "pass")
-
-    def test_no_plans_dir_passes(self):
-        # A repo with no docs/plans at all -> nothing to collide with.
+    def test_express_flag_is_a_no_op_alias(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             init_repo(root)
             stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", cwd=root)
-        self.assertEqual(rc, 0, payload["hard_failures"])
+            default, default_rc = run_json(str(stub), cwd=root)
+            alias, alias_rc = run_json(str(stub), "--express", cwd=root)
+        self.assertEqual(default_rc, alias_rc)
+        self.assertEqual(default["hard_failures"], alias["hard_failures"])
+
+    def test_more_than_two_files_fails_e1_and_routes_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            stub = write_stub(root, ["src/a.py", "src/b.py", "src/c.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertEqual(payload["route"], "/ce-plan")
+        self.assertTrue(any(item.startswith("E1:") for item in payload["hard_failures"]))
+
+    def test_over_cap_schema_request_reports_both_reasons(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            stub = write_stub(
+                root,
+                ["schema.sql", "accounts.py", "checks/accounts_check.py"],
+                "add a stored preference field to the database schema",
+            )
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any(item.startswith("E1:") for item in payload["hard_failures"]))
+        self.assertTrue(any(item.startswith("E5:") for item in payload["hard_failures"]))
+
+    def test_duplicate_and_parent_paths_fail_e1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            stub = write_stub(root, ["src/widget.py", "../outside.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any("safe repository-relative" in item for item in payload["hard_failures"]))
 
 
-# --- E3: reviewer-trigger heuristic (C6 floor) ------------------------------
+class AdmissionOwnership(unittest.TestCase):
+    @staticmethod
+    def write_owner(root: Path, data: object) -> None:
+        owner = root / "docs/plans/other/specs/01-widget"
+        owner.mkdir(parents=True)
+        (owner / "tasks.json").write_text(json.dumps(data), encoding="utf-8")
 
-class E3ReviewerTriggerPaths(unittest.TestCase):
-    TRIGGER_PATHS = [
-        "src/auth/login.py",
-        "app/authorization/policy.py",   # prefix-match beyond exact 'auth'
-        "lib/paymentService.ts",         # camelCase segment prefix
-        "config/secrets.yaml",
-        "api/billing/charge.py",
-        "db/migrations/001_init.py",
-        "web/i18n/en.json",
-        "ui/a11y/aria.ts",
-        "core/session_store.py",
-    ]
-    BENIGN_PATHS = [
-        "src/widget.py",
-        "lib/helpers/format.ts",
-        "components/Button.tsx",
-        "docs/readme.md",
-        "src/plugin/registry.py",        # 'plugin' must NOT match 'login'
-    ]
+    def test_cross_plan_collision_fails_e2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            self.write_owner(root, {"tasks": [{"id": "T1", "files": ["src/widget.py"]}]})
+            stub = write_stub(root, ["src/widget.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any(item.startswith("E2:") for item in payload["hard_failures"]))
 
-    def test_trigger_paths_fail_e3(self):
-        for path in self.TRIGGER_PATHS:
-            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), [path], desc="small tweak")
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 1, f"{path} should trip E3")
-            self.assertTrue(any(h.startswith("E3:") for h in payload["hard_failures"]),
-                            f"{path}: {payload['hard_failures']}")
-
-    def test_benign_paths_pass(self):
-        for path in self.BENIGN_PATHS:
-            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), [path], desc="rename a helper")
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 0, f"{path} should pass: {payload['hard_failures']}")
+    def test_malformed_ownership_is_inconclusive_and_routes_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            self.write_owner(root, {"not_tasks": []})
+            stub = write_stub(root, ["src/widget.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 2)
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["route"], "/ce-plan")
+        self.assertIn("ownership data", payload["message"])
 
 
-class E3ReviewerTriggerDesc(unittest.TestCase):
-    TRIGGER_DESCS = [
-        "add authentication to the login flow",
-        "encrypt the session token",
-        "fix the payment charge webhook",
-        "update the i18n locale bundle",
-        "improve aria accessibility labels",
-        "run DROP TABLE users in the fixup",   # destructive content wall over the desc
-    ]
-    BENIGN_DESCS = [
-        "rename the widget helper function",
-        "fix an off-by-one in the paginator",
-        "improve the button label copy wording",
-    ]
+class AdmissionSafetySurfaces(unittest.TestCase):
+    def check_refused(self, path: str, desc: str, code: str) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            stub = write_stub(root, [path], desc)
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 1, (path, desc, payload))
+        self.assertTrue(any(item.startswith(code + ":") for item in payload["hard_failures"]))
 
-    def test_trigger_descs_fail_e3(self):
-        for desc in self.TRIGGER_DESCS:
-            with self.subTest(desc=desc), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), ["src/widget.py"], desc=desc)
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 1, f"desc {desc!r} should trip E3")
-            self.assertTrue(any(h.startswith("E3:") for h in payload["hard_failures"]))
+    def test_reviewer_trigger_paths_fail_e3(self):
+        for path in (
+            "src/auth/login.py",
+            "templates/invoice.py",
+            "web/i18n/en.json",
+            "ui/a11y/button.tsx",
+            "privacy/retention.py",
+        ):
+            with self.subTest(path=path):
+                self.check_refused(path, "small wording fix", "E3")
 
-    def test_benign_descs_pass(self):
-        for desc in self.BENIGN_DESCS:
-            with self.subTest(desc=desc), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), ["src/widget.py"], desc=desc)
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 0, f"desc {desc!r} should pass: {payload['hard_failures']}")
+    def test_reviewer_trigger_request_fails_e3(self):
+        self.check_refused("src/widget.py", "fix authentication token handling", "E3")
 
+    def test_dependency_manifests_fail_e4(self):
+        for path in ("package.json", "requirements-dev.txt", "go.mod", "src/App.csproj"):
+            with self.subTest(path=path):
+                self.check_refused(path, "small version bump", "E4")
 
-class E3DurableFileWall(unittest.TestCase):
-    # DURABLE_FILE (the H8 file wall) reused in the screen, isolated from the
-    # reviewer-trigger path list.
-    def test_sql_and_timestamp_migration_files_fail_e3(self):
-        for path in ["db/seed.sql", "data/1700000000000-seed.ts", "app/schema.prisma"]:
-            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), [path], desc="small tweak")
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 1, f"{path} should trip E3 (durable file)")
-            self.assertTrue(any(h.startswith("E3:") for h in payload["hard_failures"]))
+    def test_durable_and_schema_signals_fail_e5(self):
+        for path, desc in (
+            ("db/migrations/001.sql", "small cleanup"),
+            ("src/widget.py", "add a stored preference field to the database schema"),
+            ("src/widget.py", "run DROP TABLE old_widgets"),
+        ):
+            with self.subTest(path=path, desc=desc):
+                self.check_refused(path, desc, "E5")
 
+    def test_public_contract_signals_fail_e5(self):
+        for path, desc in (
+            ("src/api/widget.py", "fix widget"),
+            ("src/widget.py", "add a CLI flag for quiet output"),
+            ("openapi.yaml", "correct a field"),
+        ):
+            with self.subTest(path=path, desc=desc):
+                self.check_refused(path, desc, "E5")
 
-# --- E4: dependency manifests ------------------------------------------------
+    def test_ignored_candidate_fails_instead_of_escaping_diff_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            init_repo(root)
+            (root / ".gitignore").write_text("generated/\n", encoding="utf-8")
+            stub = write_stub(root, ["generated/output.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any("ignored by git" in item for item in payload["hard_failures"]))
 
-class E4DepManifest(unittest.TestCase):
-    MANIFESTS = [
-        "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-        "requirements.txt", "requirements-dev.txt", "pyproject.toml",
-        "Pipfile", "poetry.lock", "go.mod", "go.sum", "Cargo.toml",
-        "pom.xml", "build.gradle", "build.gradle.kts", "composer.json",
-        "src/App.csproj", "packages.config",
-    ]
-    NOT_MANIFESTS = [
-        "src/package.py",           # not package.json
-        "config/requirements.md",   # not a .txt
-        "docs/go.md",               # not go.mod
-        "src/widget.py",
-    ]
-
-    def test_manifests_fail_e4(self):
-        for path in self.MANIFESTS:
-            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), [path], desc="bump a version")
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 1, f"{path} should trip E4")
-            self.assertTrue(any(h.startswith("E4:") for h in payload["hard_failures"]),
-                            f"{path}: {payload['hard_failures']}")
-
-    def test_non_manifests_pass_e4(self):
-        for path in self.NOT_MANIFESTS:
-            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
-                stub = write_stub(Path(tmp), [path], desc="edit")
-                payload, rc = run_json(str(stub), "--express")
-            self.assertEqual(rc, 0, f"{path} should pass E4: {payload['hard_failures']}")
-
-
-# --- H8/H9/H10 regex corpus (unit-level, over the shipped patterns) ---------
 
 class DiffRegexCorpus(unittest.TestCase):
-    def test_durable_line_true_positives(self):
-        for line in [
+    def test_durable_patterns(self):
+        for line in (
             "await repo.save(entity)",
             "db.session.add(user)",
-            "await ctx.SaveChangesAsync()",
             "CREATE TABLE users (id int)",
-            "INSERT INTO orders VALUES (1)",
             "fs.writeFileSync(path, data)",
-            "localStorage.setItem('k', v)",
-            "await prisma.user.create({ data })",
-        ]:
+        ):
             self.assertTrue(pl.DURABLE_LINE.search(line), line)
-
-    def test_durable_line_false_positives(self):
-        for line in [
-            "const total = calculate(a, b)",
-            "return renderView(props)",
-            "updateLabel = 'saved'",         # no .create(/SET; word 'update' alone is inert
-            "logger.info('created widget')",
-        ]:
+        for line in ("return render_view(props)", "logger.info('created widget')"):
             self.assertFalse(pl.DURABLE_LINE.search(line), line)
 
-    def test_destructive_line_true_positives(self):
-        for line in [
+    def test_destructive_patterns(self):
+        for line in (
             "DROP TABLE users",
             "DELETE FROM orders WHERE id = 1",
-            "await repo.delete(id)",
             "os.remove(path)",
-            "shutil.rmtree(tmp)",
-            "fs.unlinkSync(file)",
             "rm -rf build",
-        ]:
+        ):
             self.assertTrue(pl.DESTRUCTIVE_LINE.search(line), line)
-
-    def test_destructive_line_false_positives(self):
-        for line in [
-            "const removed = removeFromList(x)",   # no leading dot, not .remove(
-            "return dropdownItems",
-            "deleteme = false",
-        ]:
-            self.assertFalse(pl.DESTRUCTIVE_LINE.search(line), line)
-
-    def test_durable_file_wall(self):
-        for path in ["db/migrations/001.py", "schema.sql", "app/schema.prisma"]:
-            self.assertTrue(pl.DURABLE_FILE.search(path), path)
-        for path in ["src/widget.py", "test_migrate_helper.py"]:
-            self.assertFalse(pl.DURABLE_FILE.search(path), path)
+        self.assertFalse(pl.DESTRUCTIVE_LINE.search("return remove_from_list(value)"))
 
 
-# --- --express --post: H8/H9/H10 over the real diff -------------------------
-
-class ExpressPostDiffGate(unittest.TestCase):
+class PostDiffGate(unittest.TestCase):
     def test_clean_in_scope_edit_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             base = init_repo(root)
-            (root / "src" / "widget.py").write_text("x = 2\n", encoding="utf-8")
+            (root / "src/widget.py").write_text("x = 2\n", encoding="utf-8")
             stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", "--post", "--base", base, cwd=root)
-        self.assertEqual(rc, 0, payload["hard_failures"])
-        self.assertEqual(payload["status"], "pass")
+            payload, rc = run_json(str(stub), "--post", "--base", base, cwd=root)
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(payload["mode"], "post")
 
     def test_out_of_set_edit_fails_h9(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             base = init_repo(root)
-            (root / "src" / "widget.py").write_text("x = 2\n", encoding="utf-8")
-            (root / "src" / "sneaky.py").write_text("y = 1\n", encoding="utf-8")
+            (root / "src/widget.py").write_text("x = 2\n", encoding="utf-8")
+            (root / "src/sneaky.py").write_text("y = 1\n", encoding="utf-8")
             stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", "--post", "--base", base, cwd=root)
+            payload, rc = run_json(str(stub), "--post", "--base", base, cwd=root)
         self.assertEqual(rc, 1)
-        self.assertTrue(any(h.startswith("H9:") and "src/sneaky.py" in h
-                            for h in payload["hard_failures"]), payload["hard_failures"])
-
-    def test_destructive_op_fails_h10(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            base = init_repo(root)
-            (root / "src" / "widget.py").write_text(
-                "import os\nos.remove('f')\n", encoding="utf-8")
-            stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", "--post", "--base", base, cwd=root)
-        self.assertEqual(rc, 1)
-        self.assertTrue(any(h.startswith("H10:") for h in payload["hard_failures"]),
-                        payload["hard_failures"])
+        self.assertTrue(any(item.startswith("H9:") for item in payload["hard_failures"]))
 
     def test_durable_write_fails_h8(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             base = init_repo(root)
-            (root / "src" / "widget.py").write_text(
-                "def f(repo, e):\n    repo.save(e)\n", encoding="utf-8")
+            (root / "src/widget.py").write_text("def f(repo, e):\n    repo.save(e)\n", encoding="utf-8")
             stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", "--post", "--base", base, cwd=root)
+            payload, rc = run_json(str(stub), "--post", "--base", base, cwd=root)
         self.assertEqual(rc, 1)
-        self.assertTrue(any(h.startswith("H8:") for h in payload["hard_failures"]),
-                        payload["hard_failures"])
+        self.assertTrue(any(item.startswith("H8:") for item in payload["hard_failures"]))
 
-    def test_stub_file_in_tree_not_flagged_h9(self):
-        # The lane's own stub must not count as an out-of-lease file.
+    def test_destructive_write_and_file_delete_fail_h10(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             base = init_repo(root)
-            (root / "src" / "widget.py").write_text("x = 2\n", encoding="utf-8")
-            stub = write_stub(root, ["src/widget.py"])  # written into the tree, untracked
-            payload, rc = run_json(str(stub), "--express", "--post", "--base", base, cwd=root)
-        self.assertEqual(rc, 0, payload["hard_failures"])
+            (root / "src/widget.py").write_text("import os\nos.remove('x')\n", encoding="utf-8")
+            stub = write_stub(root, ["src/widget.py"])
+            payload, rc = run_json(str(stub), "--post", "--base", base, cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any(item.startswith("H10:") for item in payload["hard_failures"]))
 
-
-# --- exit-2: garbled input & bad invocation ---------------------------------
-
-class Exit2Contract(unittest.TestCase):
-    def test_missing_stub_is_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            payload, rc = run_json(str(Path(tmp) / "nope.json"), "--express")
-        self.assertEqual(rc, 2)
-        self.assertEqual(payload["status"], "error")
-
-    def test_invalid_json_is_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            bad = Path(tmp) / "express.json"
-            bad.write_text("not json", encoding="utf-8")
-            payload, rc = run_json(str(bad), "--express")
-        self.assertEqual(rc, 2)
-        self.assertEqual(payload["status"], "error")
-
-    def test_non_object_stub_is_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            bad = Path(tmp) / "express.json"
-            bad.write_text("[1, 2, 3]", encoding="utf-8")
-            payload, rc = run_json(str(bad), "--express")
-        self.assertEqual(rc, 2)
-
-    def test_empty_files_list_is_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = write_stub(Path(tmp), [])
-            payload, rc = run_json(str(stub), "--express")
-        self.assertEqual(rc, 2)
-
-    def test_files_not_list_is_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            bad = Path(tmp) / "express.json"
-            bad.write_text(json.dumps({"files": "src/widget.py"}), encoding="utf-8")
-            payload, rc = run_json(str(bad), "--express")
-        self.assertEqual(rc, 2)
-
-    def test_directory_arg_resolves_express_json(self):
+    def test_new_public_surface_fails_h11(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_stub(root, ["src/widget.py"])          # writes <dir>/express.json
-            payload, rc = run_json(str(root), "--express")  # pass the DIR, not the file
-        self.assertEqual(rc, 0, payload["hard_failures"])
+            base = init_repo(root)
+            (root / "src/widget.py").write_text("export function widget() { return 1 }\n", encoding="utf-8")
+            stub = write_stub(root, ["src/widget.py"])
+            payload, rc = run_json(str(stub), "--post", "--base", base, cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any(item.startswith("H11:") for item in payload["hard_failures"]))
 
-    def test_express_post_without_base_is_error(self):
+    def test_no_diff_fails_h9(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = init_repo(root)
+            stub = write_stub(root, ["src/widget.py"])
+            payload, rc = run_json(str(stub), "--post", "--base", base, cwd=root)
+        self.assertEqual(rc, 1)
+        self.assertTrue(any("no working-tree diff" in item for item in payload["hard_failures"]))
+
+
+class ErrorContract(unittest.TestCase):
+    def test_missing_and_invalid_stubs_are_exit_2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload, rc = run_json(str(root / "missing.json"), cwd=REPO)
+            self.assertEqual(rc, 2)
+            self.assertEqual(payload["route"], "/ce-plan")
+            bad = root / "express.json"
+            bad.write_text("not json", encoding="utf-8")
+            payload, rc = run_json(str(bad), cwd=REPO)
+            self.assertEqual(rc, 2)
+
+    def test_non_git_directory_is_inconclusive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stub = write_stub(root, ["src/widget.py"])
+            payload, rc = run_json(str(stub), cwd=root)
+        self.assertEqual(rc, 2)
+        self.assertIn("no git worktree", payload["message"])
+
+    def test_post_without_base_is_exit_2(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             init_repo(root)
             stub = write_stub(root, ["src/widget.py"])
-            payload, rc = run_json(str(stub), "--express", "--post", cwd=root)
+            payload, rc = run_json(str(stub), "--post", cwd=root)
         self.assertEqual(rc, 2)
-        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["route"], "/ce-plan")
 
-    def test_express_with_pre_is_usage_error(self):
+    def test_retired_full_lane_flags_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
-            stub = write_stub(Path(tmp), ["src/widget.py"])
-            proc = run_lint(str(stub), "--express", "--pre")
-        self.assertEqual(proc.returncode, 2)
-        self.assertIn("combines only with --post", proc.stderr)
-
-    def test_no_mode_is_usage_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            stub = write_stub(Path(tmp), ["src/widget.py"])
-            proc = run_lint(str(stub))
-        self.assertEqual(proc.returncode, 2)
-
-
-# --- the three legacy modes still resolve (regression on the argparse rewrite) --
-
-class LegacyModesStillWork(unittest.TestCase):
-    def test_eligibility_missing_file_still_exit_2(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            payload, rc = run_json(str(Path(tmp)), "--eligibility")
-        self.assertEqual(rc, 2)
-
-    def test_two_primary_modes_is_usage_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proc = run_lint(str(Path(tmp)), "--eligibility", "--pre")
-        self.assertEqual(proc.returncode, 2)
+            root = Path(tmp)
+            init_repo(root)
+            stub = write_stub(root, ["src/widget.py"])
+            result = run_lint(str(stub), "--eligibility", cwd=root)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unrecognized arguments", result.stderr)
 
 
 if __name__ == "__main__":

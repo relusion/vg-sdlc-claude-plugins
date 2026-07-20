@@ -42,7 +42,7 @@ entry point.
 | **1 — Establish trust** | [Bootstrap](#recipe-18-bootstrap-a-repository), [small fixes](#recipe-6-handle-a-small-fix), [review and verify](#recipe-5-review-and-verify-before-handoff), then the [merge bar](#recipe-29-roll-out-the-merge-bar) | These are frequent, bounded workflows with visible checks and limited autonomy. They establish repository policy and a common quality floor. | Developers repeat the workflows voluntarily; protected PRs require both mechanical integrity and human validity. |
 | **2 — Standardize delivery** | [Refine](#recipe-2-refine-a-work-item), [plan](#recipe-3-plan-a-new-feature), [build](#recipe-4-build-one-planned-feature), [revise](#recipe-21-revise-an-existing-plan), and [release handoff](#recipe-9-prepare-a-release-handoff) | Durable briefs, plans, specs, and evidence make handoffs repeatable across developers and teams. | A representative feature moves through the spine without undocumented scope changes or artifact repair. |
 | **3 — Add bounded autonomy** | [Plan audit](#recipe-14-audit-planning-and-process), [auto-build](#recipe-10-run-the-full-spine-autonomously), [supervision](#recipe-20-operate-an-unattended-run), and the [morning trust ritual](#recipe-25-build-overnight-trust-it-by-morning) | Autonomy becomes useful only after inputs, stops, and independent checks are trusted. | Parked decisions are actionable, retry rates are understood, and unattended output passes independent verification. |
-| **4 — Expand by organizational need** | Incident, security, debt, governance, knowledge-transfer, and hosted-agent campaigns | These create high value for specific operating contexts but should reuse the proven core rather than form a parallel process. | The owning team has named metrics, an accountable human owner, and a review cadence for each adopted campaign. |
+| **4 — Expand by organizational need** | Incident, security, debt, governance, and knowledge-transfer campaigns | These create high value for specific operating contexts but should reuse the proven core rather than form a parallel process. | The owning team has named metrics, an accountable human owner, and a review cadence for each adopted campaign. |
 
 Track a small baseline before each stage. Prefer cycle time, escaped defects,
 first-pass verification, gate false-positive rate, and developer repeat usage;
@@ -103,9 +103,9 @@ delivery outcome. Use them after entering through the owning recipe.
 - [20 — Operate An Unattended Run](#recipe-20-operate-an-unattended-run) supports Recipe 10 and Recipe 25.
 - [22 — Compile An Audit / Evidence Pack](#recipe-22-compile-an-audit--evidence-pack) supports release, incident, security, and governance campaigns.
 
-### Experimental Integration
+### Focused Agent Use
 
-- [17 — Run Hosted Agent Handoffs](#recipe-17-run-hosted-agent-handoffs) is for platform teams whose host can replace the plugin runtime's sandboxing, approvals, hooks, and state enforcement. It is not the default adoption path.
+- [17 — Use The Plugin's Focused Agents](#recipe-17-use-the-plugins-focused-agents) delegates specification or implementation to a bounded Claude Code leaf agent while keeping the same skills and hooks.
 
 ## Recipe 1: Answer A Codebase Question
 
@@ -220,36 +220,23 @@ runtime evidence is required. Route to `/ce-spec`, `/ce-implement`,
 planning lane.
 
 ```text
-/ce-patch Fix the typo in the paid invoice status label.
+/ce-patch Fix the typo in the archived item status label.
 ```
 
-**Expected artifacts:** patch eligibility, minimal spec/tasks, verification
-evidence, and a constrained diff if the charter passes.
+**Expected artifacts:** a constrained diff, test evidence, and one accepted-run
+line in `docs/plans/express-log.jsonl`. Patch creates no plan, spec, or task
+artifacts.
 
-**Done when:** the fix stays inside the frozen file set and verification passes.
+**Done when:** the admitted file set contains at most two files, the test-first
+change passes its external post-check, and the human accepts the shown diff and
+evidence at the single gate.
 
-**Stop or escalate when:** the change touches durable state, public contracts,
-multi-step behavior, reviewer-triggering risk, or unknown product/architecture
-questions. Route to `/ce-plan`.
-
-**The express fold — even lighter, for a featherweight change.** For a change so
-small it touches at most two files and no reviewer-trigger surface (no auth,
-secrets, payments, migrations, i18n, or accessibility), add `--express`:
-
-```text
-/ce-patch Rename the Save button label to "Save changes". --express
-```
-
-The express fold runs a mechanical screen (`patch-lint --express`: ≤ 2 files, no
-cross-feature collision, no reviewer-trigger surface, no dependency manifest), then
-a test-first edit behind **one combined consent+acceptance gate**, and records **one
-line** in `docs/plans/express-log.jsonl` — no `ce-spec.md`, `tasks.json`,
-`eligibility.json`, or `plans.json` entry. Its floor is **one** interactive gate (the
-full lane's floor is two), legitimate only because the mechanical screen is its
-precondition; any screen failure falls the change back to the full `/ce-patch` lane.
-The trade is explicit: you lose the EARS traceability chain and the per-change spec,
-and salami-slicing across several express edits is visible only through the log's
-frequency + discard signal (`/ce-retro`), never blocked.
+**Stop or escalate when:** the mechanical screen finds a cross-feature
+collision, dependency manifest, reviewer-trigger surface, durable state,
+schema/public-contract change, destructive signal, more than two files, or any
+scope uncertainty. Route directly to `/ce-plan`; `/ce-patch` has no larger
+fallback lane. `--express` remains accepted only as a backward-compatible alias
+for the default behavior.
 
 **The thin-spine default.** You don't have to know this lane exists to reach
 it: `/ce-plan`, `/ce-spec`, and `/ce-implement` each run a proportionality
@@ -259,8 +246,8 @@ cross-feature surface). Dollar amounts below are USD. The trade is explicit
 and consented in both directions: the patch lane is one skill at a ~$4 floor
 with a frozen file set; the full spine is ≈$12+ of model calls plus hours of attention, and buys
 decomposition, EARS traceability, and the review/verify gates. Graduation is
-lossless — a patch that trips its charter promotes to `/ce-plan` carrying
-everything already learned. All lanes run on your loaded model; nothing is
+explicit — a patch that fails admission stops and hands its discovered scope to
+`/ce-plan`. All lanes run on your loaded model; nothing is
 silently down-routed (the model-tier policy is a reviewable file, and
 down-route widening waits for live-eval evidence).
 
@@ -309,17 +296,16 @@ confidence.
 
 ## Recipe 9: Prepare A Release Handoff
 
-**Use when:** a verified plan needs clean delivery and release readiness.
+**Use when:** a verified plan needs a release decision and user-facing docs.
 
 ```text
-/ce-ship-deliver <plan-slug>
 /ce-ship-release <plan-slug>
 /ce-ship-document <plan-slug> --voice conversational    # generate docs; optional Stage-3.5 naturalize pass (fenced examples held immutable)
 /ce-doc-audit docs/getting-started.md --role new-user   # then validate a reader can actually follow them (findings only)
 ```
 
-**Expected artifacts:** delivery manifest, release decision package, changelog
-entry on consent, supply-chain evidence inventory, and user-facing docs grounded
+**Expected artifacts:** release decision package, changelog entry on consent,
+supply-chain evidence inventory, and user-facing docs grounded
 in verified behavior. The doc lifecycle is **generate → naturalize → validate**:
 `/ce-ship-document`'s `--voice` folds an optional `/ce-humanize` pass in after its
 Accuracy Gate (fenced examples held immutable), then `/ce-doc-audit` walks the
@@ -327,8 +313,9 @@ result as a target reader. For prose *outside* a plan (release notes, an existin
 README), run `/ce-humanize` standalone — it edits a named file only after a
 consent gate, and never touches the spec/evidence layer.
 
-**Done when:** the human has a local delivery branch, a GO/NO-GO release package,
-and docs that match verified behavior.
+**Done when:** the human has a GO/NO-GO release package and docs that match
+verified behavior. Branch preparation, push, tag, and deploy remain normal
+human-owned repository operations.
 
 **Stop or escalate when:** verification, review, rollback, SBOM, provenance,
 signature, checksum, or Scorecard evidence is missing and the release owner will
@@ -469,41 +456,27 @@ task list.
 **Stop or escalate when:** the spec is incomplete or unapproved. Finish
 `/ce-spec` before exporting backlog work.
 
-## Recipe 17: Run Hosted Agent Handoffs
+## Recipe 17: Use The Plugin's Focused Agents
 
-**Use when:** a platform team wants the SDLC spine behind its own workflow
-engine instead of direct Claude Code sessions.
+**Use when:** a developer wants to delegate one specification or one approved
+implementation while staying inside the Claude Code plugin's hooks and skill
+contracts.
 
-**Enforcement caveat:** plugin hooks (write leases, `git-guard`, deterministic
-gate enforcement) do not load on the managed-agent surface. Use this
-experimental path only when the host supplies equivalent sandboxing, approvals,
-and policy enforcement.
+Choose `spec-author` for `/ce-plan` + `/ce-spec`, or `spec-impl` for an approved
+`/ce-implement` task, from Claude Code's agent picker. Both are leaf agents:
+they cannot fan out to nested agents and have no push, merge, release, or deploy
+authority.
 
-```text
-spec-author -> spec-impl -> quality-gate -> release-coordinator
-```
+**Expected artifacts:** normal skill-owned plan/spec artifacts from
+`spec-author`, or code, tests, task updates, and `verification.md` from
+`spec-impl`.
 
-Deploy cookbooks:
+**Done when:** the delegated output passes the same lint, test, and human-review
+checks as a directly invoked skill.
 
-```bash
-scripts/deploy-managed-agent.sh spec-author
-scripts/deploy-managed-agent.sh spec-impl
-scripts/deploy-managed-agent.sh quality-gate
-scripts/deploy-managed-agent.sh release-coordinator
-```
-
-**Expected artifacts:** plan/spec artifacts from `spec-author`, code and
-verification from `spec-impl`, review/verification/diagnosis from `quality-gate`,
-and delivery/release/docs handoff artifacts from `release-coordinator`.
-
-**Done when:** the host workflow has recorded each agent run, verified the
-expected artifacts, routed any handoff requests, and left publication decisions
-to the human release owner.
-
-**Stop or escalate when:** host-side gates fail: missing spec artifacts, partial
-implementation, unresolved high-severity review findings, unaccepted verification
-gaps, or missing release evidence. Use
-`managed-agent-cookbooks/ORCHESTRATION.md` for the handoff schema and host gates.
+**Stop or escalate when:** the requested work crosses the selected agent's
+boundary, requires a product/scope decision, or needs shared-history or
+production authority. Return to the owning skill or human decision-maker.
 
 ## Recipe 18: Bootstrap A Repository
 
@@ -821,91 +794,52 @@ slug — take the new-slug branch, never overwrite the plan.
 
 ## Recipe 25: Build Overnight, Trust It By Morning
 
-**Use when:** planned features must build unattended across nights — a solo
-developer whose day hours go to customers, or a tech lead delegating a
-well-planned epic to sprint nights — and the morning problem is double:
-deciding whether to trust code no human read, and (on a team) making the run
-legible enough that the delegation survives its first standup question.
+**Use when:** an approved plan can run through one bounded, sequential batch
+while the developer is away, with all product and structural decisions parked
+for the morning.
 
 ```text
-# Evening — pre-flight the plan, then kick off:
-/ce-plan-audit <plan-slug>            # a lint FAIL blocks: repair via /ce-plan revise: first
-/ce-auto-build <plan-slug> [01..05]   # Stage 0: confirm isolated-branch Checkpoint Mode + bounds
-# Later evenings, if the run halted:
+# Evening
+/ce-plan-audit <plan-slug>
+/ce-auto-build <plan-slug> [01..05]   # approve scope, budget, retry cap, park cap
+
+# Resume only after resolving the recorded stop
 /ce-auto-build <plan-slug> --resume
-# Morning cadence — coffee-break check solo; THE standup report on a team:
+
+# Morning
 python3 plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py docs/plans/<slug> --write
-/ce-ship-backlog <plan-slug>/<id> --format ado-md   # optional, per newly-specced feature
-# Morning trust ritual, in order:
-#   1. Stage 3 end-review — inside the same /ce-auto-build run, not a command
-#   2. an independent mechanical verdict over the checkpoint branch:
-python3 scripts/gate_runner.py --repo . --base <run-baseline-ref> \
-  --head auto-build/<slug>/<date> --json
-/ce-verify                            # 3. pre-handover behavior gate
-/ce-onboard <plan-slug>               # 4. own the code nobody hand-wrote
+/ce-verify <plan-slug>                # optional independent behavior rerun
+/ce-onboard <plan-slug>               # own the code nobody hand-wrote
 ```
 
-**Evening.** `/ce-plan-audit` gates garbage-in before the token budget is
-spent: a hard lint FAIL (referential rot, DAG breaks) blocks — route it to
-`/ce-plan` (Recipe 21) — while the advisory lens findings feed the spawned
-specs' Challenge gates. At auto-build Stage 0, set the knobs that make the
-run trustable once: Checkpoint Mode `isolated-branch` (per-feature commits on
-an isolated `auto-build/<slug>/<date>` branch — never yours or the team's; it
-auto-resolves on unless you or `docs/plans/vc-policy.md` opt out), token
-budget, retry cap, consecutive-park cap, and the clean-tree baseline. Spawned
-agents park decisions instead of prompting you at 3am; a halt is a designed
-circuit-break, not a crash. Supervision and resume mechanics are Recipe 20.
+The run has one profile: features execute in ship order, one at a time, through
+specification, deterministic lint, implementation, external gates, verification,
+and independent review. It never creates a branch, commit, worktree, PR, or
+deployment. Budget, retries, and consecutive parks stop the run rather than
+reducing verification. Product, security-acceptance, destructive, architecture,
+and scope decisions are recorded and parked.
 
-**Morning cadence.** `docs/plans/<slug>/STATUS.md` is a disk-derived
-projection of the same on-disk checks the gates use — disk wins for every
-state except the parked/failed overlay, which reads the newest run-state
-cache. Solo, it is the coffee-break check; on a team it is the standup
-report: what completed overnight, what parked and why, what is next in ship
-order. The optional backlog export (Recipe 16) puts each newly-specced
-feature's spec-revision-stamped Story and Tasks on the board exactly as a
-teammate's work would appear — a Write gate, then a human pastes; no API.
-
-**Morning trust ritual.** Trust decision #1 is the end-review inside the run:
-adjudicate the parked product / destructive / architectural decisions with
-the decisions ledger and each feature's `review-summary.json` in front of
-you; an override re-spawns that feature plus every later feature in ship
-order. The end-review also runs its byte-identical `gate_runner.py` fork over
-the committed checkpoint branch, so you learn "this run, as landed,
-passes/fails your exact CI bar" before any PR exists. Trust decision #2 is
-independent: re-run the canonical `scripts/gate_runner.py` yourself — or open
-a PR from the checkpoint branch through the `action/merge-bar` CI check, so
-the run's code enters main through the identical bar every human PR passes —
-a Claude-free mechanical process that did not write the code judging
-committed state. `<run-baseline-ref>` is the commit the checkpoint branch was
-cut from (the run's Stage 0 integrity baseline), never main's moved tip. A
-green integrity bar is still not a merge license — validity (human review)
-stays in branch protection. Then `/ce-verify` with no argument runs the
-pre-handover gate: implemented state derived from disk (never claims),
-whole-suite regression, journey walks with your verdicts. Finally
-`/ce-onboard` closes the ownership gap — `confirmed` review gotchas taught
-first, Try-It-Yourself runbooks re-run opt-in. This is the step people skip
-and regret: someone must be able to maintain code nobody hand-wrote.
+In the morning, read `STATUS.md`, the decision ledger, per-feature verification
+and review artifacts, the integration report, and the complete working-tree
+diff. The final human gate can accept the output for later manual landing,
+request a routed repair, or leave it parked. Acceptance is not permission to
+commit, push, merge, or release.
 
 **Expected artifacts:** per-feature specs, implementations, and reviews under
-`docs/plans/<slug>/specs/`; the `auto-build/<slug>/<date>` checkpoint branch;
-`docs/plans/<slug>/STATUS.md`; the run report
-`docs/plans/<slug>/ce-auto-build/<date>-run.md` with its Merge-Bar Verdict
-section; an independent `gate_runner.py` verdict JSON;
-`docs/plans/<slug>/verification-report.md`; optional backlog exports and the
-consented onboarding learning guide.
+`docs/plans/<slug>/specs/`; `STATUS.md`; the state and decision ledger;
+`verification-report.md`; the run report under `ce-auto-build/`; and the
+working-tree diff awaiting human ownership.
 
-**Done when:** the end-review is signed off, the independent gate verdict is
-green (or every red gate is routed), the verification report reads
-`verified`, and the maintainer can explain the main flows and gotchas.
+**Done when:** the end-review is signed off, every completed feature has passing
+verification and no blocking confirmed-high review finding, integration
+verification is recorded, and a maintainer can explain the changed flows.
 
 **Stop or escalate when:** parks repeat on one decision class or the same
 feature circuit-breaks after a resume — resolve the underlying decision, or
 route structural flaws through `/ce-plan-audit` to `/ce-plan` before resuming
-(Recipe 20). A red independent verdict names its gate — route it (spec
-traceability → `/ce-spec`, test or dependency integrity → `/ce-implement`)
-and re-judge. `/ce-verify` failures route per its escalation table
-(`/ce-implement <id>`, `/ce-plan`). Never merge the checkpoint branch on the
-agent's say-so: the human owns what enters shared history.
+(Recipe 20). Verification and review failures route to their owning skill.
+Never land the working-tree output on the agent's say-so: the human owns what
+enters shared history.
 
 ## Recipe 26: Escaped Defect To Closed Incident
 
@@ -926,7 +860,7 @@ structural residue scheduled before the adrenaline fades.
 
 # 3 — fix down the routed lane only
 /ce-implement <plan-slug>/<id>    # bug (planned) — diagnosis.md loads as the lead
-/ce-patch <the bounded fix>       # plan-free bounded — full lane, never --express
+/ce-patch <the bounded fix>       # plan-free, ≤2 files, no trigger surface
 /ce-spec <id>                     # spec-gap
 #     structural → the closing /ce-plan move below
 
@@ -966,12 +900,12 @@ one fix is obvious.
 Fix only down the routed lane. A planned bug resumes as
 `/ce-implement <plan-slug>/<id>` — implement auto-loads the bug-classified
 `diagnosis.md` as its lead, so the fix starts from the confirmed `file:line`
-cause, not a re-derivation. A plan-free bounded fix runs the **full**
-`/ce-patch` lane: the Charter refuses-or-promotes to `/ce-plan` if the "quick
-fix" is secretly structural, `patch-lint` proves the diff stayed inside the
-frozen file set, and the lane leaves a `docs/plans/patch-<date>-<slug>/`
-directory the evidence pack can target (`--express` leaves none — don't use it
-for an incident).
+cause, not a re-derivation. A plan-free fix may use `/ce-patch` only when its
+mechanical screen proves the change stays within two files and avoids every
+reviewer-trigger, durable-state, dependency, schema, and public-contract
+surface. Otherwise it stops and routes to `/ce-plan`; incident pressure never
+widens the lane. An accepted patch leaves test/diff evidence in the append-only
+`docs/plans/express-log.jsonl`, not a per-patch plan directory.
 
 Prove, don't hope. On the planned lane, `/ce-verify <journey>` runs the whole
 suite and walks the exact broken journey with your verdict per step; a
@@ -979,8 +913,8 @@ cross-feature regression routes straight back to `/ce-implement`, and the run
 writes `verification-report.md` as the closure artifact. For a numeric symptom,
 `/ce-probe-perf --against <spec-id>` is the only tool that can prove an NFR
 breach is gone — it **refuses production**, so aim it at a staging or local
-replica. On the patch lane, the closure evidence is the lane's own external
-`patch-lint --post` gate plus its `verification.md` and Final Acceptance.
+replica. On the patch lane, the closure evidence is the external
+`patch-lint --post` result, test output, accepted diff, and ledger entry.
 Then the merge bar: hotfix pressure is precisely when a weakened test slips
 through, and test-guard's genie-catch plus the rest of the bar judge the
 committed fix mechanically, by a process that didn't write it (in CI, the
@@ -991,8 +925,8 @@ guard log and read what the sleep-deprived session actually touched — the
 sober second look a solo dev never gets. Compile the dated, sha256-stamped
 incident pack (Recipe 22): diagnosis artifacts, attestations, guard chain,
 merge verdict, absences listed in `gaps[]` and never papered over — the
-postmortem writes itself from evidence, not Slack archaeology. On the patch
-lane, point the pack at `docs/plans/patch-<date>-<slug>` instead. And if the
+postmortem writes itself from evidence, not Slack archaeology. For an express
+patch, include the relevant ledger entry and merge verdict directly. And if the
 diagnosis classified anything structural — a missing retry policy, no
 idempotency, a wrong boundary — schedule the real fix now: `/ce-plan
 revise:docs/plans/<slug>` (Recipe 21) when a plan owns the area, or a fresh
@@ -1001,7 +935,7 @@ revise:docs/plans/<slug>` (Recipe 21) when a plan owns the area, or a fresh
 **Expected artifacts:** `diagnosis.md` (planned) or a dated
 `docs/investigations/<date>-<slug>.md` + `evidence/` (plan-free); the routed
 lane's constrained diff with its verification evidence
-(`verification-report.md`, or the patch lane's `verification.md`);
+(`verification-report.md`, or the patch lane's test/diff/ledger evidence);
 `merge-verdict.json`; a dated `evidence-pack/<date>/pack.json` with verbatim
 sha256-stamped artifact copies; and, when structural residue existed, a revised
 or new plan feature carrying it.
@@ -1013,8 +947,8 @@ merge verdict, the pack is compiled, and any structural residue is a scheduled
 plan feature — not a memory.
 
 **Stop or escalate when:** the cause is still `suspected` and nobody has
-accepted that risk — run the discrimination plan instead of patching; the
-Patch Charter trips — graduate to `/ce-plan`, never shrink the change to fit;
+accepted that risk — run the discrimination plan instead of patching; patch
+admission fails — route to `/ce-plan`, never shrink the change to fit;
 the merge bar goes red — the fix re-enters `/ce-implement` or `/ce-debug`,
 never gets hand-waved past; or `guard_log.py --verify` fails — treat the
 session's writes as untrusted and re-review the diff before merging.
@@ -1032,8 +966,7 @@ reporter, not asserted.
 /ce-probe-sec <staging-url> --type http     # claim: reproduce on staging, never prod
 
 # Route each confirmed finding down the probe's own triage table:
-/ce-patch Bump <pkg> from <old> to <fixed> per finding F-N.   # compatible bump
-/ce-plan                                    # breaking upgrade or structural fix
+/ce-plan <dependency remediation for finding F-N>            # manifest edits are not patch-eligible
 /ce-spec <feature-id>                       # spec gap in a plan-owned feature
 /ce-review <feature-id>                     # spec-lane fixes only: Security-lens follow-up
 
@@ -1057,20 +990,18 @@ unreproduced claim gets an evidence-bound negative response, never a fix
 shipped on faith; a confirmed finding reaches a human security professional
 before remediation begins — that boundary is the probe's own, not optional.
 
-**Right-size the lane per finding.** An API-compatible version bump takes the
-full `/ce-patch` lane — the express screen's E4 refuses dependency-manifest
-edits, and `patch-lint` proves the diff stayed inside the consented lease. A
-breaking upgrade or cascade routes to `/ce-plan`; optionally run `/ce-impact`
-first for a commit-stamped blast radius the SLA ticket can cite. A spec gap in
+**Right-size the lane per finding.** Dependency-manifest changes route to
+`/ce-plan`, including API-compatible version bumps; `/ce-patch` deliberately
+has no manifest-edit fallback. Optionally run `/ce-impact` first for a
+commit-stamped blast radius the SLA ticket can cite. A spec gap in
 a plan-owned feature routes to `/ce-spec` through the plan's locks, and a
 structural fix lands `TZ-NNN` threat-model rows that future specs convert to
 `[SECURITY]` criteria. A probe-sec verdict of "no path from any documented
 trust boundary" is legitimate evidence for consciously deferring a noisy
 advisory — record the defer with that basis. `/ce-review <feature-id>` (the
 six lenses plus the adversarial pass tagging Highs `confirmed | suspected`)
-follows up spec-lane fixes and catches the sibling instance of the bug class;
-a patch-lane bump has no feature id to review — its external gates and the
-merge bar cover it. Do not reach for `/ce-debug` (Recipe 7): nothing here is
+follows up spec-lane fixes and catches the sibling instance of the bug class.
+Do not reach for `/ce-debug` (Recipe 7): nothing here is
 failing — the signal is external, and reproduction belongs to the probes.
 
 **The closure packet is mechanical.** Dated probe reports never overwrite a
@@ -1112,10 +1043,9 @@ where triage becomes committed scope.
 /ce-probe-deps
 /ce-probe-infra                   # skip if the repo has no IaC/k8s/Dockerfile
 # Triage BOTH dated reports — the campaign's scope decision, three piles:
-#   fix-now · plan (breaking upgrade / structural gap) · accept-or-defer,
+#   plan (all manifest fixes and structural gaps) · accept-or-defer,
 #   each acceptance with its reason recorded
-/ce-patch Bump <pkg> from <v1> to <v2> per the dep-audit finding   # per fix-now item
-/ce-plan <remediation project: breaking upgrades + structural infra gaps;
+/ce-plan <remediation project: dependency upgrades + structural infra gaps;
           cite both dated reports as reference documents>
 /ce-plan-audit <remediation-slug>       # audit BEFORE the quarter is committed
 /ce-spec <remediation-slug>/<first-feature>
@@ -1124,18 +1054,16 @@ where triage becomes committed scope.
 /ce-onboard <remediation-slug-or-path>  # optional, for the assigned maintainer
 ```
 
-The probes arrive pre-routed. `/ce-probe-deps` splits each finding in its
-report: an API-compatible version bump routes to `/ce-patch`, a breaking
-upgrade or cascade to `/ce-plan`, and unparsed manifest formats are recorded as
-unscanned — the census's honest boundary; a not-scanned surface is never
-implied clean. `/ce-probe-infra` labels live-only exposures `inferred` and
-routes them to a future consented `/ce-probe-sec` rather than asserting them
-statically.
+The probes arrive pre-routed. `/ce-probe-deps` sends every dependency-manifest
+or lock-file change to `/ce-plan`, whether the bump appears compatible or
+breaking; unparsed manifest formats are recorded as unscanned — the census's
+honest boundary, never an implied clean result. `/ce-probe-infra` labels
+live-only exposures `inferred` and routes them to a future consented
+`/ce-probe-sec` rather than asserting them statically.
 
-The fix-now burn-down is auditable by construction: a dependency-manifest edit
-fails `/ce-patch`'s express screen (E4), so every bump runs the full patch
-lane — eligibility lease, both external patch-lint gates, a `plans.json` entry
-with `origin: "patch"` — never the one-line express ledger.
+The planned burn-down is auditable through the remediation plan: dependency
+manifest edits fail `/ce-patch` admission and enter the normal plan/spec/task
+traceability chain instead of a hidden larger patch lane.
 
 The plan step is the conversion nobody improvises correctly: hand `/ce-plan`
 the two dated reports as reference documents, so the remediation plan's risk
@@ -1156,8 +1084,7 @@ chain between them.
 
 **Expected artifacts:** `docs/dep-audits/<date>-<slug>.md` and
 `docs/infra-reviews/<date>-<slug>.md` + its `summary.json` (the dated pair
-doubles as a defensible state-at-handover baseline), per-bump patch records in
-`docs/plans/plans.json`, `docs/plans/<remediation-slug>/` with
+doubles as a defensible state-at-handover baseline), `docs/plans/<remediation-slug>/` with
 `feature-plan.md` + `plan.json`, `docs/plan-audits/<date>-<slug>.md`, and — per
 exported feature — `specs/<id>/ce-spec.md`, `tasks.json`, and
 `docs/plans/<slug>/backlog/<id>.md`.
@@ -1167,9 +1094,9 @@ feature in the audited plan, or accepted/deferred with its reason recorded —
 and the first feature's tickets passed the backlog Write gate and sit in the
 tracker.
 
-**Stop or escalate when:** a "fix-now" bump trips the Patch Charter — it
-graduates to `/ce-plan`; fold it into the remediation plan (Recipe 21) rather
-than forcing the patch lane. Stop on a probe degradation (offline OSV, missing
+**Stop or escalate when:** a "fix-now" item is not safely express-eligible;
+fold it into the remediation plan (Recipe 21) rather than forcing the patch
+lane. Stop on a probe degradation (offline OSV, missing
 scanners) when the team needs a clean census: re-run with the capability
 restored or record the gap as accepted — never report clean. If the plan-audit
 lint FAILs structurally, resolve it via `/ce-plan` before speccing anything.
@@ -1316,17 +1243,16 @@ env-guard, net-guard, write-scope-guard — append every decision to the
 sha256-chained `.claude/ce-guard-log.jsonl` through the shared writer, and
 `plugins/core-engineering/hooks/model-attest.py` separately records which model
 actually executed in the `.claude/ce-session-model.json` sidecar that skills
-stamp onto their metric lines. Honest limit, and a decision to make **now**:
-plugin hooks fire only on the Claude Code surface — a Managed-Agent run loads
-no hooks, so it records `model: null` and produces no guard chain (see
-`plugins/core-engineering/hooks/README.md`). Decide which surface the work runs
-on before it starts.
+stamp onto their metric lines. Honest limit: a runtime outside the Claude Code
+plugin loads no hooks, records `model: null`, and produces no guard chain (see
+`plugins/core-engineering/hooks/README.md`). Confirm the work is running on the
+supported plugin surface before relying on this evidence.
 
 **Capture (during).** The instrumented run leaves the trail as a side effect:
 the run report's `Substrate:` and `Worker selection:` lines, the decisions
 ledger, and one `attestation` line in `.metrics.jsonl` per HITL gate — the
 printed `Gate N of M` locator verbatim, plus `confirm|override|edit|loop`. The
-human decisions here are `/ce-auto-build`'s Stage-0 preset and Stage-3
+human decisions here are `/ce-auto-build`'s Stage-0 approved bounds and Stage-3
 end-review (Recipe 20); those attestations become pack contents. In CI, copy
 `templates/adopter-ci/gates.yml` (its gate step tees the verdict and reads the
 merge-policy override from the base ref so a PR cannot weaken its own bar) or
@@ -1442,50 +1368,31 @@ decision inside a PR reply.
 
 ## Recipe 32: Divide A Plan Among N Developers
 
-**Use when:** a plan is written and specced, several developers are free, and the
-split is about to be made by eyeballing `feature-plan.md` on a whiteboard. Two
-developers who pick features that quietly edit the same file will discover it at
-merge time, which is the most expensive moment to discover it.
+**Use when:** a plan is written and specced, several developers are available,
+and the team needs explicit ownership without introducing a second worktree
+orchestration system.
 
 ```text
-# 1. spec the features you intend to hand out (reach is derived from tasks.json)
-/ce-spec <feature-id>            # repeat per feature, or run /ce-plan-audit first
-
-# 2. ask the machine which features are PROVABLY independent
-python3 plugins/core-engineering/skills/ce-auto-build/scripts/worktree-preflight.py \
-  --root . --plan docs/plans/<slug>/plan.json --skip-git --json
-
-# 3. read parallel_groups + reach_sources, then negotiate the split with the team
-# 4. hand each developer their lane; record the assignment where assignments live
-/ce-ship-backlog <feature-id>    # one Story + Tasks per feature, into your tracker
+/ce-plan-audit <plan-slug>
+/ce-spec <feature-id>             # repeat for the features being assigned
+/ce-ship-backlog <feature-id>     # publish each reviewed assignment to the tracker
 ```
 
-**What "provably independent" means, and what it does not.** `parallel_groups`
-contains features with **no hard-dependency path between them** *and* **disjoint
-MODIFY reach** — reach being the union of `files[]` across each feature's
-`specs/<id>/tasks.json`. So a group is a set of lanes that, on the evidence the specs
-carry, will not touch the same file. `reach_sources` tells you where each feature's
-reach came from: `tasks.json` (derived), `plan.json` (an explicit key), or `none`.
+Read `plan.json` for dependency order and each `tasks.json` for declared file
+reach. Assign only dependency-ready features, and do not assign two features in
+parallel when their declared files overlap. Record ownership in the team's
+tracker or PR, which already owns people and scheduling; the framework does not
+create a second assignment ledger.
 
-**Read `reach_sources` before you trust the groups.** Run this **before** `/ce-spec`
-and every feature reports `none`, every group is a singleton, and the only structure
-available is the dependency layering — divide by human judgment, and know that path
-collisions are unproven. That is the script being honest, not broken.
+**Expected artifacts:** reviewed specs/tasks plus normal tracker items. No
+worktrees, checkpoint branches, or parallel-group metadata are generated.
 
-**Reach is a floor, not a guarantee.** A task that edits a file its `files[]` never
-declared can still collide. The backstop is the merge, not this projection.
+**Done when:** each developer owns one clear feature boundary, dependency order
+is respected, and overlapping file reach has an explicit coordination plan.
 
-**Expected artifacts:** none written by the preflight — it prints JSON. The durable
-record of who owns what is the tracker item (`/ce-ship-backlog`) or your PR
-description; the framework does not own a person-to-feature assignment file.
-
-**Done when:** every developer has a lane, no two lanes sit in different groups that
-share a file, and the dependency order is respected — a feature whose hard dependency
-is in someone else's lane starts *after* that lane lands.
-
-**Stop or escalate when:** `parallel_groups` is all singletons and the specs exist.
-That means the features genuinely overlap on files, and the honest move is to
-re-cut the boundaries (`/ce-plan`), not to hand out colliding lanes and hope.
+**Stop or escalate when:** boundaries or file reach are unclear, dependencies
+form a serial chain, or several features need the same files. Re-cut the plan
+with `/ce-plan` instead of adding orchestration machinery around a bad split.
 
 ## Recipe 33: Pick The Next Sprint's Slate
 

@@ -11,10 +11,11 @@ named is a **Spec Conflict** — the spec must name every file it changes.
 
 Two modes, one 0/1/2 exit contract:
 
-  * IN-LOOP  `--spec-dir <docs/plans/<slug>/specs/<id>> --base <ref> [--repo .] --json`
-    runs during implement Stage 2 over the WORKING TREE (tracked diff vs `--base`
-    plus untracked new files, the same gather as patch-lint). It scopes to ONE
-    spec's task file set.
+  * IN-LOOP  `--spec-dir <docs/plans/<slug>/specs/<id>> [--spec-dir <...>]`
+    `--base <ref> [--repo .] --json` runs during implementation over the WORKING
+    TREE (tracked diff vs `--base` plus untracked new files, the same gather as
+    patch-lint). One argument scopes to one feature; repeated arguments union the
+    selected specs for a sequential, cumulative working tree.
 
   * CI       `--all-specs --head-tree <dir> --base <ref> --head <ref> --repo <path> --json`
     is the merge-bar gate. It unions `tasks[].files` across EVERY spec dir found
@@ -45,8 +46,8 @@ manual checklist must cover gitignored writes; this gate cannot.
 Exit codes:
     0  PASS  — no file outside the boundary (advisory notes may still print)
     1  FAIL  — >= 1 touched file outside the spec's declared file set (Spec Conflict)
-    2  ERROR — inputs missing/unparseable, not a git repo, bad flags; the caller
-               falls back to the manual Scope Lock checklist (loudly)
+    2  ERROR — inputs missing/unparseable, not a git repo, bad flags; caller applies
+               its owning workflow's documented exit-2 disposition (never a pass)
 """
 
 from __future__ import annotations
@@ -59,7 +60,7 @@ from pathlib import Path
 
 
 class ScopeGuardError(Exception):
-    """Inputs cannot be loaded / not a git repo -> exit 2, caller falls back."""
+    """Inputs cannot be loaded / not a git repo -> exit 2, never a pass."""
 
 
 # --- path + git helpers (self-contained: the fork copy must be byte-identical) ------
@@ -102,7 +103,7 @@ def _git_toplevel(start: Path) -> Path | None:
 
 def load_task_files(tasks_path: Path) -> set[str]:
     """Return the normalized union of `tasks[].files` from one tasks.json.
-    A malformed tasks.json is an ERROR (exit 2) — the caller falls back."""
+    A malformed tasks.json is an ERROR (exit 2), never a pass."""
     if not tasks_path.is_file():
         raise ScopeGuardError(f"tasks.json not found: {tasks_path}")
     try:
@@ -212,30 +213,33 @@ def check_scope(changed: set[str], task_files: set[str],
 
 # --- modes --------------------------------------------------------------------------
 
-def run_in_loop(spec_dir_arg: str, base: str, repo_arg: str) -> tuple[list, list]:
+def run_in_loop(spec_dir_args: list[str], base: str, repo_arg: str) -> tuple[list, list]:
     repo = Path(repo_arg).resolve()
     if _git_toplevel(repo) is None:
         raise ScopeGuardError(f"--repo {repo_arg} is not inside a git repository")
-    spec_dir = Path(spec_dir_arg)
-    spec_dir_abs = spec_dir if spec_dir.is_absolute() else (repo / spec_dir)
-    if not spec_dir_abs.is_dir():
-        raise ScopeGuardError(f"--spec-dir not found: {spec_dir_abs}")
-    task_files = load_task_files(spec_dir_abs / "tasks.json")
-
-    # Allowed bookkeeping: the plan subtree (holds the spec dir), the spec dir
-    # itself (fallback when the layout is unexpected), + the base prefixes.
+    task_files: set[str] = set()
     prefixes = list(BASE_ALLOWED_PREFIXES)
-    try:
-        spec_dir_rel = _norm(str(spec_dir_abs.resolve().relative_to(repo)))
-        prefixes.append(spec_dir_rel.rstrip("/") + "/")
-        plan_pre = _plan_dir_prefix(spec_dir_rel)
-        if plan_pre:
-            prefixes.append(plan_pre)
-    except ValueError:
-        pass  # spec dir outside the repo — allow nothing extra beyond the base set
+    for spec_dir_arg in spec_dir_args:
+        spec_dir = Path(spec_dir_arg)
+        spec_dir_abs = spec_dir if spec_dir.is_absolute() else (repo / spec_dir)
+        if not spec_dir_abs.is_dir():
+            raise ScopeGuardError(f"--spec-dir not found: {spec_dir_abs}")
+        task_files |= load_task_files(spec_dir_abs / "tasks.json")
+
+        # Allow plan bookkeeping for every selected spec. If a spec lives outside
+        # the repository, add no prefix; its task files still remain explicit.
+        try:
+            spec_dir_rel = _norm(str(spec_dir_abs.resolve().relative_to(repo)))
+            prefixes.append(spec_dir_rel.rstrip("/") + "/")
+            plan_pre = _plan_dir_prefix(spec_dir_rel)
+            if plan_pre:
+                prefixes.append(plan_pre)
+        except ValueError:
+            pass
 
     changed = gather_worktree_diff(repo, base)
-    return check_scope(changed, task_files, tuple(prefixes), spec_count=1)
+    return check_scope(
+        changed, task_files, tuple(prefixes), spec_count=len(spec_dir_args))
 
 
 def _committed_spec_dirs(tree_root: Path) -> list[Path]:
@@ -307,9 +311,9 @@ def main(argv=None) -> int:
         description="Scope Lock file-boundary gate: fail any touched file outside "
                     "the union of a spec's tasks[].files.")
     mode = p.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--spec-dir",
-                      help="IN-LOOP: one spec dir (docs/plans/<slug>/specs/<id>) — "
-                           "scope to its tasks[].files over the working-tree diff")
+    mode.add_argument("--spec-dir", action="append",
+                      help="IN-LOOP: a spec dir (repeat to union multiple specs) — "
+                           "scope their tasks[].files over the working-tree diff")
     mode.add_argument("--all-specs", action="store_true",
                       help="CI: union tasks[].files across every spec dir under "
                            "--head-tree, over the committed base..head diff")
@@ -338,11 +342,11 @@ def main(argv=None) -> int:
         else:
             print(f"implement-scope-guard [{mode_name}]: ERROR — could not run: {e}",
                   file=sys.stderr)
-            print("  -> fall back to the manual Scope Lock file-boundary check (loudly).",
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.",
                   file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001 — any unexpected failure must honor the
-        # exit-2 "could not run -> fall back" contract, never leak a traceback that
+        # exit-2 "could not run" contract, never leak a traceback that
         # exits 1 and impersonates a substantive Spec Conflict to a gating caller.
         if args.json:
             print(json.dumps({"status": "error", "mode": mode_name,
@@ -350,7 +354,7 @@ def main(argv=None) -> int:
         else:
             print(f"implement-scope-guard [{mode_name}]: ERROR — unexpected "
                   f"({type(e).__name__}): {e}", file=sys.stderr)
-            print("  -> fall back to the manual Scope Lock file-boundary check (loudly).",
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.",
                   file=sys.stderr)
         return 2
 

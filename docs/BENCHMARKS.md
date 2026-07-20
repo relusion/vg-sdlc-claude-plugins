@@ -15,12 +15,12 @@ no model calls, stdlib-only Python:
 
 | Gate | What it proves | Scale |
 |---|---|---|
-| `scripts/check.py` | manifests parse; skill/agent frontmatter; cookbook references resolve; forked-gate byte-identity from `fork-manifest.json`; model-policy two-way consistency; merge-policy validity; README catalog matches the corpus; delegates every lint below | 138 checks |
+| `scripts/check.py` | manifests parse; skill/agent frontmatter; forked-gate byte-identity from `fork-manifest.json`; model-policy two-way consistency; merge-policy validity; README catalog matches the corpus; delegates every lint below | repository-wide |
 | `scripts/corpus_lint.py` | no stale public names, no unknown `/ce-*` references, skeleton headings present, companion-file references resolve | repository corpus |
-| `scripts/authoring_check.py` | the [skill-authoring](./contributing/SKILL-AUTHORING.md) vocabulary: HITL heading enum, gate-label sanity, `<date>` placeholder, concept canon, router-cluster clauses, size/description caps, glossary two-copy sync, material-gate locators | 368 checks |
+| `scripts/authoring_check.py` | the [skill-authoring](./contributing/SKILL-AUTHORING.md) vocabulary: HITL heading enum, gate-label sanity, `<date>` placeholder, concept canon, router-cluster clauses, size/description caps, glossary two-copy sync, material-gate locators | skill corpus |
 | `scripts/portability_check.py` | every shipped hook/gate script is stdlib-only and runs with zero Claude Code present | all shipped scripts |
 | `scripts/supply_chain_check.py` | SHA-pinned CI actions (incl. the adopter template), checksum-verified secret scanning, dependency-gate fork integrity, merge-bar anti-deregistration, live-eval workflow safety, evidence prompts present | supply-chain control set |
-| `tests/` unit suite | gate scripts, hooks policy, merge bar, write lease, SCA guard, eval tooling, catalog drift | 968 tests |
+| `tests/` unit suite | gate scripts, hooks policy, merge bar, write lease, SCA guard, eval tooling, catalog drift | unit suite |
 | `scripts/eval_check.py` | eval scenario catalog + fixtures valid; golden lint/schema replays pass deterministically; coverage ratchet (scenario or dated waiver per skill) | catalog + registered golden gates |
 
 Reproduce all of it: `python3 scripts/check.py && python3 -m unittest discover -s tests -q`.
@@ -60,15 +60,15 @@ current skill is no longer the one that produced it. Re-running the smoke profil
 | EVAL-006 | `/ce-implement` | test-first implementation: tasks done, tests green, `verification.md` | $3.00 | design-verified, not live-run |
 | EVAL-007 | `/ce-review` | finds the seeded high-severity IDOR, `blocking_high: 1`, machine summary | $2.00 | design-verified, not live-run |
 | EVAL-008 | `/ce-probe-infra` | dated infra report + summary JSON + evidence for Dockerfile/K8s/Terraform findings | $3.00 | design-verified, not live-run |
-| EVAL-009 | `/ce-patch` | stops at the eligibility gate; no code edits without consent | $4.00 | design-verified, not live-run |
-| EVAL-010 | `/ce-patch` | refuses durable-state work and routes to `/ce-plan`, files untouched | $2.00 | design-verified, not live-run |
+| EVAL-009 | `/ce-patch` | admits a benign two-file fix, proves red→green, and stops at one diff/evidence gate | $4.00 | design-verified, not live-run |
+| EVAL-010 | `/ce-patch` | refuses schema/durable-state work before editing and routes to `/ce-plan` | $2.00 | design-verified, not live-run |
 | EVAL-011 | `/ce-ask` | resists adversarial repo instructions; cites real files, repeats no injected text | $1.00 | design-verified, not live-run |
 | EVAL-012 | `/ce-impact` | ignores injected override/exfiltration text in fixture docs | $1.00 | design-verified, not live-run |
 | EVAL-013 | `/ce-ask` | cross-stack: TypeScript authorization tracing | $1.00 | design-verified, not live-run |
 | EVAL-014 | `/ce-impact` | cross-stack: OpenAPI/SQL contract impact | $1.00 | design-verified, not live-run |
 | EVAL-015 | `/ce-ask` | cross-stack: CI workflow grounding | $1.00 | design-verified, not live-run |
 | EVAL-016 | `/ce-probe-deps` | flags the OSV-listed `urllib3==1.24.1` pin, lists skipped unpinned, no false "clean bill" | $1.00 | design-verified, not live-run |
-| EVAL-017 | `/ce-auto-build` | three-feature run: success, product park, retry exhaustion, and end-review artifacts | $20.00 | design-verified, not live-run |
+| EVAL-017 | `/ce-auto-build` | fixed sequential three-feature run: success, product park, retry exhaustion, schema-v2 state, and final human review | $20.00 | design-verified, not live-run |
 | EVAL-018 | `/ce-humanize` | rewrites generic prose while preserving facts, links, and structure | $1.00 | design-verified, not live-run |
 
 Honest failure log from the same batch — kept because it calibrated the

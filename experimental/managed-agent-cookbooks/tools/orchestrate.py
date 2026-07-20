@@ -91,7 +91,7 @@ def extract_handoff(text: str) -> dict | None:
 def _valid_handoff_payload(payload) -> bool:
     """Validate the deliberately tiny handoff payload schema locally.
 
-    The standalone `scripts/validate.py` keeps the general JSON Schema
+    The standalone `tools/validate.py` keeps the general JSON Schema
     dependency. This reference loop needs only the fixed handoff schema above,
     so a local validator keeps extraction tests runnable on bare Python.
     """

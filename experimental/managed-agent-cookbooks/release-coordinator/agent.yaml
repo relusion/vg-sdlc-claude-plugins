@@ -20,8 +20,7 @@ tools:
 mcp_servers: []
 
 skills:
-  - { path: ../../plugins/core-engineering/skills/ce-ship-deliver }
-  - { path: ../../plugins/core-engineering/skills/ce-ship-release }
-  - { path: ../../plugins/core-engineering/skills/ce-ship-document }
+  - { path: ../../../plugins/core-engineering/skills/ce-ship-release }
+  - { path: ../../../plugins/core-engineering/skills/ce-ship-document }
 
 callable_agents: []

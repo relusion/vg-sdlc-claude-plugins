@@ -77,17 +77,16 @@ Write `docs/dep-audits/<date>-<slug>.md`:
 - **Findings table:** package == version · manifest `file:line` · advisory ids · usage note.
 - **Skipped (unpinned):** every range-specified dependency the floor could not
   check, listed — an unchecked dependency is visible, never implied clean.
-- **Routing per finding:** version bump that stays API-compatible → `/ce-patch`
-  (one bounded change); a breaking upgrade or cascade → `/ce-plan`; unclear
-  exploitability in this codebase → note for `/ce-probe-sec` if a live target
-  exists.
+- **Routing per finding:** every manifest or lock-file edit → `/ce-plan` (optionally
+  run `/ce-impact` first); unclear exploitability in this codebase → note for
+  `/ce-probe-sec` if a live target exists.
 
 Restore the lease baseline (contract item 0, last act).
 
 ## Escalation
 
-- A finding's fix is a **single bounded version bump** → route to `/ce-patch`.
-- The upgrade **breaks APIs or cascades** across the tree → route to `/ce-plan`.
+- Any finding that requires a dependency manifest or lock-file edit → route to
+  `/ce-plan`; `/ce-patch` rejects dependency surfaces even for compatible bumps.
 - The floor exits `2` and the human needs a clean verdict → re-run with
   network, or record the degradation as an accepted gap — never report clean.
 - Manifest formats outside the parsed set (poetry.lock, go.sum, *.csproj…)

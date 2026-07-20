@@ -51,8 +51,8 @@ here a silent allow IS the vulnerability:
 
 Honest limitations — env-var *expansion* like `printenv`/`echo $API_KEY` is not
 a file read; nor are interpreter one-liners, shell variable indirection /
-obfuscation (`F=$HOME; cat $F/.env`), MCP-tool reads, or the Managed-Agent
-surface, which loads no plugin hooks. Directory-read denial is exact for the
+obfuscation (`F=$HOME; cat $F/.env`), MCP-tool reads, or execution surfaces
+that load no plugin hooks. Directory-read denial is exact for the
 home-anchored stores (a structural ancestor test, no enumeration, any depth);
 for the `basename` class an out-of-workspace directory is screened by its
 *immediate* children only, so a `basename` secret nested deeper under a

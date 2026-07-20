@@ -65,7 +65,7 @@ decomposition — route to **Stage R** (`${CLAUDE_SKILL_DIR}/stage-R-revision.md
 Execution Contract item 17) rather than Stages 1–9. Three sub-cases:
 
 - **Unambiguous revision** — an explicit `revise:` argument (`revise=docs/plans/<slug>` or a
-  `revise:` input), a `/ce-patch` promotion seed carrying this plan's slug, or a `/ce-spec`
+  `revise:` input), a `/ce-patch` text handoff naming this existing plan's slug, or a `/ce-spec`
   structural Boundary Conflict escalation (§3.3 / §3.5 / §3.6) / `/ce-implement` Boundary
   Conflict naming this plan. **Load `stage-R-revision.md` and start Stage R.0** — no
   disambiguation needed; Stage R's own R.3 gate confirms the delta.

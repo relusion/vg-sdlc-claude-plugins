@@ -16,7 +16,7 @@ disable-model-invocation: true
 Prepare and gate the decision to ship a verified plan — **decide, don't deploy**.
 
 `/ce-ship-release` is the downstream-most pipeline tool. It reads what the pipeline has
-already proven — the verification report, the code review, the delivery branch —
+already proven — the verification report, the code review, and the selected git range —
 and turns it into a **ship-release package**: a proposed version bump, a
 changelog derived from the shipped features, rollback-readiness plus
 **Supply-Chain Evidence**, and a proposed tag + release notes, all gated on a
@@ -24,11 +24,10 @@ go/no-go the human owns. It writes one
 decision artifact and (only on consent) the versioned `CHANGELOG.md`. It **never**
 pushes, creates or moves a remote tag, deploys, or commits to a protected branch.
 
-It sits at the end of the chain, after the work is built, verified, and (optionally)
-delivered:
+It sits at the end of the chain, after the work is built and verified:
 
 ```
-plan → spec → implement → { verify · review } → deliver → release
+plan → spec → implement → { verify · review } → release
 ```
 
 Distinct from its neighbors:
@@ -36,9 +35,6 @@ Distinct from its neighbors:
 - **vs `/ce-verify`** — verify proves the software *behaves*; release decides whether
   that proven state *ships*, and at what version. Release never re-tests — it reads
   verify's report and **refuses GO over unverified work**.
-- **vs `/ce-ship-deliver`** — deliver constructs the clean *what-ships* branch (code
-  hygiene); release decides *when / how it ships* (version, changelog, readiness).
-  Deliver hands release a branch; release never rebuilds it.
 - **vs `/ce-ship-document`** — release owns the versioned `CHANGELOG.md` (it holds the
   version number); `/ce-ship-document` writes user-facing usage docs and never writes the
   changelog. The two never write the same file.
@@ -49,8 +45,8 @@ Distinct from its neighbors:
 
 - **Plan slug (required):** resolve via `docs/plans/plans.json`; if missing, ask. Do not guess.
 - **`--version` (optional):** an explicit target version, overriding the derived proposal.
-- **`--base` (optional):** the base branch / ref the release is cut against (default: the delivery profile's `base_branch`, else the repo default — confirmed at Stage 0).
-- **Loaded (read-only):** `docs/plans/<slug>/verification-report.md` (the proof); the code review — **both** the plan-level `code-review.md` **and** any per-feature `specs/<id>/code-review.md` (auto-build writes per-feature) for features in range; `plan.json` + `feature-plan.md` (shipped features, ship order); the delivery manifest under `delivery/` if `/ce-ship-deliver` ran; `docs/plans/vc-policy.md` (release / delivery profile); available SBOM files (CycloneDX / SPDX), SLSA provenance, artifact signatures, checksums, OpenSSF Scorecard output, and CI secret-scan / plugin-validation evidence; and the repo's git tags + history.
+- **`--base` (optional):** the base branch / ref the release is cut against (default: the release profile's `base_branch`, else the repo default — confirmed at Stage 0).
+- **Loaded (read-only):** `docs/plans/<slug>/verification-report.md` (the proof); the code review — **both** the plan-level `code-review.md` **and** any per-feature `specs/<id>/code-review.md` (auto-build writes per-feature) for features in range; `plan.json` + `feature-plan.md` (shipped features, ship order); `docs/plans/vc-policy.md` (release profile); available SBOM files (CycloneDX / SPDX), SLSA provenance, artifact signatures, checksums, OpenSSF Scorecard output, and CI secret-scan / plugin-validation evidence; and the repo's git tags + history.
 
 Writes `docs/plans/<slug>/release/<date>-release.md` (the decision package) and, in the same Stage 5 step, one dated per-release evidence pack under `docs/plans/<slug>/evidence-pack/<date>/` (`evidence-pack.py`, this skill's bundled copy — a compilation of the pipeline's recorded evidence, never overwritten) — and, only on explicit consent (Stage 5), the versioned `CHANGELOG.md` / release notes in the repo.
 
@@ -64,7 +60,7 @@ Writes `docs/plans/<slug>/release/<date>-release.md` (the decision package) and,
 4. **Version is a proposal, not a verdict.** Derive a semver bump from the shipped features' nature; the human owns the final number (a material decision).
 5. **Rollback-readiness is honest.** The checklist reports what *is* and *is not* reversible, and flags every unknown — it never fakes readiness for a destructive change with no recorded rollback.
 6. **Supply-chain evidence is explicit.** Record whether SBOM, SLSA provenance, artifact signatures, checksums, OpenSSF Scorecard output, secret-scan status, and plugin-validation status exist for the release. Missing evidence is a release finding or accepted gap, never a silent pass.
-7. **Read-only on code, specs, and the delivery branch — and owns the changelog.** Writes its decision artifact, and on consent the versioned `CHANGELOG.md`: it **appends** a new version section, **never rewriting prior sections**. `/ce-ship-document` never writes `CHANGELOG.md`.
+7. **Read-only on code, specs, and git history — and owns the changelog.** Writes its decision artifact, and on consent the versioned `CHANGELOG.md`: it **appends** a new version section, **never rewriting prior sections**. `/ce-ship-document` never writes `CHANGELOG.md`.
 8. **Never commit, push, tag a remote, or deploy.**
 
 ## Scope Lock — the release decision  [decide, don't deploy]
@@ -73,7 +69,7 @@ Release holds no authority to ship. It assembles the decision and gates it; the
 human executes `git tag`, the push, and the deploy. If the readiness check is red —
 unverified work, an unaccepted high-severity finding, a destructive change with no
 rollback — release **withholds GO** and routes to the layer that fixes it
-(`/ce-verify`, `/ce-review` triage, `/ce-ship-deliver`), rather than shipping anyway. A release
+(`/ce-verify`, `/ce-review` triage, or the human release owner), rather than shipping anyway. A release
 cut over a red gate is exactly the silent degradation the toolset forbids.
 
 ## Release-Readiness Gate  [material]
@@ -134,8 +130,8 @@ Release decides; when readiness is red it withholds GO and routes:
 | A feature in range is `stale` (a `done` task's commit left HEAD's ancestry) | `/ce-implement` — re-derive the stale tasks, then `/ce-verify` |
 | Unresolved high-severity review finding | `/ce-review` triage → `/ce-implement` or `/ce-spec` |
 | Destructive change with no rollback the human won't accept | `/ce-spec <id>` — specify the rollback **requirement** as acceptance criteria (forward + reverse steps) that `/ce-implement` builds and `/ce-verify` proves |
-| Missing SBOM / provenance / signature / checksum / OpenSSF Scorecard evidence the human won't accept | Release engineering / CI hardening owns generation; rerun `/ce-ship-deliver` if the delivery manifest must include the inventory, or `/ce-review` if missing evidence changes release risk |
-| The delivery branch is stale / wrong | `/ce-ship-deliver` — rebuild it |
+| Missing SBOM / provenance / signature / checksum / OpenSSF Scorecard evidence the human won't accept | Release engineering / CI hardening owns generation; use `/ce-review` if missing evidence changes release risk |
+| The selected base/head range or release branch is stale / wrong | Human release owner corrects the branch or ref, then reruns `/ce-ship-release` |
 | Scope / boundary is wrong | `/ce-plan` |
 
 *Rehearsing or executing a rollback remains the human's — no skill in this toolset
@@ -151,9 +147,9 @@ never resolves these itself; it gates on them.
 - **Tag backstop is Claude Code-surface only.** `git-guard` now guards `git tag
   <name>` (create / move / delete → confirm; listing stays silent; `CE_GIT_GUARD_TAG=deny`
   to hard-block) alongside push / PR / protected-branch commits — the no-tag
-  discipline is structural on the Claude Code surface. Hooks do not load on the
-  Managed-Agent deployment, where the go/no-go gate and prose remain the only
-  enforcement.
+  discipline is structural on the Claude Code surface. Actions taken through
+  other clients are outside these hooks; host protections and the human release
+  owner remain the boundary there.
 - **Semver is inferred, not proven.** A breaking change the specs / ADRs didn't
   record as breaking can slip the bump; the human owns the final number.
 - **Rollback-readiness is a checklist, not a tested rollback.** It records whether a

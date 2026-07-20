@@ -303,6 +303,29 @@ class NuGetContract(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(json.loads(r.stdout)["status"], "pass")
 
+    def test_cumulative_declared_set_covers_prior_and_later_features(self):
+        # A sequential uncommitted run always diffs from Stage 0. The prior
+        # feature's Serilog addition remains authorized; a later Polly addition
+        # stays red until the cumulative verified set includes both names.
+        current = (Path(self.repo.dir) / "src/App/App.csproj").read_text()
+        self.repo.write(
+            "src/App/App.csproj",
+            current.replace(
+                "</ItemGroup>",
+                '<PackageReference Include="Polly" Version="8.4.0"/></ItemGroup>',
+            ),
+        )
+        missing_later = _run_cli(
+            self.repo.dir, "--base", "HEAD", "--declared", "Serilog", "--json")
+        self.assertEqual(missing_later.returncode, 1, missing_later.stdout)
+        self.assertTrue(any(
+            "D1 polly" in finding
+            for finding in json.loads(missing_later.stdout)["hard_failures"]
+        ))
+        cumulative = _run_cli(
+            self.repo.dir, "--base", "HEAD", "--declared", "Serilog,Polly", "--json")
+        self.assertEqual(cumulative.returncode, 0, cumulative.stdout + cumulative.stderr)
+
     def test_malformed_csproj_at_head_errors(self):
         self.repo.write("src/App/App.csproj", "<Project><ItemGroup><PackageReference Include=")
         r = _run_cli(self.repo.dir, "--base", "HEAD", "--declared", "x", "--json")

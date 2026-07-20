@@ -48,14 +48,14 @@ ADVISORY (warnings only; never change the exit code):
 Ecosystems (parsed): npm (package.json), Python (pyproject.toml / requirements*.txt),
 NuGet (*.csproj / Directory.Packages.props), Go (go.mod), and Cargo (Cargo.toml). A
 manifest of a still-unparsed ecosystem (Maven pom.xml / Gradle) that changed in the diff
-exits 2 (LOUD — manual check required), never a silent skip.
+exits 2 (LOUD — the owning workflow decides the disposition), never a silent skip.
 
 Exit codes (identical contract to spec-lint / test-guard / patch-lint):
     0  PASS  — no undeclared deps (advisory typo flags may still print)
     1  FAIL  — at least one undeclared dependency (D1)
     2  ERROR — base unresolvable / not a git repo / a changed manifest's ecosystem has
-               no parser / a manifest is unparseable; the caller falls back to the
-               manual dependency check (loudly)
+               no parser / a manifest is unparseable; caller applies its owning
+               workflow's documented exit-2 disposition (never a pass)
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 class DepGuardError(Exception):
-    """Inputs cannot be loaded / no parser / git unavailable -> exit 2, caller falls back."""
+    """Inputs cannot be loaded / no parser / git unavailable -> exit 2, never a pass."""
 
 
 # --- which manifest files map to which ecosystem ------------------------------------
@@ -150,10 +150,12 @@ def _pep508_name(spec: str) -> str | None:
 
 def parse_pyproject(text: str) -> set:
     if tomllib is None:
-        raise DepGuardError("pyproject.toml needs tomllib (Python 3.11+) — manual check required")
+        raise DepGuardError(
+            "pyproject.toml needs tomllib (Python 3.11+) — dependency check is inconclusive"
+        )
     try:
         data = tomllib.loads(text)
-    except Exception as e:  # noqa: BLE001 — any TOML failure is exit-2 fallback
+    except Exception as e:  # noqa: BLE001 — any TOML failure is exit 2
         raise DepGuardError(f"pyproject.toml is not valid TOML: {e}") from e
     names = set()
     proj = data.get("project", {}) if isinstance(data.get("project"), dict) else {}
@@ -198,7 +200,7 @@ def parse_csproj(text: str) -> set:
     (Directory.Packages.props). The dependency name is always the `Include` attribute of
     a `PackageReference` (per-project), `PackageVersion`, or `GlobalPackageReference`
     (central). Tags are matched by LOCAL name so both SDK-style (no namespace) and legacy
-    `xmlns=...msbuild/2003` projects parse. XML parse failure -> exit-2 fallback."""
+    `xmlns=...msbuild/2003` projects parse. XML parse failure -> exit 2."""
     try:
         root = ET.fromstring(text)
     except ET.ParseError as e:
@@ -267,10 +269,12 @@ def parse_cargo(text: str) -> set:
     its dev/build tables). A rename table (`local = { package = "real-name", ... }`) is
     resolved to the real registry crate — the typosquat target is the real name."""
     if tomllib is None:
-        raise DepGuardError("Cargo.toml needs tomllib (Python 3.11+) — manual check required")
+        raise DepGuardError(
+            "Cargo.toml needs tomllib (Python 3.11+) — dependency check is inconclusive"
+        )
     try:
         data = tomllib.loads(text)
-    except Exception as e:  # noqa: BLE001 — any TOML failure is exit-2 fallback
+    except Exception as e:  # noqa: BLE001 — any TOML failure is exit 2
         raise DepGuardError(f"Cargo.toml is not valid TOML: {e}") from e
     names: set[str] = set()
 
@@ -431,8 +435,8 @@ def run(repo: Path, base: str, head: str | None, declared: set | None, popular: 
         _git(repo, "rev-parse", "--verify", "--quiet", base + "^{commit}")
     except DepGuardError:
         raise DepGuardError(
-            f"base ref `{base}` does not resolve — re-derive it from disk, or fall back "
-            f"to the manual dependency check."
+            f"base ref `{base}` does not resolve — follow the owning workflow's "
+            f"exit-2 disposition."
         )
     hard: list[str] = []
     advisory: list[str] = []
@@ -458,7 +462,7 @@ def run(repo: Path, base: str, head: str | None, declared: set | None, popular: 
             raise DepGuardError(
                 f"no parser for {kind[5:]} manifest `{path}` — dependency detection "
                 f"unavailable for this ecosystem (parsed: npm, Python, NuGet, Go, Cargo; "
-                f"still-manual: Maven, Gradle); manual check required."
+                f"unsupported: Maven, Gradle); dependency check is inconclusive."
             )
         old_text = _show(repo, base, path)  # None for an untracked / newly-added manifest
         new_text = _show(repo, head, path) if head else (_read(repo / path) if (repo / path).is_file() else None)
@@ -542,7 +546,7 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "label": label, "message": str(e)}))
         else:
             print(f"dep-guard: ERROR — could not run: {e}", file=sys.stderr)
-            print("  -> fall back to the manual dependency-existence check (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001 — any unexpected failure honors the exit-2 contract,
         # never leaks a traceback that exits 1 and impersonates a hard FAIL to a gating caller.
@@ -550,7 +554,7 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "label": label, "message": f"unexpected: {type(e).__name__}: {e}"}))
         else:
             print(f"dep-guard: ERROR — unexpected failure ({type(e).__name__}): {e}", file=sys.stderr)
-            print("  -> fall back to the manual dependency-existence check (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
 
     return emit(label, hard, advisory, added, declared, args.json)

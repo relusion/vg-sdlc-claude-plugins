@@ -68,9 +68,9 @@ class PureHelpers(unittest.TestCase):
         self.assertEqual(index[canonical], {"ce-spec", "ce-auto-build"})
         self.assertEqual(index[copy], {"ce-spec", "ce-auto-build"})
 
-    def test_fork_index_canonical_outside_skills_resolves_to_copy_skill(self):
+    def test_retired_gate_runner_is_not_in_fork_index(self):
         index = eval_impact.load_fork_index(REPO)
-        self.assertEqual(index.get("scripts/gate_runner.py"), {"ce-auto-build"})
+        self.assertNotIn("scripts/gate_runner.py", index)
 
     def test_analyze_unions_direct_and_fork_skills(self):
         scenarios = [
@@ -114,12 +114,11 @@ class MappingAgainstRealCorpus(unittest.TestCase):
         self.assertIn("EVAL-017", data["affected_scenarios"])
         self.assertEqual(data["touched_waived_skills"], [])
 
-    def test_gate_runner_canonical_maps_to_ce_auto_build_scenario(self):
+    def test_unforked_gate_runner_does_not_map_to_auto_build(self):
         res = run("--files", "scripts/gate_runner.py")
         self.assertEqual(res.returncode, 0, res.stderr)
         data = payload(res)
-        # gate_runner is ce-auto-build's fork; ce-auto-build now owns EVAL-017.
-        self.assertEqual(data["affected_scenarios"], ["EVAL-017"])
+        self.assertEqual(data["affected_scenarios"], [])
         self.assertEqual(data["touched_waived_skills"], [])
 
     def test_fixture_edit_maps_to_every_consumer_scenario(self):

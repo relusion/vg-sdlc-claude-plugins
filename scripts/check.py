@@ -1,65 +1,17 @@
 #!/usr/bin/env python3
 """
-Lint plugin + managed-agent-cookbook manifests and verify cross-file references.
+Lint plugin manifests and verify cross-file references.
 
-Checks:
-  1. Every *.yaml under managed-agent-cookbooks/ parses.
-  2. Every marketplace.json / plugin.json / steering-examples.json parses.
-  3. Every skill (plugins/*/skills/*/SKILL.md) has `name:` + `description:`.
-  3b. Every plugin-shipped custom agent (plugins/*/agents/*.md) has `name:` +
-      `description:`, matches its filename, and declares a valid leaf toolset.
-  4. Every system.file, skills[].path, callable_agents[].manifest in a cookbook
-     agent.yaml / subagent yaml resolves to an existing file/dir.
-  4c. Every marketplace.json plugin `source` resolves to a dir with a plugin.json.
-  4d. Every plugins/*/.claude-plugin/plugin.json carries the install-point trust
-      signals — homepage, repository, license, and non-empty keywords — so a
-      shipped plugin can never regress to an anonymous name/version stub.
-  5. Designated byte-identical script pairs (deliberately forked substrate-
-     independent gates) have not drifted.
-  5b. patch-lint.py's cross-skill import of spec-lint.py resolves — the target
-     exists and the computed path literal is intact.
-  5c. No UNREGISTERED fork exists: any plugins/*/skills/*/scripts/ file whose
-     basename matches a fork-manifest canonical's basename must be that
-     canonical or one of its registered copies — a hand-copied gate script
-     that skipped fork-manifest.json fails here instead of drifting silently.
-  5d. Hook self-integrity: every hooks/*.py + hooks.json matches the shipped
-     hooks/integrity-manifest.json (via scripts/hook_manifest.py --check), so a
-     guard edited without refreshing the manifest is CI-red. The SessionStart
-     hook hooks/hook-integrity.py verifies the same manifest at runtime.
-  6. Every managed-agent-cookbooks/<slug>/ has agent.yaml, README.md,
-     steering-examples.json.
-  7. plugins/*/model-policy.json is consistent with the skill corpus: every
-     skill has an entry, every entry names a real skill, and a skill may set
-     binding `model:`/`effort:` frontmatter only if its entry is down_routable.
-  8. The README skill catalog and documented skill/agent counts match the
-     core-engineering skill corpus on disk.
-  9. The human-authored corpus passes scripts/corpus_lint.py: no stale public
-     names, no unknown `/ce-*` references, required skill skeleton headings, and
-     valid `${CLAUDE_SKILL_DIR}/...` companion-file references.
- 10. Enterprise hardening controls pass scripts/supply_chain_check.py: pinned
-     CI actions, checksum-verified secret scanning, release/delivery
-     supply-chain evidence prompts, adversarial eval fixtures, and the control
-     map cannot silently drift.
- 11. Managed-agent controls pass scripts/managed_agent_check.py: cookbook
-     inventory, steering examples, orchestration docs, and handoff allowlists
-     cannot drift.
- 12. Product-layer controls pass scripts/product_layer_check.py: first-run docs,
-     workflow recipes, usage-matrix coverage, and CI visibility cannot drift.
- 13. The skill corpus passes scripts/authoring_check.py: the closed HITL-suffix
-     enum, gate-label sanity, concept canon, router-cluster contrastive
-     clauses, and the SKILL.md / description caps cannot drift.
- 14. plugins/*/merge-policy.json (the agent-agnostic merge bar consumed by
-     scripts/gate_runner.py) is structurally sound: gate scripts resolve
-     inside the plugin, arg placeholders come from the closed set, every bar's
-     gates are registered, validity stays in the closed vocabulary (no
-     'none'), and no registered gate is dead.
- 15. The enforcement counts the product docs quote are DERIVED, never
-     asserted: this run's own `checked` counter, the authoring_check.py
-     check count, and the collected tests/ suite size must equal the
-     committed docs/enforcement-counts.json. `--write-counts` refreshes that
-     file AND rewrites the three doc claim sites (README.md,
-     docs/COMPARISON.md, docs/BENCHMARKS.md) from the derived numbers.
-
+Checks include:
+  - marketplace and plugin JSON parsing;
+  - skill and custom-agent frontmatter;
+  - marketplace sources and plugin trust metadata;
+  - registered fork identity and unregistered-fork detection;
+  - hook integrity-manifest freshness;
+  - model-policy and skill-corpus consistency;
+  - README/HOW catalog coverage;
+  - corpus, supply-chain, product-layer, and authoring validation; and
+  - merge-policy structure and referenced gate scripts.
 A check whose glob root is absent fails LOUDLY rather than matching zero paths
 and going silently green — a renamed/moved layout can never disable a check.
 
@@ -74,15 +26,14 @@ from pathlib import Path
 # --no-install-hooks: skip the git-config side-effect (for CI, which checks out
 # clean and should not mutate config). Hand-parsed so check.py keeps zero
 # argparse surface and a bare `python3 scripts/check.py` is unchanged.
+unknown_args = sorted(set(sys.argv[1:]) - {"--no-install-hooks"})
+if unknown_args:
+    print(f"check.py: unknown option(s): {', '.join(unknown_args)}", file=sys.stderr)
+    sys.exit(2)
 INSTALL_HOOKS = "--no-install-hooks" not in sys.argv
-# --write-counts: instead of comparing docs/enforcement-counts.json against
-# this run's derived enforcement counts (§15), rewrite it — and the three doc
-# claim sites — to match. Hand-parsed for the same reason as above.
-WRITE_COUNTS = "--write-counts" in sys.argv
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
-MANAGED = ROOT / "managed-agent-cookbooks"
 errors: list[str] = []
 checked = 0
 
@@ -140,20 +91,10 @@ def require(paths: list, what: str) -> list:
     return paths
 
 
-# --- 1. YAML parse ----------------------------------------------------------
-for yml in require(sorted(MANAGED.rglob("*.yaml")), "managed-agent-cookbooks/**/*.yaml"):
-    checked += 1
-    try:
-        with open(yml) as f:
-            yaml.safe_load(f)
-    except yaml.YAMLError as e:
-        err(f"YAML parse: {rel(yml)}: {e}")
-
 # --- 2. JSON parse ----------------------------------------------------------
 json_globs = [
     ".claude-plugin/marketplace.json",
     "plugins/**/.claude-plugin/plugin.json",
-    "managed-agent-cookbooks/*/steering-examples.json",
 ]
 for pat in json_globs:
     for jf in sorted(ROOT.glob(pat)):
@@ -245,40 +186,6 @@ for md in require(sorted(PLUGINS.glob("*/agents/*.md")), "plugins/*/agents/*.md"
         )
 
 
-# --- 4. reference resolution -----------------------------------------------
-def check_refs(yml: Path) -> None:
-    try:
-        data = yaml.safe_load(yml.read_text()) or {}
-    except yaml.YAMLError:
-        return  # already reported above
-    base = yml.parent
-
-    sys_spec = data.get("system")
-    if isinstance(sys_spec, dict) and "file" in sys_spec:
-        p = (base / sys_spec["file"]).resolve()
-        if not p.is_file():
-            err(f"ref: {rel(yml)}: system.file -> {sys_spec['file']} (not found)")
-
-    for s in data.get("skills") or []:
-        if isinstance(s, dict) and "path" in s:
-            p = (base / s["path"]).resolve()
-            if not p.exists():
-                err(f"ref: {rel(yml)}: skills.path -> {s['path']} (not found)")
-        if isinstance(s, dict) and "from_plugin" in s:
-            p = (base / s["from_plugin"]).resolve()
-            if not (p / "skills").is_dir():
-                err(f"ref: {rel(yml)}: skills.from_plugin -> {s['from_plugin']} (no skills/ dir)")
-
-    for c in data.get("callable_agents") or []:
-        if isinstance(c, dict) and "manifest" in c:
-            p = (base / c["manifest"]).resolve()
-            if not p.is_file():
-                err(f"ref: {rel(yml)}: callable_agents.manifest -> {c['manifest']} (not found)")
-
-
-for yml in sorted(MANAGED.rglob("*.yaml")):
-    check_refs(yml)
-
 # --- 4c. marketplace source paths resolve ----------------------------------
 mp = ROOT / ".claude-plugin" / "marketplace.json"
 for p in json.loads(mp.read_text()).get("plugins", []):
@@ -315,10 +222,7 @@ for pj in require(sorted(PLUGINS.glob("*/.claude-plugin/plugin.json")),
 # --- 5. forked-gate byte identity ------------------------------------------
 # Some substrate-independent gates are deliberately DUPLICATED on disk: each
 # skill must be able to run its own copy without depending on a sibling skill
-# being reachable (the Managed-Agent cookbook bundles skills separately, and
-# ${CLAUDE_PLUGIN_ROOT} is only guaranteed in hook/MCP contexts — not in skill
-# Bash calls — so a share-by-reference path is not guaranteed across
-# substrates). Duplication is correct; silent DRIFT is the bug. Assert
+# being reachable. Duplication is correct; silent DRIFT is the bug. Assert
 # byte-identity so a fork can never diverge into a behavioral difference
 # unnoticed (the auto-build / spec spec-lint.py pair drifted exactly this way
 # once — H3 guard missing on one side — which is why this gate exists).
@@ -402,31 +306,6 @@ for _script in _skill_scripts:
             f"with `python3 scripts/fork_sync.py --write`, or rename it"
         )
 
-# --- 5b. cross-skill import path (patch-lint imports spec-lint) -------------
-# patch's patch-lint.py IMPORTS ce-spec's spec-lint.py (single
-# source for H1-H4 — see patch-lint's load_spec_lint), via a path computed in
-# source: parents[2] / "ce-spec" / "scripts" / "spec-lint.py". That import
-# is NOT a byte-twin, so IDENTICAL_PAIRS can't guard it — a layout rename would
-# break it silently. Assert the target resolves AND patch-lint still computes
-# the path it expects.
-PATCH_LINT = ROOT / "plugins/core-engineering/skills/ce-patch/scripts/patch-lint.py"
-SPEC_LINT_TARGET = ROOT / "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py"
-if not PATCH_LINT.is_file():
-    err(f"import: expected patch-lint at {rel(PATCH_LINT)} (not found) — did the layout change?")
-else:
-    checked += 1
-    if not SPEC_LINT_TARGET.is_file():
-        err(
-            f"import: {rel(PATCH_LINT)} imports spec-lint.py but "
-            f"{rel(SPEC_LINT_TARGET)} is missing"
-        )
-    if '"ce-spec" / "scripts" / "spec-lint.py"' not in PATCH_LINT.read_text():
-        err(
-            f"import: {rel(PATCH_LINT)} no longer computes the spec-lint.py path "
-            f'(\'"ce-spec" / "scripts" / "spec-lint.py"\') — the cross-skill '
-            f"import may have drifted; re-point it or update this guard"
-        )
-
 # --- 5d. hook self-integrity manifest freshness ------------------------------
 # The guards cannot detect their own subversion — an in-session edit of
 # env-guard.py silently disarms it. hooks/integrity-manifest.json records the
@@ -451,14 +330,6 @@ else:
             _line = _line.strip()
             if _line:
                 err(f"hook-integrity: {_line}")
-
-# --- 6. required files per managed-agent-cookbook --------------------------
-for d in sorted(MANAGED.iterdir()):
-    if not d.is_dir():
-        continue
-    for req in ("agent.yaml", "README.md", "steering-examples.json"):
-        if not (d / req).is_file():
-            err(f"missing: {rel(d)}/{req}")
 
 # --- 7. model-policy <-> skill-corpus consistency ----------------------------
 # plugins/<p>/model-policy.json is the machine-readable model-tier policy (the
@@ -670,23 +541,6 @@ else:
             if line.strip():
                 err(f"supply-chain: {line.strip()}")
 
-# --- 11. managed-agent drift -----------------------------------------------
-MANAGED_AGENT_CHECK = ROOT / "scripts" / "managed_agent_check.py"
-if not MANAGED_AGENT_CHECK.is_file():
-    err(f"managed-agent: expected {rel(MANAGED_AGENT_CHECK)} to exist")
-else:
-    checked += 1
-    res = subprocess.run(
-        [sys.executable, str(MANAGED_AGENT_CHECK), "--root", str(ROOT)],
-        capture_output=True,
-        text=True,
-    )
-    if res.returncode != 0:
-        lines = (res.stderr or res.stdout).splitlines()
-        for line in lines:
-            if line.strip():
-                err(f"managed-agent: {line.strip()}")
-
 # --- 12. product-layer drift ------------------------------------------------
 PRODUCT_LAYER_CHECK = ROOT / "scripts" / "product_layer_check.py"
 if not PRODUCT_LAYER_CHECK.is_file():
@@ -706,7 +560,6 @@ else:
 
 # --- 13. authoring-standard conformance -------------------------------------
 AUTHORING_CHECK = ROOT / "scripts" / "authoring_check.py"
-AUTHORING_STDOUT = ""  # stashed for §15's authoring-check count derivation
 if not AUTHORING_CHECK.is_file():
     err(f"authoring: expected {rel(AUTHORING_CHECK)} to exist")
 else:
@@ -716,7 +569,6 @@ else:
         capture_output=True,
         text=True,
     )
-    AUTHORING_STDOUT = res.stdout or ""
     if res.returncode != 0:
         lines = (res.stderr or res.stdout).splitlines()
         for line in lines:
@@ -883,165 +735,6 @@ for plugin_dir in plugins_with_skills:
                 f"no merge-policy.json — the merge bar cannot be unshipped")
         continue
     lint_merge_policy(merge_policy_file)
-
-# --- 15. enforcement-count derivation ----------------------------------------
-# The enforcement counts the product docs quote (README.md, docs/COMPARISON.md,
-# docs/BENCHMARKS.md) are DERIVED each run, never asserted:
-#   repo_checks      — this script's own final `checked` counter;
-#   authoring_checks — parsed from §13's authoring_check.py report;
-#   tests            — unittest discovery over tests/ (collected, never run).
-# The derived triple must equal the committed docs/enforcement-counts.json,
-# which product_layer_check.py in turn holds the three doc claim sites to —
-# so no published number can drift from measured reality without CI going red.
-# `--write-counts` refreshes counts.json AND rewrites the doc claim sites
-# mechanically, using the exact anchors product_layer_check keys on (imported
-# from it below — one anchor set, both directions, no drift; same sibling-
-# import shape as the §14 gate_runner import, so the sys.path insert above
-# already covers it).
-from product_layer_check import (  # noqa: E402 — deliberate sibling import
-    BENCH_COUNT_ROWS,
-    COUNT_CLAIM_RE,
-    COUNTS_FILE_REL,
-    COUNTS_KEYS,
-    WRITE_COUNTS_REMEDY,
-)
-
-COUNTS_FILE = ROOT / COUNTS_FILE_REL
-AUTHORING_OK_RE = re.compile(r"OK — (\d+) check\(s\)")
-
-
-def derive_authoring_count() -> int | None:
-    m = AUTHORING_OK_RE.search(AUTHORING_STDOUT)
-    return int(m.group(1)) if m else None
-
-
-def derive_test_count() -> int | None:
-    """Collect (never execute) the tests/ suite in a clean subprocess.
-
-    A subprocess keeps the ~30 test modules out of this process's import
-    graph; loader.errors makes an unimportable test module a loud failure
-    instead of a silently wrong count.
-    """
-    res = subprocess.run(
-        [sys.executable, "-c",
-         "import sys, unittest\n"
-         "loader = unittest.TestLoader()\n"
-         "suite = loader.discover(sys.argv[1])\n"
-         "if loader.errors:\n"
-         "    sys.stderr.write('\\n'.join(loader.errors))\n"
-         "    raise SystemExit(1)\n"
-         "print(suite.countTestCases())\n",
-         str(ROOT / "tests")],
-        capture_output=True, text=True,
-    )
-    out = res.stdout.strip()
-    return int(out) if res.returncode == 0 and out.isdigit() else None
-
-
-def renumber_claim(match: re.Match, values: tuple) -> str:
-    """Rebuild a COUNT_CLAIM_RE match with fresh numbers, prose untouched."""
-    out, last = [], match.start()
-    for group_index, value in enumerate(values, start=1):
-        out.append(match.string[last:match.start(group_index)])
-        out.append(str(value))
-        last = match.end(group_index)
-    out.append(match.string[last:match.end()])
-    return "".join(out)
-
-
-def write_counts(derived: dict) -> None:
-    """Rewrite counts.json + the three doc claim sites from *derived*."""
-    payload = {
-        "_comment": "Derived enforcement counts — regenerate with "
-                    "`python3 scripts/check.py --write-counts`; never hand-edit "
-                    "(check.py re-derives and compares on every run).",
-        **{key: derived[key] for key in COUNTS_KEYS},
-    }
-    COUNTS_FILE.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    rewritten = [rel(COUNTS_FILE)]
-    triple = tuple(derived[key] for key in COUNTS_KEYS)
-    for doc in (ROOT / "README.md", ROOT / "docs" / "COMPARISON.md"):
-        text = doc.read_text(encoding="utf-8")
-        new_text, n = COUNT_CLAIM_RE.subn(lambda m: renumber_claim(m, triple), text)
-        if n == 0:
-            err(f"counts: {rel(doc)} has no enforcement-count claim to rewrite "
-                f"('N repo checks, N authoring-conformance checks, N tests')")
-            continue
-        if new_text != text:
-            doc.write_text(new_text, encoding="utf-8")
-            rewritten.append(rel(doc))
-    bench = ROOT / "docs" / "BENCHMARKS.md"
-    text = bench.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
-    for (anchor, unit), value in zip(BENCH_COUNT_ROWS, triple):
-        row_index = next((i for i, line in enumerate(lines) if anchor in line), None)
-        if row_index is None:
-            err(f"counts: {rel(bench)} has no {anchor} row to rewrite")
-            continue
-        new_row, n = re.subn(rf"(\|\s*)\d+(\s+{unit}\s*\|)",
-                             rf"\g<1>{value}\g<2>", lines[row_index], count=1)
-        if n == 0:
-            err(f"counts: {rel(bench)} {anchor} row has no '<N> {unit}' cell to rewrite")
-            continue
-        lines[row_index] = new_row
-    new_text = "".join(lines)
-    if new_text != text:
-        bench.write_text(new_text, encoding="utf-8")
-        rewritten.append(rel(bench))
-    print(f"[check.py] --write-counts: {', '.join(rewritten)} now record "
-          f"repo_checks={triple[0]}, authoring_checks={triple[1]}, tests={triple[2]}")
-
-
-_authoring_count = derive_authoring_count()
-_test_count = derive_test_count()
-if _authoring_count is None and not any(e.startswith("authoring:") for e in errors):
-    err("counts: authoring_check.py's 'OK — N check(s)' line was unparseable — "
-        "update §15's AUTHORING_OK_RE alongside its report format")
-if _test_count is None:
-    err("counts: unittest discovery over tests/ failed to collect — fix the "
-        "import error it reported before trusting any count")
-
-checked += 1  # the counts triple is itself a guarded surface (final counter)
-if _authoring_count is not None and _test_count is not None:
-    _derived = {
-        "repo_checks": checked,
-        "authoring_checks": _authoring_count,
-        "tests": _test_count,
-    }
-    if WRITE_COUNTS:
-        write_counts(_derived)
-        # §12 judged the PRE-write docs; re-judge the rewritten ones so one
-        # command converges a drifted tree to green (nothing else about the
-        # product layer changed — only the sites write_counts touched).
-        if PRODUCT_LAYER_CHECK.is_file():
-            errors[:] = [e for e in errors if not e.startswith("product-layer:")]
-            res = subprocess.run(
-                [sys.executable, str(PRODUCT_LAYER_CHECK), "--root", str(ROOT)],
-                capture_output=True,
-                text=True,
-            )
-            if res.returncode != 0:
-                for line in (res.stderr or res.stdout).splitlines():
-                    if line.strip():
-                        err(f"product-layer: {line.strip()}")
-    else:
-        _recorded = None
-        try:
-            _recorded = json.loads(COUNTS_FILE.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            err(f"counts: missing {rel(COUNTS_FILE)} — the enforcement counts "
-                f"must be derived, never asserted; {WRITE_COUNTS_REMEDY}")
-        except (OSError, ValueError) as e:
-            err(f"counts: {rel(COUNTS_FILE)}: could not read/parse: {e}")
-        if isinstance(_recorded, dict):
-            for key in COUNTS_KEYS:
-                if _recorded.get(key) != _derived[key]:
-                    err(f"counts: {rel(COUNTS_FILE)} records "
-                        f"{key}={_recorded.get(key)!r} but this run derived "
-                        f"{_derived[key]} — {WRITE_COUNTS_REMEDY}")
-        elif _recorded is not None:
-            err(f"counts: {rel(COUNTS_FILE)}: top level must be a JSON object")
 
 # --- report ----------------------------------------------------------------
 if errors:

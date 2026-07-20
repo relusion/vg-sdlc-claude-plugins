@@ -70,8 +70,8 @@ DOCUMENTED, never implied away: DNS-tunnel exfil (data smuggled in subdomain
 lookups); interpreter/shell sockets (`python -c 'import socket…'`, bash
 `/dev/tcp/host/port`, `<(…)`); MCP-mediated egress (MCP tools load no plugin
 hook); shell-variable / `$VAR` / command-substitution host indirection and
-base64-obfuscated commands; and the Claude Managed-Agent surface, which loads no
-`hooks.json` at all. Host extraction is heuristic: an option value may occasionally
+base64-obfuscated commands; and execution surfaces that load no `hooks.json`.
+Host extraction is heuristic: an option value may occasionally
 be mis-read as a host (an extra harmless `ask`, never a wrong deny), a bare
 internal hostname with no dot is not extracted, and a `$VAR` URL is not resolved
 (not screened). `ssh`/`scp`/`rsync`/`nc` host parsing is best-effort; the reliably

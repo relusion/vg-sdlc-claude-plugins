@@ -1,12 +1,12 @@
 {
-  "$comment": "Registry of deliberately forked gate scripts. Each consuming skill carries its own byte-identical copy for substrate independence: Managed-Agent cookbooks bundle skills separately, and ${CLAUDE_PLUGIN_ROOT} is only guaranteed in hook/MCP contexts \u2014 not in skill Bash calls \u2014 so share-by-reference is not portable. Duplication is correct; silent DRIFT is the bug. Never hand-edit a copy: edit the canonical, then run `python3 scripts/fork_sync.py --write`. To add a consumer skill, append its copy path here and run --write. check.py (\u00a75) and supply_chain_check.py assert byte-identity from this file in CI.",
+  "$comment": "Registry of deliberately forked gate scripts. Each consuming skill carries its own byte-identical copy because ${CLAUDE_SKILL_DIR} is the only portable path available to skill Bash calls. Duplication is intentional; silent drift is the bug. Never hand-edit a copy: edit the canonical, then run `python3 scripts/fork_sync.py --write`. To add a consumer skill, append its copy path here and run --write. check.py (\u00a75) and supply_chain_check.py assert byte-identity from this file in CI.",
   "forks": [
     {
       "canonical": "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py",
       "copies": [
         "plugins/core-engineering/skills/ce-auto-build/scripts/spec-lint.py"
       ],
-      "why": "spec hard-gate (H1-H4) runs in interactive /ce-spec and in the auto-build orchestrator; ce-patch imports it by path instead of forking (see check.py \u00a75b)"
+      "why": "spec hard-gate (H1-H4) runs in interactive /ce-spec and in the auto-build orchestrator"
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-implement/scripts/test-guard.py",
@@ -20,7 +20,7 @@
       "copies": [
         "plugins/core-engineering/skills/ce-auto-build/scripts/implement-scope-guard.py"
       ],
-      "why": "Scope Lock file-boundary gate: runs in-loop in interactive /ce-implement (Stage 2) and per-run in the auto-build orchestrator (step 5e); also the merge-bar's implement-scope advisory gate"
+      "why": "Scope Lock file-boundary gate: runs in-loop in interactive /ce-implement (Stage 2) and per-feature in the auto-build orchestrator; also the merge-bar's implement-scope advisory gate"
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-implement/scripts/dep-guard.py",
@@ -42,10 +42,9 @@
       "canonical": "plugins/core-engineering/skills/ce-implement/scripts/task-evidence.py",
       "copies": [
         "plugins/core-engineering/skills/ce-verify/scripts/task-evidence.py",
-        "plugins/core-engineering/skills/ce-auto-build/scripts/task-evidence.py",
         "plugins/core-engineering/skills/ce-ship-release/scripts/task-evidence.py"
       ],
-      "why": "evidence-stamp writer + freshness `check`: `/ce-implement` stamps done-ness, and the three done-ness consumers each run `check` to downgrade a task to `stale` when its commit_sha left HEAD's ancestry — resume (implement), the Stage-0 implemented predicate (verify), and the no-GO-over-unverified rule (ship-release); auto-build carries it as the orchestrator of the implement lane. Each bundles its own copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash"
+      "why": "evidence-stamp writer + freshness `check`: `/ce-implement` stamps done-ness, while `/ce-verify` and `/ce-ship-release` each run `check` to downgrade a task to `stale` when its commit_sha left HEAD's ancestry. Each consumer bundles its own copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash"
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-retro/scripts/audit-export.py",
@@ -87,14 +86,6 @@
         "plugins/core-engineering/skills/ce-auto-build/scripts/plan-lint.py"
       ],
       "why": "plan structural-integrity lint (H1-H8 + advisories): /ce-plan-audit runs it as its hard-lint floor, /ce-plan runs it as a Stage-9 write-time gate over the just-written plan directory (its ~40-item Validation Checklist is otherwise model-self-attested), and /ce-auto-build plan-lints the resolved plan at Stage-0 kickoff before any spawn so a structurally broken plan parks the run instead of burning spec-agent budget. Each consumer bundles its own copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash. Also the merge-bar's plan-lint advisory gate."
-    },
-    {
-      "canonical": "scripts/gate_runner.py",
-      "copies": [
-        "plugins/core-engineering/skills/ce-auto-build/scripts/gate_runner.py",
-        "plugins/core-engineering/mcp/gate_runner.py"
-      ],
-      "why": "the merge bar's integrity runner. The canonical lives at repo-root scripts/ \u2014 OUTSIDE the plugin, so an installed plugin never ships it \u2014 yet /ce-auto-build's Stage-3 end-review runs it against the isolated checkpoint branch to render the exact CI merge-bar verdict BEFORE the human opens a PR; the plugin therefore forks a byte-identical copy beside the skill (CLAUDE_SKILL_DIR is the only path guarantee in skill Bash). This ONE shared entry carries two copies: the ce-auto-build skill copy AND plugins/core-engineering/mcp/gate_runner.py, forked by WS2-T12's MCP server (mcp/gate_server.py) because the MCP surface ships inside the plugin and CLAUDE_PLUGIN_ROOT never reaches repo-root scripts/. Both copies' DEFAULT_PLUGIN_ROOT mis-resolves from the forked location, so every caller (the skill's Stage-3 step and the MCP server alike) passes explicit --policy/--plugin-root, which keeps the fork byte-identical."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-probe-infra/scripts/merge_disposition.py",

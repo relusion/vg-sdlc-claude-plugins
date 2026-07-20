@@ -2,13 +2,13 @@
 
 ## Overview
 
-Raw idea → an ordered feature plan and per-feature `ce-spec.md` + `tasks.json` (EARS acceptance criteria, test cases, executable task list). Built on the [`core-engineering`](../../plugins/core-engineering) plugin's `ce-plan` + `ce-spec` skills — this directory is the Managed Agent cookbook for `POST /v1/agents`.
+Raw idea → an ordered feature plan and per-feature `ce-spec.md` + `tasks.json` (EARS acceptance criteria, test cases, executable task list). Built on the [`core-engineering`](../../../plugins/core-engineering) plugin's `ce-plan` + `ce-spec` skills — this directory is an unsupported Managed Agent cookbook snapshot for `POST /v1/agents`.
 
 ## Deploy
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-../../scripts/deploy-managed-agent.sh spec-author
+../tools/deploy-managed-agent.sh spec-author --dry-run
 ```
 
 ## Steering events

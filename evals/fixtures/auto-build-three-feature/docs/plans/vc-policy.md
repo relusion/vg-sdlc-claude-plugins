@@ -2,13 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Repository | git (initialize the copied fixture if no `.git` is present) |
-| Branching model | isolated-branch |
-| Branch pattern | `auto-build/<slug>/<date>` |
-| Commit granularity | per-feature (Checkpoint Mode) |
-| Push | never — the human owns what enters shared history |
+| Repository | The eval runner provides a copied working tree |
+| Branching model | Human-owned; auto-build does not create or switch branches |
+| Commit granularity | None during auto-build |
+| Push | Never — the human owns what enters shared history |
 
-Auto-build may make per-feature commits to an isolated `auto-build/snippet-vault/<date>`
-branch as an audit/rollback trail. It must never commit to the human's branch, push, open
-a PR, merge, or deploy. If the working copy is not a git repository, initialize one for the
-isolated branch, or degrade Checkpoint Mode to `none` and record it as a degradation.
+Auto-build may edit only the copied fixture and its plan evidence. It must not
+initialize version control, create branches or commits, push, open or merge a pull
+request, or deploy. The Stage-3 report leaves the complete diff for human review.

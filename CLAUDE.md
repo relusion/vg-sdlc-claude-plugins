@@ -1,10 +1,8 @@
 # vg-coding plugins
 
 A Claude Code marketplace with the `core-engineering` and `product-discovery`
-plugins, plus experimental Claude Managed Agent cookbooks for AI-assisted SDLC
-workflows. Each plugin's skills are the source of truth and the public
-slash-invocation surface; plugin-shipped custom agents and Managed Agent
-cookbooks wrap selected skills — authored once, runnable multiple ways.
+plugins. Each plugin's skills are the source of truth and the public
+slash-invocation surface; plugin-shipped custom agents wrap selected skills.
 
 ## Repository Structure
 
@@ -17,21 +15,13 @@ cookbooks wrap selected skills — authored once, runnable multiple ways.
 │   │   ├── hooks/                   #   git-guard.py + env-guard.py + write-scope-guard.py + hooks.json
 │   │   ├── model-policy.json        #   machine-readable model-tier policy (check.py §7)
 │   │   ├── merge-policy.json        #   machine-readable merge bar (check.py §14 · scripts/gate_runner.py)
-│   │   ├── fork-manifest.json       #   forked gate-script registry (check.py §5 · fork_sync.py)
-│   │   ├── mcp/                      #   gate-runner MCP server (gate_server.py + gate_runner.py fork) — merge bar + gates as MCP tools for any MCP-capable runtime
-│   │   └── .mcp.json                #   registers the gate-runner MCP server (mcp/gate_server.py); extend with your own
+│   │   └── fork-manifest.json       #   forked gate-script registry (check.py §5 · fork_sync.py)
 │   └── product-discovery/           #   companion plugin — the upstream idea/market trio (ce-idea-scout · ce-idea-score · ce-market-scan)
 │       ├── .claude-plugin/plugin.json
 │       ├── skills/<name>/           #   ce-idea-scout · ce-idea-score (score-lint.py) · ce-market-scan (scan-lint.py)
 │       └── model-policy.json        #   its own model-tier policy (check.py §7 demands one per skill plugin)
 ├── .claude-plugin/
 │   └── marketplace.json             #   marketplace manifest — registers core-engineering + product-discovery
-├── managed-agent-cookbooks/         #   CMA cookbooks — one dir per named agent
-│   └── <slug>/                      #     spec-author · spec-impl · quality-gate · release-coordinator
-│       ├── agent.yaml               #   system + skills → ../../plugins/core-engineering/skills/...
-│       ├── system.md                #   the agent system prompt
-│       ├── steering-examples.json
-│       └── README.md                #   security tier + handoff notes
 ├── action/
 │   ├── merge-bar/                   #   composite GitHub Action — the merge bar as a 3-line adoption (action.yml + README; self-tested by .github/workflows/action-selftest.yml)
 │   └── test-integrity/              #   standalone test-weakening guard action
@@ -39,10 +29,22 @@ cookbooks wrap selected skills — authored once, runnable multiple ways.
 │   └── adopter-ci/                  # copy-in PR-gate workflows for adopter repos (GitHub gates.yml + gates.gitlab-ci.yml + azure-pipelines-gates.yml ports) — the documented air-gapped fallback to action/merge-bar
 ├── tests/                           # offline unittest suite for the repo + gate scripts (CI-run)
 ├── evals/                           # behavior eval scenarios, fixture repos, golden artifacts
-└── scripts/                         # check.py, corpus_lint.py, authoring_check.py, fork_sync.py, portability_check.py, managed_agent_check.py, product_layer_check.py, supply_chain_check.py, gate_runner.py, eval_check.py, eval_run.py, validate.py, deploy-managed-agent.sh, test-cookbooks.sh, orchestrate.py, version_bump.py, print-pin-block.sh, print_pin_block.py, gen_popular_packages.py
+└── scripts/                         # check.py, corpus_lint.py, authoring_check.py, fork_sync.py, portability_check.py, product_layer_check.py, supply_chain_check.py, gate_runner.py, eval_check.py, eval_run.py, version_bump.py, print-pin-block.sh, print_pin_block.py, gen_popular_packages.py
 ```
 
-Run `python3 scripts/check.py` before committing — it parses every manifest, verifies plugin-agent (`name` + `description` + leaf toolset) and skill (`name` + `description`) frontmatter, checks that each cookbook's `system.file` / `skills.path` / `callable_agents[].manifest` reference resolves into `plugins/core-engineering/`, asserts every forked-gate copy registered in `plugins/core-engineering/fork-manifest.json` (`spec-lint.py`, `test-guard.py`, `dep-guard.py`, `popular-packages.json` — deliberately duplicated per consuming skill for substrate independence) is byte-identical to its canonical (add a consumer to the manifest and re-sync with `python3 scripts/fork_sync.py --write`; never hand-edit a copy), validates `plugins/core-engineering/model-policy.json` against the skill corpus (every skill has an entry; a skill may set binding `model:`/`effort:` frontmatter only if its entry is `down_routable`), validates `plugins/core-engineering/merge-policy.json` (gate registry resolution, closed validity vocabulary, two-way gate completeness, arg-placeholder closed set — the merge bar `scripts/gate_runner.py` executes; the runner judges committed state and runs with zero Claude Code installed), derives the three published enforcement counts each run (its own check counter, the authoring-check count, the collected `tests/` suite size) and fails unless the committed `docs/enforcement-counts.json` matches — refresh with `python3 scripts/check.py --write-counts`, which also rewrites the README/COMPARISON/BENCHMARKS claim sites from the derived numbers so no published count is ever hand-typed, runs `scripts/corpus_lint.py` for stale public names, missing skeleton headings, unknown `/ce-*` references, and broken skill companion-file references, runs `scripts/authoring_check.py` for authoring-standard conformance (the closed HITL-suffix enum, `Gate N of M` sanity, `<date>` placeholders, concept canon, router-cluster contrastive clauses, the 400-line SKILL.md cap, the 1536-char description cap, consequence-glossary two-copy sync, and the material-gate locator requirement — the standard is `docs/contributing/SKILL-AUTHORING.md`), runs `scripts/managed_agent_check.py` for cookbook inventory, steering examples, orchestration docs, and `orchestrate.py` allowlists, runs `scripts/product_layer_check.py` for first-run docs, workflow recipes, usage-matrix coverage, doc-link integrity (every markdown link and backtick-quoted repo path in README + the documentation tree must resolve, subject only to the small placeholder/adopter-artifact skip lists), enforcement-count truth (the three doc claim sites must equal `docs/enforcement-counts.json`), and CI visibility, runs `scripts/supply_chain_check.py` for pinned CI actions, checksum-verified secret scanning, supply-chain release/delivery prompts, adversarial eval fixtures, and `docs/ENTERPRISE-HARDENING.md`; the skill-corpus validators iterate every marketplace plugin (corpus-lint, authoring-check, product-layer skill-name coverage, and the eval-coverage ratchet all walk `plugins/*/skills`, not only core-engineering — the README catalog block lists the plugin union, while the headline `{N} skills` count and the `ce-` prefix rule stay core-scoped); and fails loudly if any check's glob root has gone missing. `python3 scripts/eval_check.py` validates the behavior-eval scenario catalog, fixture repos, and golden gates, and enforces the eval-coverage ratchet (every skill needs a scenario or a dated, reasoned waiver in `evals/coverage-allowlist.json`; expired or stale waivers fail); `python3 scripts/eval_run.py --profile smoke` proves the dry-run Claude invocation path without making a model call. `python3 scripts/portability_check.py` separately proves every shipped hook/gate script is stdlib-only and runs without Claude Code (the portability guarantee; also a CI job). **Skills live under `plugins/<plugin>/skills/` — edit the owning plugin's canonical copy directly.** There are no vendored skill copies to sync; the exception is the forked gate scripts registered in `plugins/core-engineering/fork-manifest.json` — edit the canonical and regenerate its registered copies.
+Run `python3 scripts/check.py` before committing. It parses manifests, verifies
+skill and leaf-agent frontmatter, checks every registered forked script against
+its canonical copy, validates model and merge policies, and then runs the corpus,
+authoring, product-layer, and supply-chain validators once. The skill-corpus
+validators walk every marketplace plugin, not only `core-engineering`.
+
+Run `python3 scripts/eval_check.py` for the behavior-eval catalog and coverage
+ratchet, `python3 scripts/eval_run.py --profile smoke` for the dry-run invocation
+path, and `python3 scripts/portability_check.py` for the stdlib-only gate/hook
+guarantee. Skills live under `plugins/<plugin>/skills/`; edit the owning
+canonical copy directly. For a script registered in
+`plugins/core-engineering/fork-manifest.json`, edit the canonical and regenerate
+copies with `python3 scripts/fork_sync.py --write`.
 
 `check.py` also self-installs a `pre-commit` hook (`git config core.hooksPath .githooks` — no Husky/Node). The hook patch-bumps any plugin's `.claude-plugin/plugin.json` `version` so a branch ends up exactly one patch ahead of `main` (bumped once, not per commit — a plugin's `version` gates update delivery to already-installed users). The `version-bump` GitHub Action enforces the same rule on PRs as a backstop. Bypass a single commit with `git commit --no-verify`; bump logic lives in `scripts/version_bump.py`.
 
@@ -53,7 +55,6 @@ Run `python3 scripts/check.py` before committing — it parses every manifest, v
 - `docs/HOW-IT-WORKS.md`: **Canonical framework overview** — the one-spine/two-genres shape, the artifact model, every skill, and the recurring disciplines. Start here to understand the system; keep it current (see *Documentation* below).
 - `docs/GETTING-STARTED.md`: **First-session guide** — install, verify, first useful commands, safety boundaries, and troubleshooting.
 - `docs/WORKFLOW-RECIPES.md`: **Operating recipes** — common end-to-end paths with expected artifacts, done states, and stop/escalation rules.
-- `managed-agent-cookbooks/ORCHESTRATION.md`: **Experimental managed-agent flow** — host-owned handoff path from `spec-author` to `spec-impl` to `quality-gate` to `release-coordinator`, plus handoff JSON and host gates.
 - `docs/USAGE-MATRIX.md`: **Quick router** — maps common developer intents to the right `ce-*` skill; owns the canonical Default Routes list.
 - `docs/ENTERPRISE-HARDENING.md`: **Enterprise control map** — maps OWASP / SLSA / OpenSSF / SBOM vocabulary to concrete repo controls, enforcement surfaces, evidence artifacts, and gaps.
 - `docs/BENCHMARKS.md` · `docs/EXAMPLES.md` · `docs/COMPARISON.md` · `docs/TEAM-ROLLOUT.md`: **Adopter evidence layer** — live eval results + measured per-skill cost floors, real captured outputs with provenance, date-stamped positioning vs. alternatives, and the team pilot guide. Guarded by `product_layer_check.py`; refresh BENCHMARKS/EXAMPLES when a new live eval batch runs, and re-verify COMPARISON's claims when its "as of" date ages.
@@ -83,7 +84,6 @@ other skills.
 - the owning plugin's `model-policy.json`
 - the README skill catalog
 - `evals/scenarios.json` when the skill has an eval
-- any Managed Agent cookbook `skills.path`
 - the router-cluster registry in `scripts/authoring_check.py`, when the new
   skill's intent overlaps an existing sibling (mutual contrastive clauses are
   lint-enforced)

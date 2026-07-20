@@ -1,0 +1,7 @@
+{
+  "files": [
+    "labels.py",
+    "checks/labels_check.py"
+  ],
+  "desc": "Fix the typo in the archived item status label."
+}

@@ -387,17 +387,17 @@ class GoldenGates(unittest.TestCase):
             self.assertIn("EVAL-007", res.stderr)
             self.assertIn("blocking_high", res.stderr)
 
-    def test_dropped_eligibility_clause_fails_json_fields_gate(self):
+    def test_dropped_patch_candidate_file_fails_json_fields_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_eval_repo(Path(tmp))
-            elig = repo / "evals" / "golden" / "EVAL-009" / "eligibility.json"
-            data = json.loads(elig.read_text())
-            del data["clauses"]["C7_no_open_unknown"]
-            elig.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            candidate = repo / "evals" / "golden" / "EVAL-009" / "express.json"
+            data = json.loads(candidate.read_text())
+            data["files"].pop()
+            candidate.write_text(json.dumps(data, indent=2), encoding="utf-8")
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1, res.stdout)
             self.assertIn("EVAL-009", res.stderr)
-            self.assertIn("C7_no_open_unknown", res.stderr)
+            self.assertIn("files.1", res.stderr)
 
     def test_mutated_infra_summary_status_fails_json_fields_gate(self):
         with tempfile.TemporaryDirectory() as tmp:

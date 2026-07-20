@@ -192,7 +192,7 @@ suggested escalation}`. The agent never declares pass/fail. The human triages:
 
 | Triage | Result |
 |---|---|
-| **Escalate** | `/ce-patch <fix>` (small single-manifest fix) · `/ce-plan` (cross-manifest / structural) · `/ce-decide` (a hard architectural fork) · `/ce-probe-sec` (an `inferred` exposure only a live target confirms) |
+| **Escalate** | `/ce-plan` (any manifest/IaC correction) · `/ce-decide` (a hard architectural fork) · `/ce-probe-sec` (an `inferred` exposure only a live target confirms) |
 | **Defer** | Record as a known limitation |
 | **Dismiss** | False positive; drop |
 
@@ -300,7 +300,7 @@ For each detected family, in this order:
 - **Location:** `path:line`
 - **Observation:** <what the manifest says> (secrets shown as `[REDACTED]`)
 - **Evidence:** `evidence/<date>-<slug>/F-N.*` (scanner output / excerpt)
-- **Suggested action:** `/ce-patch` | `/ce-plan` | `/ce-decide` | `/ce-probe-sec` | review
+- **Suggested action:** `/ce-plan` | `/ce-decide` | `/ce-probe-sec` | review
 - **Triage:** Escalate / Defer / Dismiss — <date>
 
 ## Open Questions / Stops
@@ -336,8 +336,10 @@ caller treats as a blocker.
 Findings **route, never act** — the same escalate-up chain as the rest of the toolset; never
 patch/commit/apply/deploy a manifest.
 
-- a small single-manifest fix (a missing `USER`, a `:latest` pin, one over-broad SG rule) → `/ce-patch`
-- a multi-file or cross-manifest change (re-working RBAC across files, adding NetworkPolicies repo-wide, introducing a secrets layer) → `/ce-plan` (then `/ce-implement` per feature) — a patch graduates to a plan when it proves big
+- any manifest or IaC correction (a missing `USER`, a `:latest` pin, an over-broad
+  security-group rule, cross-file RBAC, NetworkPolicies, or a secrets layer) →
+  `/ce-plan` (then `/ce-implement` per feature); infrastructure findings are not
+  pre-cleared for the express patch lane
 - a missing-policy / no-contract gap (no encryption standard, no resource-limit baseline) → `/ce-plan` (or `/ce-brief` first if the requirement is unshaped)
 - a hard architectural fork (managed-secrets vs sealed-secrets, VPC topology) → `/ce-decide` for an ADR
 - an `inferred` exposure only a live target can confirm → `/ce-probe-sec`

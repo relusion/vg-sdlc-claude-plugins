@@ -8,17 +8,17 @@
 #
 # A subagent's `output_schema` block is a host-side convention, not an API field:
 # it is STRIPPED before POST (the API rejects it). Schema-checking the agent's
-# JSON against it is the host orchestrator's job — see scripts/validate.py.
+# JSON against it is the host orchestrator's job — see tools/validate.py.
 #
-# Usage: scripts/deploy-managed-agent.sh <slug> [--dry-run]
-#   e.g. scripts/deploy-managed-agent.sh spec-author
+# Usage: tools/deploy-managed-agent.sh <slug> [--dry-run]
+#   e.g. tools/deploy-managed-agent.sh spec-author --dry-run
 
 set -euo pipefail
 
 ROLE="${1:?usage: deploy-managed-agent.sh <slug> [--dry-run]}"
 DRY_RUN=0; [[ "${2:-}" == "--dry-run" ]] && DRY_RUN=1
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIR="$ROOT/managed-agent-cookbooks/$ROLE"
+DIR="$ROOT/$ROLE"
 API="${ANTHROPIC_API_BASE:-https://api.anthropic.com}"
 [[ $DRY_RUN -eq 1 ]] || : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY must be set}"
 

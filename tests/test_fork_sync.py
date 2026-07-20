@@ -114,8 +114,9 @@ class ForkSync(unittest.TestCase):
             res = self._run(repo)
             self.assertIn("edit the CANONICAL", res.stderr)
 
-    # --- WS4-T10: a canonical may live at repo-root scripts/ (gate_runner.py) ---
-    # while copies stay plugins-only. These exercise the bad_path() relaxation.
+    # A canonical may live under repo-root scripts/ while copies stay
+    # plugins-only. These exercise the bad_path() relaxation independently of
+    # any particular shipped fork.
 
     def _add_fork(self, repo: Path, canonical: str, copies: list[str]) -> None:
         manifest_path = repo / MANIFEST
@@ -125,8 +126,8 @@ class ForkSync(unittest.TestCase):
         manifest_path.write_text(json.dumps(data), encoding="utf-8")
 
     def test_scripts_prefixed_canonical_is_accepted_and_synced(self):
-        # A repo-root scripts/ CANONICAL (the packaging shape gate_runner.py needs:
-        # it lives OUTSIDE the plugin) is permitted; --write forks a plugins/ copy.
+        # A repo-root scripts/ canonical is permitted; --write forks a
+        # plugins/ copy.
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._copy_repo(Path(tmp))
             canonical = repo / "scripts" / "synthetic-gate.py"
@@ -150,17 +151,13 @@ class ForkSync(unittest.TestCase):
             self.assertEqual(res.returncode, 2)
             self.assertIn("a forked copy lives under plugins/", res.stderr)
 
-    def test_shipped_gate_runner_fork_is_registered_and_identical(self):
-        # Regression lock for WS4-T10's Done-when: the merge-bar runner is forked
-        # into ce-auto-build and stays byte-identical to the repo-root canonical.
+    def test_auto_build_gate_runner_copy_is_retired(self):
         data = json.loads((REPO / MANIFEST).read_text(encoding="utf-8"))
         entry = next((f for f in data["forks"]
                       if f["canonical"] == "scripts/gate_runner.py"), None)
-        self.assertIsNotNone(entry, "scripts/gate_runner.py fork must be registered")
+        self.assertIsNone(entry, "retired gate_runner fork must stay out of the registry")
         copy_rel = "plugins/core-engineering/skills/ce-auto-build/scripts/gate_runner.py"
-        self.assertIn(copy_rel, entry["copies"])
-        self.assertEqual((REPO / copy_rel).read_bytes(),
-                         (REPO / "scripts/gate_runner.py").read_bytes())
+        self.assertFalse((REPO / copy_rel).exists())
 
 
 @unittest.skipUnless(HAVE_YAML, "check.py §5c integration needs pyyaml")
@@ -176,7 +173,7 @@ class CheckPyUnregisteredFork(unittest.TestCase):
     def _copy_repo(self, tmp: Path) -> Path:
         dst = tmp / "repo"
         for sub in (
-            ".github", "action", "scripts", "plugins", "managed-agent-cookbooks",
+            ".github", "action", "scripts", "plugins",
             ".claude-plugin", "docs", "evals", "templates", "tests"
         ):
             shutil.copytree(

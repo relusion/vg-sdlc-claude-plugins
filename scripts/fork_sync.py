@@ -3,9 +3,9 @@
 
 Some substrate-independent gates are deliberately DUPLICATED on disk: each
 consuming skill carries its own copy so it can run without a sibling skill
-being reachable (Managed-Agent cookbooks bundle skills separately, and
-``${CLAUDE_PLUGIN_ROOT}`` is only guaranteed in hook/MCP contexts — not in
-skill Bash calls). Duplication is correct; silent DRIFT is the bug.
+being reachable. ``${CLAUDE_SKILL_DIR}`` is the path guarantee in skill Bash
+calls; a cross-skill path is not portable. Duplication is correct; silent DRIFT
+is the bug.
 
 The fork registry is machine-readable and lives in
 ``plugins/core-engineering/fork-manifest.json``. This tool is the one way

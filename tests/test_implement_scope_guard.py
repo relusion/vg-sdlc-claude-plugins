@@ -1,10 +1,11 @@
 """Behavioral tests for implement-scope-guard.py (the Spec Lock's file boundary)
 and the spec-lint H6 `tasks[].files` consistency check that makes it enforceable.
 
-The guard fails any touched file outside the union of a spec's tasks[].files
-(+ sanctioned bookkeeping). Two modes: in-loop (working-tree diff, one spec) and
-CI (committed base..head diff, all specs under a materialized head tree). Posture:
-fail-closed when the spec declares files, advisory-only on legacy file-less specs.
+The guard fails any touched file outside the union of selected tasks[].files
+(+ sanctioned bookkeeping). Two modes: in-loop (working-tree diff, one or more
+explicit specs) and CI (committed base..head diff, all specs under a materialized
+head tree). Posture: fail-closed when specs declare files, advisory-only on legacy
+file-less specs.
 """
 
 import importlib.util
@@ -93,6 +94,29 @@ class InLoopMode(_RepoBase):
         self.assertEqual(rc, 0, payload)
         self.assertEqual(payload["status"], "pass")
         self.assertEqual(payload["hard_failures"], [])
+
+    def test_repeated_spec_dirs_union_a_cumulative_sequential_diff(self):
+        second = self.repo / "docs/plans/demo/specs/02-feat"
+        _write(second / "ce-spec.md", SPEC_MD)
+        _write(second / "tasks.json",
+               _tasks({"id": "T-2", "files": ["src/b.py"], "verifies": ["TC-1"]}))
+        _write(self.repo / "src/a.py", "x = 2\n")
+        _write(self.repo / "src/b.py", "y = 1\n")
+        payload, rc = _run_guard(
+            "--spec-dir", str(self.repo / self.spec_dir),
+            "--spec-dir", str(second),
+            "--base", self.base, "--repo", str(self.repo),
+        )
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(payload["hard_failures"], [])
+        _write(self.repo / "src/c.py", "z = 1\n")
+        payload, rc = _run_guard(
+            "--spec-dir", str(self.repo / self.spec_dir),
+            "--spec-dir", str(second),
+            "--base", self.base, "--repo", str(self.repo),
+        )
+        self.assertEqual(rc, 1, payload)
+        self.assertTrue(any("src/c.py" in item for item in payload["hard_failures"]))
 
     def test_undeclared_tracked_change_is_a_spec_conflict(self):
         _write(self.repo / "src/a.py", "x = 2\n")

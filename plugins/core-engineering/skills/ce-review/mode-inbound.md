@@ -198,14 +198,14 @@ introduces is `/ce-patch` — the outbound table routes a bug to `/ce-implement`
 presumes a spec on disk, and the dominant PR has none. **Print the route; never
 invoke it.** (`/ce-patch` is `disable-model-invocation` — the human runs it, exactly
 as `/ce-go` prints a route rather than executing one.) A cosmetic nit that changes no
-behavior belongs in the `--express` fold, which is the lane's own featherweight screen
-for ≤ 2 files and no reviewer-trigger surface.
+behavior belongs in `/ce-patch`, whose only lane screens for ≤ 2 files and no
+reviewer-trigger surface.
 
 | Claim | A plan/spec owns it | No plan on disk |
 |---|---|---|
 | substantiated defect; code wrong, spec right | `/ce-implement <id>` | `/ce-patch` if bounded; `/ce-plan` if structural |
 | substantiated; the spec permits or requires it | `/ce-spec <id>` (a **spec gap**) | `/ce-plan` |
-| convention-nit ("rename this variable") | `/ce-patch --express` | `/ce-patch --express` |
+| convention-nit ("rename this variable") | `/ce-patch` | `/ce-patch` |
 | design-objection ("this approach is wrong") | `/ce-spec <id>`, or `/ce-decide` when it is a choice between options | `/ce-plan`, or `/ce-decide` |
 | spans features / wrong boundary | `/ce-plan` | `/ce-plan` |
 | needs runtime proof | `/ce-probe-sec` · `/ce-probe-perf` | same |

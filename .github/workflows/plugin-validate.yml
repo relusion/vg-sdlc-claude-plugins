@@ -39,17 +39,9 @@ jobs:
         # check.py needs pyyaml; the portability check deliberately does not.
         # Running check.py here makes its byte-identity drift guard and the
         # model-policy dual-truth guard CI facts, not pre-commit courtesies.
-        # jsonschema is for tests/test_orchestrate.py (orchestrate.py's own dep) —
-        # without it those tests skip rather than run.
         run: |
-          pip install pyyaml jsonschema
+          pip install pyyaml
           python3 scripts/check.py --no-install-hooks
-      - name: Enterprise hardening check
-        run: python3 scripts/supply_chain_check.py
-      - name: Managed agent check
-        run: python3 scripts/managed_agent_check.py
-      - name: Product layer check
-        run: python3 scripts/product_layer_check.py
       - name: Docs drift check (replay captured EXAMPLES.md commands)
         run: python3 scripts/docs_drift.py
       - name: Eval corpus check
@@ -63,9 +55,6 @@ jobs:
           python3 scripts/enterprise_evidence.py --json >/tmp/vg-enterprise-evidence.json
       - name: Script unit tests
         run: python3 -m unittest discover -s tests -v
-      - name: Cookbook dry-run deploys (manifest resolution, no API calls)
-        run: bash scripts/test-cookbooks.sh
-
   validate:
     runs-on: ubuntu-latest
     steps:

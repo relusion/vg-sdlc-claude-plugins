@@ -110,7 +110,7 @@ class CheckPySection7(unittest.TestCase):
     def _copy_repo(self, tmp: Path) -> Path:
         dst = tmp / "repo"
         for sub in (
-            ".github", "action", "scripts", "plugins", "managed-agent-cookbooks",
+            ".github", "action", "scripts", "plugins",
             ".claude-plugin", "docs", "evals", "templates", "tests"
         ):
             shutil.copytree(REPO / sub, dst / sub)

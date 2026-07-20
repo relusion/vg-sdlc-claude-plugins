@@ -12,8 +12,8 @@ SKILL.md Honest Limitations: "Dependency direction is not machine-proven").
 
 It SUPPLEMENTS the model-judged plan-audit review — it does not replace it:
 
-  * An un-runnable lint (missing/garbled inputs) exits 2 so the caller falls back
-    to the manual Plan-Audit checklist, loudly.
+  * An un-runnable lint (missing/garbled inputs) exits 2 so the caller applies
+    its owning workflow's documented error disposition. Exit 2 is never a pass.
   * Only the on-disk-checkable subset is covered. Genuine-judgment items (is a
     decision well-founded? is a feature mis-scoped?) stay with the human and the
     model-judged review lenses.
@@ -66,8 +66,8 @@ Usage:
 Exit codes:
     0  PASS  — no hard failures (advisory warnings may still be printed)
     1  FAIL  — at least one hard structural-integrity failure
-    2  ERROR — inputs missing or unparseable; caller should fall back to the
-               manual Plan-Audit checklist (loudly)
+    2  ERROR — inputs missing or unparseable; caller must apply its owning
+               workflow's documented exit-2 disposition (never a pass)
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ ID_LINE = re.compile(r"^id:\s*(\S.*?)\s*$", re.MULTILINE)
 
 
 class PlanLintError(Exception):
-    """Inputs cannot be loaded/parsed -> exit 2, caller falls back."""
+    """Inputs cannot be loaded/parsed -> exit 2, never a pass."""
 
 
 # ---------------------------------------------------------------------------
@@ -599,18 +599,18 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "message": str(e)}))
         else:
             print(f"plan-lint: ERROR — could not run: {e}", file=sys.stderr)
-            print("  -> fall back to the manual Plan-Audit checklist (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001
-        # Any UNEXPECTED failure must honor the exit-2 "could not run -> fall back
-        # loudly" contract, never leak as an uncaught traceback that exits 1 and
+        # Any UNEXPECTED failure must honor the exit-2 "could not run" contract,
+        # never leak as an uncaught traceback that exits 1 and
         # impersonates a hard FAIL to a caller that gates on the exit code.
         # SystemExit is not an Exception subclass, so argparse --help is unaffected.
         if args.json:
             print(json.dumps({"status": "error", "message": f"unexpected: {type(e).__name__}: {e}"}))
         else:
             print(f"plan-lint: ERROR — unexpected failure ({type(e).__name__}): {e}", file=sys.stderr)
-            print("  -> fall back to the manual Plan-Audit checklist (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
 
     status = "fail" if hard else "pass"

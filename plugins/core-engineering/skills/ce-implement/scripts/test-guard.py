@@ -27,13 +27,12 @@ different things — one script, two modes, mutually exclusive:
                      later audits — the marker that survives this dir's own deletion.
 
   --base <ref>       The cross-task NET, used at auto-build's orchestrator gate. Diffs the
-    [--head <ref>]   test files between a committed baseline (e.g. the parent of a
-                     feature's checkpoint commit) and HEAD / the working tree. Catches a
-                     LATER task deleting or gutting an EARLIER task's already-committed
-                     test. It CANNOT catch the within-task genie (the strong red test was
-                     never committed, so there is nothing to compare a weakened new test
-                     against) — that is what --snapshot is for. Needs a committed base;
-                     no base → exit 2.
+    [--head <ref>]   test files between a committed workflow baseline and HEAD / the
+                     working tree. It catches deletion or weakening of tests that existed
+                     at that baseline. It CANNOT catch the within-task genie (the strong
+                     red test was never committed, so there is nothing to compare a
+                     weakened new test against) — that is what --snapshot is for. Needs a
+                     committed base; no base → exit 2.
 
 A THIRD mode audits the PASS-marker ledger those --snapshot runs leave behind — it
 neither diffs tests nor detects weakening, it closes the HONOR gap:
@@ -54,7 +53,7 @@ neither diffs tests nor detects weakening, it closes the HONOR gap:
                      gitignored `.test-guard/` state, so it is in-loop, never a merge gate.
 
 WHAT IT DETECTS (high-recall, low-precision, language-naive heuristics — a hit is a
-MATERIAL FINDING the human / diagnose-gate adjudicates, never an automatic verdict):
+MATERIAL FINDING disposed by the owning workflow, never an automatic verdict):
 
   HARD (a hit -> exit 1):
     T1  a test file present in the earlier version is gone / emptied of all tests.
@@ -84,7 +83,7 @@ Exit codes (identical contract to spec-lint / patch-lint, so callers gate the sa
     1  FAIL  — at least one hard failure; the caller disposes per the skill's gate prose
     2  ERROR — inputs missing / unparseable, snapshot dir absent, git unavailable for
                --base, or (--verify-passes) spec-lint unloadable / passes.json unreadable;
-               the caller falls back to the manual test-integrity check (loudly)
+               caller applies its owning workflow's documented exit-2 disposition
 """
 
 from __future__ import annotations
@@ -101,7 +100,7 @@ from pathlib import Path
 
 
 class TestGuardError(Exception):
-    """Inputs cannot be loaded / a dependency is missing -> exit 2, caller falls back."""
+    """Inputs cannot be loaded / a dependency is missing -> exit 2, never a pass."""
 
 
 # The PASS-marker ledger the honor gate reads. Version the schema so WS3-T3's
@@ -325,7 +324,7 @@ def run_snapshot(snapshot_dir: Path, repo: Path) -> tuple[list, list]:
     if not files:
         raise TestGuardError(
             f"snapshot dir {snapshot_dir} is empty — no red baseline was captured; "
-            f"fall back to the manual test-integrity check."
+            f"follow the owning workflow's exit-2 disposition."
         )
     hard: list[str] = []
     advisory: list[str] = []
@@ -420,7 +419,7 @@ def run_git(repo: Path, base: str, head: str | None, globs: list[str]) -> tuple[
     except TestGuardError:
         raise TestGuardError(
             f"base ref `{base}` does not resolve — it may have been squashed/rebased; "
-            f"re-derive it from disk, or fall back to the manual check."
+            f"follow the owning workflow's exit-2 disposition."
         )
     diff_args = ["diff", "--name-status", base] + ([head] if head else [])
     hard: list[str] = []
@@ -458,18 +457,18 @@ def run_git(repo: Path, base: str, head: str | None, globs: list[str]) -> tuple[
 def load_spec_lint():
     """Import the canonical spec-lint by path — the single source for the spec/tasks
     loader (incl. the legacy spec.md fallback) and the modality/verification tag
-    parser. Mirrors patch-lint's `load_spec_lint`: an import failure is a fallback
-    condition (exit 2 → the caller reviews the ledger by hand), never a hard FAIL."""
+    parser. An import failure is an inconclusive condition (exit 2 → the caller
+    applies its owning workflow's documented disposition), never a hard FAIL."""
     if not SPEC_LINT_PATH.is_file():
         raise TestGuardError(
             f"spec-lint.py not found at {SPEC_LINT_PATH} — cannot derive which `done` "
-            f"tasks carry `auto` test cases; fall back to a manual read of tasks.json."
+            f"tasks carry `auto` test cases; follow the owning workflow's exit-2 disposition."
         )
     try:
         spec = importlib.util.spec_from_file_location("spec_lint_for_test_guard", SPEC_LINT_PATH)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-    except Exception as e:  # noqa: BLE001 — any import failure is a fallback condition
+    except Exception as e:  # noqa: BLE001 — any import failure is inconclusive
         raise TestGuardError(f"could not import spec-lint.py: {e}") from e
     return mod
 
@@ -505,7 +504,7 @@ def run_verify_passes(spec_dir: Path, repo: Path, feature_override: str | None) 
         except (OSError, json.JSONDecodeError) as e:
             raise TestGuardError(
                 f"passes.json at {passes_path} is unreadable ({e}) — cannot verify the "
-                f"test-integrity ledger; fall back to a manual snapshot review."
+                f"test-integrity ledger; follow the owning workflow's exit-2 disposition."
             ) from e
 
     hard: list[str] = []
@@ -628,7 +627,7 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "mode": scope, "message": str(e)}))
         else:
             print(f"test-guard [{scope}]: ERROR — could not run: {e}", file=sys.stderr)
-            print("  -> fall back to the manual test-integrity check (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001 — any unexpected failure honors the exit-2 contract,
         # never leaks a traceback that exits 1 and impersonates a hard FAIL to a gating caller.
@@ -636,7 +635,7 @@ def main(argv=None) -> int:
             print(json.dumps({"status": "error", "mode": scope, "message": f"unexpected: {e}"}))
         else:
             print(f"test-guard [{scope}]: ERROR — unexpected failure: {e}", file=sys.stderr)
-            print("  -> fall back to the manual test-integrity check (loudly).", file=sys.stderr)
+            print("  -> follow the owning workflow's exit-2 disposition; never treat this as a pass.", file=sys.stderr)
         return 2
 
     return emit(scope, label, hard, advisory, args.json, marker=marker)

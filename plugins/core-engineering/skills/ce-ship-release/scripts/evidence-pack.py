@@ -105,7 +105,7 @@ HONEST_LIMITATIONS = [
     "anchors nothing. The append-only external sink (retained prior pack) is the "
     "future hardening; until it runs, treat --verify as corruption-evidence.",
     "Model identity is best-effort: only gate and attestation metrics lines "
-    "carry a model id, and a hook-less or Managed-Agent run records model=null "
+    "carry a model id, and a hook-less run records model=null "
     "(surfaced as null_count, never a guessed tier). Below-tier flags depend on "
     "model-policy.json being locatable; when it is not, models are listed "
     "unflagged and the gap is recorded.",
@@ -153,8 +153,8 @@ def find_up(start: Path, *relparts):
     Locates plugin-tree siblings (hooks/guard_log.py, model-policy.json) from
     both the canonical ce-retro copy and the ce-ship-release fork, which share
     the plugins/core-engineering/skills/<skill>/scripts/ ancestry. Returns None
-    when not found (a Managed-Agent-bundled skill may carry neither) so the
-    caller can degrade honestly instead of crashing.
+    when not found (for example, in a standalone script copy) so the caller can
+    degrade honestly instead of crashing.
     """
     try:
         start = start.resolve()

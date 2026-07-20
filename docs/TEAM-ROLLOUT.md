@@ -68,7 +68,7 @@ is a plan nobody owns.
 | Free use, anytime | `/ce-ask`, `/ce-impact`, `/ce-onboard`, `/ce-debug`, probes | encouraged; read-only by contract |
 | Per feature | `/ce-brief` → `/ce-plan` → `/ce-spec` → `/ce-implement` | the default path for planned work |
 | Before merge | `/ce-review`, `/ce-verify` | required for framework-built features; the `merge-bar` required status (below) is the mechanical floor for every PR |
-| Gated | `/ce-auto-build`, `/ce-patch` | auto-build needs a named budget owner; patch is self-gating (eligibility gate) |
+| Gated | `/ce-auto-build`, `/ce-patch` | auto-build needs a named budget owner; patch ends at one human acceptance gate |
 | As needed | ship genre, `/ce-decide`, `/ce-plan-audit`, `/ce-retro` | when the situation calls |
 
 ## Wire it to branch protection

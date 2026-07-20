@@ -2,17 +2,17 @@
 
 ## Overview
 
-Verified plan → delivery manifest, release decision package, supply-chain
+Verified plan → release decision package, supply-chain
 evidence inventory, and user-facing documentation grounded in verified behavior.
-Built on the [`core-engineering`](../../plugins/core-engineering) plugin's
-`ce-ship-deliver`, `ce-ship-release`, and `ce-ship-document` skills — this
-directory is the Managed Agent cookbook for `POST /v1/agents`.
+Built on the [`core-engineering`](../../../plugins/core-engineering) plugin's
+`ce-ship-release` and `ce-ship-document` skills — this directory is an
+unsupported Managed Agent cookbook snapshot for `POST /v1/agents`.
 
 ## Deploy
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-../../scripts/deploy-managed-agent.sh release-coordinator
+../tools/deploy-managed-agent.sh release-coordinator --dry-run
 ```
 
 ## Steering events
@@ -23,7 +23,7 @@ See [`steering-examples.json`](./steering-examples.json).
 
 **Isolation tier: release-prep worker.** Shell + workspace write
 ([`agent.yaml`](./agent.yaml) grants `bash` and `write`) so it can prepare local
-delivery/release/doc artifacts. It has no authority to publish: no push, PR,
+release/doc artifacts. It has no authority to publish: no push, PR,
 tag, deploy, package publish, credential rotation, or external tracker write.
 
 By the **Rule of Two** ({untrusted input, secret access, external write} — hold

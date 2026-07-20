@@ -19,7 +19,7 @@ tools:
 mcp_servers: []
 
 skills:
-  - { path: ../../plugins/core-engineering/skills/ce-plan }
-  - { path: ../../plugins/core-engineering/skills/ce-spec }
+  - { path: ../../../plugins/core-engineering/skills/ce-plan }
+  - { path: ../../../plugins/core-engineering/skills/ce-spec }
 
 callable_agents: []

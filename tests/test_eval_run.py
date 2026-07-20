@@ -120,6 +120,46 @@ class EvalRun(unittest.TestCase):
             self.assertEqual(res2.returncode, 0, res2.stderr)
             self.assertFalse(marker.exists())
 
+    def test_live_fixture_is_a_clean_git_worktree_before_claude_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "run"
+            fake = root / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "test \"$(git rev-parse --show-toplevel)\" = \"$PWD\" || exit 20\n"
+                "test -z \"$(git status --porcelain --untracked-files=all)\" || exit 21\n"
+                "git log -1 --format='%an <%ae>'\n"
+            )
+            fake.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{root}:{env.get('PATH', '')}"
+            env["GIT_DIR"] = str(root / "wrong-git-dir")
+            env["GIT_WORK_TREE"] = str(root / "wrong-work-tree")
+            res = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--scenario",
+                    "EVAL-003",
+                    "--execute",
+                    "--max-budget-usd",
+                    "1.00",
+                    "--claude-bin",
+                    "fake-claude",
+                    "--skip-check",
+                    "--out-dir",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+            self.assertEqual(res.returncode, 0, f"stdout={res.stdout}\nstderr={res.stderr}")
+            output = (out / "EVAL-003.md").read_text()
+            self.assertIn("Claude Code Eval <claude-code-eval@example.invalid>", output)
+
     def test_bad_fixture_in_catalog_is_reported(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_eval_repo(Path(tmp))

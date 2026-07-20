@@ -6,10 +6,8 @@ pipeline stays green and the seeded suite passes from the first spawn. Once
 export equals ``GOLDEN_CSV`` — a one-row golden that a correct export of the seeded
 three-snippet store can never match (wrong row count, wrong header). No implementation
 can satisfy it, so /ce-implement retries until the run's verification-retry cap and the
-feature ends ``failed``. It reads as an output-mismatch defect (not a spec contradiction),
-which biases the diagnose gate toward a ``bug`` class and the retry path rather than an
-early spec-gap park. ``test-guard.py`` blocks weakening or deleting the assertion, so the
-only exit is retry-exhaustion — the behavior WS3-T13's live run records as a golden.
+feature ends ``failed``. ``test-guard.py`` blocks weakening or deleting the assertion,
+so the fixed sequential workflow has only the bounded retry-exhaustion exit.
 """
 
 import pytest

@@ -168,14 +168,12 @@ adding it to the cluster registry in the same change.
 ## 7. Forked gate scripts
 
 A gate script needed by more than one skill is **forked, never
-share-referenced**: Managed-Agent cookbooks bundle skills separately, and
-`${CLAUDE_PLUGIN_ROOT}` is only guaranteed in hook/MCP contexts — not in skill
-Bash calls — so a cross-skill path is not portable. Every fork is registered in
+share-referenced**: `${CLAUDE_SKILL_DIR}` is the path guarantee in skill Bash
+calls, so a cross-skill path is not portable. Every fork is registered in
 `plugins/core-engineering/fork-manifest.json` (canonical → copies). Edit the
 **canonical**, run `python3 scripts/fork_sync.py --write`, never hand-edit a
 copy; `check.py` §5 and `supply_chain_check.py` assert byte-identity from the
-manifest. The one non-fork exception is `ce-patch`'s import of `spec-lint.py`,
-guarded separately by `check.py` §5b.
+manifest.
 
 ## 8. What the lint does not check
 

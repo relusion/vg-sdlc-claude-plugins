@@ -1,21 +1,20 @@
 # Contributing
 
 The shipped hooks and gates are markdown, JSON, and stdlib-only Python, with no
-build step. Maintainer validation uses two small Python development
-dependencies. This page is for people changing the framework itself; if you
+build step. Maintainer validation uses one small Python development dependency.
+This page is for people changing the framework itself; if you
 just want to *use* the plugins, start at
 [docs/GETTING-STARTED.md](./docs/GETTING-STARTED.md).
 
 ## Prerequisites
 
 - `git` and `python3` (3.10+).
-- Python `pyyaml` for the umbrella validator and `jsonschema` for the complete
-  test suite (`python3 -m pip install pyyaml jsonschema`). The gates shipped to
-  adopters remain standard-library-only.
+- Python `pyyaml` for the umbrella validator
+  (`python3 -m pip install pyyaml`). The gates shipped to adopters remain
+  standard-library-only.
 - Claude Code CLI — only needed for `claude plugin validate --strict` and for
   executing live evals; all other checks run without it (that's the
   portability guarantee, proven by `scripts/portability_check.py`).
-- `jq` — only if you work on the managed-agent deploy path.
 
 ## The validation battery
 
@@ -24,10 +23,7 @@ the version-bump pre-commit hook). The full battery, as CI runs it:
 
 ```bash
 python3 scripts/check.py --no-install-hooks
-python3 scripts/managed_agent_check.py
-python3 scripts/product_layer_check.py
 python3 scripts/docs_drift.py
-python3 scripts/supply_chain_check.py
 python3 scripts/eval_check.py
 python3 scripts/eval_run.py --profile smoke --out-dir /tmp/vg-eval-smoke-dry-run
 python3 scripts/eval_run.py --profile benchmark --out-dir /tmp/vg-eval-benchmark-dry-run
@@ -35,15 +31,15 @@ python3 scripts/metrics_report.py --json
 python3 scripts/enterprise_evidence.py --json
 python3 scripts/portability_check.py
 python3 -m unittest discover -s tests -v
-bash scripts/test-cookbooks.sh
 claude plugin validate --strict .claude-plugin/marketplace.json
 claude plugin validate --strict plugins/core-engineering
 claude plugin validate --strict plugins/product-discovery
 ```
 
-The separate commands exist because they make failures easier to localize
-while editing; `check.py` already invokes the corpus, authoring, supply-chain,
-managed-agent, and product-layer checks itself.
+`check.py` invokes the corpus, authoring, supply-chain, and product-layer
+checks. Run one of those validators directly only when isolating
+a failure while editing; running it again in the standard battery adds no
+coverage.
 
 ## The standards you are expected to follow
 
@@ -78,8 +74,6 @@ the hook only bumps when the version is not already ahead. Add a line to
   in CLAUDE.md.
 - **New plugin agent** → a leaf custom agent at the owning plugin's
   `agents/<name>.md` path (no nested `Task`).
-- **New managed-agent cookbook** → `managed-agent-cookbooks/<slug>/`
-  (`agent.yaml`, `system.md`, `README.md`, `steering-examples.json`).
 - **New eval** → scenario in `evals/scenarios.json` + fixture. Generated run
   outputs under `evals/runs/` are gitignored and stay local: promote distilled
   lessons into deterministic output/artifact checks, and minimized artifacts

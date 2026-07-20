@@ -20,7 +20,7 @@ you only need to choose a command, use the [Usage Matrix](USAGE-MATRIX.md).
 ## Evaluate or adopt the project
 
 - [Benchmarks and Measured Costs](BENCHMARKS.md) — current eval evidence,
-  enforcement counts, cost floors, and known gaps.
+  deterministic validation coverage, cost floors, and known gaps.
 - [Choosing a Spec-Driven Toolchain](COMPARISON.md) — dated comparison with
   alternative approaches.
 - [Team Rollout](TEAM-ROLLOUT.md) — pilot, branch-protection, measurement, and
@@ -29,9 +29,7 @@ you only need to choose a command, use the [Usage Matrix](USAGE-MATRIX.md).
   attestations, and remaining gaps.
 
 Behavior-evaluation setup and the human grading rubric live with the corpus in
-[evals/README.md](../evals/README.md). The Managed Agents path is experimental;
-its prerequisites, handoffs, and host-side controls live in
-[managed-agent-cookbooks/ORCHESTRATION.md](../managed-agent-cookbooks/ORCHESTRATION.md).
+[evals/README.md](../evals/README.md).
 
 ## Project policies
 
@@ -52,6 +50,5 @@ Repository-wide setup and validation commands are in
 - [Skill Authoring Standard](contributing/SKILL-AUTHORING.md)
 - [Human-in-the-Loop Gate Standard](contributing/HITL-GATE-STANDARD.md)
 
-The JSON files in this directory are validation inputs, not additional reading:
-`enforcement-counts.json` stores derived check counts and
+The JSON files in this directory are validation inputs, not additional reading.
 `examples-manifest.json` binds published examples to replay commands.

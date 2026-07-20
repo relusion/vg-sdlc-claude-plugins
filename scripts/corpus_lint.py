@@ -56,7 +56,6 @@ def corpus_files(root: Path) -> list[Path]:
         "docs/**/*.md",
         "plugins/*/agents/*.md",
         "plugins/*/skills/**/*.md",
-        "managed-agent-cookbooks/**/*.md",
     ]
     for pattern in patterns:
         paths.extend(sorted(root.glob(pattern)))

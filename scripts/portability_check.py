@@ -48,8 +48,7 @@ RUN_TIMEOUT_SECONDS = 30
 
 
 def shipped_scripts(root: Path) -> list:
-    pats = ["plugins/*/hooks/*.py", "plugins/*/skills/*/scripts/*.py",
-            "plugins/*/mcp/*.py"]
+    pats = ["plugins/*/hooks/*.py", "plugins/*/skills/*/scripts/*.py"]
     found: list = []
     for pat in pats:
         found.extend(sorted(root.glob(pat)))
@@ -97,8 +96,7 @@ def main(argv=None) -> int:
         # The require() principle from check.py: an empty glob is a layout
         # change, never a green result.
         print("portability: no shipped scripts matched plugins/*/hooks/*.py, "
-              "plugins/*/skills/*/scripts/*.py, or plugins/*/mcp/*.py — did the "
-              "layout change?",
+              "or plugins/*/skills/*/scripts/*.py — did the layout change?",
               file=sys.stderr)
         return 1
 

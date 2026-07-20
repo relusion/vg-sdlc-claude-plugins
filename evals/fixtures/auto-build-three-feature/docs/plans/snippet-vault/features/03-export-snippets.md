@@ -5,8 +5,8 @@
 This feature is engineered to exercise the **retry-exhaustion** path: its acceptance test
 is seeded and **cannot be satisfied**, so implement retries until the run's
 verification-retry cap and the feature ends `failed`. The failure reads as an
-output-mismatch defect, not a spec contradiction, so a diagnose gate should classify it
-`bug` and route it back to implement (consuming a retry) rather than parking it early.
+output-mismatch implementation failure, so the fixed pipeline routes it back to a
+fresh implementation attempt and consumes one bounded retry.
 
 ## Scope
 
@@ -28,18 +28,17 @@ so `test_export_csv_matches_golden` always fails. `test-guard.py` blocks weakeni
 deleting the assertion, so the only exit is:
 
 1. implement `export_csv` → run the suite → `test_export_csv_matches_golden` fails,
-2. (diagnose on) root-cause: `bug` (output does not match the golden) → re-implement,
+2. record the exact gate failure and return it to a fresh implementation worker,
 3. repeat until the verification-retry cap is reached → the feature is marked `failed`
    and the run circuit-breaks on the retry cap.
 
-The fixture's job is to **force the non-clean path deterministically**; WS3-T13's live run
-records which terminal state and diagnosis class actually land, and freezes them as goldens.
+The fixture's job is to **force the non-clean path deterministically** and prove the
+retry cap prevents an unbounded repair loop.
 
 ## Test Guidance
 
-Do **not** edit `checks/export_check.py`. Implement `export_csv` honestly; record the
-unresolvable failure in `verification.md` / `diagnosis.md` rather than tampering with the
-seeded test.
+Do **not** edit `checks/export_check.py`. Implement `export_csv` honestly and record the
+unresolvable failure in `verification.md` rather than tampering with the seeded test.
 
 ## Out of Scope
 

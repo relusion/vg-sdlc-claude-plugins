@@ -72,8 +72,8 @@ tool call in parallel could interleave; `--verify` then flags the interleave as 
 break rather than lose it silently.
 
 **This is a backstop, not the source of truth.** The prose VC disciplines in the
-skills remain verbatim and are the only enforcement on the Claude Managed Agent
-deployment, which does not load plugin `hooks.json`.
+skills remain authoritative. A runtime outside the Claude Code plugin does not
+load `hooks.json` and must provide its own controls.
 
 ## `env-guard.py` — secret-file read confinement (PreToolUse, on `Read|Grep|Bash`)
 
@@ -140,8 +140,8 @@ out-of-workspace directory (the directory screen checks immediate children only 
 the home-anchored stores are covered at any depth by the ancestor test, but a
 deep out-of-workspace tree is a residual gap); additional working directories
 beyond the project root (a legitimate cross-root `.env` read is denied fail-safe —
-use the escape hatch); MCP-tool reads; and the Managed-Agent surface, which loads
-no plugin hooks (see each cookbook README's isolation tier).
+use the escape hatch); MCP-tool reads; and execution surfaces that load no plugin
+hooks.
 
 ## `write-scope-guard.py` — optional write lease (PreToolUse, on `Write|Edit|MultiEdit|NotebookEdit|Bash`)
 
@@ -285,9 +285,8 @@ write from a different session (or a lease orphaned past `CE_WRITE_LEASE_TTL_S`,
 default 8h) degrades the lease to the deny-only baseline with a single logged
 `ask` naming the holder and its age — no hidden JSON file to hand-delete. A
 **live** owner is never degraded.
-The Managed-Agent surface loads no plugin hooks (see each cookbook README's
-isolation tier), so none of this applies there — the prose write disciplines are
-the only enforcement.
+On execution surfaces that do not load plugin hooks, none of this applies; host
+controls and the workflow's explicit write boundaries remain the backstop.
 
 ## `model-attest.py` — runtime model-tier attestation (PreToolUse, on `Bash`)
 
@@ -320,10 +319,10 @@ a session that never runs a shell command leaves it stale or absent, and a skill
 reading it records `model: null` (never a guessed tier). It captures the model of
 the *session's* most recent assistant turn, not a per-subagent identity, so a
 spawned agent running on a different tier is not separately attributed. And the
-**Managed-Agent surface loads no plugin hooks**, so there every `model` field is
-`null` — `/ce-retro` reports those as `unattested`, an honest finding rather than
-an assumed-fine pass. This is an audit aid, not an enforcement gate: it records
-what ran; it never changes what runs.
+same is true on any surface without plugin hooks: every `model` field is `null`,
+and `/ce-retro` reports those as `unattested` rather than assuming a pass. This is
+an audit aid, not an enforcement gate: it records what ran; it never changes what
+runs.
 
 ## `net-guard.py` — egress checkpoint (PreToolUse, on `Bash|WebFetch|WebSearch`)
 
@@ -385,7 +384,7 @@ never implied away: **DNS-tunnel exfil** (data smuggled in subdomain lookups —
 **MCP-mediated egress** (MCP tools load no plugin hook), **`$VAR` / command-
 substitution host indirection** and base64-obfuscated commands, **git's own
 transport** (`git clone`/`fetch`/`pull` — git-guard governs push/PR/tag, not
-transport), and the **Claude Managed-Agent surface**, which loads no `hooks.json`.
+transport), and other execution surfaces that load no `hooks.json`.
 Host extraction is heuristic: an option value may occasionally be mis-read as a
 host (an extra harmless `ask`, never a wrong deny), a bare internal hostname with
 no dot is not extracted, and a `$VAR` URL is not resolved. The reliably screened,

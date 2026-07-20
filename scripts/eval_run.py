@@ -70,8 +70,56 @@ def copy_fixture(root: Path, scenario: dict, out_dir: Path) -> Path:
     dst = out_dir / "work" / scenario["id"]
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache", ".git"))
     return dst
+
+
+def fixture_process_env() -> dict[str, str]:
+    """Return the host environment without inherited Git repository state."""
+    env = os.environ.copy()
+    for key in [name for name in env if name.startswith("GIT_")]:
+        del env[key]
+    return env
+
+
+def initialize_fixture_worktree(work_dir: Path) -> None:
+    """Create a clean, reproducible Git baseline for a live eval fixture."""
+    git_env = fixture_process_env()
+    git_env.update({
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_AUTHOR_NAME": "Claude Code Eval",
+        "GIT_AUTHOR_EMAIL": "claude-code-eval@example.invalid",
+        "GIT_COMMITTER_NAME": "Claude Code Eval",
+        "GIT_COMMITTER_EMAIL": "claude-code-eval@example.invalid",
+        "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
+        "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+00:00",
+    })
+    def run_git(command: list[str]) -> subprocess.CompletedProcess[str]:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(work_dir), *command],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=git_env,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ValueError(f"could not initialize eval fixture Git worktree: {exc}") from exc
+        if proc.returncode != 0:
+            detail = proc.stderr.strip() or proc.stdout.strip() or f"git exited {proc.returncode}"
+            raise ValueError(f"could not initialize eval fixture Git worktree: {detail}")
+        return proc
+
+    run_git(["init", "--quiet"])
+    run_git(["add", "--all"])
+    run_git([
+        "-c", f"core.hooksPath={os.devnull}", "commit", "--quiet", "--allow-empty", "--no-gpg-sign",
+        "-m", "Initialize eval fixture",
+    ])
+    status = run_git(["status", "--porcelain", "--untracked-files=all"])
+    if status.stdout.strip():
+        raise ValueError(f"eval fixture Git baseline is not clean: {status.stdout.strip()}")
 
 
 def build_claude_cmd(args, root: Path, scenario: dict) -> list[str]:
@@ -124,6 +172,8 @@ def check_execute_preconditions(args, scenarios: list[dict]) -> None:
 
 def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
     work_dir = copy_fixture(root, scenario, out_dir)
+    if not args.dry_run:
+        initialize_fixture_worktree(work_dir)
     output_file = out_dir / f"{scenario['id']}.md"
     cmd = build_claude_cmd(args, root, scenario)
 
@@ -153,7 +203,7 @@ def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
         capture_output=True,
         text=True,
         timeout=args.timeout,
-        env=os.environ.copy(),
+        env=fixture_process_env(),
     )
     output_file.write_text(proc.stdout, encoding="utf-8")
     if proc.stderr:

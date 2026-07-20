@@ -19,17 +19,11 @@ from pathlib import Path
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 COMMAND_RE = re.compile(r"(?<![\w/.-])/(ce-[A-Za-z0-9-]+)\b")
 
-# The managed-agent enforcement caveat's anchor phrase. It must read identically
-# wherever users are routed to that surface (README's experimental cookbook
-# section, GETTING-STARTED, and WORKFLOW-RECIPES Recipe 17).
-MANAGED_AGENT_CAVEAT = "do not load on the managed-agent surface"
-
 PRODUCT_DOCS = {
     "README.md": [
         "docs/README.md",
         "docs/GETTING-STARTED.md",
         "docs/WORKFLOW-RECIPES.md",
-        "managed-agent-cookbooks/ORCHESTRATION.md",
         "docs/USAGE-MATRIX.md",
         "docs/HOW-IT-WORKS.md",
         "docs/BENCHMARKS.md",
@@ -37,22 +31,16 @@ PRODUCT_DOCS = {
         "docs/COMPARISON.md",
         "docs/TEAM-ROLLOUT.md",
         "CONTRIBUTING.md",
-        "Managed Agents beta access",
         # The repositioned merge-bar front door (WS7-T9): the wedge-led README
         # leads with the control-plane pitch and demotes the full skill catalog
         # below a "Week one — eight verbs" table. This needle drift-guards that
         # week-one section heading so the front door cannot silently lose it.
         "## Week one",
-        # WS7-T2: the managed-agent surface is frozen as experimental. A reader
-        # who stops at the README must not miss the enforcement gap — the caveat
-        # anchor is also required in README's cookbook section.
-        MANAGED_AGENT_CAVEAT,
     ],
     "CLAUDE.md": [
         "docs/README.md",
         "docs/GETTING-STARTED.md",
         "docs/WORKFLOW-RECIPES.md",
-        "managed-agent-cookbooks/ORCHESTRATION.md",
         "docs/USAGE-MATRIX.md",
     ],
     "docs/GETTING-STARTED.md": [
@@ -66,7 +54,6 @@ PRODUCT_DOCS = {
         "## Troubleshooting",
         "## Contributing to the Framework",
         "claude plugin install core-engineering@vg-coding",
-        "managed-agent-cookbooks/ORCHESTRATION.md",
         "BENCHMARKS.md",
         "CONTRIBUTING.md",
         "/ce-ask",
@@ -75,14 +62,10 @@ PRODUCT_DOCS = {
         "/ce-brief",
         "/ce-plan",
         "/ce-patch",
-        MANAGED_AGENT_CAVEAT,
     ],
     "CONTRIBUTING.md": [
         "# Contributing",
         "python3 scripts/check.py --no-install-hooks",
-        "python3 scripts/managed_agent_check.py",
-        "python3 scripts/product_layer_check.py",
-        "python3 scripts/supply_chain_check.py",
         "python3 scripts/eval_check.py",
         "python3 scripts/portability_check.py",
         "python3 -m unittest discover -s tests",
@@ -100,7 +83,6 @@ PRODUCT_DOCS = {
         "WORKFLOW-RECIPES.md",
         "HOW-IT-WORKS.md",
         "evals/README.md",
-        "managed-agent-cookbooks/ORCHESTRATION.md",
         "contributing/SKILL-AUTHORING.md",
     ],
     "docs/BENCHMARKS.md": [
@@ -149,17 +131,14 @@ PRODUCT_DOCS = {
         "## Recipe 14: Audit Planning And Process",
         "## Recipe 15: Check Planned UX",
         "## Recipe 16: Export Work Items",
-        "## Recipe 17: Run Hosted Agent Handoffs",
         "## Recipe 18: Bootstrap A Repository",
         "## Recipe 19: Return To A Plan Mid-Flight",
         "## Recipe 20: Operate An Unattended Run",
-        "spec-author -> spec-impl -> quality-gate -> release-coordinator",
         "Expected artifacts",
         "Stop or escalate",
         "--resume",
         "STATUS.md",
         "status-board",
-        MANAGED_AGENT_CAVEAT,
     ],
     "plugins/core-engineering/skills/ce-init/SKILL.md": [
         ".claude/ce-write-scope.json",
@@ -323,24 +302,6 @@ def check_front_door_parity(root: Path, errors: list[str]) -> int:
 
 AS_OF_RE = re.compile(r"as of\s+\*{0,2}(\d{4}-\d{2}-\d{2})\*{0,2}")
 AS_OF_MAX_AGE_DAYS = 90
-COUNT_CLAIM_RE = re.compile(
-    r"(\d+)\s+repo checks?,\s+(\d+)\s+authoring-conformance checks?,(?:\s+and)?\s+(\d+)\s+tests"
-)
-# The three BENCHMARKS table rows that publish the same counts, in
-# COUNT_CLAIM_RE group order (repo checks, authoring checks, tests).
-# check.py --write-counts imports these anchors to rewrite exactly the cells
-# this check reads — one anchor set, both directions, no drift.
-BENCH_COUNT_ROWS = (
-    ("`scripts/check.py`", "checks"),
-    ("`scripts/authoring_check.py`", "checks"),
-    ("`tests/` unit suite", "tests"),
-)
-# The committed, derived enforcement counts (written by check.py
-# --write-counts; check.py re-derives and compares every run). The doc claim
-# sites are held to THIS file — measured truth, not mutual agreement.
-COUNTS_FILE_REL = "docs/enforcement-counts.json"
-COUNTS_KEYS = ("repo_checks", "authoring_checks", "tests")
-WRITE_COUNTS_REMEDY = "run `python3 scripts/check.py --write-counts`"
 
 
 def check_comparison_freshness(root: Path, errors: list[str]) -> int:
@@ -375,78 +336,6 @@ def check_comparison_freshness(root: Path, errors: list[str]) -> int:
     return 1
 
 
-def check_count_claims_agree(root: Path, errors: list[str]) -> int:
-    """The three published enforcement-count claim sites must match the
-    derived counts committed in docs/enforcement-counts.json.
-
-    README, BENCHMARKS, and COMPARISON each quote the repo-check /
-    authoring-check / test counts. check.py derives the real numbers every
-    run and `--write-counts` records them in docs/enforcement-counts.json,
-    so the doc claims are held to measured truth — three sites agreeing on a
-    stale number no longer passes. When the counts file is missing (itself an
-    error), the original three-site agreement check still runs as a fallback
-    so a partial refresh cannot slip through either.
-    """
-    import json
-
-    sites: dict[str, tuple[int, ...]] = {}
-    for doc_rel in ("README.md", "docs/COMPARISON.md"):
-        text = read(root, root / doc_rel, errors)
-        match = COUNT_CLAIM_RE.search(text)
-        if not match:
-            errors.append(f"{doc_rel}: enforcement-count claim not found "
-                          "('N repo checks, N authoring-conformance checks, N tests')")
-            continue
-        sites[doc_rel] = tuple(int(g) for g in match.groups())
-
-    bench = read(root, root / "docs/BENCHMARKS.md", errors)
-    bench_counts = []
-    for anchor, unit in BENCH_COUNT_ROWS:
-        row = next((line for line in bench.splitlines() if anchor in line), "")
-        m = re.search(rf"\|\s*(\d+)\s+{unit}\s*\|", row)
-        if not m:
-            errors.append(f"docs/BENCHMARKS.md: no '<N> {unit}' cell on the {anchor} row")
-            bench_counts = []
-            break
-        bench_counts.append(int(m.group(1)))
-    if bench_counts:
-        sites["docs/BENCHMARKS.md"] = tuple(bench_counts)
-
-    expected: tuple[int, ...] | None = None
-    counts_path = root / COUNTS_FILE_REL
-    if not counts_path.is_file():
-        errors.append(
-            f"{COUNTS_FILE_REL}: missing — the enforcement counts must be "
-            f"derived, never asserted; {WRITE_COUNTS_REMEDY}"
-        )
-    else:
-        try:
-            data = json.loads(counts_path.read_text(encoding="utf-8"))
-            expected = tuple(int(data[key]) for key in COUNTS_KEYS)
-        except (OSError, ValueError, KeyError, TypeError) as exc:
-            errors.append(
-                f"{COUNTS_FILE_REL}: unreadable or missing a count "
-                f"({exc!r}) — {WRITE_COUNTS_REMEDY}"
-            )
-
-    if expected is not None:
-        for doc_rel, counts in sorted(sites.items()):
-            if counts != expected:
-                errors.append(
-                    f"count-claims: {doc_rel} claims {counts} but "
-                    f"{COUNTS_FILE_REL} records {expected} "
-                    f"(repo checks, authoring checks, tests) — a stale claim; "
-                    f"{WRITE_COUNTS_REMEDY}"
-                )
-    elif len(set(sites.values())) > 1:
-        detail = "; ".join(f"{doc}={counts}" for doc, counts in sorted(sites.items()))
-        errors.append(
-            f"count-claims: the published enforcement counts disagree across docs — {detail} "
-            "(refresh all three sites together)"
-        )
-    return len(sites) or 1
-
-
 AUTO_BUILD_RECIPE_HEADING = "## Recipe 10: Run The Full Spine Autonomously"
 
 
@@ -479,9 +368,9 @@ def check_autobuild_recipe_routes_plan_audit(root: Path, errors: list[str]) -> i
 def check_ci(root: Path, errors: list[str]) -> int:
     path = root / ".github/workflows/plugin-validate.yml"
     text = read(root, path, errors)
-    if "python3 scripts/product_layer_check.py" not in text:
+    if "python3 scripts/check.py --no-install-hooks" not in text:
         errors.append(
-            ".github/workflows/plugin-validate.yml: missing product layer check step"
+            ".github/workflows/plugin-validate.yml: missing umbrella validation step"
         )
     return 1
 
@@ -509,7 +398,7 @@ def check_ci(root: Path, errors: list[str]) -> int:
 #     `:line` citation suffix before resolving.
 DOC_LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)\s]+)\)")
 REPO_PATH_TICK_RE = re.compile(
-    r"`((?:action|docs|templates|evals|scripts|plugins|managed-agent-cookbooks|tests)"
+    r"`((?:action|docs|templates|evals|scripts|plugins|tests)"
     r"/[^`\n]*)`"
 )
 FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
@@ -864,7 +753,6 @@ def main(argv: list[str] | None = None) -> int:
     checked += check_doc_links(root, errors)
     checked += check_ci(root, errors)
     checked += check_comparison_freshness(root, errors)
-    checked += check_count_claims_agree(root, errors)
     checked += check_benchmark_inventory(root, errors)
     checked += check_live_eval_provenance(root, errors)
     checked += check_benchmark_recency(root, errors)

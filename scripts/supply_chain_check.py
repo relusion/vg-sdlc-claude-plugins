@@ -114,15 +114,12 @@ def check_workflows(root: Path, errors: list[str]) -> int:
     require_contains(root, plugin, plugin_text, [
         "python3 scripts/portability_check.py",
         "python3 scripts/check.py --no-install-hooks",
-        "python3 scripts/managed_agent_check.py",
-        "python3 scripts/supply_chain_check.py",
         "python3 scripts/eval_check.py",
         "python3 scripts/eval_run.py --profile smoke",
         "python3 scripts/eval_run.py --profile benchmark",
         "python3 scripts/metrics_report.py --json",
         "python3 scripts/enterprise_evidence.py --json",
         "python3 -m unittest discover -s tests -v",
-        "bash scripts/test-cookbooks.sh",
         "claude plugin validate --strict .claude-plugin/marketplace.json",
     ], errors)
 
@@ -259,7 +256,7 @@ def check_quality_moat_tools(root: Path, errors: list[str]) -> int:
     return 2
 
 
-def check_release_and_delivery_skills(root: Path, errors: list[str]) -> int:
+def check_release_skill(root: Path, errors: list[str]) -> int:
     release = root / "plugins/core-engineering/skills/ce-ship-release/SKILL.md"
     release_text = read(root, release, errors)
     require_contains(root, release, release_text, [
@@ -272,18 +269,7 @@ def check_release_and_delivery_skills(root: Path, errors: list[str]) -> int:
         "records presence; it does not generate SBOMs",
     ], errors)
 
-    deliver = root / "plugins/core-engineering/skills/ce-ship-deliver/SKILL.md"
-    deliver_text = read(root, deliver, errors)
-    require_contains(root, deliver, deliver_text, [
-        "Supply-chain evidence inventory",
-        "supply_chain_evidence",
-        "SBOM",
-        "provenance",
-        "checksums",
-        "signatures",
-        "evidence_globs",
-    ], errors)
-    return 2
+    return 1
 
 
 def check_dependency_gates(root: Path, errors: list[str]) -> int:
@@ -739,7 +725,7 @@ def main(argv: list[str] | None = None) -> int:
     checked = 0
     checked += check_workflows(root, errors)
     checked += check_control_map(root, errors)
-    checked += check_release_and_delivery_skills(root, errors)
+    checked += check_release_skill(root, errors)
     checked += check_quality_moat_tools(root, errors)
     checked += check_dependency_gates(root, errors)
     checked += check_merge_bar(root, errors)

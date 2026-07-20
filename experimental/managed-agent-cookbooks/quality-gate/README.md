@@ -4,7 +4,7 @@
 
 Implemented plan/spec → review findings, verification report, and routed
 diagnosis when something fails. Built on the
-[`core-engineering`](../../plugins/core-engineering) plugin's `ce-review`,
+[`core-engineering`](../../../plugins/core-engineering) plugin's `ce-review`,
 `ce-verify`, and `ce-debug` skills — this directory is the Managed Agent cookbook
 for `POST /v1/agents`.
 
@@ -12,7 +12,7 @@ for `POST /v1/agents`.
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-../../scripts/deploy-managed-agent.sh quality-gate
+../tools/deploy-managed-agent.sh quality-gate --dry-run
 ```
 
 ## Steering events

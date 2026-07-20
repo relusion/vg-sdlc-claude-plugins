@@ -27,7 +27,7 @@ is recorded in the report.
 | Outcome | Route |
 |---|---|
 | `confirmed` cause; small, bounded fix | `/ce-patch` |
-| Top-ranked `suspected` whose discriminator the human **declines to fetch** | `/ce-patch` — recorded in the Route section as the human's accepted risk, never a model promotion |
+| Top-ranked `suspected` whose discriminator the human **declines to fetch** | stop without a code-change route; record the accepted uncertainty and the unfetched discriminator |
 | Cause is structural — cross-component, design, ownership | `/ce-plan` |
 | Component turns out to be a spec-owned pipeline feature | switch to **planned mode** — load `${CLAUDE_SKILL_DIR}/mode-planned.md` and diagnose against the contract (this report is the failure signal) |
 | Cause needs numeric / performance proof | `/ce-probe-perf` |

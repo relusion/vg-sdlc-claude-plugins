@@ -74,12 +74,12 @@ outside the markers — the parity lint reads only what is between them.
 
 | The request is… | Route to | Because |
 |---|---|---|
-| a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/ce-patch` | the folded plan→spec→implement lane; add `--express` for featherweight |
+| a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/ce-patch` | one express-only gate; any failed or uncertain screen routes to `/ce-plan` |
 | a raw idea that needs shaping before planning | `/ce-brief` | persona-lens interview → a planning-ready brief |
 | a real project/feature to decompose | `/ce-plan` | ordered, dependency-aware feature plan with gates |
 | ONE already-planned feature to detail | `/ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |
 | a specified feature's task list to build | `/ce-implement` | test-first execution to done under Scope Lock |
-| a whole plan to run unattended | `/ce-auto-build` | autonomous per-feature spec/implement/gate orchestration |
+| a whole plan to run unattended | `/ce-auto-build` | bounded sequential spec/implement/verify/review orchestration |
 | a first run in a repo with no `repo-profile.json` | `/ce-init` | profiles commands/CI/surfaces, writes starter policy artifacts |
 
 **Probe a risk surface**
@@ -116,7 +116,6 @@ outside the markers — the parity lint reads only what is between them.
 | The request is… | Route to | Because |
 |---|---|---|
 | "turn this spec into work items" | `/ce-ship-backlog` | paste-ready ADO items, one-way, no tracker writes |
-| "prepare a delivery branch" | `/ce-ship-deliver` | constructs a local branch + manifest; never pushes |
 | "decide release readiness / write the changelog" | `/ce-ship-release` | release decision package + changelog on consent |
 | "generate the user-facing docs" | `/ce-ship-document` | docs grounded in verified behavior with run examples |
 | "make this prose sound natural / less AI-generated" | `/ce-humanize` | rewrites tone of existing prose; preserves facts and markup; ephemeral, edits a named file only on consent |
@@ -148,7 +147,7 @@ name both in the gate and let the human pick.
      via the `Skill` tool, passing the user's request through as its argument.
      You do not do the downstream skill's work yourself; you start it.
    - **Human-initiated route** — `/ce-patch`, `/ce-auto-build`, `/ce-probe-sec`,
-     `/ce-probe-perf`, `/ce-ship-deliver`, `/ce-ship-release`, and `/ce-doc-audit`
+     `/ce-probe-perf`, `/ce-ship-release`, and `/ce-doc-audit`
      carry `disable-model-invocation: true`, so the `Skill` tool cannot start them by
      design (these lanes write code, act on live targets, or cut releases, and
      must be human-pulled). Do **not** attempt a `Skill` handoff, and do **not**

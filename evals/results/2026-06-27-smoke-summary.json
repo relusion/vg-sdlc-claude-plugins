@@ -4,7 +4,7 @@
   "profile": "smoke",
   "dry_run": false,
   "source": "evals/runs/ (gitignored local live runs, 2026-06-27); each scenario cites the run_id whose metadata.json records status=pass, returncode=0, dry_run=false",
-  "note": "Curated per the evals/results/README flow. Only PASSING live runs are listed; scenarios not present here have no committed live evidence and stay labeled 'design-verified, not live-run' in BENCHMARKS.",
+  "note": "Curated per the evals/results/README flow. Only PASSING live runs whose current scenario contract still matches the 2026-06-27 run are listed. The historical EVAL-009 and EVAL-010 patch runs were removed when those IDs were redefined for the express-only patch contract; they need fresh live runs. Scenarios not present here have no current committed live evidence and stay labeled 'design-verified, not live-run' in BENCHMARKS.",
   "scenarios": [
     {
       "id": "EVAL-001",
@@ -69,22 +69,6 @@
       "returncode": 0,
       "run_id": "20260627-053616Z",
       "max_budget_usd": 3.0
-    },
-    {
-      "id": "EVAL-009",
-      "skill": "patch",
-      "status": "pass",
-      "returncode": 0,
-      "run_id": "20260627-055236Z",
-      "max_budget_usd": 4.0
-    },
-    {
-      "id": "EVAL-010",
-      "skill": "patch",
-      "status": "pass",
-      "returncode": 0,
-      "run_id": "20260627-060025Z",
-      "max_budget_usd": 2.0
     }
   ]
 }

@@ -5,7 +5,7 @@ audit-export.py — compile a plan's pipeline evidence into one structured JSON.
 Deterministic evidence COMPILATION, not a compliance attestation and not a
 verdict: it gathers what the pipeline already recorded — plan.json, per-feature
 spec/tasks/verification/review artifacts, the .metrics.jsonl stream, run
-reports, the patch lane's eligibility.json — into a single machine-readable
+reports, and any legacy patch eligibility.json — into a single machine-readable
 audit document a reviewer or an external compliance process can consume.
 
 Read-only over every source. Writes nothing unless --out is given, and --out
@@ -430,9 +430,9 @@ def metrics_summary(plan_dir: Path, since=None, until=None) -> dict:
 
 
 def discover_eligibility(plan_dir: Path, gaps: list):
-    """Find the patch lane's eligibility.json (present by FILE EXISTENCE).
+    """Find a legacy patch lane's eligibility.json (present by file existence).
 
-    A patch plan has exactly one specs/00-<slug>/; if more than one
+    Pre-0.10 patch plans had exactly one specs/00-<slug>/; if more than one
     eligibility.json exists that is itself a finding, not a silent first-pick.
     """
     specs = plan_dir / "specs"

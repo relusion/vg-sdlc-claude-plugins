@@ -17,8 +17,7 @@ Use `docs/GETTING-STARTED.md` for a first session,
 | Score one product idea | `/ce-idea-score` *(product-discovery plugin)* | Renders an opinionated, evidence-tagged Pursue / Park / Drop style verdict. |
 | Generate and rank many ideas | `/ce-idea-scout` *(product-discovery plugin)* | Creates a shortlist, cuts weak candidates with reasons, then deep-scores survivors. |
 | Decompose a real feature/project | `/ce-plan` | Owns scope, feature boundaries, ship order, reachability, and plan artifacts. |
-| Make one genuinely small change | `/ce-patch` | Uses the folded plan -> spec -> implement lane and graduates to `/ce-plan` if it proves structural. |
-| Make a featherweight change fast | `/ce-patch <desc> --express` | Express fold for a ≤ 2-file change with no reviewer-trigger surface: one combined gate, one ledger line, no spec artifacts. A failed mechanical screen falls back to the full `/ce-patch` lane. |
+| Make one genuinely small change | `/ce-patch` | Uses a ≤ 2-file express lane with one approval gate and one ledger line. Any failed or uncertain admission check routes to `/ce-plan`; patch never expands into a larger lane. |
 
 ## Build Path
 
@@ -28,7 +27,6 @@ Use `docs/GETTING-STARTED.md` for a first session,
 | An approved spec and task list | `/ce-implement <feature-id>` | Code/tests updated, tasks marked done, `verification.md` written. |
 | A whole plan to run unattended | `/ce-auto-build <plan-slug>` | Per-feature spec/implement runs, gates, status board, and end-review package. |
 | A plan on disk and a need to see where it stands | `python3 plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py docs/plans/<slug>` | Disk-derived status board with a `Next:` route per feature; degrades loudly without `plan.json` (Recipe 19 in `docs/WORKFLOW-RECIPES.md`). |
-| A specced plan and N developers to divide it among | `python3 plugins/core-engineering/skills/ce-auto-build/scripts/worktree-preflight.py --plan docs/plans/<slug>/plan.json --skip-git --json` | `parallel_groups` of provably-independent features (no dependency path + disjoint MODIFY reach) plus `reach_sources`. Reach comes from `specs/<id>/tasks.json`, so run it **after** `/ce-spec`; before that every feature is its own group, honestly (Recipe 32). |
 | A sprint to plan from an existing plan | `status-board.py` + `plan.json` ship order/complexity, then `/ce-ship-backlog <feature-id>` | Selects the next slate in dependency order and sizes it against the plan's own Final Complexity; `/ce-plan-audit` first, so a sprint is never planned on a plan that does not lint (Recipe 33). |
 | An auto-build run that stopped, or one to supervise | `/ce-auto-build <plan-slug> --resume` | Disk-validated resume of a halted run; watch `docs/plans/<slug>/STATUS.md` between features (Recipe 20 in `docs/WORKFLOW-RECIPES.md`). |
 | A built feature that may be wrong | `/ce-debug <feature-id or failure>` | Reproduced cause, classification, and routed fix path (planned mode — a spec owns the feature); no patches. |
@@ -72,7 +70,6 @@ Use `docs/GETTING-STARTED.md` for a first session,
 | I want to... | Use | Boundary |
 |---|---|---|
 | Convert a spec to ADO / Jira / GitHub work items | `/ce-ship-backlog <feature-id> [--format ado-md\|ado-csv\|jira-csv\|gh-jsonl]` | Paste-ready or bulk-import output, one-way; no tracker API writes. |
-| Prepare a clean delivery branch | `/ce-ship-deliver <plan-slug>` | Constructs local branch and manifest; never pushes. |
 | Decide release readiness and changelog | `/ce-ship-release <plan-slug>` | Writes release decision package and changelog on consent; never deploys. |
 | Generate user-facing docs | `/ce-ship-document <plan-slug>` | Grounds docs in verified behavior and runnable examples. |
 | Rewrite AI-sounding or generic prose to read naturally | `/ce-humanize <text or file>` | Preserves meaning, facts, and markup; ephemeral by default, edits a named file only on consent. Rewrites tone; does not generate docs (use `/ce-ship-document`). |
@@ -85,8 +82,8 @@ rather than duplicating it.
 
 - First run in a repo: `/ce-init --write`, then `/ce-ask` or `/ce-impact`.
 - New feature: `/ce-brief` -> `/ce-plan` -> (`/ce-plan-audit`) -> `/ce-spec` -> `/ce-implement` -> `/ce-review` + `/ce-verify`.
-- Small fix: `/ce-patch`; add `--express` for a featherweight ≤ 2-file change (one gate, one ledger line, no spec artifacts); accept graduation to `/ce-plan` when the charter fails.
+- Small fix: `/ce-patch` for a ≤ 2-file change (one gate, one ledger line, no spec artifacts); use `/ce-plan` when admission fails or scope is uncertain.
 - Unattended: `/ce-plan-audit` -> `/ce-auto-build` -> `/ce-onboard` -> `/ce-retro`.
-- Pre-release: `/ce-probe-deps` + `/ce-probe-infra` (add `/ce-probe-sec` / `/ce-probe-perf` / `/ce-ux-audit` with a running target) -> `/ce-ship-deliver` -> `/ce-ship-release` -> `/ce-ship-document`.
-- Production-style handoff: `/ce-verify` -> `/ce-review` -> `/ce-ship-deliver` -> `/ce-ship-release` -> `/ce-ship-document`.
+- Pre-release: `/ce-probe-deps` + `/ce-probe-infra` (add `/ce-probe-sec` / `/ce-probe-perf` / `/ce-ux-audit` with a running target) -> `/ce-ship-release` -> `/ce-ship-document`.
+- Production-style handoff: `/ce-verify` -> `/ce-review` -> `/ce-ship-release` -> `/ce-ship-document`.
 - Unknown failure or a misbehaving component: `/ce-debug` — it auto-detects planned (a spec owns the feature) vs plan-free mode from plan state; you need not know which.

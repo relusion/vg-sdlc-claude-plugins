@@ -1,8 +1,9 @@
 # auto-build-three-feature fixture
 
-A small, pre-planned in-memory snippet vault used by **EVAL-017** to exercise
-`/ce-auto-build` end-to-end. The plan (`docs/plans/snippet-vault/`) decomposes into three
-features, each engineered to drive one terminal path of an auto-build run:
+A small, pre-planned in-memory snippet vault used by **EVAL-017** to exercise the
+fixed, sequential `/ce-auto-build` workflow. The plan
+(`docs/plans/snippet-vault/`) has three features, each designed to drive one
+terminal path:
 
 | Feature | Path it exercises |
 |---|---|
@@ -24,12 +25,14 @@ all three terminal states in one pass.
   `threat-model.md`, `interaction-contract.md`, and one `features/<id>.md` per feature.
 - `docs/plans/plans.json`, `docs/plans/vc-policy.md` — plan registry and git policy.
 
-## Notes for the live run (WS3-T13)
+## Evaluation contract
 
-This fixture is **dry-run verifiable** today: `eval_check.py` validates the scenario and
-fixture structure without a model call. The live run (`eval_run.py --execute`, scoped to
-EVAL-017) is WS3-T13 and needs an API key. EVAL-017's prompt pre-answers every Stage-0
-kickoff knob inline (sequential, advisory review, diagnose on, isolated branch, explicit
-budget/caps) because a headless `-p` run cannot answer interactive HITL gates. The seeded
-conditions above force the non-clean paths; T13 records which exact terminal states and
-diagnosis classes land and freezes them as `evals/golden/EVAL-017/`.
+`eval_check.py` validates the scenario and fixture structure without a model call.
+A live `eval_run.py --execute` run needs Claude credentials. Because the runner is
+headless, the prompt supplies the human's Gate 1 approval with a positive budget,
+retry cap, and park cap. The workflow must still stop at Gate 2 for human review.
+
+The artifact checks require schema-version-2 state, the approved bounds, a clean
+feature with independent review evidence, a product park, and retry exhaustion.
+They also reject artifacts from the retired orchestration modes. No EVAL-017 live
+golden is committed; a live result must satisfy these checks on its own evidence.

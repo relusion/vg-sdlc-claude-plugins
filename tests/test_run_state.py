@@ -1,7 +1,7 @@
 """Tests for auto-build's run-state.py — the deterministic run-state owner.
 
-Covers the init schema, the status-lattice transitions (legal / illegal /
-optional-stage skips / diagnose detours / fail-from-anywhere), the counter
+Covers the init schema, the fixed status-lattice transitions (legal / illegal /
+bounded review repair / fail-from-anywhere), the counter
 mechanics (consecutive-park bump + done-reset, retry cap → exit 1), the
 provisional ledger, budget accrual, the circuit-breaker exit-code verdicts, and
 the canonical .metrics.jsonl line schema — asserting the documented behavior is
@@ -20,6 +20,8 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "plugins/core-engineering/skills/ce-auto-build/scripts/run-state.py"
 BOARD = REPO / "plugins/core-engineering/skills/ce-auto-build/scripts/status-board.py"
 DATE = "2026-07-04"
+BASELINE = "a" * 40
+FEATURES = ("01-a", "02-b", "03-c")
 
 
 def run(*args):
@@ -35,14 +37,14 @@ def make_plan(root: Path, name="plan") -> Path:
     return plan
 
 
-def init(plan: Path, *, budget=None, retry_cap=3, park_cap=3, spawn_caps=None,
-         date=DATE):
+def init(plan: Path, *, budget=1000, retry_cap=3, park_cap=3,
+         date=DATE, baseline=BASELINE, features=FEATURES):
     args = ["init", "--plan-dir", str(plan), "--date", date,
-            "--retry-cap", str(retry_cap), "--park-cap", str(park_cap)]
-    if budget is not None:
-        args += ["--budget", str(budget)]
-    for name, val in (spawn_caps or {}).items():
-        args += ["--spawn-cap", f"{name}={val}"]
+            "--baseline", baseline,
+            "--budget", str(budget), "--retry-cap", str(retry_cap),
+            "--park-cap", str(park_cap)]
+    for feature in features:
+        args.extend(["--feature", feature])
     return run(*args)
 
 
@@ -68,51 +70,61 @@ class Init(unittest.TestCase):
     def test_init_writes_schema_and_bounds(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = make_plan(Path(tmp))
-            res = init(plan, budget=1000, retry_cap=2, park_cap=4,
-                       spawn_caps={"spec": 50, "implement": 80})
+            res = init(plan, budget=1000, retry_cap=2, park_cap=4)
             self.assertEqual(res.returncode, 0, res.stderr)
             st = state_of(plan)
-            self.assertEqual(st["schema_version"], 1)
+            self.assertEqual(st["schema_version"], 2)
             self.assertEqual(st["slug"], "plan")
             self.assertEqual(st["date"], DATE)
+            self.assertEqual(st["baseline"], BASELINE)
+            self.assertEqual(st["selected_features"], list(FEATURES))
             self.assertEqual(st["bounds"], {
-                "budget": 1000, "retry_cap": 2, "park_cap": 4,
-                "spawn_caps": {"spec": 50, "implement": 80}})
+                "budget": 1000, "retry_cap": 2, "park_cap": 4})
             self.assertEqual(st["counters"],
                              {"consecutive_parks": 0, "budget_spent": 0})
             self.assertEqual(st["retry_counts"], {})
             self.assertEqual(st["features"], {})
 
-    def test_reinit_refuses_without_force(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            plan = make_plan(Path(tmp))
-            self.assertEqual(init(plan).returncode, 0)
-            res = init(plan)
-            self.assertEqual(res.returncode, 2)
-            self.assertIn("already initialized", res.stdout)
-
-    def test_force_reinit_overwrites(self):
+    def test_reinit_refuses_and_has_no_force_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = make_plan(Path(tmp))
             self.assertEqual(init(plan, park_cap=1).returncode, 0)
-            res = run("init", "--plan-dir", str(plan), "--date", DATE,
-                      "--park-cap", "9", "--force")
-            self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertEqual(state_of(plan)["bounds"]["park_cap"], 9)
+            res = init(plan)
+            self.assertEqual(res.returncode, 2)
+            self.assertIn("already initialized", res.stdout)
+            forced = run("init", "--plan-dir", str(plan), "--date", DATE,
+                         "--baseline", BASELINE, "--feature", "01-a",
+                         "--budget", "1000", "--retry-cap", "3",
+                         "--park-cap", "9", "--force")
+            self.assertEqual(forced.returncode, 2)
+            self.assertEqual(state_of(plan)["bounds"]["park_cap"], 1)
 
     def test_init_bad_plan_dir_exits_2(self):
         with tempfile.TemporaryDirectory() as tmp:
             missing = Path(tmp) / "nope"
-            res = run("init", "--plan-dir", str(missing), "--date", DATE)
+            res = run("init", "--plan-dir", str(missing), "--date", DATE,
+                      "--baseline", BASELINE, "--feature", "01-a",
+                      "--budget", "1000")
             self.assertEqual(res.returncode, 2)
             self.assertIn("not an existing directory", res.stdout)
 
-    def test_bad_spawn_cap_exits_2(self):
+    def test_budget_is_required_and_bounds_must_be_positive(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = make_plan(Path(tmp))
-            res = run("init", "--plan-dir", str(plan), "--date", DATE,
-                      "--spawn-cap", "spec=notint")
-            self.assertEqual(res.returncode, 2)
+            missing = run("init", "--plan-dir", str(plan), "--date", DATE)
+            self.assertEqual(missing.returncode, 2)
+            zero = run("init", "--plan-dir", str(plan), "--date", DATE,
+                       "--baseline", BASELINE, "--feature", "01-a",
+                       "--budget", "0")
+            self.assertEqual(zero.returncode, 2)
+
+    def test_init_rejects_bad_baseline_and_duplicate_features(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_plan(Path(tmp))
+            bad_base = init(plan, baseline="HEAD")
+            self.assertEqual(bad_base.returncode, 2)
+            duplicate = init(plan, features=("01-a", "01-a"))
+            self.assertEqual(duplicate.returncode, 2)
 
 
 class Advance(unittest.TestCase):
@@ -124,29 +136,24 @@ class Advance(unittest.TestCase):
     def test_forward_lattice_is_legal(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
-            for gate in ["specced", "challenged", "implementing",
-                         "verifying", "reviewed", "done"]:
+            for gate in ["specced", "implementing", "verifying", "reviewed", "done"]:
                 res = run("advance", "01-a", gate, "--plan-dir", str(plan))
                 self.assertEqual(res.returncode, 0, f"{gate}: {res.stdout}")
             self.assertEqual(state_of(plan)["features"]["01-a"]["status"], "done")
 
-    def test_optional_stages_may_be_skipped(self):
-        # Challenger off (skip challenged) and review off (skip reviewed).
+    def test_fixed_stages_may_not_be_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
             self.assertEqual(run("advance", "01-a", "specced",
                                  "--plan-dir", str(plan)).returncode, 0)
-            self.assertEqual(run("advance", "01-a", "implementing",
-                                 "--plan-dir", str(plan)).returncode, 0)
-            self.assertEqual(run("advance", "01-a", "verifying",
-                                 "--plan-dir", str(plan)).returncode, 0)
             self.assertEqual(run("advance", "01-a", "done",
-                                 "--plan-dir", str(plan)).returncode, 0)
+                                 "--plan-dir", str(plan)).returncode, 2)
 
     def test_backward_transition_is_illegal(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
-            run("advance", "01-a", "reviewed", "--plan-dir", str(plan))
+            for gate in ["specced", "implementing", "verifying", "reviewed"]:
+                run("advance", "01-a", gate, "--plan-dir", str(plan))
             res = run("advance", "01-a", "specced", "--plan-dir", str(plan))
             self.assertEqual(res.returncode, 2)
             self.assertEqual(json.loads(res.stdout)["error"], "illegal-transition")
@@ -159,6 +166,15 @@ class Advance(unittest.TestCase):
             res = run("advance", "01-a", "bogus", "--plan-dir", str(plan))
             self.assertEqual(res.returncode, 2)
 
+    def test_feature_outside_approved_selection_is_rejected_without_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = self._init(tmp)
+            state_path = plan / "ce-auto-build" / f"{DATE}-state.json"
+            before = state_path.read_bytes()
+            res = run("advance", "99-extra", "specced", "--plan-dir", str(plan))
+            self.assertEqual(res.returncode, 2)
+            self.assertEqual(state_path.read_bytes(), before)
+
     def test_advance_to_parked_via_advance_is_illegal(self):
         # parked has its own subcommand (it bumps the park counter); advancing
         # to it must be refused so the counter can never be bypassed.
@@ -167,25 +183,33 @@ class Advance(unittest.TestCase):
             res = run("advance", "01-a", "parked", "--plan-dir", str(plan))
             self.assertEqual(res.returncode, 2)
 
-    def test_diagnose_detour(self):
+    def test_confirmed_review_failure_can_return_to_implementation(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
             for gate in ["specced", "implementing", "verifying"]:
                 run("advance", "01-a", gate, "--plan-dir", str(plan))
-            # verifying → diagnosing (failed verify gate under diagnose mode)
-            self.assertEqual(run("advance", "01-a", "diagnosing",
-                                 "--plan-dir", str(plan)).returncode, 0)
-            # diagnosing → implementing (a bug: targeted re-implement)
+            refused = run("advance", "01-a", "implementing",
+                          "--plan-dir", str(plan))
+            self.assertEqual(refused.returncode, 2)
+            self.assertEqual(run("retry", "01-a", "--plan-dir", str(plan)).returncode, 0)
             self.assertEqual(run("advance", "01-a", "implementing",
                                  "--plan-dir", str(plan)).returncode, 0)
-            # diagnosing is illegal from implementing (only verify/review reach it)
-            run("advance", "01-a", "verifying", "--plan-dir", str(plan))
+            self.assertEqual(state_of(plan)["features"]["01-a"]["status"],
+                             "implementing")
+
+    def test_old_retry_authorization_cannot_enable_later_review_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = self._init(tmp)
+            self.assertEqual(run("retry", "01-a", "--plan-dir", str(plan)).returncode, 0)
+            for gate in ["specced", "implementing", "verifying"]:
+                run("advance", "01-a", gate, "--plan-dir", str(plan))
             self.assertEqual(run("advance", "01-a", "implementing",
                                  "--plan-dir", str(plan)).returncode, 2)
 
     def test_fail_from_any_live_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
+            run("advance", "01-a", "specced", "--plan-dir", str(plan))
             run("advance", "01-a", "implementing", "--plan-dir", str(plan))
             self.assertEqual(run("advance", "01-a", "failed",
                                  "--plan-dir", str(plan)).returncode, 0)
@@ -197,13 +221,15 @@ class Advance(unittest.TestCase):
             run("park", "01-a", "--class", "spec-gap", "--plan-dir", str(plan))
             run("park", "02-b", "--class", "structural", "--plan-dir", str(plan))
             self.assertEqual(state_of(plan)["counters"]["consecutive_parks"], 2)
-            run("advance", "03-c", "done", "--plan-dir", str(plan))
+            for gate in ["specced", "implementing", "verifying", "reviewed", "done"]:
+                run("advance", "03-c", gate, "--plan-dir", str(plan))
             self.assertEqual(state_of(plan)["counters"]["consecutive_parks"], 0)
 
     def test_advance_metrics_line_schema(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
-            run("advance", "01-a", "verifying", "--plan-dir", str(plan))
+            for gate in ["specced", "implementing", "verifying"]:
+                run("advance", "01-a", gate, "--plan-dir", str(plan))
             line = metrics_of(plan)[-1]
             self.assertEqual(line, {
                 "ts": DATE, "stage": "auto-build", "plan": "plan",
@@ -214,24 +240,18 @@ class Advance(unittest.TestCase):
     def test_done_emits_stage_complete(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
-            run("advance", "01-a", "done", "--plan-dir", str(plan))
+            for gate in ["specced", "implementing", "verifying", "reviewed", "done"]:
+                run("advance", "01-a", gate, "--plan-dir", str(plan))
             line = metrics_of(plan)[-1]
             self.assertEqual(line["event"], "stage-complete")
             self.assertIsNone(line["gate"])
 
-    def test_escalation_flag_emits_escalation_event(self):
+    def test_removed_advanced_states_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = self._init(tmp)
-            for gate in ["specced", "implementing", "verifying"]:
-                run("advance", "01-a", gate, "--plan-dir", str(plan))
-            run("advance", "01-a", "diagnosing", "--plan-dir", str(plan))
-            res = run("advance", "01-a", "implementing", "--plan-dir", str(plan),
-                      "--escalation", "/ce-implement", "--detail", "diagnose:bug")
-            self.assertEqual(res.returncode, 0)
-            line = metrics_of(plan)[-1]
-            self.assertEqual(line["event"], "escalation")
-            self.assertEqual(line["escalation_type"], "/ce-implement")
-            self.assertEqual(line["detail"], "diagnose:bug")
+            for state in ("challenged", "diagnosing"):
+                res = run("advance", "01-a", state, "--plan-dir", str(plan))
+                self.assertEqual(res.returncode, 2)
 
     def test_tokens_accrue_to_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -265,6 +285,18 @@ class Park(unittest.TestCase):
             res = run("park", "01-a", "--class", "  ", "--plan-dir", str(plan))
             self.assertEqual(res.returncode, 2)
 
+    def test_terminal_feature_cannot_be_parked_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_plan(Path(tmp))
+            init(plan)
+            first = run("park", "01-a", "--class", "spec-gap",
+                        "--plan-dir", str(plan))
+            second = run("park", "01-a", "--class", "structural",
+                         "--plan-dir", str(plan))
+            self.assertEqual(first.returncode, 0)
+            self.assertEqual(second.returncode, 2)
+            self.assertEqual(state_of(plan)["counters"]["consecutive_parks"], 1)
+
 
 class Retry(unittest.TestCase):
     def test_retry_under_cap_exit_0_at_cap_exit_1(self):
@@ -278,6 +310,14 @@ class Retry(unittest.TestCase):
             self.assertEqual(r2.returncode, 1)          # cap reached
             self.assertTrue(json.loads(r2.stdout)["cap_reached"])
             self.assertEqual(state_of(plan)["retry_counts"]["01-a"], 2)
+            self.assertEqual(state_of(plan)["features"]["01-a"]["status"], "failed")
+
+    def test_terminal_feature_cannot_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_plan(Path(tmp))
+            init(plan)
+            run("park", "01-a", "--class", "spec-gap", "--plan-dir", str(plan))
+            self.assertEqual(run("retry", "01-a", "--plan-dir", str(plan)).returncode, 2)
 
     def test_retry_metrics_line(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -306,6 +346,24 @@ class BudgetAndLedger(unittest.TestCase):
             run("budget-add", "--tokens", "300", "--plan-dir", str(plan))
             run("budget-add", "--tokens", "150", "--plan-dir", str(plan))
             self.assertEqual(state_of(plan)["counters"]["budget_spent"], 450)
+
+    def test_negative_tokens_are_rejected_without_state_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_plan(Path(tmp))
+            init(plan)
+            commands = [
+                ("advance", "01-a", "specced", "--plan-dir", str(plan), "--tokens", "-1"),
+                ("park", "01-a", "--class", "gap", "--plan-dir", str(plan), "--tokens", "-1"),
+                ("retry", "01-a", "--plan-dir", str(plan), "--tokens", "-1"),
+                ("budget-add", "--tokens", "-1", "--plan-dir", str(plan)),
+            ]
+            for command in commands:
+                with self.subTest(command=command[0]):
+                    self.assertEqual(run(*command).returncode, 2)
+            st = state_of(plan)
+            self.assertEqual(st["counters"]["budget_spent"], 0)
+            self.assertEqual(st["features"], {})
+            self.assertEqual(st["retry_counts"], {})
 
     def test_ledger_append_marks_provisional(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -393,6 +451,18 @@ class ScriptedCircuitBreakerSequence(unittest.TestCase):
 
 
 class Locating(unittest.TestCase):
+    def test_legacy_state_schema_is_refused_instead_of_guessed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_plan(Path(tmp))
+            init(plan)
+            state_path = plan / "ce-auto-build" / f"{DATE}-state.json"
+            state = json.loads(state_path.read_text())
+            state["schema_version"] = 1
+            state_path.write_text(json.dumps(state))
+            res = run("breaker-check", "--plan-dir", str(plan))
+            self.assertEqual(res.returncode, 2)
+            self.assertIn("unsupported schema_version", res.stdout)
+
     def test_newest_state_is_located_by_mtime(self):
         import os
         with tempfile.TemporaryDirectory() as tmp:

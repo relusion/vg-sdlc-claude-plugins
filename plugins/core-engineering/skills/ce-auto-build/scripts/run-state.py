@@ -27,9 +27,9 @@ persisted; it does not read the plan's spec/verification/review artifacts.
 Subcommands
 -----------
   init          create the run's state.json (bounds + zeroed counters)
-  advance       move a feature along the specced→…→done lattice (illegal → exit 2)
+  advance       move a feature along the fixed specced→…→done lattice
   park          mark a feature parked; bump the consecutive-park counter
-  retry         bump a feature's retry count; exit 1 when the cap is reached
+  retry         authorize one repair; mark failed and exit 1 at the retry cap
   budget-add    add an estimated token cost to the running budget total
   ledger-append append a `provisional (auto-build <date>)`-marked decision row
   breaker-check evaluate the run-level circuit-breaker bounds (exit 1 = break)
@@ -56,30 +56,30 @@ Stdlib-only by design (the portability guarantee): no Claude Code, no network.
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-# The forward status lattice a feature walks. Optional stages (challenged when
-# the Challenger is off, reviewed when review mode is off) may be skipped — a
-# transition is legal as long as it moves strictly forward.
+# The fixed forward status lattice. Every successful feature walks every stage;
+# only a confirmed review failure may return verifying → implementing for a
+# bounded repair attempt.
 LATTICE = [
-    "queued", "specced", "challenged", "implementing",
-    "verifying", "reviewed", "done",
+    "queued", "specced", "implementing", "verifying", "reviewed", "done",
 ]
 RANK = {s: i for i, s in enumerate(LATTICE)}
 
-# Side/detour states reachable off the forward lattice.
-DIAGNOSING = "diagnosing"   # a failed verify/review gate routes here (diagnose mode)
 FAILED = "failed"           # terminal failure (advance target)
 PARKED = "parked"           # terminal park (set only via the `park` subcommand)
 
 # The full vocabulary `advance` accepts as a target (parked is NOT here — it has
 # its own subcommand because it bumps the consecutive-park counter).
-ADVANCE_TARGETS = set(LATTICE) | {DIAGNOSING, FAILED}
+ADVANCE_TARGETS = set(LATTICE) | {FAILED}
+TERMINAL_STATES = {"done", FAILED, PARKED}
+RETRYABLE_STATES = {"queued", "specced", "implementing", "verifying"}
 
 
 # --------------------------------------------------------------------------- #
@@ -180,6 +180,18 @@ def load_state(path: Path) -> dict:
     data = load_json(path)
     if not isinstance(data, dict):
         raise RunStateError(f"state file unreadable or not an object: {path}")
+    if data.get("schema_version") != SCHEMA_VERSION:
+        raise RunStateError(
+            f"unsupported schema_version {data.get('schema_version')!r} in {path}; "
+            f"expected {SCHEMA_VERSION} (review the prior run before starting fresh)")
+    baseline = data.get("baseline")
+    selected = data.get("selected_features")
+    if not isinstance(baseline, str) or not baseline:
+        raise RunStateError(f"state file has no recorded baseline: {path}")
+    if (not isinstance(selected, list) or not selected
+            or any(not isinstance(fid, str) or not fid for fid in selected)
+            or len(selected) != len(set(selected))):
+        raise RunStateError(f"state file has invalid selected_features: {path}")
     return data
 
 
@@ -217,6 +229,10 @@ def emit_metric(state_path: Path, state: dict, *, feature, event,
 
 
 def feature_entry(state: dict, fid: str) -> dict:
+    selected = state.get("selected_features", [])
+    if fid not in selected:
+        raise RunStateError(
+            f"feature {fid!r} is outside this run's selected feature list")
     features = state.setdefault("features", {})
     if not isinstance(features, dict):
         raise RunStateError("state.features is not an object — corrupt state file")
@@ -225,6 +241,11 @@ def feature_entry(state: dict, fid: str) -> dict:
         entry = {"status": "queued", "last_completed_gate": None, "park_class": None}
         features[fid] = entry
     return entry
+
+
+def validate_tokens(tokens: int) -> None:
+    if not isinstance(tokens, int) or tokens < 0:
+        raise RunStateError("--tokens must be a non-negative integer")
 
 
 # --------------------------------------------------------------------------- #
@@ -239,31 +260,35 @@ def cmd_init(args) -> int:
     sd = state_dir(plan_dir)
     sd.mkdir(parents=True, exist_ok=True)
     path = sd / f"{date}-state.json"
-    if path.exists() and not args.force:
+    if path.exists():
         raise RunStateError(
             f"run already initialized: {path} exists "
-            f"(use --resume on the orchestrator, not re-init; --force to overwrite)")
+            f"(use --resume on the orchestrator; state is never overwritten)")
 
-    spawn_caps = {}
-    for item in args.spawn_cap or []:
-        if "=" not in item:
-            raise RunStateError(f"--spawn-cap wants NAME=INT, got {item!r}")
-        name, _, val = item.partition("=")
-        try:
-            spawn_caps[name] = int(val)
-        except ValueError:
-            raise RunStateError(f"--spawn-cap {name} value not an int: {val!r}")
+    if not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", args.baseline):
+        raise RunStateError("--baseline must be a full 40- or 64-hex commit id")
+    selected = [fid.strip() for fid in args.feature]
+    if (any(not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", fid) for fid in selected)
+            or len(selected) != len(set(selected))):
+        raise RunStateError(
+            "--feature values must be unique, non-empty feature ids in ship order")
+
+    for name in ("budget", "retry_cap", "park_cap"):
+        value = getattr(args, name)
+        if not isinstance(value, int) or value <= 0:
+            raise RunStateError(f"--{name.replace('_', '-')} must be a positive integer")
 
     state = {
         "schema_version": SCHEMA_VERSION,
         "slug": plan_dir.name,
         "date": date,
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "baseline": args.baseline.lower(),
+        "selected_features": selected,
         "bounds": {
             "budget": args.budget,
             "retry_cap": args.retry_cap,
             "park_cap": args.park_cap,
-            "spawn_caps": spawn_caps,
         },
         "counters": {
             "consecutive_parks": 0,
@@ -278,34 +303,34 @@ def cmd_init(args) -> int:
     return 0
 
 
-def _legal_advance(cur: str, tgt: str) -> bool:
+def _legal_advance(cur: str, tgt: str, entry: dict) -> bool:
     if tgt not in ADVANCE_TARGETS:
         return False
     if tgt == FAILED:                       # a feature can fail from any live state
-        return cur not in ("done", FAILED, PARKED)
-    if cur == DIAGNOSING:                   # diagnose(bug) → targeted re-implement
-        return tgt == "implementing"
-    if tgt == DIAGNOSING:                   # a failed verify/review gate → diagnose
-        return cur in ("verifying", "reviewed")
-    if cur in RANK and tgt in RANK:         # strictly forward (skips optional stages)
-        return RANK[tgt] > RANK[cur]
+        return cur not in TERMINAL_STATES
+    if cur == "verifying" and tgt == "implementing":
+        return entry.get("retry_authorized_from") == "verifying"
+    if cur in RANK and tgt in RANK:
+        return RANK[tgt] == RANK[cur] + 1  # fixed pipeline: no skipped stages
     return False
 
 
 def cmd_advance(args) -> int:
+    validate_tokens(args.tokens)
     path = locate_state(args)
     state = load_state(path)
     entry = feature_entry(state, args.feature)
     cur = entry.get("status", "queued")
     tgt = args.gate
 
-    if not _legal_advance(cur, tgt):
+    if not _legal_advance(cur, tgt, entry):
         print(json.dumps({"error": "illegal-transition", "feature": args.feature,
                           "from": cur, "to": tgt}))
         return 2
 
     entry["status"] = tgt
     entry["last_completed_gate"] = tgt
+    entry.pop("retry_authorized_from", None)
     if tgt == "done":
         # A completed feature breaks a park streak (per the plan's reset rule).
         state.setdefault("counters", {})["consecutive_parks"] = 0
@@ -314,16 +339,11 @@ def cmd_advance(args) -> int:
         c["budget_spent"] = int(c.get("budget_spent", 0)) + int(args.tokens)
     atomic_write_json(path, state)
 
-    # Derive the metrics event from the transition (caller may override the
-    # detail, and name a diagnose→implement bug escalation via --escalation).
-    if args.escalation:
-        event, gate, esc = "escalation", None, args.escalation
-    elif tgt == "done":
+    # Derive the metrics event from the transition; callers may override detail.
+    if tgt == "done":
         event, gate, esc = "stage-complete", None, None
     elif tgt == FAILED:
         event, gate, esc = "gate", "fail", None
-    elif tgt == DIAGNOSING:
-        event, gate, esc = "gate", None, None      # a routing step: neither pass nor fail
     else:
         event, gate, esc = "gate", "pass", None
     emit_metric(path, state, feature=args.feature, event=event, gate=gate,
@@ -335,15 +355,21 @@ def cmd_advance(args) -> int:
 
 
 def cmd_park(args) -> int:
+    validate_tokens(args.tokens)
     path = locate_state(args)
     state = load_state(path)
     entry = feature_entry(state, args.feature)
     if not args.klass or not args.klass.strip():
         raise RunStateError("--class must be a non-empty park class")
+    cur = entry.get("status", "queued")
+    if cur in TERMINAL_STATES:
+        raise RunStateError(
+            f"cannot park terminal feature {args.feature}: status is {cur}")
 
     entry["status"] = PARKED
     entry["last_completed_gate"] = PARKED
     entry["park_class"] = args.klass
+    entry.pop("retry_authorized_from", None)
     c = state.setdefault("counters", {})
     c["consecutive_parks"] = int(c.get("consecutive_parks", 0)) + 1
     if args.tokens:
@@ -359,31 +385,44 @@ def cmd_park(args) -> int:
 
 
 def cmd_retry(args) -> int:
+    validate_tokens(args.tokens)
     path = locate_state(args)
     state = load_state(path)
-    feature_entry(state, args.feature)        # ensure the feature is tracked
+    entry = feature_entry(state, args.feature)
+    cur = entry.get("status", "queued")
+    if cur not in RETRYABLE_STATES:
+        raise RunStateError(
+            f"cannot retry feature {args.feature}: status is {cur}")
     counts = state.setdefault("retry_counts", {})
     if not isinstance(counts, dict):
         raise RunStateError("state.retry_counts is not an object — corrupt state file")
     n = int(counts.get(args.feature, 0)) + 1
     counts[args.feature] = n
+    cap = int(state.get("bounds", {}).get("retry_cap", 0) or 0)
+    reached = cap > 0 and n >= cap
+    if reached:
+        entry["status"] = FAILED
+        entry["last_completed_gate"] = FAILED
+        entry.pop("retry_authorized_from", None)
+    else:
+        entry["retry_authorized_from"] = cur
     if args.tokens:
         c = state.setdefault("counters", {})
         c["budget_spent"] = int(c.get("budget_spent", 0)) + int(args.tokens)
     atomic_write_json(path, state)
 
-    cap = int(state.get("bounds", {}).get("retry_cap", 0) or 0)
     emit_metric(path, state, feature=args.feature, event="retry", gate=None,
                 escalation_type=None, detail=args.detail or f"retry:{n}/{cap}",
                 tokens=args.tokens or 0)
-    reached = cap > 0 and n >= cap
     print(json.dumps({"ok": True, "feature": args.feature, "retries": n,
-                      "cap": cap, "cap_reached": reached}))
+                      "cap": cap, "cap_reached": reached,
+                      "status": entry["status"]}))
     # exit 1 when the cap is reached so the caller cannot miscount.
     return 1 if reached else 0
 
 
 def cmd_budget_add(args) -> int:
+    validate_tokens(args.tokens)
     path = locate_state(args)
     state = load_state(path)
     c = state.setdefault("counters", {})
@@ -419,12 +458,9 @@ def cmd_ledger_append(args) -> int:
 def cmd_breaker_check(args) -> int:
     """Evaluate the run-level circuit-breaker bounds.
 
-    Checks only the RUN-level bounds that are unambiguous from state alone:
-    the consecutive-park cap and the token budget. It deliberately does NOT
-    re-derive the per-feature retry cap — that is the `retry` subcommand's
-    exit-1 signal, disposed by the caller (in diagnose mode a bug that exhausts
-    the cap parks rather than halting the run, a control-flow call the caller
-    owns).
+    Checks the run-level bounds that are unambiguous from state alone: the
+    consecutive-park cap and the token budget. The `retry` subcommand owns the
+    per-feature retry-cap signal.
 
     Exit 0 continue · 1 circuit-break (JSON reason names the tripped bound) ·
     2 could-not-evaluate.
@@ -472,28 +508,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="create the run's state.json")
     p_init.add_argument("--plan-dir", required=True, help="the docs/plans/<slug> directory")
     p_init.add_argument("--date", help="run date (YYYY-MM-DD); default: today UTC")
-    p_init.add_argument("--budget", type=int, default=None,
-                        help="token/compute budget (estimate); omit for no budget bound")
+    p_init.add_argument("--baseline", required=True,
+                        help="full commit id captured from the clean Stage-0 worktree")
+    p_init.add_argument("--feature", action="append", required=True,
+                        help="selected feature id in ship order; repeat for each feature")
+    p_init.add_argument("--budget", type=int, required=True,
+                        help="required positive token/compute budget estimate")
     p_init.add_argument("--retry-cap", type=int, default=3,
-                        help="per-feature verification-retry cap (default 3)")
+                        help="per-feature repair-retry cap (default 3)")
     p_init.add_argument("--park-cap", type=int, default=3,
                         help="consecutive-park cap (default 3)")
-    p_init.add_argument("--spawn-cap", action="append", metavar="NAME=INT",
-                        help="per-spawn sub-cap, repeatable")
-    p_init.add_argument("--force", action="store_true",
-                        help="overwrite an existing state.json for this date")
     p_init.set_defaults(func=cmd_init)
 
     p_adv = sub.add_parser("advance", help="move a feature along the status lattice")
     p_adv.add_argument("feature")
     p_adv.add_argument("gate", help="target status/gate "
-                       "(specced|challenged|implementing|verifying|reviewed|done|diagnosing|failed)")
+                       "(specced|implementing|verifying|reviewed|done|failed)")
     add_locator(p_adv)
     p_adv.add_argument("--detail", help="metrics detail string override")
     p_adv.add_argument("--tokens", type=int, default=0,
                        help="estimated token cost of the transition (accrues to budget)")
-    p_adv.add_argument("--escalation", metavar="TARGET",
-                       help="emit an escalation metric to TARGET (e.g. /ce-implement) instead of a gate line")
     p_adv.set_defaults(func=cmd_advance)
 
     p_park = sub.add_parser("park", help="mark a feature parked")

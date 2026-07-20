@@ -2,16 +2,11 @@
 
 `core-engineering` is a Claude Code plugin for planning, implementing, and
 checking software changes through repository-resident artifacts. It contains
-**29 skills** and **2 plugin-shipped custom agents**. A separate
+**28 skills** and **2 plugin-shipped custom agents**. A separate
 `product-discovery` plugin adds three optional idea and market-research skills.
 
 The Claude Code plugin is the primary runtime. The repository also contains an
-agent-independent merge bar that runs in CI without Claude Code, plus
-experimental Managed Agent cookbooks. The cookbooks do not load the plugin's
-hooks; their host must supply sandboxing, permissions, approvals, and state
-management. See the
-[Managed Agent orchestration guide](../managed-agent-cookbooks/ORCHESTRATION.md)
-before using that surface.
+agent-independent merge bar that runs in CI without Claude Code.
 
 For installation and a first session, start with
 [Getting Started](GETTING-STARTED.md). For command selection, use the
@@ -20,8 +15,8 @@ boundaries that apply across the whole framework.
 
 ## 1. The operating model
 
-The main workflow is a spine in which each stage produces a durable input for
-the next stage:
+The main workflow is a spine where each stage produces a durable input for the
+next:
 
 ```text
 /ce-brief -> /ce-plan -> /ce-spec -> /ce-implement
@@ -30,10 +25,10 @@ the next stage:
                                 `-> /ce-debug    cause analysis and fix routing
 
 /ce-auto-build  orchestrates the planned spine across multiple features
-/ce-patch       folds the spine into one bounded small-change workflow
+/ce-patch       handles one low-risk change of at most two files
 /ce-ux-audit    checks a running product, with or without a plan
 
-delivery tail: /ce-ship-deliver -> /ce-ship-release -> /ce-ship-document
+release tail: /ce-ship-release -> /ce-ship-document
 ```
 
 The artifacts, rather than a chat transcript, are the handoff contract. A plan
@@ -66,8 +61,8 @@ silently turning a review or diagnosis into an unplanned code change.
 
 `/ce-go <outcome>` is the front door when the caller does not know which skill
 fits. It inspects repository state, explains one proposed route, and hands off
-only after confirmation. Direct invocation remains available for callers who
-already know the workflow they need.
+only after confirmation. Callers who already know the workflow they need can
+invoke it directly.
 
 ### Entry, repository understanding, and onboarding
 
@@ -89,8 +84,8 @@ already know the workflow they need.
 | `/ce-plan-audit` | Lint and review an existing plan without rewriting it. |
 | `/ce-spec` | Convert one planned feature into EARS acceptance criteria, tests, and `tasks.json`. |
 | `/ce-implement` | Execute an approved task list test-first and record verification evidence. |
-| `/ce-patch` | Handle one genuinely small change; `--express` is the narrower two-file lane, and larger work graduates to planning. |
-| `/ce-auto-build` | Run the planned spec/implement/check loop across features with budgets, retries, parks, checkpoints, and an end review. |
+| `/ce-patch` | Handle one change of at most two files through a single approval gate; failed or uncertain admission routes to planning. |
+| `/ce-auto-build` | Run one fixed, sequential spec/implement/verify/review loop across features with budgets, retries, parks, and an end review. |
 
 ### Assurance, diagnosis, and operational evidence
 
@@ -106,13 +101,12 @@ already know the workflow they need.
 | `/ce-probe-perf` | Collect measured performance signals from an authorized running target. |
 | `/ce-retro` | Summarize recorded pipeline signals and optionally compile an evidence pack without re-judging the work. |
 
-### Decisions, delivery, and documentation
+### Decisions, release, and documentation
 
 | Skill | Responsibility |
 |---|---|
 | `/ce-decide` | Compare technical options and draft an evidence-tagged proposed ADR; a human promotes it. |
 | `/ce-ship-backlog` | Emit one-way ADO, Jira, or GitHub work-item files from a spec; it does not call tracker APIs. |
-| `/ce-ship-deliver` | Prepare a local delivery branch and manifest; it never pushes. |
 | `/ce-ship-release` | Prepare a GO/NO-GO decision package, evidence inventory, and optional changelog; it never deploys. |
 | `/ce-ship-document` | Generate user-facing documentation from verified behavior and runnable examples. |
 | `/ce-humanize` | Rewrite supplied prose while preserving facts and markup; file edits require consent. |
@@ -140,10 +134,10 @@ docs/
 └── plans/
     ├── plans.json                   # registry of plans in this repository
     ├── repo-profile.json            # /ce-init repository profile
-    ├── vc-policy.md                 # version-control and delivery policy
+    ├── vc-policy.md                 # version-control and release policy
     ├── review-policy.md             # human-owned review calibration
     ├── patterns.md                  # known repository hazards
-    ├── express-log.jsonl            # /ce-patch --express ledger
+    ├── express-log.jsonl            # accepted /ce-patch ledger
     └── <slug>/
         ├── feature-plan.md
         ├── shared-context.md
@@ -163,7 +157,6 @@ docs/
         ├── .metrics.jsonl
         ├── STATUS.md
         ├── ce-auto-build/<date>-run.md
-        ├── delivery/<date>-manifest.md
         ├── release/<date>-release.md
         └── evidence-pack/<date>/
 ```
@@ -242,8 +235,8 @@ The guards append decisions to `.claude/ce-guard-log.jsonl`, whose records form
 a hash chain that can reveal edits, deletion, or reordering. `hook-integrity.py`
 checks the installed hook files at session start and warns on drift from the
 shipped manifest. These controls are tamper-evident rather than tamper-proof: a
-process with broad shell access is not contained like it would be by an OS or
-container sandbox.
+process with broad shell access is not contained the way an OS or container
+sandbox would contain it.
 
 Read-only skills set a write lease at entry and clear it at exit.
 `/ce-init --write` creates the deny-only baseline and starter network policy. Without the
@@ -252,14 +245,12 @@ documents each default and limitation.
 
 The safety contract also applies above the hooks. Skills do not push, open or
 merge pull requests, deploy, rotate credentials, or publish packages on their
-own. `/ce-auto-build` may make checkpoint commits only on an isolated
-`auto-build/<slug>/<date>` branch when that mode is explicitly selected; it
-does not push or merge that branch.
+own. `/ce-auto-build` also does not create branches, commits, or worktrees; its
+final human review owns the complete working-tree diff.
 
-Plugin hooks do not run in the Managed Agent cookbooks or in a standalone CI
-gate. Those surfaces must not be described as having equivalent runtime
-confinement. Managed Agent hosts own tool grants and sandboxing; CI judges only
-the committed repository state supplied to it.
+Plugin hooks do not run in a standalone CI gate. CI judges only the committed
+repository state supplied to it and must not be described as equivalent runtime
+confinement.
 
 ## 5. Deterministic gates and the merge bar
 
@@ -333,11 +324,10 @@ checksum-verified copy-in templates described in
 CI and Azure Pipelines. Teams that want only the test-integrity check can use
 the separate [`action/test-integrity`](../action/test-integrity/README.md).
 
-The same gate runner is exposed by the plugin's stdio MCP server for an
-MCP-capable host. The server returns each underlying script's verdict and exit
-code; it does not reinterpret a failure as a pass. `scripts/drift_scan.py` is
-the post-merge complement: it re-projects committed plan/spec artifacts on a
-schedule and routes drift to `/ce-plan` or `/ce-spec`.
+`scripts/drift_scan.py` is the post-merge complement: it re-projects committed
+plan/spec artifacts on a schedule and routes drift to `/ce-plan` or `/ce-spec`.
+The plugin does not wrap these local gates in a built-in MCP server; teams add
+external connectors only where a repository workflow actually needs them.
 
 ## 6. Automation surfaces
 
@@ -351,26 +341,21 @@ not spawn nested task workers and do not gain push, merge, or deployment
 authority.
 
 `/ce-auto-build` is different: it is the in-plugin orchestrator for a complete
-plan. Stage 0 fixes the feature, retry, park, checkpoint, and budget limits.
-Each feature then moves through specification, implementation, verification,
-and review gates. Blocking product decisions are parked for a human rather
-than guessed. Run state is persisted under `ce-auto-build/`, and `--resume`
-re-derives state from disk instead of trusting chat memory. The final review
-surfaces provisional decisions and any downstream work that must be repeated
-if a decision changes.
-
-The Managed Agent cookbooks package four deployable workers around the same
-skills, but they are reference building blocks rather than a hosted workflow
-engine. Their host owns routing, state, retries, budgets, credentials, and
-approvals. Because plugin hooks do not load there, use ephemeral checkouts and
-restrict tools and network access at the host layer.
+plan. Stage 0 fixes the feature range, retry cap, park cap, and budget. Features
+then move in ship order, one at a time, through specification, deterministic
+lint, implementation, verification, and independent review. Blocking product,
+security-acceptance, destructive, architecture, and scope decisions are parked
+for a human rather than guessed. Run state is persisted under `ce-auto-build/`,
+and `--resume` re-derives state from disk instead of trusting chat memory. One
+integration verification and a final human review close the run; the workflow
+never creates a branch or lands its own output.
 
 ## 7. Evidence, evaluation, and honest limits
 
 Repository validation combines several layers:
 
 - `scripts/check.py` validates manifests, skill/agent inventory, model policy,
-  forked-script integrity, the README catalog, and delegated linters.
+  forked-script integrity, the README catalog, and delegated linters;
 - unit tests exercise hooks, gate scripts, the merge runner, eval tooling, and
   documentation drift checks;
 - the eval corpus runs skills against small fixture repositories and replays
@@ -406,8 +391,8 @@ scripts that must exist beside multiple skills are registered in
 copy and run `python3 scripts/fork_sync.py --write` so CI can verify byte
 identity.
 
-When a change adds or removes a skill, changes a gate or escalation path, or
-changes an artifact location, update this overview, the README catalog, and the
+When a change adds or removes a skill, alters a gate or escalation path, or
+moves an artifact, update this overview, the README catalog, and the
 Usage Matrix in the same change. Mechanical refactors and typo fixes do not
 need an architecture rewrite, but public behavior and public paths must never
 be left to inference from implementation code.

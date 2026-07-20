@@ -116,10 +116,6 @@
       "down_routable": true,
       "note": "the one sanctioned cheap-tier candidate, now more mechanical: the model only maps the spec into a neutral backlog.json (verbatim EARS) and a stdlib emitter renders every format; human-reviewed, feeds nothing downstream"
     },
-    "ce-ship-deliver": {
-      "tier": "strong",
-      "down_routable": false
-    },
     "ce-ship-document": {
       "tier": "strong",
       "down_routable": false

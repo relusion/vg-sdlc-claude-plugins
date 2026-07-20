@@ -41,7 +41,7 @@ Five lines or fewer. Pairs naturally with a short window (`--since` yesterday).
 hotspots by feature × escalation_type · any `gate: fail` in the window.
 
 **Omits:** testability split, complexity drift, HITL confirm/override detail,
-model-tier attestation, patch-lane signals, per-feature review breakdown.
+model-tier attestation, express-patch activity, per-feature review breakdown.
 
 ```
 Retro — <slug> · standup (<window or "all time">)

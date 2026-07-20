@@ -20,6 +20,6 @@ tools:
 mcp_servers: []
 
 skills:
-  - { path: ../../plugins/core-engineering/skills/ce-implement }
+  - { path: ../../../plugins/core-engineering/skills/ce-implement }
 
 callable_agents: []

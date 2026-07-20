@@ -11,9 +11,7 @@ REPO = Path(__file__).resolve().parents[1]
 class CorpusLint(unittest.TestCase):
     def _copy_repo(self, tmp: Path) -> Path:
         dst = tmp / "repo"
-        for sub in (
-            "scripts", "plugins", "managed-agent-cookbooks", "docs"
-        ):
+        for sub in ("scripts", "plugins", "docs"):
             shutil.copytree(REPO / sub, dst / sub)
         shutil.copy2(REPO / "README.md", dst / "README.md")
         shutil.copy2(REPO / "CLAUDE.md", dst / "CLAUDE.md")

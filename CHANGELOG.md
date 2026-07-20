@@ -7,6 +7,18 @@ that version and this file.
 
 ## Unreleased
 
+- **Simplified supported product surface (`core-engineering` 0.10.0).** Removed
+  enforcement-count publishing, duplicate CI validator runs, the built-in MCP
+  gate wrapper, and `/ce-ship-deliver`. The Managed Agent beta cookbooks and
+  their deploy/orchestration tooling now live in an unsupported experimental
+  archive and are excluded from mandatory validation and product navigation.
+  `/ce-auto-build` now has one bounded sequential spec → implement → verify →
+  independent-review profile with no worktrees, checkpoint branches, diagnose
+  enrichment, or advanced modes. `/ce-patch` is now always the conservative
+  two-file express lane; any failed or uncertain admission check routes directly
+  to `/ce-plan`, and no patch plan/spec/task bundle is created. `/ce-go`, the
+  usage matrix, and workflow recipes remain as the supported routing layer and
+  now describe the smaller surface.
 - **Domain onboarding.** Added `/ce-domain` to teach the business domain encoded
   by a repository with cited actors, nouns, lifecycles, rules, and known
   unknowns, distinct from `/ce-onboard`'s implementation walkthrough.
@@ -16,8 +28,8 @@ that version and this file.
 - **Public-release documentation cleanup.** Added an audience-based
   `docs/README.md`; consolidated evaluation guidance into `evals/README.md`;
   colocated contributor standards under `docs/contributing/` and experimental
-  orchestration under `managed-agent-cookbooks/`; removed the stale internal
-  implementation plan, decision log, and duplicate workflow catalog. Runtime
+  orchestration under `experimental/managed-agent-cookbooks/`; removed the
+  stale internal implementation plan, decision log, and duplicate workflow catalog. Runtime
   model-attestation state is now gitignored instead of tracked. Public claims,
   release-pin guidance, security-control descriptions, eval counts, links, and
   validation checks were updated to match the shipped behavior.

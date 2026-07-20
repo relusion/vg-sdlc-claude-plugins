@@ -30,11 +30,11 @@ Primary references used for vocabulary and alignment:
 | Risk area | Relevant external vocabulary | Framework control | Evidence in this repo | Residual owner |
 |---|---|---|---|---|
 | Prompt injection and malicious repository text | OWASP LLM Top 10: prompt injection; OWASP Agentic: malicious task/tool instructions | Read-only skills must cite repository facts and ignore instructions embedded in analyzed files. Adversarial evals cover malicious fixture docs that ask the model to override policy or exfiltrate data. | `evals/scenarios.json` (`EVAL-011`, `EVAL-012`), `evals/fixtures/adversarial-instructions/`, `/ce-ask`, `/ce-impact` citation contracts | Skill author and reviewer |
-| Excessive agency | OWASP LLM Top 10: excessive agency; OWASP Agentic: tool misuse and unsafe delegation | Skills separate decision, implementation, verification, review, delivery, and release. Release never deploys; delivery never pushes; plugin agents are leaf agents without nested `Task`. The write-scope guard enforces session leases for read-only skills over a `/ce-init`-seeded deny-only baseline; git-guard tiers are env-hardenable to deny and fail closed on malformed Bash payloads. | `plugins/core-engineering/skills/ce-ship-release/SKILL.md`, `ce-ship-deliver/SKILL.md`, `scripts/check.py` agent leaf check, `plugins/core-engineering/hooks/git-guard.py`, `plugins/core-engineering/hooks/write-scope-guard.py` | Human release owner |
+| Excessive agency | OWASP LLM Top 10: excessive agency; OWASP Agentic: tool misuse and unsafe delegation | Skills separate decision, implementation, verification, review, and release. Release never deploys; plugin agents are leaf agents without nested `Task`. The write-scope guard enforces session leases for read-only skills over a `/ce-init`-seeded deny-only baseline; git-guard tiers are env-hardenable to deny and fail closed on malformed Bash payloads. | `plugins/core-engineering/skills/ce-ship-release/SKILL.md`, `scripts/check.py` agent leaf check, `plugins/core-engineering/hooks/git-guard.py`, `plugins/core-engineering/hooks/write-scope-guard.py` | Human release owner |
 | Sensitive information disclosure | OWASP LLM Top 10: sensitive information disclosure | `env-guard` blocks high-risk dotenv and `/proc/.../environ` reads on the Claude Code surface (read side); `net-guard` is the send side — over a `/ce-init`-seeded egress allowlist it confirms non-allowlisted outbound calls and hard-denies a guarded-secret upload payload; the merge bar's `secrets-guard` advisory gate scans the credentials a change ADDS (base..head, values redacted) and renders a machine verdict on any CI substrate — the first-party producer of the release package's secret-scan evidence row; CI additionally runs gitleaks with redaction and full history; security probes redact secrets in outputs. | `plugins/core-engineering/hooks/env-guard.py`, `plugins/core-engineering/hooks/net-guard.py`, `plugins/core-engineering/skills/ce-probe-infra/scripts/secrets-guard.py`, `.github/workflows/secret-scan.yml`, `/ce-probe-infra` and `/ce-probe-sec` docs | Repository owner; secrets manager owner |
 | Supply-chain dependency drift | OWASP LLM Top 10: supply-chain risk | `dep-guard.py` detects undeclared or typo-suspicious dependencies in implementation flows; byte-identical copies are enforced across callers from the machine-readable fork registry (`fork_sync.py --write` re-syncs). | `plugins/core-engineering/fork-manifest.json`, `ce-implement/scripts/dep-guard.py`, `ce-auto-build/scripts/dep-guard.py`, `ce-verify/scripts/dep-guard.py`, `scripts/check.py`, `scripts/fork_sync.py`, `scripts/supply_chain_check.py` | Implementer and reviewer |
 | CI and tool supply chain | SLSA, OpenSSF Scorecard | GitHub Actions references are pinned to commit SHAs; downloaded gitleaks tarball is checksum-verified; strict plugin validation and offline gates run in CI. | `.github/workflows/*.yml`, `scripts/supply_chain_check.py`, `scripts/portability_check.py` | Maintainer updating CI actions |
-| SBOM and provenance evidence | SLSA provenance; CycloneDX/SPDX SBOM | Release and delivery skills inventory SBOM, provenance, signature, checksum, and OpenSSF Scorecard evidence and make absence a release finding. `scripts/enterprise_evidence.py` can inventory local evidence and optionally run installed local SBOM/vulnerability generators. It does not fabricate attestations. | `ce-ship-release/SKILL.md`, `ce-ship-deliver/SKILL.md`, `scripts/enterprise_evidence.py` | Build/release engineering |
+| SBOM and provenance evidence | SLSA provenance; CycloneDX/SPDX SBOM | The release skill inventories SBOM, provenance, signature, checksum, and OpenSSF Scorecard evidence and makes absence a release finding. `scripts/enterprise_evidence.py` can inventory local evidence and optionally run installed local SBOM/vulnerability generators. It does not fabricate attestations. | `ce-ship-release/SKILL.md`, `scripts/enterprise_evidence.py` | Build/release engineering |
 | Tool and plugin integrity | OWASP Agentic: unsafe plugin/tool design | Strict manifest validation, corpus lint, model-policy validation, known slash surface, and no stale aliases. | `scripts/check.py`, `scripts/corpus_lint.py`, `.github/workflows/plugin-validate.yml`, `plugins/core-engineering/model-policy.json` | Plugin maintainer |
 | In-session subversion of a guard hook | OWASP Agentic: unsafe tool/plugin design; supply-chain (self-modifying tooling) | The PreToolUse guards cannot detect their own subversion — an in-session `sed -i` on `env-guard.py` disarms it silently. `hooks/hook-integrity.py` runs at **SessionStart**, recomputes the sha256 of every `hooks/*.py` + `hooks.json`, and warns loudly (never blocks) on any drift from the shipped `integrity-manifest.json`. `scripts/hook_manifest.py --check`, run by `scripts/check.py` §5d, makes a hook edit that skipped a manifest refresh CI-red. Tamper-*evidence*, not tamper-proofing: an agent with Bash can rewrite the manifest too, but the *committed* manifest is CI-verified, so any drift is auditable in the reviewable diff (the same claim class as the merge bar's `sha256sum -c` step). | `plugins/core-engineering/hooks/hook-integrity.py`, `plugins/core-engineering/hooks/integrity-manifest.json`, `scripts/hook_manifest.py`, `scripts/check.py`, `tests/test_hook_manifest.py` | Plugin maintainer refreshing the manifest on an intentional hook change |
 | AI-authored changes merging on green checks alone | Segregation of duties; SLSA source/build platform controls; OWASP Agentic: unsafe delegation | `merge-policy.json` encodes a two-conjunct merge bar (machine integrity gates AND a human/two-human validity attestation, with no `none` value); `scripts/gate_runner.py` executes the integrity conjunct as one machine verdict per PR; adopters install the composite action `action/merge-bar` pinned at a full 40-hex commit SHA (the preferred path — the action refuses a movable ref at run time, and the one pin fetches runner, policy, and gate scripts atomically) or copy in `templates/adopter-ci/gates.yml` (the documented air-gapped fallback), which refuses a non-SHA `TOOLKIT_REF`, fetches the toolkit at that pinned commit, and verifies all five decision-making files (runner, policy, spec-lint, test-guard, dep-guard) via `sha256sum -c` before running; both surfaces read any policy override from the base ref only, while they union the declared-deps list from base and head, so a same-PR declaration remains governed by the unchanged base policy and its review escalation; every verdict records the policy path + sha256 and the resolved base/head commit SHAs. The bar proves integrity, not function — it never builds the project or runs its test suite (see "What the merge bar does not prove" below). | `plugins/core-engineering/merge-policy.json`, `scripts/gate_runner.py`, `templates/adopter-ci/gates.yml`, `merge-verdict.json` in CI logs, `tests/test_gate_runner.py` | Adopter branch-protection config (required status check + required review count), a CODEOWNERS/ruleset review requirement on `.github/**`, and the adopter's own build/test job kept as a second required check |
@@ -47,8 +47,8 @@ Primary references used for vocabulary and alignment:
 
 These controls are deterministic and CI-checkable:
 
-- `scripts/check.py` validates manifests, frontmatter, cookbook references,
-  byte-identical gate copies, model policy, README catalog drift, corpus hygiene,
+- `scripts/check.py` validates manifests, frontmatter, byte-identical gate copies,
+  model policy, README catalog drift, corpus hygiene,
   and now enterprise hardening drift through `scripts/supply_chain_check.py`.
 - `scripts/supply_chain_check.py` validates pinned GitHub Actions, checksum
   verified secret scanning, supply-chain release/delivery prompts, adversarial
@@ -82,7 +82,7 @@ These controls are deterministic and CI-checkable:
   checksum, Scorecard, and scan evidence; with `--execute`, it can run installed
   local `syft` and `osv-scanner` generators.
 - `.github/workflows/plugin-validate.yml` runs the offline gates, eval smoke dry
-  run, unit tests, cookbook dry-runs, and strict Claude plugin validation.
+  run, unit tests, and strict Claude plugin validation.
 - `.github/workflows/secret-scan.yml` runs gitleaks over full git history with
   redaction and checksum-verifies the downloaded binary archive.
 - `.github/workflows/version-bump.yml` enforces plugin version bump discipline on
@@ -97,8 +97,6 @@ These controls are workflow contracts enforced by skill design and review:
 - `/ce-ship-release` records SBOM, SLSA provenance, signatures, checksums, and
   OpenSSF Scorecard evidence as readiness inputs. Missing evidence becomes a
   finding at the Release-Readiness Gate.
-- `/ce-ship-deliver` inventories supply-chain evidence files while keeping the
-  delivery branch code-focused and never pushing.
 - `/ce-ask` and `/ce-impact` are read-only, citation-bound, and tested against
   malicious repository instructions.
 - `write-scope-guard.py` enforces a repo/session write lease when
@@ -221,7 +219,7 @@ renders no compliance or conformity judgment (its own `honest_limitations` field
 says so machine-readably). It is **tamper-evident, not tamper-proof** — the guard
 log's hash chain detects any edit, deletion, or reorder except wholesale
 tail-truncation against a prior recorded chain head. Model identity is best-effort:
-a hook-less or Managed-Agent run records `model=null`, never a guessed tier. A
+a hook-less run records `model=null`, never a guessed tier. A
 populated pack proves which artifacts exist and what was recorded; it does not prove
 the system is compliant, safe, or fit for a regulated deployment — a human control
 owner reads it and signs, or does not.
@@ -241,7 +239,7 @@ Current gaps are explicit:
 - `net-guard` is an egress **checkpoint**, not a network sandbox: it screens the
   common `curl`/`wget`/`WebFetch` egress and upload vectors but does not cover DNS
   tunneling, interpreter/shell sockets, MCP-mediated egress, `$VAR` host
-  indirection, or the Managed-Agent surface (which loads no hooks). Its
+  indirection, or execution surfaces that do not load plugin hooks. Its
   guarded-secret upload deny is a co-occurrence signal, so a public `.pem`/`.key`
   can be a false deny.
 - Adversarial evals are a floor, not a red-team program. Add fixtures when a real

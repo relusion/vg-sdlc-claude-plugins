@@ -627,88 +627,46 @@
       "fixture": "minimal-service",
       "profile": "full",
       "recommended_budget_usd": 4.0,
-      "prompt": "Fix the typo in the paid invoice status label.",
+      "prompt": "Fix the typo in the archived item status label.",
       "expected_files": [
-        "templates/invoice.py"
+        "labels.py",
+        "checks/labels_check.py"
       ],
       "gate_checks": [
         {
           "type": "json_fields",
-          "path": "evals/golden/EVAL-009/eligibility.json",
+          "path": "evals/golden/EVAL-009/express.json",
           "equals": {
-            "slug": "paid-status-label-typo",
-            "file_cap": 5,
-            "frozen_files.0": "templates/invoice.py",
-            "clauses.C1_bounded_surface.verdict": "yes",
-            "clauses.C2_no_durable_noun.verdict": "yes",
-            "clauses.C3_no_new_interface.verdict": "yes",
-            "clauses.C4_no_blast_radius.verdict": "yes",
-            "clauses.C5_reversible.verdict": "yes",
-            "clauses.C6_no_reviewer_trigger.verdict": null,
-            "clauses.C6_no_reviewer_trigger.attested_by": "pending",
-            "clauses.C7_no_open_unknown.verdict": null,
-            "clauses.C7_no_open_unknown.attested_by": "pending"
-          },
-          "contains": {
-            "clauses.C6_no_reviewer_trigger.evidence": [
-              "awaiting human attestation"
-            ],
-            "clauses.C7_no_open_unknown.evidence": [
-              "awaiting human attestation"
-            ]
+            "desc": "Fix the typo in the archived item status label.",
+            "files.0": "labels.py",
+            "files.1": "checks/labels_check.py"
           },
           "min_lengths": {
-            "frozen_files": 1
+            "files": 2
           }
         }
       ],
       "output_checks": {
         "required_substrings": [
-          "Eligibility Gate",
-          "C6",
-          "C7",
-          "Consent",
-          "Reply `proceed`",
-          "I will not touch any code until you answer"
+          "Gate 1 of 1",
+          "Patch acceptance",
+          "red",
+          "green",
+          "Accept",
+          "/ce-plan"
         ],
         "forbidden_substrings": [
-          "verification.md",
-          "Patch complete",
-          "implemented"
+          "Eligibility Gate",
+          "full patch lane",
+          "eligibility.json"
         ]
       },
       "artifact_checks": [
         {
-          "type": "json_fields",
-          "path_glob": "docs/plans/patch-*-paid-status-label-typo/specs/00-paid-status-label-typo/eligibility.json",
-          "equals": {
-            "slug": "paid-status-label-typo",
-            "file_cap": 5,
-            "frozen_files.0": "templates/invoice.py",
-            "clauses.C1_bounded_surface.verdict": "yes",
-            "clauses.C4_no_blast_radius.verdict": "yes",
-            "clauses.C6_no_reviewer_trigger.verdict": null,
-            "clauses.C6_no_reviewer_trigger.attested_by": "pending",
-            "clauses.C7_no_open_unknown.verdict": null,
-            "clauses.C7_no_open_unknown.attested_by": "pending"
-          },
-          "contains": {
-            "clauses.C6_no_reviewer_trigger.evidence": [
-              "awaiting human attestation"
-            ],
-            "clauses.C7_no_open_unknown.evidence": [
-              "awaiting human attestation"
-            ]
-          },
-          "min_lengths": {
-            "frozen_files": 1
-          }
-        },
-        {
           "type": "file_contains",
-          "path": "templates/invoice.py",
+          "path": "labels.py",
           "substrings": [
-            "\"paid\": \"Piad\""
+            "\"archived\": \"Archived\""
           ]
         }
       ]
@@ -728,18 +686,16 @@
       ],
       "output_checks": {
         "required_substrings": [
-          "patch-eligible",
-          "C2",
-          "C6",
-          "durable noun",
-          "persistence",
+          "E1",
+          "E5",
+          "schema",
           "/ce-plan",
-          "Nothing was written to disk"
+          "before editing"
         ],
         "forbidden_substrings": [
-          "eligibility.json",
-          "verification.md",
-          "Patch complete"
+          "Gate 1 of 1",
+          "Patch complete",
+          "implemented the preference"
         ]
       },
       "artifact_checks": [
@@ -1009,7 +965,7 @@
       "fixture": "auto-build-three-feature",
       "profile": "full",
       "recommended_budget_usd": 20.0,
-      "prompt": "Build the entire snippet-vault plan (features 01..03) end-to-end. This is a NON-INTERACTIVE headless run: pre-answer every Stage-0 kickoff gate inline and never pause for an interactive gate. Build preset: default-safe. Parallelism: off (sequential). Challenger: material-only. Review gate: advisory. Diagnose mode: ON. Checkpoint Mode: isolated-branch — commit each feature to an isolated auto-build/snippet-vault/<date> branch; if the working copy is not a git repo, initialize one for that branch or degrade to Checkpoint Mode none and record it; never touch the human branch, never push, never open a PR, never merge. Bounds: feature cap 3, verification-retry cap 3, consecutive-park cap 3, token budget 2000000. Working-tree baseline: proceed (the fixture copy is clean). Foundational sweep: the in-memory store and the Python/pytest stack are settled, so there are no foundational unknowns. Then run autonomously through all three features and produce the Stage-3 end-review run report. A feature that hits a blocking product decision must PARK (never guess it); a feature whose seeded acceptance tests cannot pass within the retry cap must end failed rather than weaken or delete a test.",
+      "prompt": "Build the entire snippet-vault plan (features 01..03) end-to-end with /ce-auto-build's fixed sequential workflow. This is a NON-INTERACTIVE headless evaluation. Treat the following as the human's Gate 1 Proceed response: exact scope 01..03 in ship order; clean fixture baseline; no required capability gaps; token/compute budget 2000000; per-feature retry cap 3; consecutive-park cap 3. Run one feature at a time through specification, implementation, deterministic gates, and independent review. Never invent the unresolved sharing decision: park 02-share-snippet as product. Never weaken or delete the seeded export acceptance test: retry 03-export-snippets only within the approved cap, then mark it failed. Produce the status board, schema-version-2 run state, decision ledger, feature evidence, and Stage-3 run report, then stop at Gate 2 for human review. Perform no version-control, release, deployment, credential, destructive, or external-write action.",
       "expected_files": [
         "docs/plans/snippet-vault/plan.json",
         "docs/plans/snippet-vault/feature-plan.md",
@@ -1025,7 +981,15 @@
           "02-share-snippet",
           "03-export-snippets",
           "parked",
-          "failed"
+          "failed",
+          "Gate 2"
+        ],
+        "forbidden_substrings": [
+          "Build preset",
+          "Challenger",
+          "Diagnose mode",
+          "Checkpoint Mode",
+          "isolated-branch"
         ]
       },
       "artifact_checks": [
@@ -1039,7 +1003,18 @@
             "02-share-snippet",
             "03-export-snippets",
             "Parked",
-            "Integration"
+            "Failed",
+            "Budget:",
+            "Retry cap:",
+            "Park cap:",
+            "End-Review"
+          ],
+          "forbidden_substrings": [
+            "Build preset",
+            "Challenger",
+            "Diagnose mode",
+            "Checkpoint Mode",
+            "isolated-branch"
           ]
         },
         {
@@ -1058,8 +1033,14 @@
           "type": "json_fields",
           "path_glob": "docs/plans/snippet-vault/ce-auto-build/*-state.json",
           "equals": {
-            "schema_version": 1,
+            "schema_version": 2,
             "slug": "snippet-vault",
+            "selected_features.0": "01-create-snippet",
+            "selected_features.1": "02-share-snippet",
+            "selected_features.2": "03-export-snippets",
+            "bounds.budget": 2000000,
+            "bounds.retry_cap": 3,
+            "bounds.park_cap": 3,
             "features.01-create-snippet.status": "done",
             "features.02-share-snippet.status": "parked",
             "features.03-export-snippets.status": "failed",
@@ -1069,15 +1050,30 @@
             "features.02-share-snippet.park_class": [
               "product"
             ]
+          },
+          "min_lengths": {
+            "baseline": 40,
+            "selected_features": 3
           }
         },
         {
           "type": "file_contains",
-          "path": "docs/plans/snippet-vault/specs/03-export-snippets/diagnosis.md",
+          "path_glob": "docs/plans/snippet-vault/ce-auto-build/*-state.json",
+          "forbidden_substrings": [
+            "preset",
+            "challenger",
+            "diagnose",
+            "checkpoint",
+            "worktree"
+          ]
+        },
+        {
+          "type": "file_contains",
+          "path_glob": "docs/plans/snippet-vault/ce-auto-build/*-ledger.jsonl",
           "substrings": [
-            "DX-",
-            "03-export-snippets",
-            "Classification"
+            "02-share-snippet",
+            "product",
+            "provisional"
           ]
         },
         {
@@ -1089,6 +1085,15 @@
             "AC-1",
             "Try It Yourself"
           ]
+        },
+        {
+          "type": "json_fields",
+          "path": "docs/plans/snippet-vault/specs/01-create-snippet/review-summary.json",
+          "equals": {
+            "status": "pass",
+            "feature_id": "01-create-snippet",
+            "blocking_high": 0
+          }
         }
       ]
     },

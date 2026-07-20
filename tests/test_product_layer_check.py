@@ -38,11 +38,10 @@ def inject_pass_row(bench_path: Path, eval_id: str, date: str = "2026-06-27") ->
 
 def copy_repo(tmp: Path) -> Path:
     dst = tmp / "repo"
-    # check_doc_links resolves references into templates/, tests/, evals/, and
-    # managed-agent-cookbooks/ too, so the copy carries every referenced tree
-    # (never the gitignored evals/runs/) to stay faithful to a fresh checkout.
-    for sub in (".github", "action", "docs", "plugins", "scripts", "templates", "tests",
-                "managed-agent-cookbooks"):
+    # check_doc_links resolves references into templates/, tests/, and evals/,
+    # so the copy carries every referenced tree (never the gitignored
+    # evals/runs/) to stay faithful to a fresh checkout.
+    for sub in (".github", "action", "docs", "plugins", "scripts", "templates", "tests"):
         shutil.copytree(REPO / sub, dst / sub, ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(REPO / "evals", dst / "evals",
                     ignore=shutil.ignore_patterns("__pycache__", "runs"))
@@ -85,19 +84,20 @@ class ProductLayerCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("docs/GETTING-STARTED.md", res.stderr)
 
-    def test_ci_must_run_product_layer_check(self):
+    def test_ci_must_run_umbrella_check(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             workflow = repo / ".github" / "workflows" / "plugin-validate.yml"
             workflow.write_text(
                 workflow.read_text(encoding="utf-8").replace(
-                    "python3 scripts/product_layer_check.py", "python3 scripts/check.py"
+                    "python3 scripts/check.py --no-install-hooks",
+                    "python3 scripts/check.py --skip-validation",
                 ),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
-            self.assertIn("missing product layer check step", res.stderr)
+            self.assertIn("missing umbrella validation step", res.stderr)
 
     def test_runtime_sidecars_must_be_gitignored_and_bootstrapped(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -114,7 +114,7 @@ class ProductLayerCheck(unittest.TestCase):
             self.assertIn(".claude/ce-write-scope.session.json", res.stderr)
 
 
-class FreshnessAndCounts(unittest.TestCase):
+class Freshness(unittest.TestCase):
     def test_stale_as_of_date_fails(self):
         import re
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,67 +127,6 @@ class FreshnessAndCounts(unittest.TestCase):
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("days old", res.stderr)
-
-    def test_count_claim_diverging_from_counts_file_fails(self):
-        import re
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            readme = repo / "README.md"
-            text = readme.read_text(encoding="utf-8")
-            bumped = re.sub(r"(\d+) repo checks", lambda m: f"{int(m.group(1)) + 1} repo checks", text, count=1)
-            self.assertNotEqual(text, bumped, "fixture drift: no count claim in README")
-            readme.write_text(bumped, encoding="utf-8")
-            res = run("--root", str(repo))
-            self.assertEqual(res.returncode, 1)
-            self.assertIn("README.md claims", res.stderr)
-            self.assertIn("enforcement-counts.json records", res.stderr)
-
-    def test_all_sites_agreeing_on_a_stale_number_fails(self):
-        # The drift class agreement-checking could never catch: all three
-        # sites quoting the same WRONG number. Truth lives in the derived
-        # docs/enforcement-counts.json now.
-        import json
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            counts = json.loads(
-                (repo / "docs" / "enforcement-counts.json").read_text(encoding="utf-8"))
-            real, wrong = counts["repo_checks"], counts["repo_checks"] + 9
-            for doc_rel in ("README.md", "docs/COMPARISON.md"):
-                path = repo / doc_rel
-                text = path.read_text(encoding="utf-8")
-                needle = f"{real} repo checks"
-                self.assertIn(needle, text, f"fixture drift: no count claim in {doc_rel}")
-                path.write_text(text.replace(needle, f"{wrong} repo checks", 1),
-                                encoding="utf-8")
-            bench = repo / "docs" / "BENCHMARKS.md"
-            lines = bench.read_text(encoding="utf-8").splitlines(keepends=True)
-            for i, line in enumerate(lines):
-                if "`scripts/check.py`" in line:
-                    self.assertIn(f"{real} checks", line,
-                                  "fixture drift: BENCHMARKS check.py row")
-                    lines[i] = line.replace(f"{real} checks", f"{wrong} checks", 1)
-                    break
-            bench.write_text("".join(lines), encoding="utf-8")
-            res = run("--root", str(repo))
-            self.assertEqual(res.returncode, 1)
-            self.assertIn("enforcement-counts.json records", res.stderr)
-            self.assertIn("--write-counts", res.stderr)
-
-    def test_missing_counts_file_errors_and_falls_back_to_agreement(self):
-        import re
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            (repo / "docs" / "enforcement-counts.json").unlink()
-            readme = repo / "README.md"
-            text = readme.read_text(encoding="utf-8")
-            bumped = re.sub(r"(\d+) repo checks", lambda m: f"{int(m.group(1)) + 1} repo checks", text, count=1)
-            self.assertNotEqual(text, bumped, "fixture drift: no count claim in README")
-            readme.write_text(bumped, encoding="utf-8")
-            res = run("--root", str(repo))
-            self.assertEqual(res.returncode, 1)
-            self.assertIn("enforcement-counts.json: missing", res.stderr)
-            self.assertIn("disagree", res.stderr)
-
 
 class SupervisionSurface(unittest.TestCase):
     """The mid-flight/unattended orientation surface must not silently vanish."""
@@ -218,19 +157,6 @@ class SupervisionSurface(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("'--resume'", res.stderr)
             self.assertIn("'status-board'", res.stderr)
-
-    def test_missing_managed_agent_caveat_in_getting_started_fails(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            started = repo / "docs" / "GETTING-STARTED.md"
-            text = started.read_text(encoding="utf-8")
-            gutted = text.replace("do not load on the managed-agent surface",
-                                  "load everywhere")
-            self.assertNotEqual(text, gutted, "fixture drift: caveat anchor not found")
-            started.write_text(gutted, encoding="utf-8")
-            res = run("--root", str(repo))
-            self.assertEqual(res.returncode, 1)
-            self.assertIn("do not load on the managed-agent surface", res.stderr)
 
     def test_readme_must_reference_docs_index(self):
         with tempfile.TemporaryDirectory() as tmp:

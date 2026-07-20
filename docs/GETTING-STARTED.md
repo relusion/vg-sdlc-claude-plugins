@@ -60,13 +60,13 @@ readable from across the room.
 ## First 10 Minutes
 
 **One command to remember in week one:** `/ce-go <what you want>`. It is the
-front door — describe the outcome in plain language ("why does export fail",
+front door: describe the outcome in plain language ("why does export fail",
 "score this idea", "is this code safe to ship") and it inspects repo state (a
-plan on disk? a spec for the named feature? a running target?), routes to the one
-right skill, shows its reasoning, and asks you to confirm before it hands off. It
-routes, never executes — so the practical surface you need to learn shrinks from
-~30 skill names to one. The steps below are what `/ce-go` routes *to*; run them
-directly once you know which you want.
+plan on disk? a spec for the named feature? a running target?), routes to the
+right skill, shows its reasoning, and asks you to confirm before it hands off.
+It routes, never executes — so instead of learning ~30 skill names, you learn
+one. The steps below are what `/ce-go` routes *to*; run them directly once you
+know which one you want.
 
 ```text
 /ce-go The export job silently stops after a few hundred rows.
@@ -85,10 +85,10 @@ Abort"* — then it starts the chosen skill. It writes nothing itself.
    Expected output: `docs/plans/repo-profile.json`, `vc-policy.md`,
    `review-policy.md`, and `patterns.md` when missing, plus the
    `.claude/ce-write-scope.json` deny-only write-scope baseline (git internals
-   and the lease file itself are never agent-writable) and `.gitignore`
-   entries for the four runtime guard/session files
+   and the lease file itself are never agent-writable). It also appends
+   `.gitignore` entries for the four runtime guard/session files
    (`.claude/ce-write-scope.json`, `.claude/ce-write-scope.session.json`,
-   `.claude/ce-guard-log.jsonl`, `.claude/ce-session-model.json`) appended when
+   `.claude/ce-guard-log.jsonl`, `.claude/ce-session-model.json`) when they are
    absent.
 
 2. Ask one grounded question:
@@ -121,16 +121,14 @@ Abort"* — then it starts the chosen skill. It writes nothing itself.
 5. If the work is genuinely small:
 
    ```text
-   /ce-patch Fix the typo in the paid invoice status label.
+   /ce-patch Fix the typo in the archived item status label.
    ```
 
-   Expected output: an eligibility gate before code edits. If the change proves
-   structural, the patch lane routes to `/ce-plan`. For a featherweight change
-   (≤ 2 files, no auth/secrets/payments/migration/i18n/a11y surface), add
-   `--express` for the one-gate express fold: a mechanical screen, a test-first
-   edit behind a single combined gate, and one line in
-   `docs/plans/express-log.jsonl` — no spec artifacts. A failed screen falls back
-   to the full lane.
+   Expected output: a mechanical admission screen for a change bounded to at
+   most two files. An admitted patch runs test-first, shows the diff and
+   evidence at one human gate, and records one line in
+   `docs/plans/express-log.jsonl` after acceptance. If the screen is uncertain
+   or the change is structural, `/ce-patch` stops and routes to `/ce-plan`.
 
 ## Common First Runs
 
@@ -142,25 +140,18 @@ Abort"* — then it starts the chosen skill. It writes nothing itself.
 | I have a raw feature idea | `/ce-brief` -> `/ce-plan` | Brief, plan, feature decomposition |
 | I have an approved plan feature | `/ce-spec` -> `/ce-implement` | `ce-spec.md`, `tasks.json`, code, tests, verification |
 | I need confidence before handoff | `/ce-review` + `/ce-verify` | Review findings and behavior-verification evidence |
-| I need release readiness | `/ce-ship-deliver` -> `/ce-ship-release` | Delivery manifest and release decision package |
+| I need release readiness | `/ce-ship-release` | Release decision package and changelog proposal |
 | I need a risk probe | `/ce-probe-infra`, `/ce-probe-sec`, `/ce-probe-perf`, or `/ce-ux-audit` (UX) | Evidence-backed findings within each probe boundary |
-| I need hosted automation | Managed-agent flow | `spec-author` -> `spec-impl` -> `quality-gate` -> `release-coordinator` |
-
-**Enforcement caveat:** plugin hooks (write leases, `git-guard`, deterministic
-gate enforcement) do not load on the managed-agent surface. Use that
-experimental path only when the host supplies equivalent sandboxing, approvals,
-and policy enforcement; see
-`managed-agent-cookbooks/ORCHESTRATION.md`.
 
 For the full router, use `docs/USAGE-MATRIX.md`. For recipes with stop
 conditions, use `docs/WORKFLOW-RECIPES.md`.
 
 ## What It Costs
 
-Skills make model calls on your Claude plan or API key. Measured USD floors from
-the live eval harness — on deliberately tiny fixture repos, so treat these as
-floors, not averages; real repositories cost more (method, caveats, and
-reproduction commands in [docs/BENCHMARKS.md](./BENCHMARKS.md)):
+Skills make model calls on your Claude plan or API key. The floors below were
+measured by the live eval harness on deliberately tiny fixture repos — treat
+them as floors, not averages; real repositories cost more. Method, caveats, and
+reproduction commands are in [docs/BENCHMARKS.md](./BENCHMARKS.md):
 
 | Path | Measured floor (USD) |
 |---|---|
@@ -169,7 +160,7 @@ reproduction commands in [docs/BENCHMARKS.md](./BENCHMARKS.md)):
 | `/ce-plan` decomposition · `/ce-implement` one feature · `/ce-probe-infra` audit | ~$3 |
 | `/ce-spec` one implementation-ready spec · `/ce-patch` lane | ~$4 |
 
-Summing those floors, one tiny feature through plan → spec → implement →
+Add those floors up and one tiny feature through plan → spec → implement →
 review is ≈ $12 of model calls. Anything autonomous is budget-capped up front:
 `/ce-auto-build` asks for a token budget at Stage 0, and executed evals refuse
 to run without an explicit `--max-budget-usd`.
@@ -188,11 +179,11 @@ The framework is intentionally conservative:
 - Read-only skills hold a **write lease** during their session (a small
   `.claude/ce-write-scope.json` policy the write guard enforces, bound to the
   session that set it). A lease left behind by a **dead** session self-heals:
-  the guard sees a new session no longer owns it, auto-replaces it with the
-  deny-only baseline, and asks you to approve **once** — no hidden JSON file to
-  hunt down and hand-delete. A deny you *do* see means a **live** skill still
-  holds the lease and the edit is outside its declared scope; let that skill
-  finish or reconcile with it rather than forcing the write.
+  the guard notices the current session does not own it, auto-replaces it with
+  the deny-only baseline, and asks you to approve **once** — no hidden JSON
+  file to hunt down and hand-delete. A deny you *do* see means a **live** skill
+  still holds the lease and the edit is outside its declared scope; let that
+  skill finish or reconcile with it rather than forcing the write.
 
 ## Troubleshooting
 
@@ -200,8 +191,7 @@ The framework is intentionally conservative:
 |---|---|---|
 | A skill picked the wrong lane | The request was ambiguous or too broad | Invoke the intended skill directly, for example `/ce-impact ...` |
 | `/ce-impact` refuses | The change description is too thin | Add subject, action, and desired outcome |
-| `/ce-patch` stops before editing | The patch charter needs human consent or the change is structural | Answer the gate or promote to `/ce-plan` |
-| `/ce-patch --express` dropped to the full lane | The mechanical express screen failed — more than 2 files, a reviewer-trigger surface, a cross-feature collision, or a dependency manifest | Expected: express is refused, never shrunk. Continue on the full `/ce-patch` lane, or narrow the change and re-run `--express` |
+| `/ce-patch` routes to `/ce-plan` before editing | The screen found more than 2 files, a reviewer-trigger surface, a cross-feature collision, a dependency manifest, or uncertain scope | Narrow the request or continue with `/ce-plan`; patch never silently expands its scope |
 | A probe refuses | Target, environment, or authorization is unsafe or unclear | Use a local/dedicated target and pass the consent gate |
 | A release is NO-GO | Verification, review, rollback, or supply-chain evidence is missing | Run the routed skill or have the human accept the gap |
 | Claude asked me to confirm a `git push` / PR command | The `git-guard` hook backstop is working: shared-history operations (`git push`, `gh pr create`/`merge`, commits on the protected branch) default to an `ask` confirmation | Approve or refuse the prompt. To hard-enforce instead, set the per-operation env tiers `CE_GIT_GUARD_PUSH` / `CE_GIT_GUARD_PR` / `CE_GIT_GUARD_COMMIT` to `deny` (see `plugins/core-engineering/hooks/README.md`) |
@@ -212,8 +202,6 @@ The framework is intentionally conservative:
 - `docs/README.md` for the audience-based documentation index.
 - `docs/USAGE-MATRIX.md` for the canonical command router.
 - `docs/WORKFLOW-RECIPES.md` for common end-to-end paths.
-- `managed-agent-cookbooks/ORCHESTRATION.md` for experimental hosted-agent
-  handoffs and host gates.
 - `docs/HOW-IT-WORKS.md` for the framework model.
 - `docs/ENTERPRISE-HARDENING.md` for control mapping and supply-chain evidence.
 - `evals/README.md` for behavior-evaluation setup and grading.

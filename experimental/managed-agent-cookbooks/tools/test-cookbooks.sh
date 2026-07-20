@@ -5,9 +5,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fail=0
-for d in "$ROOT"/managed-agent-cookbooks/*/; do
+for d in "$ROOT"/*/; do
+  [[ -f "$d/agent.yaml" ]] || continue
   slug=$(basename "$d")
-  if ! bash "$ROOT/scripts/deploy-managed-agent.sh" "$slug" --dry-run 2>&1 | tail -n +2 | python3 -c "
+  if ! bash "$ROOT/tools/deploy-managed-agent.sh" "$slug" --dry-run 2>&1 | tail -n +2 | python3 -c "
 import json,sys
 b=json.load(sys.stdin)
 errs=[]

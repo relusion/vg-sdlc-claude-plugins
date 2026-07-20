@@ -138,7 +138,7 @@ git push origin <version>                # the human pushes
 — requires `release` in `retro`'s stage enum) plus a `gate` line
 (`gate: pass|fail`) for the go/no-go. For each blocker the gate routes, append an
 `escalation` line: an **enum** route (`/ce-spec`, `/ce-plan`) uses `escalation_type`; a
-**lateral** route (`/ce-verify`, `/ce-review`, `/ce-ship-deliver`) uses `escalation_type: null`
+**lateral** route (`/ce-verify`, `/ce-review`) uses `escalation_type: null`
 with `detail` prefixed `route:<cmd>` (e.g. `route:/ce-verify …`) so `/ce-retro` still
 counts it. Derive from data already produced, label token figures estimates, and
 **never** let metrics block the decision. Powers `/ce-retro`.

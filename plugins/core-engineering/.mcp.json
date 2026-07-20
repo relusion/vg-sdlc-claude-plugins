@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "gate-runner": {
-      "command": "python3",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/gate_server.py"]
-    }
-  }
-}

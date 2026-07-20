@@ -1,6 +1,0 @@
-{
-  "_comment": "Derived enforcement counts — regenerate with `python3 scripts/check.py --write-counts`; never hand-edit (check.py re-derives and compares on every run).",
-  "repo_checks": 138,
-  "authoring_checks": 368,
-  "tests": 968
-}
