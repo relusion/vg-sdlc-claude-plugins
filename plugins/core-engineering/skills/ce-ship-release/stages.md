@@ -18,15 +18,19 @@ range is not certified by this run even if its cell reads `Verified`.
 a point-in-time read, and code can be reverted or rebased between verify and release:
 
 ```
-python3 "${CLAUDE_SKILL_DIR}/scripts/task-evidence.py" check specs/<id>/tasks.json --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/task-evidence.py" check specs/<id>/tasks.json --strict --json
 ```
 
 Invoke it by its `${CLAUDE_SKILL_DIR}` path (this skill bundles its own copy), never a
-bare name. A feature with a `stale` task — its proving `commit_sha` is no longer in
-HEAD's ancestry — is **release-blocking exactly like an unverified one**: the report it
-trusts was cut against code this checkout no longer holds. Route a stale feature to
-`/core-engineering:ce-implement` (re-derive the stale tasks), then `/core-engineering:ce-verify`, before certifying — do
-not carry it into the range as `Verified` (Execution Contract rule 2).
+bare name. Require exit 0 and valid JSON showing every recorded `done` task as
+`fresh`. Exit 1 means at least one task is `stale` or `unstamped`; exit 2 or malformed
+output means freshness could not be established. Every non-zero or invalid result is
+**release-blocking exactly like an unverified feature**. A `stale` task's proving
+commit is no longer in HEAD's ancestry; an `unstamped` task is legacy, uncommitted,
+or lacks a verifiable git HEAD. Route either to `/core-engineering:ce-implement` to
+bind or re-derive the evidence, then `/core-engineering:ce-verify` (or have the human
+release owner first correct a wrong checkout). Do not carry the feature into the
+range as release-ready (Execution Contract rule 2).
 
 Determine the **release range**. If `git tag` lists **no tags**, this is the
 **initial release**: the range is the whole plan's shipped features, notated
@@ -94,11 +98,17 @@ SLSA-compliant, signed, or SBOM-covered from CI passing; those are separate fact
 ## Stage 4 — Release-Readiness Gate  [material]
 
 Run the **Release-Readiness Gate** (above). On **No-go**, name the blocker and route
-(Escalation table). On **Go**, record the human's attestation.
+(Escalation table). Offer and record **Go** only when every in-range feature is both
+verified and strictly fresh; that predicate cannot be accepted as a risk gap inside
+this workflow. If a human chooses to proceed without it, record `NO-GO — external
+exception by <owner>` under external release-owner authority. Never relabel that
+exception as workflow GO. On valid **Go**, record the human's attestation.
 
 ## Stage 5 — Write the Decision and Hand Off
 
-Write `docs/plans/<slug>/release/<date>-release.md` (the decision package).
+First resolve `<release-key>` using `SKILL.md`'s collision rule (`<date>` for the
+first run that day, then `<date>-2`, `<date>-3`, and so on). Write
+`docs/plans/<slug>/release/<release-key>-release.md` (the decision package).
 
 **Compile the per-release evidence pack.** Alongside the decision artifact, compile
 one dated, auditor-consumable evidence pack for the release — the same
@@ -108,14 +118,14 @@ one dated, auditor-consumable evidence pack for the release — the same
 python3 "${CLAUDE_SKILL_DIR}/scripts/evidence-pack.py" docs/plans/<slug> \
   --guard-log .claude/ce-guard-log.jsonl \
   --merge-verdict <release or CI gate_runner verdict, if one exists> \
-  --out docs/plans/<slug>/evidence-pack/<date>
+  --out docs/plans/<slug>/evidence-pack/<release-key>
 ```
 
 Invoke it by its `${CLAUDE_SKILL_DIR}` path (this skill bundles its own byte-identical
 fork), never a bare name. Point `--merge-verdict` at the release's `gate_runner.py`
 verdict when one exists (a **per-merge** pack comes free by pointing it at the CI
 verdict instead); omit it when none does — the section is gap-listed, never faked.
-The dated `evidence-pack/<date>/` directory is **never overwritten**, so the
+The dated `evidence-pack/<release-key>/` directory is **never overwritten**, so the
 release's evidence is frozen at cut time, and `--out` refuses a target that would
 overwrite a source it reads. The pack is **evidence compilation, not a conformity
 assessment** (see `docs/ENTERPRISE-HARDENING.md` § *Regulatory Mapping — EU AI Act*):
@@ -129,10 +139,15 @@ file; a local file write, never a commit, never a push. Then hand the **human** 
 execution steps release does not perform:
 
 ```
-git tag <version> -m "<release notes>"   # the human runs this
-git push origin <version>                # the human pushes
-# deploy via your pipeline               # release never deploys
+git tag <version> -m "<release notes>"   # the human runs this after workflow GO
+git push origin <version>                # the human pushes after workflow GO
+# deploy via your pipeline               # after workflow GO; release never deploys
 ```
+
+Render that execution handoff only for workflow `GO`. For `NO-GO`, including an
+external exception, withhold the tool-approved execution handoff and record the
+blocker/external disposition in the decision package. The human still owns release
+authority, but exercising it outside this workflow does not turn the package green.
 
 **Metrics (best-effort, optional).** Append a `stage-complete` line (`stage: "release"`
 — requires `release` in `retro`'s stage enum) plus a `gate` line
@@ -180,11 +195,13 @@ counts it. Derive from data already produced, label token figures estimates, and
 | Secret scan / plugin validation | present | <CI run / local command> |
 
 ## Readiness Gate
-- Verified: <N/N> · High-sev findings open: <0> · Rollback gaps accepted: <…> · Supply-chain gaps accepted: <…>
-- Decision: GO | NO-GO — by human, <date>
+- Verified: <N/N> · Done-task freshness: <fresh/done> · Stale: <N> · Unstamped: <N>
+- High-sev findings open: <0> · Rollback gaps accepted: <…> · Supply-chain gaps accepted: <…>
+- Workflow result: GO | NO-GO — attested by human, <date>
+- External exception: none | <owner + rationale; workflow result remains NO-GO>
 - If NO-GO: blocker <…> → routed to <skill>
 
-## Execution (the human's — not performed here)
+## Execution (workflow GO only; the human's — not performed here)
 - tag `<version>` · push · deploy
 ````
 
@@ -196,9 +213,10 @@ Range:     <initial | last-tag..head>
 Changelog: <N> entries · Known issues: <M>
 Rollback:  <ready>/<manual>/<unknown>
 Supply chain: SBOM <present|missing> · provenance <present|missing> · signatures/checksums <present|missing> · Scorecard <present|missing>
-Package:   docs/plans/<slug>/release/<date>-release.md
-Evidence pack: docs/plans/<slug>/evidence-pack/<date>/pack.json  (compilation, not a conformity assessment)
+Package:   docs/plans/<slug>/release/<release-key>-release.md
+Evidence pack: docs/plans/<slug>/evidence-pack/<release-key>/pack.json  (compilation, not a conformity assessment)
 ```
 
 On **GO**, the human tags, pushes, and deploys — release never does. On **NO-GO**,
-run the routed skill, then re-run release.
+run the routed skill, then re-run release. A human external exception remains
+`NO-GO` in this package and is never presented as tool approval.

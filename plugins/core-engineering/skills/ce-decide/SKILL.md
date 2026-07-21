@@ -263,6 +263,10 @@ Write the artifact (never overwritten):
 docs/decisions/<slug>/<date>.md
 ```
 
+**Same-day collision rule:** resolve the path before writing. The first run uses
+`<date>`; if it exists, use `<date>-2`, then `<date>-3`, and so on. Apply the
+resolved key to every artifact from this run; never overwrite.
+
 Then run the Decision-Honesty gate:
 
 ```bash

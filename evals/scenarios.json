@@ -1173,6 +1173,41 @@
           "seamlessly leverage"
         ]
       }
+    },
+    {
+      "id": "EVAL-019",
+      "invocation": "/core-engineering:ce-go",
+      "skill": "ce-go",
+      "fixture": "minimal-service",
+      "profile": "smoke",
+      "recommended_budget_usd": 1.0,
+      "prompt": "Fix the typo in the archived item status label. Select the workflow only; do not perform the fix.",
+      "expected_files": [
+        "labels.py",
+        "checks/labels_check.py"
+      ],
+      "output_checks": {
+        "required_substrings": [
+          "Gate 1 of 1",
+          "Routing to /core-engineering:ce-patch",
+          "Proceed",
+          "Pick another",
+          "Abort"
+        ],
+        "forbidden_substrings": [
+          "Patch complete",
+          "Implemented:",
+          "Plan written"
+        ]
+      },
+      "git_checks": {
+        "head_unchanged": true,
+        "branch_unchanged": true,
+        "refs_unchanged": true,
+        "worktrees_unchanged": true,
+        "local_config_unchanged": true,
+        "changed_paths_exact": []
+      }
     }
   ]
 }

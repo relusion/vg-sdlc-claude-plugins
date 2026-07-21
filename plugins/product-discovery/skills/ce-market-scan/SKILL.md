@@ -232,6 +232,10 @@ no option** — every tension, option, and unknown must trace to a `confirmed` /
 docs/market-scans/<slug>/<date>.md
 ```
 
+  **Same-day collision rule:** resolve the path before writing. The first run
+  uses `<date>`; if it exists, use `<date>-2`, then `<date>-3`, and so on. Never
+  overwrite a prior scan.
+
 (A per-idea slug folder holding dated snapshots — an idea is re-scanned over time.
 This deliberately differs from sibling tools' flat one-file-per-run layout under
 `docs/<tool>/`.)

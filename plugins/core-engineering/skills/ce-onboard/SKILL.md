@@ -54,6 +54,9 @@ intact.
    `/core-engineering:ce-onboard` skill's `allowed-tools` deliberately exclude `Edit`.
 2. **Read-only on existing artifacts.** Write only the one optional learning guide
    (Stage 6), and only with consent.
+   Resolve a same-day collision before writing: keep the documented first-run
+   name, then suffix its complete snapshot key with `-2`, `-3`, and so on; never
+   overwrite a prior guide.
 3. **Every claim cites `file:line` or an artifact.** No citation, no claim. Show code
    over paraphrasing it — quote 1–5 load-bearing lines inline. (The `ask` grounding
    contract, reused verbatim: this tool is a *sibling* of `/core-engineering:ce-ask`, not a rival.)

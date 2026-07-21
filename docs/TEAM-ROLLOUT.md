@@ -319,6 +319,22 @@ not branch protection.
 - Ask pilot engineers one question at the end: *"which skill would you keep
   if you could only keep three?"* — that's your mandate map for the next team.
 
+Before the pilot, choose a comparable baseline cohort and a target for this
+small scorecard. Do not use raw invocation count as a value metric:
+
+| Outcome | Metric | Evidence source |
+|---|---|---|
+| Faster developer flow | Median cycle time from accepted work boundary to verification handoff | Work-item timestamps plus v2 terminal events; use manual timing while run linkage is incomplete |
+| Better first-pass output | Share of changes that pass verification without reopening implementation | `verification-report.md`, task evidence, and escalation events |
+| Less review rework | Confirmed findings that require another implementation/review loop per change | `review-summary.json`, review artifacts, and retry/escalation events |
+| Predictable automation | Completed, parked, retried, aborted, and could-not-run rates | v2 `run-terminal`, `park`, and `retry` events; report missing streams as coverage gaps |
+| Useful developer experience | Repeat use among eligible pilot developers plus a short satisfaction score and the “keep three” answer | Opt-in pilot survey and workflow eligibility list, kept outside prompt telemetry |
+
+Review the scorecard every two weeks with the developer-experience owner and a
+quality owner. Expand the tier only when flow improves without a worse
+first-pass/rework result; otherwise fix the highest-frequency failure mode or
+remove the workflow from the default path.
+
 ## Cost control
 
 Floors and the failure log are published in [BENCHMARKS.md](./BENCHMARKS.md).

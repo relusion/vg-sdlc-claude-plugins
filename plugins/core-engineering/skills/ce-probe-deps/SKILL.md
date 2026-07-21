@@ -37,6 +37,13 @@ question: **are the versions already pinned here publicly known-bad?**
 2. **Deterministic floor always runs.** `sca-guard.py` (stdlib-only) parses the pins and queries OSV; the model *enriches* its output — usage context, blast radius, upgrade routing — and never replaces or re-derives it. A floor failure is reported as a degradation, never papered over.
 3. **Network disclosure, up front.** The only data that leaves the machine is package coordinates (ecosystem + name + version) sent to OSV.dev — state this in the opening output. `--offline` is honored absolutely; offline or any network failure degrades **loudly** (exit 2): a not-scanned package is never reported as clean.
 4. **Grounded & evidence-bound.** Every finding cites the manifest `file:line` of the pin plus the OSV advisory id(s). No advisory id → no finding.
+5. **Collision-safe output key.** The report is `docs/dep-audits/<date>-<slug>.md`;
+   evidence retained for that run uses
+   `docs/dep-audits/evidence/<date>-<slug>/`. Before either write, resolve one
+   unused key for both. Try `<date>-<slug>` first; on a same-day collision, use
+   `<date>-<slug>-2`, then `-3`, and so on if the report or evidence path already
+   exists or is a symlink. Never overwrite an occupied path or split one run
+   across different keys.
 
 ## Cross-cutting rule — Findings, Not Verdicts
 
@@ -71,7 +78,8 @@ cite ids; the human follows them.
 
 ### Stage 3 — Report
 
-Write `docs/dep-audits/<date>-<slug>.md`:
+Resolve the collision-safe report/evidence key from Execution Contract item 5,
+then write `docs/dep-audits/<key>.md`:
 
 - **Disclosure & scope:** what was scanned, what left the machine, degradations.
 - **Findings table:** package == version · manifest `file:line` · advisory ids · usage note.

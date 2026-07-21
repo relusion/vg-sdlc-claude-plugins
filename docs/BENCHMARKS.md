@@ -84,6 +84,7 @@ the path back to a live label.
 | EVAL-016 | `/core-engineering:ce-probe-deps` | flags the OSV-listed `urllib3==1.24.1` pin, lists skipped unpinned, no false "clean bill" | $1.00 | design-verified, not live-run |
 | EVAL-017 | `/core-engineering:ce-auto-build` | fixed sequential three-feature run: success, product park, retry exhaustion, schema-v2 state, and final human-review gate | $20.00 | design-verified, not live-run |
 | EVAL-018 | `/core-engineering:ce-humanize` | rewrites generic prose while preserving facts, links, and structure | $1.00 | design-verified, not live-run |
+| EVAL-019 | `/core-engineering:ce-go` | routes a bounded low-risk change to direct-only `/core-engineering:ce-patch`, then stops without writes | $1.00 | design-verified, not live-run |
 
 Honest failure log from the same batch — kept because it calibrated the
 budgets and the runner behavior:
@@ -115,9 +116,10 @@ autonomous is budget-capped up front
 
 ## What is *not* yet measured — the honest boundary
 
-- **Eight scenarios have never had a committed live pass:** adversarial
+- **Nine scenarios have never had a committed live pass:** adversarial
   `EVAL-011`/`EVAL-012`, cross-stack `EVAL-013`–`015`, dependency probing
-  `EVAL-016`, auto-build `EVAL-017`, and humanization `EVAL-018`. Their current
+  `EVAL-016`, auto-build `EVAL-017`, humanization `EVAL-018`, and front-door
+  routing `EVAL-019`. Their current
   claims rest on fixtures and deterministic checks, not committed or citable
   model evidence.
 - **Coverage:** the 2026-06-27 batch recorded live passes for 8 of 30 skills then shipped (the corpus is 31 today)
@@ -148,7 +150,7 @@ autonomous is budget-capped up front
 # one cheap scenario
 python3 scripts/eval_run.py --execute --scenario EVAL-001 --max-budget-usd 1.00
 
-# the six-scenario read-only smoke profile: $1 cap per call, up to $6 total
+# the seven-scenario read-only smoke profile: $1 cap per call, up to $7 total
 python3 scripts/eval_run.py --execute --profile smoke --max-budget-usd 1.00
 ```
 

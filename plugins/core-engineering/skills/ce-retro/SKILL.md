@@ -41,29 +41,60 @@ ground truth.
 1. **Read-only.** Read artifacts + the metrics stream; write nothing. No edits, no commits. Stage 1 runs `scripts/audit-export.py` **to stdout** as the deterministic aggregation floor — read-only, writes nothing, mutates nothing, so it needs **no consent** (it is the same read the whole skill is licensed to do, just done by a deterministic tool instead of by hand). *Two consented exceptions — both **writes**, each on an **explicit human request**:* a durable audit export (`audit-export.py --out`, below) and a compiled evidence pack (`evidence-pack.py --out`, below) — both deterministic projections that write a **new dated file / directory** and mutate no source artifact.
 2. **Derive, don't fabricate.** Every number traces to a recorded artifact or a metrics line. A missing source is reported as "no data", never silently zeroed.
 3. **Signals, not verdicts.** Report rates and hotspots; never declare the plan "good" or "done". The human interprets.
-4. **Estimates stay labeled.** Token / duration figures from the stream are estimates (producers label them so) — carry the label through.
+4. **Measured and estimated stay separate.** Values under `est` are estimates and remain labeled. `duration_ms` is measured elapsed time only; when a producer has only an estimate, record it under `est.duration_ms` instead.
 
 ## The metrics stream — `docs/plans/<slug>/.metrics.jsonl`
 
-The **canonical schema** (one JSON object per line) every producer appends to. It
-is append-only, best-effort, and **never gates a run** — a missing or partial
+The **canonical event contract is schema version 2** (one JSON object per line).
+It is append-only, best-effort, and **never gates a run** — a missing or partial
 stream degrades the relevant section of this report to "partial / no data", never
-an error.
+an error. New events set `schema_version: 2`; readers continue to accept the
+original unversioned events and explicit `schema_version: 1` events as legacy.
+Never rewrite old lines merely to upgrade the stream.
 
 ```json
-{"ts":"YYYY-MM-DD","stage":"plan|spec|implement|verify|review|debug|release|document|auto-build|patch","plan":"<slug>","feature":"<id>|null","event":"stage-complete|gate|escalation|park|retry|circuit-break|attestation","gate":"pass|fail|null","escalation_type":"/core-engineering:ce-implement|/core-engineering:ce-spec|/core-engineering:ce-plan|null","detail":"<short>","model":"<id>|null","est":{"tokens":0}}
+{"schema_version":2,"ts":"YYYY-MM-DD","stage":"plan|spec|implement|verify|review|debug|release|document|auto-build|patch","plan":"<slug>","feature":"<id>|null","event":"stage-complete|gate|escalation|park|retry|circuit-break|attestation|run-terminal","run_id":"<opaque invocation id>","gate":"pass|fail|null","escalation_type":"/core-engineering:ce-implement|/core-engineering:ce-spec|/core-engineering:ce-plan|null","detail":"<short>","model":"<resolved id>|null","claude_cli_version":"<resolved version>|null","plugin_version":"<resolved version>|null","est":{"tokens":0}}
 ```
 
+- A v2 event requires `schema_version`, `ts`, `stage`, `plan`, `feature`, and
+  `event`. Event-specific fields remain conditional: a deterministic `gate`
+  event uses `gate: "pass"|"fail"`; an `attestation` uses the human-decision
+  fields below; a `run-terminal` uses `outcome`.
 - `feature` is `null` for plan-level events.
+- `run_id` is optional for backward compatibility. When the runtime supplies
+  one, keep the same non-empty opaque id across every event from that invocation;
+  prefer a UTC timestamp plus a collision-resistant suffix, never a date alone.
+- A v2 producer appends one terminal line when its invocation reaches a known
+  terminal path (best effort, like every metrics write):
+
+  ```json
+  {"schema_version":2,"ts":"YYYY-MM-DD","stage":"verify","plan":"<slug>","feature":"<id>|null","event":"run-terminal","run_id":"<same invocation id>","outcome":"completed|failed|aborted|parked|escalated|could-not-run","duration_ms":1234,"model":"<resolved id>|null","claude_cli_version":"<resolved version>|null","plugin_version":"<resolved version>|null"}
+  ```
+
+  `completed` means the workflow reached its documented handoff; findings do
+  not turn it into `failed`. Emit `duration_ms` only for a measured, non-negative
+  elapsed duration. The terminal event itself is optional for legacy producers,
+  but `outcome` is required whenever a v2 `run-terminal` event is emitted.
 - `est` holds **estimates only** (e.g. `tokens` ≈ chars/4) — never measured figures.
-- `model` is the model id that **actually executed** the stage, read from the
+- `model`, `claude_cli_version`, and `plugin_version` are resolved runtime
+  observations, not requested/default values and never guesses. Omit them or
+  use `null` when the runtime cannot resolve them. `model` is read from the
   `.claude/ce-session-model.json` sidecar the `model-attest.py` hook refreshes
   (the runtime leg of the model-tier policy). Emit it on gate-stage and
   `attestation` lines; it is **`null` when the sidecar is absent**, so a
   hook-less run records the *absence*, never a guessed tier. `/core-engineering:ce-retro` maps it through `model-policy.json`
   `tier_patterns` (see the Model-tier attestation signal in Stage 1).
 - Producers derive every field from data they already have, add the line *after*
-  the stage's real work and gate complete, and swallow any failure.
+  the stage's real work and gate complete, and swallow any failure. At repository
+  scope, `scripts/metrics_report.py` validates v2 lines deterministically, counts
+  legacy and versioned coverage separately, and reports invalid/unsupported lines
+  as coverage gaps rather than trusting their values.
+- **Privacy and retention stay repository-owned.** Events contain bounded ids,
+  outcomes, counts, and short redacted detail — never prompt bodies, source code,
+  credentials, raw tool output, or unnecessary personal data. The reporter sends
+  nothing off-box. The adopter decides whether `.metrics.jsonl` is committed, who
+  can read it, and when it expires; an evidence pack copies the stream, so its
+  access and retention policy must cover that copy too.
 
 ### The `attestation` event — one line per HITL-gate decision
 
@@ -76,7 +107,7 @@ shape they emit into, and `audit-export.py` rolls the lines up under an
 `attestations` summary (`confirms` / `overrides` / `edits` / `loops` / `by_gate`).
 
 ```json
-{"ts":"YYYY-MM-DD","stage":"implement|review|...","plan":"<slug>","feature":"<id>|null","event":"attestation","gate":"<gate-name>","gate_index":"N of M","action":"confirm|override|edit|loop","basis_shown":true,"detail":"<short>","model":"<id>|null"}
+{"schema_version":2,"ts":"YYYY-MM-DD","stage":"implement|review|...","plan":"<slug>","feature":"<id>|null","event":"attestation","run_id":"<opaque invocation id>","gate":"<gate-name>","gate_index":"N of M","action":"confirm|override|edit|loop","basis_shown":true,"detail":"<short>","model":"<resolved id>|null"}
 ```
 
 - `gate` carries the **gate name** here — *not* `pass`/`fail`. That field is
@@ -95,7 +126,10 @@ shape they emit into, and `audit-export.py` rolls the lines up under an
 ## Stage 0 — Load and Scope
 
 Resolve the plan(s) via `docs/plans/plans.json`. Load `.metrics.jsonl` if present
-and the per-feature artifacts. Confirm scope with the human (this plan / all
+and the per-feature artifacts. Treat each absent plan stream as an explicit
+coverage gap — "no data", never a complete run with zero events. A repo-wide
+`scripts/metrics_report.py` render exposes `plans.metrics_coverage` with expected,
+present, and missing stream counts. Confirm scope with the human (this plan / all
 plans): *Proceed / Abort.* If neither a metrics stream nor artifacts exist, report
 "no data yet" and stop.
 
@@ -173,6 +207,9 @@ deterministic floor in Stage 1: the JSON is identical whoever is reading.
 ```text
 # Retro — <slug>  (<N> runs · <date range>)
 
+## Telemetry coverage
+streams present <p>/<expected> · missing <m>   (missing = no data, not zero)
+
 ## Testability
 auto <a>% · manual:harness-gap <h>% · manual:judgment <j>%   (over <T> test cases)
 
@@ -221,10 +258,14 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/audit-export.py" docs/plans/<slug> \
 
 Run it **only on explicit human request** (the consented exception in the
 Execution Contract); default output is stdout, and the dated `--out` convention
-keeps exports from colliding (one per day per plan). The script **refuses an
-`--out` that would overwrite a source it reads** (plan.json, `.metrics.jsonl`,
+is never overwritten. Resolve a same-day collision before running: the first export uses
+`<date>-audit-export.json`; if that path exists or is a symlink, use
+`<date>-audit-export-2.json`, then `-3`, and so on. The script does not choose a
+suffix implicitly: it **refuses an occupied/symlink `--out` or an `--out` that
+would overwrite a source it reads** (plan.json, `.metrics.jsonl`,
 `shared-context.md`, anything under `specs/`) — exit 1 — so the generated
-artifact can never destroy a source of truth. The export is **evidence
+artifact can never destroy an earlier export or a source of truth. The default
+stdout mode remains write-free. The export is **evidence
 compilation, not a compliance attestation** — it proves which artifacts exist
 and what the pipeline recorded; it renders no judgment, and its own
 `honest_limitations` field says so machine-readably.
@@ -261,10 +302,14 @@ The ledger is discovered by walking up from the plan dir; `--dispositions FILE`
 overrides.
 
 Run it **only on explicit human request** (the second consented write; default
-output is stdout). The dated `evidence-pack/<date>/` convention is **never
-overwritten** — one pack per day per plan, so a release's evidence is frozen at cut
-time — and `--out` **refuses** a target that would land on a source it reads (the
-plan root or `specs/`) — exit 1. Every section is **populated or gap-listed** (an
+output is stdout). The dated pack is **never overwritten**. Resolve a same-day
+collision with one directory
+key for the whole pack before running: use `evidence-pack/<date>/` first; if that
+path exists or is a symlink, use `evidence-pack/<date>-2/`, then `-3`, and so on.
+Never split one run across keys. `--out` **refuses** an occupied/symlink target or
+a target that would land on a source it reads (the plan root or `specs/`) — exit
+1 — so a release's evidence stays frozen at cut time. Every section is
+**populated or gap-listed** (an
 absent source lands in `gaps[]`, never a silent zero), and a **broken guard chain
 fails loudly inside the pack** (the `guard_decisions.verify` field), it is not
 hidden. `--merge-verdict` points at the CI verdict for a per-merge pack; omit it
@@ -290,7 +335,7 @@ signal. This skill reports trends and optional exports only.
 
 - **Descriptive, not evaluative.** Signals over the model's own outputs, not ground truth. A low `manual:judgment` rate isn't "good"; it's a number to interpret.
 - **As complete as the stream.** Metrics emission is best-effort and never gates a run, so a run that crashed mid-stage may be under-counted. Missing data reads as "no data", never a silent zero.
-- **Estimates are estimates.** Token / duration figures are `chars/4`-class approximations the producers label as such — never billing-grade.
+- **Estimates are estimates.** Values under `est` are producer approximations and never billing-grade. `duration_ms`, when present, is measured elapsed time; absence means no duration data, not zero time.
 - **Read-only by design.** Writes nothing — *except* the consented, human-requested **audit export** (a new dated JSON file that mutates no source artifact); if you want a durable retro, copy the output yourself. Observability must never become a second source of truth over the artifacts.
 - **A window only reaches the stream, and only by the day.** `--since` / `--until` filter the dated `.metrics.jsonl` events and nothing else: testability, evidence freshness, per-feature review state, complexity drift, and the patch lane are **current on-disk state**, reported as-of-now under any window (the export's `windowing.as_of_now_blocks` names them). `complexity_drift.retries` stays **lifetime** even in a windowed run — joining a windowed retry count to a lifetime task count would make drift *shrink* as the window narrows. The stream's `ts` carries no time, so bounds are inclusive and day-granular: a sprint boundary falling mid-day is unrepresentable, and two adjacent windows sharing an endpoint both count that day. A line with a missing or malformed `ts` is excluded from the window, **counted** under `window.stream_lines.undated`, and reported in `gaps[]` — never dropped silently.
 - **An audience reorders; it never derives.** `standup` / `sprint-review` / `handoff` change what the report leads with, from the identical Stage-1 JSON. No audience introduces a ratio, a cost, a velocity, or an ROI figure — the artifacts carry no such field, and a retro that invents one has stopped being evidence.

@@ -9,10 +9,11 @@ reports, and any legacy patch eligibility.json — into a single machine-readabl
 audit document a reviewer or an external compliance process can consume.
 
 Read-only over every source. Writes nothing unless --out is given, and --out
-is REFUSED (exit 1) if it would overwrite any source it reads — the generated
-artifact must never destroy a source of truth. The dated convention
-docs/plans/<slug>/audit-export/<date>-audit-export.json keeps exports
-never-overwritten.
+is REFUSED (exit 1) if it would overwrite any source it reads or if the target
+already exists (including a symlink) — the generated artifact must never
+destroy a source of truth or an earlier export. The dated convention starts at
+docs/plans/<slug>/audit-export/<date>-audit-export.json; same-day runs select
+the next unused -2, -3, ... suffix.
 
 Every absence is reported honestly (present: false / gaps[]), never silently
 zeroed. Unparseable metrics lines are counted and reported, never skipped
@@ -34,7 +35,8 @@ output is byte-identical to the unwindowed export.
 
 Exit codes:
     0  export produced
-    1  plan dir invalid (no plan.json and no specs/), or --out would clobber a source
+    1  plan dir invalid (no plan.json and no specs/), or --out is occupied / would
+       clobber a source
     2  unexpected internal error, or a malformed/inverted --since/--until (usage)
 
 Stdlib-only by design (the portability guarantee): no Claude Code, no network.
@@ -530,10 +532,16 @@ def main(argv=None) -> int:
               f"nothing to export", file=sys.stderr)
         return 1
 
-    if args.out and out_would_clobber_source(Path(args.out), plan_dir):
+    out_path = Path(args.out) if args.out else None
+    if out_path is not None and out_would_clobber_source(out_path, plan_dir):
         print(f"audit-export: refusing --out {args.out} — it would overwrite a "
               f"source artifact this export reads (use the dated "
               f"audit-export/<date>-audit-export.json convention)", file=sys.stderr)
+        return 1
+    if out_path is not None and (out_path.exists() or out_path.is_symlink()):
+        print(f"audit-export: refusing --out {out_path} — the target already "
+              f"exists or is a symlink. Choose the next unused same-day suffix; "
+              f"audit exports are never overwritten.", file=sys.stderr)
         return 1
 
     gaps: list = []
@@ -658,10 +666,18 @@ def main(argv=None) -> int:
         }
 
     text = json.dumps(export, indent=2)
-    if args.out:
-        out_path = Path(args.out)
+    if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(text + "\n", encoding="utf-8")
+        try:
+            # Exclusive creation closes the race between the preflight check and
+            # this write: a concurrent exporter cannot replace the first result.
+            with out_path.open("x", encoding="utf-8") as handle:
+                handle.write(text + "\n")
+        except FileExistsError:
+            print(f"audit-export: refusing --out {out_path} — the target became "
+                  f"occupied. Choose the next unused same-day suffix; audit "
+                  f"exports are never overwritten.", file=sys.stderr)
+            return 1
         print(f"audit-export: wrote {out_path}")
     else:
         print(text)

@@ -34,9 +34,11 @@ matching plans or features.
 1. Classify the request as `plan`, `spec`, or `plan+spec`.
 2. Load the relevant repository context with `Read`, `Glob`, and `Grep`.
 3. Invoke the matching skill through the `Skill` tool.
-4. Run deterministic artifact checks when the skill defines them, especially
+4. If the skill reaches a human decision gate, use the parent-mediated decision
+   handoff below. Never choose an option on the caller's behalf.
+5. Run deterministic artifact checks when the skill defines them, especially
    `spec-lint.py` for generated specs.
-5. Return a concise handoff naming the plan/spec paths written, unresolved
+6. Return a concise handoff naming the plan/spec paths written, unresolved
    questions, and any escalation required.
 
 ## Constraints
@@ -48,6 +50,13 @@ matching plans or features.
   widen it. Boundary conflicts return to the plan.
 - The human owns product, scope, and security judgment. Record assumptions and
   open questions explicitly; never fabricate product facts or repository facts.
+- **Parent-mediated decisions.** This leaf agent has no interactive-question
+  tool. When a delegated skill reaches a required human gate or multiple valid
+  targets remain after repository inspection, stop at the checkpoint and return
+  `Needs decision`, `Gate`, `Evidence`, `Options` (including consequences), and
+  `Resume` (the exact agent/skill input to continue). Do not infer approval or
+  collapse alternatives. On reinvocation with the decision, reload the named
+  artifacts and checkpoint, then continue without replaying completed work.
 - Use `Bash` only for deterministic local checks. Do not install packages,
   perform external writes, push, open PRs, or merge.
 
@@ -57,5 +66,6 @@ End with:
 
 - `Artifacts:` paths created or updated.
 - `Checks:` deterministic checks run and their result.
+- `Needs decision:` the structured gate handoff above, or `none`.
 - `Open questions:` unresolved decisions or `none`.
 - `Escalations:` required upstream action or `none`.

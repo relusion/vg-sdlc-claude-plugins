@@ -30,12 +30,13 @@ from pathlib import Path
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 WINDOWED_BLOCKS = ("metrics", "plans.items[].metrics")
 AS_OF_NOW_BLOCKS = ("reviews", "verification_files", "auto_build_reports", "evals",
-                    "plans.items[].feature_count")
+                    "plans.metrics_coverage", "plans.items[].feature_count")
 WINDOWING_NOTE = (
     "Only the blocks in windowed_blocks reflect --since/--until. Everything in "
     "as_of_now_blocks is current on-disk state at generated_at_utc and is NOT "
-    "filtered — narrating one as windowed is a fabrication. A plan with no "
-    "in-window activity still appears, with windowed zeros."
+    "filtered — narrating one as windowed is a fabrication. A plan whose stream "
+    "has no in-window activity still appears with windowed zeros; a missing "
+    "stream is explicitly no data, not zero."
 )
 WINDOW_LIMITATIONS = (
     "Day granularity: bounds are INCLUSIVE and compared as YYYY-MM-DD. The stream's "
@@ -66,6 +67,20 @@ def in_window(ev_date, since, until) -> bool:
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
+METRICS_EVENT_SCHEMA_VERSION = 2
+METRICS_EVENT_STAGES = {
+    "plan", "spec", "implement", "verify", "review", "debug", "release",
+    "document", "auto-build", "patch",
+}
+METRICS_EVENT_TYPES = {
+    "stage-complete", "gate", "escalation", "park", "retry",
+    "circuit-break", "attestation", "run-terminal",
+}
+TERMINAL_OUTCOMES = {
+    "completed", "failed", "aborted", "parked", "escalated",
+    "could-not-run",
+}
+ATTESTATION_ACTIONS = {"confirm", "override", "edit", "loop"}
 
 
 def rel(root: Path, path: Path) -> str:
@@ -89,7 +104,25 @@ def empty_metrics() -> dict:
     return {
         "lines_total": 0,
         "lines_unparseable": 0,
+        "lines_invalid_schema": 0,
+        "event_schema": {
+            "current_version": METRICS_EVENT_SCHEMA_VERSION,
+            "legacy_unversioned": 0,
+            "version_1": 0,
+            "version_2": 0,
+            "unsupported": 0,
+        },
+        "field_coverage": {
+            "valid_events": 0,
+            "run_id": 0,
+            "terminal_outcome": 0,
+            "duration_ms": 0,
+            "model": 0,
+            "claude_cli_version": 0,
+            "plugin_version": 0,
+        },
         "events_by_type": {},
+        "terminal_outcomes": {},
         "gates": {"pass": 0, "fail": 0},
         "escalations_by_type": {},
         "parks": 0,
@@ -100,6 +133,109 @@ def empty_metrics() -> dict:
 
 def merge_count(dst: dict, key, amount: int = 1) -> None:
     dst[key] = dst.get(key, 0) + amount
+
+
+def validate_metrics_event(event: dict) -> tuple[str, list[str]]:
+    """Classify and validate one ce-retro metrics event.
+
+    The original stream contract was unversioned. Treat absent or explicit v1
+    as legacy and retain its permissive reader behavior. Version 2 is strict so
+    malformed new telemetry cannot silently influence the report. Unknown
+    versions are parseable but unsupported.
+    """
+    version = event.get("schema_version")
+    if version is None:
+        return "legacy_unversioned", []
+    if isinstance(version, int) and not isinstance(version, bool) and version == 1:
+        return "version_1", []
+    if (not isinstance(version, int) or isinstance(version, bool)
+            or version != METRICS_EVENT_SCHEMA_VERSION):
+        return "unsupported", [
+            f"unsupported schema_version {version!r}; expected "
+            f"{METRICS_EVENT_SCHEMA_VERSION}, 1, or an unversioned legacy event"
+        ]
+
+    errors: list[str] = []
+    required = ("ts", "stage", "plan", "feature", "event")
+    for field in required:
+        if field not in event:
+            errors.append(f"missing required field {field!r}")
+
+    if "ts" in event and parse_iso_date(event.get("ts")) is None:
+        errors.append("ts must begin with a valid YYYY-MM-DD date")
+    if event.get("stage") not in METRICS_EVENT_STAGES:
+        errors.append(f"stage must be one of {sorted(METRICS_EVENT_STAGES)!r}")
+    plan = event.get("plan")
+    if not isinstance(plan, str) or not plan.strip():
+        errors.append("plan must be a non-empty string")
+    feature = event.get("feature")
+    if feature is not None and (not isinstance(feature, str) or not feature.strip()):
+        errors.append("feature must be null or a non-empty string")
+
+    event_type = event.get("event")
+    if event_type not in METRICS_EVENT_TYPES:
+        errors.append(f"event must be one of {sorted(METRICS_EVENT_TYPES)!r}")
+    if event_type == "gate" and event.get("gate") not in ("pass", "fail"):
+        errors.append("a gate event requires gate='pass' or gate='fail'")
+    if event_type == "attestation":
+        gate = event.get("gate")
+        if not isinstance(gate, str) or not gate.strip():
+            errors.append("an attestation event requires a non-empty gate name")
+        gate_index = event.get("gate_index")
+        locator = (re.fullmatch(r"([1-9]\d*) of ([1-9]\d*)", gate_index)
+                   if isinstance(gate_index, str) else None)
+        if locator is None or int(locator.group(1)) > int(locator.group(2)):
+            errors.append("an attestation event requires gate_index='N of M'")
+        if event.get("action") not in ATTESTATION_ACTIONS:
+            errors.append(
+                f"an attestation event action must be one of "
+                f"{sorted(ATTESTATION_ACTIONS)!r}"
+            )
+        if not isinstance(event.get("basis_shown"), bool):
+            errors.append("an attestation event requires boolean basis_shown")
+
+    outcome = event.get("outcome")
+    if event_type == "run-terminal":
+        if outcome not in TERMINAL_OUTCOMES:
+            errors.append(
+                f"a run-terminal event outcome must be one of "
+                f"{sorted(TERMINAL_OUTCOMES)!r}"
+            )
+    elif outcome is not None:
+        errors.append("outcome is only valid on a run-terminal event")
+
+    run_id = event.get("run_id")
+    if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
+        errors.append("run_id must be null, absent, or a non-empty string")
+    duration_ms = event.get("duration_ms")
+    if duration_ms is not None and (
+            isinstance(duration_ms, bool)
+            or not isinstance(duration_ms, int)
+            or duration_ms < 0):
+        errors.append("duration_ms must be a non-negative integer")
+    for field in ("model", "claude_cli_version", "plugin_version"):
+        value = event.get(field)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            errors.append(f"{field} must be null, absent, or a non-empty string")
+
+    estimate = event.get("est")
+    if estimate is not None and not isinstance(estimate, dict):
+        errors.append("est must be an object when present")
+    return "version_2", errors
+
+
+def record_field_coverage(out: dict, event: dict) -> None:
+    coverage = out["field_coverage"]
+    coverage["valid_events"] += 1
+    for field in ("run_id", "model", "claude_cli_version", "plugin_version"):
+        if isinstance(event.get(field), str) and event[field].strip():
+            coverage[field] += 1
+    if (isinstance(event.get("duration_ms"), int)
+            and not isinstance(event.get("duration_ms"), bool)
+            and event["duration_ms"] >= 0):
+        coverage["duration_ms"] += 1
+    if event.get("event") == "run-terminal" and event.get("outcome") in TERMINAL_OUTCOMES:
+        coverage["terminal_outcome"] += 1
 
 
 def parse_metrics_file(path: Path, root: Path, gaps: list[str],
@@ -138,6 +274,17 @@ def parse_metrics_file(path: Path, root: Path, gaps: list[str],
                 continue
             out["window_lines"]["in_window"] += 1
 
+        schema_bucket, schema_errors = validate_metrics_event(event)
+        out["event_schema"][schema_bucket] += 1
+        if schema_errors:
+            out["lines_invalid_schema"] += 1
+            gaps.append(
+                f"{rel(root, path)}:{lineno}: invalid metrics event schema: "
+                + "; ".join(schema_errors)
+            )
+            continue
+        record_field_coverage(out, event)
+
         event_type = str(event.get("event") or "unknown")
         merge_count(out["events_by_type"], event_type)
         gate = event.get("gate")
@@ -152,6 +299,8 @@ def parse_metrics_file(path: Path, root: Path, gaps: list[str],
             out["retries"] += 1
         elif event_type == "circuit-break":
             out["circuit_breaks"] += 1
+        elif event_type == "run-terminal":
+            merge_count(out["terminal_outcomes"], str(event["outcome"]))
 
         if event_type == "unknown":
             gaps.append(f"{rel(root, path)}:{lineno}: metrics event missing event type")
@@ -172,6 +321,7 @@ def parse_metrics_file(path: Path, root: Path, gaps: list[str],
 def add_metrics(total: dict, item: dict) -> None:
     total["lines_total"] += item["lines_total"]
     total["lines_unparseable"] += item["lines_unparseable"]
+    total["lines_invalid_schema"] += item["lines_invalid_schema"]
     total["gates"]["pass"] += item["gates"]["pass"]
     total["gates"]["fail"] += item["gates"]["fail"]
     total["parks"] += item["parks"]
@@ -179,8 +329,14 @@ def add_metrics(total: dict, item: dict) -> None:
     total["circuit_breaks"] += item["circuit_breaks"]
     for key, value in item["events_by_type"].items():
         merge_count(total["events_by_type"], key, value)
+    for key, value in item["terminal_outcomes"].items():
+        merge_count(total["terminal_outcomes"], key, value)
     for key, value in item["escalations_by_type"].items():
         merge_count(total["escalations_by_type"], key, value)
+    for key in ("legacy_unversioned", "version_1", "version_2", "unsupported"):
+        total["event_schema"][key] += item["event_schema"][key]
+    for key, value in item["field_coverage"].items():
+        total["field_coverage"][key] += value
 
 
 def review_counts(summary: dict) -> dict:
@@ -225,8 +381,15 @@ def collect_plan(root: Path, plan_dir: Path, gaps: list[str],
         gaps.append(f"{rel(root, plan_json)}: top-level JSON is not an object")
 
     metrics_path = plan_dir / ".metrics.jsonl"
-    metrics = (parse_metrics_file(metrics_path, root, gaps, since, until)
-               if metrics_path.is_file() else empty_metrics())
+    metrics_present = metrics_path.is_file()
+    if metrics_present:
+        metrics = parse_metrics_file(metrics_path, root, gaps, since, until)
+    else:
+        metrics = empty_metrics()
+        gaps.append(
+            f"{rel(root, metrics_path)}: missing metrics stream — stream-derived "
+            "values are no data, not complete zeros"
+        )
 
     reviews = {
         "files": 0,
@@ -254,7 +417,7 @@ def collect_plan(root: Path, plan_dir: Path, gaps: list[str],
         "path": rel(root, plan_dir),
         "status": plan_data.get("status") if isinstance(plan_data, dict) else None,
         "feature_count": len(features) if isinstance(features, list) else 0,
-        "metrics_present": metrics_path.is_file(),
+        "metrics_present": metrics_present,
         "metrics": metrics,
         "reviews": reviews,
         "verification_files": len(verifications),
@@ -346,6 +509,12 @@ def collect_report(root: Path, since=None, until=None) -> dict:
         metrics_total["window_lines"] = rollup
 
     evals = collect_evals(root, gaps)
+    plans_with_metrics = sum(1 for p in plans if p["metrics_present"])
+    metrics_coverage = {
+        "plans_expected": len(plans),
+        "plans_with_stream": plans_with_metrics,
+        "plans_missing_stream": len(plans) - plans_with_metrics,
+    }
     report = {
         "schema_version": SCHEMA_VERSION,
         "tool": "core-engineering metrics-report",
@@ -353,7 +522,9 @@ def collect_report(root: Path, since=None, until=None) -> dict:
         "root": str(root),
         "plans": {
             "count": len(plans),
-            "with_metrics": sum(1 for p in plans if p["metrics_present"]),
+            "with_metrics": plans_with_metrics,
+            "without_metrics": metrics_coverage["plans_missing_stream"],
+            "metrics_coverage": metrics_coverage,
             "with_reviews": sum(1 for p in plans if p["reviews"]["files"]),
             "items": plans,
         },
@@ -396,7 +567,8 @@ def render_html(report: dict) -> str:
         f"<td>{esc(p['slug'])}</td>"
         f"<td>{esc(p.get('status') or '')}</td>"
         f"<td>{esc(p['feature_count'])}</td>"
-        f"<td>{esc(p['metrics']['lines_total'])}</td>"
+        f"<td>{'present' if p['metrics_present'] else '<strong>missing</strong>'}</td>"
+        f"<td>{esc(p['metrics']['lines_total']) if p['metrics_present'] else 'no data'}</td>"
         f"<td>{esc(p['reviews']['blocking_high'])}</td>"
         f"<td>{esc(p['verification_files'])}</td>"
         "</tr>"
@@ -422,6 +594,7 @@ def render_html(report: dict) -> str:
   <h2>Summary</h2>
   <ul>
     <li>Plans: {esc(report['plans']['count'])}</li>
+    <li>Metrics stream coverage: {esc(report['plans']['metrics_coverage']['plans_with_stream'])}/{esc(report['plans']['metrics_coverage']['plans_expected'])} present; {esc(report['plans']['metrics_coverage']['plans_missing_stream'])} missing</li>
     <li>Metric lines: {esc(report['metrics']['lines_total'])}</li>
     <li>Review findings: {esc(report['reviews']['findings_total'])}</li>
     <li>Blocking high findings: {esc(report['reviews']['blocking_high'])}</li>
@@ -429,7 +602,7 @@ def render_html(report: dict) -> str:
   </ul>
   <h2>Plans</h2>
   <table>
-    <thead><tr><th>Plan</th><th>Status</th><th>Features</th><th>Metric lines</th><th>Blocking high</th><th>Verifications</th></tr></thead>
+    <thead><tr><th>Plan</th><th>Status</th><th>Features</th><th>Metrics stream</th><th>Metric lines</th><th>Blocking high</th><th>Verifications</th></tr></thead>
     <tbody>{plan_rows}</tbody>
   </table>
   <h2>Gaps</h2>

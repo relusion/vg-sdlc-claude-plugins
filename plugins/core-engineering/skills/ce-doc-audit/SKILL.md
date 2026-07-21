@@ -70,6 +70,9 @@ Writes only its own dated artifacts (never the source doc):
 `docs/doc-audits/<date>-<slug>.annotated.md` (a copy of the doc with inline
 comment markers) + `docs/doc-audits/evidence/<date>-<slug>/` (command
 transcripts). Dated snapshots — a run never overwrites a prior one.
+Resolve a same-day collision before writing: the first run key is
+`<date>-<slug>`; if any report, annotated copy, or evidence path exists, use
+`<date>-<slug>-2`, then `-3`, for every companion path in that run.
 
 ## Preconditions
 

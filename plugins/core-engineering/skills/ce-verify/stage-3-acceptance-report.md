@@ -52,4 +52,17 @@ verified rule**: `/core-engineering:ce-ship-release` and `/core-engineering:ce-s
 their own range / audience) instead of re-deriving feature state — so write it to be
 read that way.
 
-**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "verify"`) — plus a `gate` line per check and any `escalation` — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive from data already produced, label token figures estimates, and **never** let this block or fail verification. It powers `/core-engineering:ce-retro`.
+**Metrics (best-effort, optional).** After writing, append a `stage-complete` line
+(`stage: "verify"`), one `attestation` line for each interactive gate that
+actually fired, and any `escalation` lines to
+`docs/plans/<slug>/.metrics.jsonl` using `/core-engineering:ce-retro`'s current
+event schema. Close the invocation with exactly one best-effort `run-terminal`
+line: `outcome: "completed"` when this workflow reached its documented handoff
+(findings do not change that execution outcome), or the matching v2 terminal
+outcome when a known failure, abort, park, escalation, or could-not-run path ends
+the invocation. Reuse one `run_id` when available; include measured duration and
+resolved model, Claude CLI, and plugin versions only when observable. Derive
+values from evidence already produced, label token figures as estimates, and
+never let telemetry block or fail verification. If the stream cannot be written,
+report the coverage gap in the closing handoff. It powers
+`/core-engineering:ce-retro`.

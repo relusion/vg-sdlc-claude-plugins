@@ -62,6 +62,13 @@ everything else routes through [`docs/USAGE-MATRIX.md`](./docs/USAGE-MATRIX.md).
 | `/core-engineering:ce-implement` | Build one specified feature test-first, task by task |
 | `/core-engineering:ce-review` | Independently code-review a built feature across six lenses |
 
+Use the [three adoption tiers](./docs/USAGE-MATRIX.md#adopt-in-three-tiers) to
+keep the surface manageable: begin with the core developer path, add advanced
+delivery controls only after test/CI and human ownership are clear, and install
+or invoke specialist workflows for a named job. Running
+`/core-engineering:ce-init --readiness` reports local prerequisites separately from repository-host rules
+that still require administrator verification.
+
 **Historical, with explicit limits:** a curated 2026-06-27 summary records ten
 scenario passes under configured per-run caps of $1–$4. It did not retain raw
 runs or actual spend. The skills and receipt contract have changed since then,
@@ -158,6 +165,9 @@ leaf wrappers around the same skills:
 They are intentionally leaf agents: no nested `Task` fanout, no git push/PR/merge
 authority, and no production deployment authority. Use them directly from Claude
 Code's agent picker or as the named workers an orchestrating skill delegates to.
+When an underlying skill reaches a human gate, the leaf returns a structured
+`Needs decision` checkpoint to its parent and resumes only after the caller
+supplies that decision; it never guesses approval.
 
 ## Repository Layout
 

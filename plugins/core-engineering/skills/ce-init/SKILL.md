@@ -3,7 +3,7 @@ name: ce-init
 description: |
   Bootstrap core-engineering in a repository: profile languages, package managers, build/test commands, CI, API/data/security surfaces, then write starter repo SDLC artifacts under docs/plans without overwriting human policy silently.
   Triggers: first-run setup, initialize this framework in a repo, generate vc-policy/review-policy/patterns/repo profile before planning.
-argument-hint: "[--write] [--force]"
+argument-hint: "[--write] [--force] [--readiness]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
 
@@ -30,6 +30,10 @@ files, install packages, or connect to trackers.
 - **Optional `--force`:** overwrite existing starter artifacts only after an
   explicit human confirmation in this invocation. Existing human-authored policy
   is never replaced silently.
+- **Optional `--readiness`:** add a deterministic adoption view that separates
+  locally detectable workflow prerequisites from repository-host controls that
+  require administrator verification. It executes no build, test, or CI job and
+  is not a compliance attestation.
 - **Optional context from the human:** team branching policy, protected branch,
   review bar, known flaky tests, forbidden paths, deployment constraints, and
   security-sensitive surfaces.
@@ -40,6 +44,12 @@ files, install packages, or connect to trackers.
 
    ```bash
    python3 "${CLAUDE_SKILL_DIR}/scripts/repo-profile.py" --root . --json
+   ```
+
+   For an adoption check, include the local readiness view:
+
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR}/scripts/repo-profile.py" --root . --readiness --json
    ```
 
    Use `--write` only when the human requested writes:
@@ -62,7 +72,8 @@ files, install packages, or connect to trackers.
 4. Preserve human policy. If any target exists, read it and ask before
    overwriting. Prefer appendable notes or "left existing" over replacement.
 5. End with a concise handoff: artifacts written or skipped, commands detected,
-   unresolved setup questions, and next recommended skill.
+   unresolved setup questions, readiness blockers when requested, and next
+   recommended skill.
 
 ## Workflow
 
@@ -147,6 +158,18 @@ Do not create a plan slug. `/core-engineering:ce-plan` owns feature/project plan
 
 ### Stage 3 - Handoff
 
+When `--readiness` was requested, lead with the two separate outcomes:
+
+- `core_workflows`: whether starter artifacts and a test command are locally
+  available;
+- `team_quality_bar`: whether CI, CODEOWNERS, and a SHA-pinned merge-bar are
+  locally configured, while preserving `host_enforcement:
+  external-unverified` until an administrator confirms required checks and
+  review/ruleset settings.
+
+Do not turn a detected workflow file into a claim that it ran, passed, or is a
+required check.
+
 Recommend the next command:
 
 - `/core-engineering:ce-ask` for immediate code questions;
@@ -171,6 +194,9 @@ Recommend the next command:
   not prove the application can build, deploy, or pass tests.
 - It cannot infer private release rules, compliance obligations, ownership, or
   production environments without human input.
+- Readiness cannot query branch protection, rulesets, required reviewers, or
+  required status checks; those remain `external-unverified` until a repository
+  administrator supplies evidence.
 - It writes starter policy, not a compliance attestation.
 - It does not connect to issue trackers, CI providers, registries, cloud
   accounts, or observability systems.

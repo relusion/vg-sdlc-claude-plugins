@@ -469,6 +469,12 @@ Choose `spec-author` for `/core-engineering:ce-plan` + `/core-engineering:ce-spe
 they cannot fan out to nested agents and have no push, merge, release, or deploy
 authority.
 
+Because leaf agents do not own an interactive-question channel, a skill's human
+gate is returned to the parent as a structured `Needs decision` handoff with the
+gate, evidence, options and consequences, and an exact `Resume` input. Give the
+decision back to the same agent; it reloads the named checkpoint and continues
+without treating silence as approval or repeating completed work.
+
 **Expected artifacts:** normal skill-owned plan/spec artifacts from
 `spec-author`, or code, tests, task updates, and `verification.md` from
 `spec-impl`.
@@ -478,7 +484,9 @@ checks as a directly invoked skill.
 
 **Stop or escalate when:** the requested work crosses the selected agent's
 boundary, requires a product/scope decision, or needs shared-history or
-production authority. Return to the owning skill or human decision-maker.
+production authority. A normal skill gate pauses through `Needs decision` and
+resumes after the caller answers; authority outside the agent's boundary returns
+to the owning skill or human decision-maker.
 
 ## Recipe 18: Bootstrap A Repository
 

@@ -158,6 +158,10 @@ Write the artifact (never overwritten):
 docs/idea-scout/<date>.md
 ```
 
+**Same-day collision rule:** resolve the path before writing. The first run uses
+`<date>`; if it exists, use `<date>-2`, then `<date>-3`, and so on. Never
+overwrite a prior shortlist.
+
 For each direction the human carries forward, **name the next skill** — *"Run
 `/product-discovery:ce-idea-score` on \<direction\> for a full standalone verdict, or
 `/product-discovery:ce-market-scan` for an evidence-bound validation"* — never auto-launch it,

@@ -49,15 +49,18 @@ clause or cited blocked use), not this skill.
   each feature's `specs/<id>/ce-spec.md`, `tasks.json`, and `verification.md` where
   they exist.
 
-This workflow **does not modify any existing artifact**. It writes only one new
-file: `verification-report.md` in the plan directory.
+This workflow never modifies source, specs, task state, or any loaded planning
+artifact. It owns two bounded writes in the plan directory: create or update the
+cumulative `verification-report.md`, and append optional telemetry to
+`.metrics.jsonl`.
 
 ## Execution Contract
 
 *Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant.
 
+0. **Session write lease (structural, first act).** `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill ce-verify --allow 'docs/plans/**/verification-report.md' --allow 'docs/plans/**/.metrics.jsonl'` — the write guard limits this run to the cumulative report and optional telemetry. Last act, on success, failure, or early exit: `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --restore-baseline`. A denied write means this contract and the attempted action disagree — reconcile them; never edit or delete the lease to proceed.
 1. **Verify, do not fix.** Find defects and escalate; never patch code, never edit specs, never edit feature files.
-2. **Read-only on existing artifacts.** Write `verification-report.md` only.
+2. **Bounded artifact writes.** Create or update only `verification-report.md`; append only to `.metrics.jsonl`. All source, plan, spec, task, and verification inputs remain read-only.
 3. **Grounded.** Scenarios come from the plan's traced journeys and the specs' EARS criteria and test cases — never from-scratch tests. The Stage 2.5 revisit walk is the reciprocal of the plan's Stage 6.3 closure rows, scripted off the feature's built write surfaces — not an invented test.
 4. **Derive state, don't trust claims.** A feature is `implemented` only if its `tasks.json` exists and every task is `done` and `verification.md` exists; anything less is in progress.
 5. **Batched HITL.** Automated checks autonomous; each journey is driven end-to-end first, then presented in **one pre-triaged gate per journey** (agent-suggested Pass/Fail/uncertain — flagged rows isolated, suggested-Pass rows bulk-confirmed, the human owning every verdict); the durable-noun revisit walk batches to **one gate per noun**; stakeholder acceptance a material gate. The interactive gate count M ≈ journeys + durable nouns + surface-removal + acceptance, never per step.
@@ -72,7 +75,7 @@ Verify is mostly autonomous. Human judgment batches to a few named gates — **o
 - **Revisit verdicts** (Stage 2.5) — **one gate per durable noun** covering revisit / switch / amend **and** the governance reciprocals (retain / export / erase), same triaged shape. The mechanical re-projection equality checks (threat-model + interaction-contract data-class consistency) are **reported as pre-flagged rows, never asked** — a detected mismatch surfaces in *what needs your decision*, not as a separate question.
 - **Stakeholder acceptance** (Stage 3, pre-handover only) — a material gate; each journey presented as a walkable scenario, sign-off captured.
 
-Never patch code; never modify any other artifact.
+Never patch code; never modify artifacts outside the two bounded write paths.
 
 ---
 

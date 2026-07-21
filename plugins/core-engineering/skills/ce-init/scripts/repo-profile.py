@@ -55,6 +55,14 @@ DATA_HINTS = ("migration", "migrations", "schema.sql", "models", "repository", "
 SECURITY_HINTS = ("auth", "login", "jwt", "oauth", "session", "permission", "rbac", "secrets")
 INFRA_HINTS = ("Dockerfile", "docker-compose", "terraform", ".tf", "k8s", "kubernetes", "helm")
 
+SETUP_ARTIFACTS = (
+    "docs/plans/repo-profile.json",
+    "docs/plans/vc-policy.md",
+    "docs/plans/review-policy.md",
+    "docs/plans/patterns.md",
+)
+FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
+
 
 def rel(root: Path, path: Path) -> str:
     try:
@@ -293,6 +301,188 @@ def detect_ownership(root: Path) -> dict:
     return paths
 
 
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def detect_merge_bar(root: Path, ci: list[dict]) -> dict:
+    """Detect local merge-bar configuration without claiming host enforcement."""
+    evidence: list[dict] = []
+    for item in ci:
+        path = root / str(item.get("path", ""))
+        text = read_text(path)
+        if not text:
+            continue
+
+        for match in re.finditer(
+            r"uses:\s*[^\s#]+/action/merge-bar@([^\s#]+)", text, re.IGNORECASE
+        ):
+            ref = match.group(1).strip("'\"")
+            evidence.append({
+                "mode": "composite-action",
+                "path": rel(root, path),
+                "ref": ref,
+                "pinned": bool(FULL_SHA_RE.fullmatch(ref)),
+            })
+
+        if "gate_runner.py" in text and "TOOLKIT_REF" in text:
+            match = re.search(r"TOOLKIT_REF\s*:\s*['\"]?([^\s'\"#]+)", text)
+            ref = match.group(1) if match else None
+            evidence.append({
+                "mode": "copy-in-template",
+                "path": rel(root, path),
+                "ref": ref,
+                "pinned": bool(ref and FULL_SHA_RE.fullmatch(ref)),
+            })
+
+    return {
+        "installed": bool(evidence),
+        "pinned": bool(evidence) and all(item["pinned"] for item in evidence),
+        "evidence": evidence,
+    }
+
+
+def readiness_check(
+    check_id: str,
+    status: str,
+    detail: str,
+    next_action: str | None = None,
+    evidence: list[str] | None = None,
+) -> dict:
+    result = {
+        "id": check_id,
+        "status": status,
+        "detail": detail,
+        "evidence": evidence or [],
+    }
+    if next_action:
+        result["next_action"] = next_action
+    return result
+
+
+def build_readiness(root: Path, profile: dict) -> dict:
+    """Build a local readiness view; remote repository controls stay unknown."""
+    checks: list[dict] = []
+
+    present_artifacts = [path for path in SETUP_ARTIFACTS if (root / path).is_file()]
+    missing_artifacts = [path for path in SETUP_ARTIFACTS if path not in present_artifacts]
+    if missing_artifacts:
+        checks.append(readiness_check(
+            "starter-artifacts",
+            "action-required",
+            f"{len(missing_artifacts)} of {len(SETUP_ARTIFACTS)} starter artifacts are missing.",
+            "Run /core-engineering:ce-init --write, then review inferred policy.",
+            present_artifacts,
+        ))
+    else:
+        checks.append(readiness_check(
+            "starter-artifacts",
+            "pass",
+            "All starter profile and policy artifacts are present.",
+            evidence=present_artifacts,
+        ))
+
+    test_commands = [item.get("command") for item in profile["commands"].get("test", [])]
+    if test_commands:
+        checks.append(readiness_check(
+            "test-command",
+            "pass",
+            "At least one local test command was detected; it has not been executed.",
+            evidence=[str(command) for command in test_commands if command],
+        ))
+    else:
+        checks.append(readiness_check(
+            "test-command",
+            "action-required",
+            "No local test command was detected.",
+            "Confirm and record the repository's canonical test command before autonomous implementation.",
+        ))
+
+    ci_paths = [str(item.get("path")) for item in profile.get("ci", []) if item.get("path")]
+    checks.append(readiness_check(
+        "ci-configuration",
+        "pass" if ci_paths else "action-required",
+        (
+            "CI configuration is present; this static scan does not prove that build/test jobs run or are required."
+            if ci_paths else "No supported CI configuration was detected."
+        ),
+        None if ci_paths else "Add the repository's normal build/test CI before team rollout.",
+        ci_paths,
+    ))
+
+    ownership = profile.get("ownership", {})
+    codeowners = next(
+        (value for key, value in ownership.items() if key.endswith("CODEOWNERS")), None
+    )
+    checks.append(readiness_check(
+        "code-ownership",
+        "pass" if codeowners else "action-required",
+        "CODEOWNERS is present; host enforcement is checked separately." if codeowners else "No CODEOWNERS file was detected.",
+        None if codeowners else "Add CODEOWNERS before requiring owner review on trust-sensitive paths.",
+        [codeowners] if codeowners else [],
+    ))
+
+    merge_bar = detect_merge_bar(root, profile.get("ci", []))
+    if not merge_bar["installed"]:
+        merge_status = "action-required"
+        merge_detail = "No merge-bar action or copy-in workflow was detected."
+        merge_next = "Adopt action/merge-bar at a full commit SHA or the checksum-verified copy-in template."
+    elif not merge_bar["pinned"]:
+        merge_status = "action-required"
+        merge_detail = "Merge-bar configuration is present but at least one toolkit reference is not a full commit SHA."
+        merge_next = "Pin every merge-bar toolkit reference to a full 40-character commit SHA."
+    else:
+        merge_status = "pass"
+        merge_detail = "A SHA-pinned merge-bar configuration was detected; it has not been executed by this scan."
+        merge_next = None
+    checks.append(readiness_check(
+        "merge-bar-configuration",
+        merge_status,
+        merge_detail,
+        merge_next,
+        [item["path"] for item in merge_bar["evidence"]],
+    ))
+
+    checks.append(readiness_check(
+        "host-merge-policy",
+        "external-unverified",
+        "Required checks, reviewer counts, CODEOWNER enforcement, conversation resolution, and force-push/deletion rules live on the repository host and were not queried.",
+        "Have a repository administrator verify and retain evidence of branch protection or ruleset configuration.",
+    ))
+
+    core_blockers = [
+        check["id"] for check in checks
+        if check["id"] in {"starter-artifacts", "test-command"}
+        and check["status"] == "action-required"
+    ]
+    local_team_blockers = [
+        check["id"] for check in checks
+        if check["id"] in {"ci-configuration", "code-ownership", "merge-bar-configuration"}
+        and check["status"] == "action-required"
+    ]
+    return {
+        "schema_version": 1,
+        "core_workflows": {
+            "status": "ready" if not core_blockers else "action-required",
+            "blocking_checks": core_blockers,
+        },
+        "team_quality_bar": {
+            "status": "local-ready-host-unverified" if not local_team_blockers else "action-required",
+            "blocking_checks": local_team_blockers,
+            "host_enforcement": "external-unverified",
+        },
+        "checks": checks,
+        "limitations": [
+            "Readiness is a static local assessment; commands and CI workflows are not executed.",
+            "A local configuration is not evidence that repository-host protections are enabled.",
+            "This output is an adoption aid, not a compliance attestation.",
+        ],
+    }
+
+
 def build_profile(root: Path) -> dict:
     files = iter_files(root)
     managers = package_managers(root)
@@ -443,6 +633,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="print profile JSON")
     parser.add_argument("--write", action="store_true", help="write missing docs/plans setup artifacts")
     parser.add_argument("--force", action="store_true", help="overwrite existing setup artifacts")
+    parser.add_argument(
+        "--readiness",
+        action="store_true",
+        help="include local developer-workflow and team-quality-bar readiness",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -452,7 +647,9 @@ def main(argv: list[str] | None = None) -> int:
     profile = build_profile(root)
     if args.write:
         profile["artifact_writes"] = write_artifacts(root, profile, args.force)
-    if args.json or not args.write:
+    if args.readiness:
+        profile["readiness"] = build_readiness(root, profile)
+    if args.json or args.readiness or not args.write:
         print(json.dumps(profile, indent=2, sort_keys=True))
     else:
         writes = profile.get("artifact_writes", {})

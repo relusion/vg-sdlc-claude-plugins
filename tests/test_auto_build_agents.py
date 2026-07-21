@@ -9,9 +9,24 @@ SKILL_DIR = REPO / "plugins/core-engineering/skills/ce-auto-build"
 SKILL = SKILL_DIR / "SKILL.md"
 PIPELINE = SKILL_DIR / "stage-1-2-pipeline.md"
 REPORT_TEMPLATE = SKILL_DIR / "run-report-template.md"
+AGENT_DIR = REPO / "plugins/core-engineering/agents"
+RECIPES = REPO / "docs/WORKFLOW-RECIPES.md"
 
 
 class AutoBuildMvp(unittest.TestCase):
+    def test_leaf_agents_pause_for_parent_mediated_human_decisions(self):
+        for name in ("spec-author.md", "spec-impl.md"):
+            text = (AGENT_DIR / name).read_text(encoding="utf-8")
+            frontmatter = text.split("---", 2)[1]
+            self.assertNotIn("AskUserQuestion", frontmatter, name)
+            for field in ("Needs decision", "Gate", "Evidence", "Options", "Resume"):
+                self.assertIn(field, text, f"{name}: missing {field}")
+            self.assertIn("without replaying completed work", text, name)
+
+        recipes = RECIPES.read_text(encoding="utf-8")
+        self.assertIn("parent as a structured `Needs decision` handoff", recipes)
+        self.assertIn("without treating silence as approval", recipes)
+
     def test_skill_prefers_plugin_agents_with_bounded_generic_fallback(self):
         text = SKILL.read_text(encoding="utf-8")
         self.assertIn("spec-author", text)

@@ -87,6 +87,9 @@ tool exercises a live target. Don't duplicate; route accordingly.
 6. **Orchestrate, Don't Reinvent.** Mature scanners/fuzzers do the deep work where installed.
 7. **Read-only on code and existing artifacts.** Write only the dated report and `evidence/`.
 8. **Output:** `docs/sec-probes/<date>-<slug>.md` + `docs/sec-probes/evidence/<date>-<slug>/`.
+   Resolve a same-day collision before writing: use `<date>-<slug>` first, then
+   `<date>-<slug>-2`, `-3`, and so on for report and evidence together; never
+   overwrite or split one run across keys.
 
 ## Consent Gates
 

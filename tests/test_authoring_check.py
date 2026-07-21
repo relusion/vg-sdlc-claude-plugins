@@ -108,6 +108,23 @@ class AuthoringCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("<date>", res.stderr)
 
+    def test_never_overwritten_date_without_same_day_suffix_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            self._mutate(
+                repo, f"{SKILLS}/ce-decide/SKILL.md",
+                "**Same-day collision rule:**",
+                "**Second-run collision rule:**",
+            )
+            self._mutate(
+                repo, f"{SKILLS}/ce-decide/SKILL.md",
+                "`<date>-2`",
+                "`<date>-next`",
+            )
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("same-day `-2` collision suffix", res.stderr)
+
     def test_retired_concept_name_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._copy_repo(Path(tmp))

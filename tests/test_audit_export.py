@@ -167,6 +167,49 @@ class Export(unittest.TestCase):
             self.assertTrue(out.is_file())
             json.loads(out.read_text())  # valid JSON on disk
 
+    def test_out_refuses_to_overwrite_existing_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_fixture(Path(tmp))
+            out = Path(tmp) / "audit-export" / "2026-06-11-audit-export.json"
+            out.parent.mkdir()
+            out.write_text("earlier export\n")
+
+            res = run(str(plan), "--out", str(out))
+
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("target already exists", res.stderr)
+            self.assertEqual(out.read_text(), "earlier export\n")
+
+    def test_out_refuses_dangling_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_fixture(Path(tmp))
+            out = Path(tmp) / "audit-export" / "2026-06-11-audit-export.json"
+            out.parent.mkdir()
+            try:
+                out.symlink_to(out.parent / "missing-export.json")
+            except (NotImplementedError, OSError) as exc:
+                self.skipTest(f"symlinks unavailable: {exc}")
+
+            res = run(str(plan), "--out", str(out))
+
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("is a symlink", res.stderr)
+            self.assertTrue(out.is_symlink())
+            self.assertFalse((out.parent / "missing-export.json").exists())
+
+    def test_existing_export_does_not_change_stdout_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = make_fixture(Path(tmp))
+            out = plan / "audit-export" / "2026-06-11-audit-export.json"
+            out.parent.mkdir()
+            out.write_text("earlier export\n")
+
+            res = run(str(plan))
+
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(json.loads(res.stdout)["plan_slug"], "demo-plan")
+            self.assertEqual(out.read_text(), "earlier export\n")
+
     def test_empty_dir_exits_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             res = run(tmp)

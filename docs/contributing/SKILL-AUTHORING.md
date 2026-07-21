@@ -82,7 +82,12 @@ applies" and a number signals "you will pass them all."
 
 - **Dates in artifact paths** are the `<date>` placeholder, which resolves to
   the run date in `YYYY-MM-DD` form. Never spell the pattern into the path
-  template (A3 rejects the two historical drift spellings).
+  template (A3 rejects the two historical drift spellings). For a dated artifact
+  promised as never-overwritten, `<date>` names the first run that day. Resolve
+  all companion paths before writing; a same-day collision uses a shared `-2`,
+  then `-3`, suffix (for example `<date>-<slug>-2`) across the report, machine
+  companion, and evidence directory. A12 requires the collision rule in the
+  skill's shipped runtime docs; this contributor guide alone is not sufficient.
 - **One name per concept.** The loop-back summary between spine stages is the
   `Back-Edge Summary` — the reversed long form is retired (A4; the canon table
   lives in `authoring_check.py`, extend it on the next rename).

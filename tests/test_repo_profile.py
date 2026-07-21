@@ -20,6 +20,51 @@ def run_profile(root: Path, *args: str):
 
 
 class RepoProfile(unittest.TestCase):
+    def test_readiness_separates_local_configuration_from_host_enforcement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "package.json").write_text(json.dumps({
+                "scripts": {"test": "vitest"}
+            }), encoding="utf-8")
+            (root / ".github" / "workflows").mkdir(parents=True)
+            (root / ".github" / "workflows" / "merge-bar.yml").write_text(
+                "steps:\n"
+                "  - uses: relusion/vg-sdlc-claude-plugins/action/merge-bar@"
+                + "a" * 40 + "\n",
+                encoding="utf-8",
+            )
+            (root / ".github" / "CODEOWNERS").write_text("* @owners\n", encoding="utf-8")
+
+            written = run_profile(root, "--write", "--json")
+            self.assertEqual(written.returncode, 0, written.stderr)
+            res = run_profile(root, "--readiness", "--json")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            readiness = json.loads(res.stdout)["readiness"]
+
+            self.assertEqual(readiness["core_workflows"]["status"], "ready")
+            self.assertEqual(
+                readiness["team_quality_bar"]["status"],
+                "local-ready-host-unverified",
+            )
+            checks = {item["id"]: item for item in readiness["checks"]}
+            self.assertEqual(checks["merge-bar-configuration"]["status"], "pass")
+            self.assertEqual(checks["host-merge-policy"]["status"], "external-unverified")
+            self.assertIn("not a compliance attestation", " ".join(readiness["limitations"]))
+
+    def test_readiness_names_actionable_local_gaps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            res = run_profile(root, "--readiness", "--json")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            readiness = json.loads(res.stdout)["readiness"]
+            self.assertEqual(readiness["core_workflows"]["status"], "action-required")
+            self.assertIn("starter-artifacts", readiness["core_workflows"]["blocking_checks"])
+            self.assertIn("test-command", readiness["core_workflows"]["blocking_checks"])
+            self.assertIn(
+                "merge-bar-configuration",
+                readiness["team_quality_bar"]["blocking_checks"],
+            )
+
     def test_detects_common_repo_signals(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

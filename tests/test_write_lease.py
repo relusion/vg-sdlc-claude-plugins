@@ -13,6 +13,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "plugins/core-engineering/skills/ce-review/scripts/write-lease.py"
 HOOK = REPO / "plugins/core-engineering/hooks/write-scope-guard.py"
+FORK_MANIFEST = REPO / "plugins/core-engineering/fork-manifest.json"
+VERIFY_SKILL = REPO / "plugins/core-engineering/skills/ce-verify/SKILL.md"
+VERIFY_REPORT_STAGE = (
+    REPO / "plugins/core-engineering/skills/ce-verify/stage-3-acceptance-report.md"
+)
 LEASE_REL = ".claude/ce-write-scope.json"
 
 
@@ -30,6 +35,26 @@ def read_lease(root: Path) -> dict:
 
 
 class WriteLease(unittest.TestCase):
+    def test_verify_declares_and_bundles_its_bounded_write_lease(self):
+        manifest = json.loads(FORK_MANIFEST.read_text(encoding="utf-8"))
+        write_lease_fork = next(
+            fork for fork in manifest["forks"]
+            if fork["canonical"].endswith("ce-review/scripts/write-lease.py")
+        )
+        verify_copy = "plugins/core-engineering/skills/ce-verify/scripts/write-lease.py"
+        self.assertIn(verify_copy, write_lease_fork["copies"])
+
+        contract = VERIFY_SKILL.read_text(encoding="utf-8")
+        self.assertIn("--set --skill ce-verify", contract)
+        self.assertIn("docs/plans/**/verification-report.md", contract)
+        self.assertIn("docs/plans/**/.metrics.jsonl", contract)
+        self.assertIn("--restore-baseline", contract)
+
+        reporting = VERIFY_REPORT_STAGE.read_text(encoding="utf-8")
+        self.assertIn("one `attestation` line for each interactive gate", reporting)
+        self.assertIn("exactly one best-effort `run-terminal`", reporting)
+        self.assertIn("resolved model, Claude CLI, and plugin versions", reporting)
+
     def test_set_writes_a_lease_with_baseline_denies(self):
         with tempfile.TemporaryDirectory() as tmp:
             res = run_lease("--set", "--skill", "ce-review",

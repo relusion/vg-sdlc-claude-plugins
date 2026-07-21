@@ -12,6 +12,8 @@ read this directory in filename order.
   matching multi-skill path, and adopt higher-autonomy workflows in stages.
 - [How It Works](HOW-IT-WORKS.md) — understand the architecture, artifacts,
   gates, and safety model.
+- [Compatibility and Upgrades](COMPATIBILITY.md) — check the supported runtime
+  floor, migration notes, and team-safe update sequence.
 - [Real Outputs](EXAMPLES.md) — inspect captured examples with provenance.
 
 If you are unsure where to begin, use [Getting Started](GETTING-STARTED.md). If

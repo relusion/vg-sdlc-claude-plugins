@@ -69,6 +69,9 @@ class MetricsReport(unittest.TestCase):
             self.assertEqual(doc["plans"]["with_metrics"], 1)
             self.assertEqual(doc["metrics"]["lines_total"], 3)
             self.assertEqual(doc["metrics"]["lines_unparseable"], 1)
+            self.assertEqual(doc["metrics"]["lines_invalid_schema"], 0)
+            self.assertEqual(doc["metrics"]["event_schema"]["legacy_unversioned"], 2)
+            self.assertEqual(doc["metrics"]["field_coverage"]["valid_events"], 2)
             self.assertEqual(doc["metrics"]["gates"]["pass"], 1)
             self.assertEqual(doc["metrics"]["escalations_by_type"]["/core-engineering:ce-plan"], 1)
             self.assertEqual(doc["reviews"]["findings_total"], 2)
@@ -79,6 +82,114 @@ class MetricsReport(unittest.TestCase):
             self.assertEqual(doc["evals"]["by_profile"]["benchmark"], 2)
             self.assertEqual(doc["evals"]["by_failure_kind"]["budget-exceeded"], 1)
             self.assertTrue(any("unparseable metrics" in gap for gap in doc["gaps"]))
+
+    def test_v2_contract_validation_and_runtime_metadata_coverage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_fixture(root)
+            metrics = root / "docs" / "plans" / "demo" / ".metrics.jsonl"
+            metrics.write_text("\n".join([
+                json.dumps({
+                    "schema_version": 2,
+                    "ts": "2026-07-21",
+                    "stage": "verify",
+                    "plan": "demo",
+                    "feature": "01-core",
+                    "event": "run-terminal",
+                    "run_id": "20260721-120000Z-a1b2",
+                    "outcome": "completed",
+                    "duration_ms": 1234,
+                    "model": "claude-opus-resolved",
+                    "claude_cli_version": "1.2.3",
+                    "plugin_version": "0.10.1",
+                }),
+                json.dumps({
+                    "schema_version": 2,
+                    "ts": "2026-07-21",
+                    "stage": "review",
+                    "plan": "demo",
+                    "feature": "01-core",
+                    "event": "attestation",
+                    "run_id": "20260721-120001Z-b2c3",
+                    "gate": "finding-triage",
+                    "gate_index": "1 of 1",
+                    "action": "confirm",
+                    "basis_shown": True,
+                    "model": None,
+                }),
+                # Explicit v1 remains readable with its historical permissive shape.
+                json.dumps({"schema_version": 1, "event": "gate", "gate": "pass"}),
+                # Parseable v2 telemetry is excluded when its schema is invalid.
+                json.dumps({
+                    "schema_version": 2,
+                    "ts": "2026-07-21",
+                    "stage": "verify",
+                    "plan": "demo",
+                    "feature": None,
+                    "event": "run-terminal",
+                    "outcome": "completed",
+                    "duration_ms": -1,
+                }),
+                json.dumps({"schema_version": 99, "event": "gate", "gate": "fail"}),
+            ]) + "\n", encoding="utf-8")
+
+            res = run("--root", str(root), "--json")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            doc = json.loads(res.stdout)
+            summary = doc["metrics"]
+
+            self.assertEqual(summary["event_schema"]["version_1"], 1)
+            self.assertEqual(summary["event_schema"]["version_2"], 3)
+            self.assertEqual(summary["event_schema"]["unsupported"], 1)
+            self.assertEqual(summary["lines_invalid_schema"], 2)
+            self.assertEqual(summary["field_coverage"], {
+                "valid_events": 3,
+                "run_id": 2,
+                "terminal_outcome": 1,
+                "duration_ms": 1,
+                "model": 1,
+                "claude_cli_version": 1,
+                "plugin_version": 1,
+            })
+            self.assertEqual(summary["terminal_outcomes"], {"completed": 1})
+            self.assertEqual(summary["gates"]["pass"], 1)
+            self.assertEqual(summary["gates"]["fail"], 0)
+            self.assertTrue(any("duration_ms" in gap for gap in doc["gaps"]))
+            self.assertTrue(any("unsupported schema_version" in gap for gap in doc["gaps"]))
+
+    def test_missing_plan_stream_is_a_coverage_gap_not_a_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for slug in ("with-stream", "without-stream"):
+                plan = root / "docs" / "plans" / slug
+                plan.mkdir(parents=True)
+                (plan / "plan.json").write_text(json.dumps({
+                    "status": "planned",
+                    "features": [],
+                }), encoding="utf-8")
+            (root / "docs" / "plans" / "with-stream" / ".metrics.jsonl").write_text(
+                "", encoding="utf-8")
+
+            res = run("--root", str(root), "--json")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            doc = json.loads(res.stdout)
+
+            self.assertEqual(doc["plans"]["metrics_coverage"], {
+                "plans_expected": 2,
+                "plans_with_stream": 1,
+                "plans_missing_stream": 1,
+            })
+            self.assertEqual(doc["plans"]["with_metrics"], 1)
+            self.assertEqual(doc["plans"]["without_metrics"], 1)
+            missing = next(p for p in doc["plans"]["items"]
+                           if p["slug"] == "without-stream")
+            self.assertFalse(missing["metrics_present"])
+            self.assertEqual(missing["metrics"]["lines_total"], 0)
+            self.assertTrue(any(
+                "without-stream/.metrics.jsonl: missing metrics stream" in gap
+                and "not complete zeros" in gap
+                for gap in doc["gaps"]
+            ))
 
     def test_writes_json_and_html(self):
         with tempfile.TemporaryDirectory() as tmp:

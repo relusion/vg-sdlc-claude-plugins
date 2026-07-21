@@ -93,6 +93,9 @@ deliberate v1 non-goal — see Honest Limitations.)*
 5. **Orchestrate, Don't Reinvent.** Installed load generators and profilers do the deep work; this skill drives them and synthesizes. (Curl-class single-request timing is a permitted primitive, not reinvention.)
 6. **Read-only on the project; bounded scratch.** Write only the dated report and `evidence/`. A library-surface scratch microbenchmark is written **only** under `docs/perf-profiles/evidence/<date>-<slug>/` (or a throwaway temp dir) — **never** into the project source tree, and **never** committed. Never patch, commit, or deploy — a fix is an escalation.
 7. **Output:** `docs/perf-profiles/<date>-<slug>.md` + `docs/perf-profiles/evidence/<date>-<slug>/`.
+   Resolve a same-day collision before writing: use `<date>-<slug>` first, then
+   `<date>-<slug>-2`, `-3`, and so on for report and evidence together; never
+   overwrite or split one run across keys.
 
 ## Consent Gate — Environment, Authorization & Intensity  [material]
 

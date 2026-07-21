@@ -39,6 +39,9 @@ reviewer diligence guarded it:
         declares a `Three-State Evidence` rule maps its own domain tags onto it
         with the literal `shared evidence scale` clause — one mental model, each
         genre's tag strings a labeled specialization (not N×N cross-references).
+  * A12 a dated, never-overwritten artifact contract states a same-day collision
+        rule and the `-2` suffix convention somewhere in that skill's shipped
+        docs, so a second run cannot silently clobber the first.
 
 Stdlib-only, exit 0 clean / 1 findings, same contract as corpus_lint.py.
 """
@@ -160,6 +163,13 @@ EVIDENCE_TRIGGER_RE = re.compile(r"three[- ]state evidence", re.IGNORECASE)
 EVIDENCE_MAPPING_CLAUSE = "shared evidence scale"
 EVIDENCE_GLOSSARY_ANCHOR = "evidence-strength meta-scale"
 EVIDENCE_META_TIERS = ("demonstrated", "read", "inferred")
+
+# A12 — date-only snapshot names collide on a second run that day. A skill that
+# promises never-overwritten dated output must ship the collision behavior in
+# its own runtime docs (not only in the contributor guide).
+NEVER_OVERWRITE_RE = re.compile(r"never[- ]overwrit", re.IGNORECASE)
+SAME_DAY_LITERAL = "same-day"
+COLLISION_SUFFIX_LITERAL = "-2"
 
 
 def rel(root: Path, path: Path) -> str:
@@ -522,6 +532,33 @@ def check_evidence_meta_scale(root: Path, errors: list[str]) -> int:
     return checked
 
 
+def check_dated_snapshot_collisions(root: Path, errors: list[str]) -> int:
+    """A12 — never-overwritten dated snapshots need a second-run key."""
+    checked = 0
+    skill_dirs = [
+        directory
+        for skills_root in skills_roots(root)
+        for directory in sorted(skills_root.iterdir())
+        if (directory / "SKILL.md").is_file()
+    ]
+    for skill_dir in skill_dirs:
+        texts = [
+            path.read_text(encoding="utf-8")
+            for path in sorted(skill_dir.glob("**/*.md"))
+        ]
+        if not any("<date>" in text and NEVER_OVERWRITE_RE.search(text) for text in texts):
+            continue
+        checked += 1
+        combined = "\n".join(texts).lower()
+        if SAME_DAY_LITERAL not in combined or COLLISION_SUFFIX_LITERAL not in combined:
+            errors.append(
+                f"{rel(root, skill_dir)}: promises never-overwritten `<date>` "
+                "artifacts but does not define a same-day `-2` collision suffix "
+                "in its shipped docs (A12; docs/contributing/SKILL-AUTHORING.md §5)"
+            )
+    return checked
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Lint skill-corpus authoring conformance")
     parser.add_argument("--root", default=str(DEFAULT_ROOT), help="repository root")
@@ -543,6 +580,7 @@ def main(argv: list[str] | None = None) -> int:
     checked += check_glossary_sync(root, errors)
     checked += check_material_gate_locators(root, errors)
     checked += check_evidence_meta_scale(root, errors)
+    checked += check_dated_snapshot_collisions(root, errors)
 
     if errors:
         print(

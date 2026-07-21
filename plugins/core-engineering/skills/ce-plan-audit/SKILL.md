@@ -60,6 +60,9 @@ It runs in two modes:
 0. **Session write lease (structural, first act).** `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill ce-plan-audit --allow 'docs/plan-audits/**'` — the write guard now enforces contract item 2 structurally. Last act: `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --restore-baseline`. A denied write mid-session means this contract and the action disagree — reconcile; never edit or delete the lease to proceed.
 1. **Audit, do not fix.** Find weaknesses and escalate; never edit `plan.json`, `feature-plan.md`, `features/*.md`, or any other artifact. Same discipline as `/core-engineering:ce-review` and `/core-engineering:ce-verify`.
 2. **Read-only on existing artifacts.** Write only the dated report under `docs/plan-audits/` and its `evidence/`.
+   Resolve a same-day collision before writing: use `<date>-<slug>` first, then
+   `<date>-<slug>-2`, `-3`, and so on for both report and evidence paths; never
+   split one run across keys.
 3. **Grounded & evidence-bound.** Every finding cites `file:line` (the manifest entry, the ledger row, the feature block) or a lint failure. No evidence → no finding.
 4. **Findings, not verdicts.** Report observations; the human triages. The audit never declares the plan good / bad, sound / unsound, or go / no-go. *(The structural lint is the one exception — a referential break is a fact, not an opinion, and it may assert FAIL.)*
 5. **Judge the plan, not the product.** Audit plan internals against the brief / codebase profile *as the contract*. A disagreement with a settled **product** decision is out of scope — do not re-litigate why the product was chosen.

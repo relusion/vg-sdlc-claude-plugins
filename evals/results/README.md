@@ -42,6 +42,15 @@ in git (`evals/runs/` is gitignored by policy); this directory holds only the
   for a single batch; per-scenario in an aggregated summary). A profile can
   authorize up to this cap once for every selected scenario; it is not a batch
   total or a record of actual spend.
+- `claude_cli` — the requested binary and its first `--version` output line.
+  `status: resolved` carries the observed `version`; `status: unavailable`
+  carries `version: null` and a categorical `reason`. Dry runs use
+  `reason: not-probed-dry-run` and do not execute the version command.
+- `plugin_manifests[]` — one record for each local plugin directory actually
+  passed to Claude with `--plugin-dir`, including its repository-relative
+  manifest path and observed `name`/`version`. Missing, unreadable, or incomplete
+  manifests stay explicit as `status: unavailable` rather than receiving an
+  inferred version. Ambient plugins are outside this receipt's evidence.
 - `scenarios[]` — `id`, `skill`, `status` (`pass`/`failed`), `returncode`, and
   a per-scenario `run_id` for aggregated local summaries. A single-run summary
   may instead use the top-level `run_id`; a per-scenario value takes precedence.

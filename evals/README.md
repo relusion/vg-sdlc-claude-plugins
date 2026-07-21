@@ -168,9 +168,13 @@ as a behavioral failure.
 
 Executed-run `metadata.json` and `summary.json` record timestamps, the fixed
 source commit, whether the source tree stayed clean, the aggregate deterministic
-grader result, and the exact `graded_scenarios` covered by that result. A
-successful Claude process without a scenario-bound passing grade is not
-promotable evidence.
+grader result, the exact `graded_scenarios` covered by that result, the version
+reported by the Claude CLI, and the name/version from each local plugin manifest
+passed with `--plugin-dir`. A failed version probe is recorded as unavailable
+with a reason instead of inferring a version. Dry runs deliberately do not invoke
+the CLI version probe. These fields establish execution provenance; they do not
+claim actual token use or spend, which the runner cannot observe. A successful
+Claude process without a scenario-bound passing grade is not promotable evidence.
 
 ## Human Eval Protocol And Rubric
 

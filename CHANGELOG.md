@@ -7,6 +7,22 @@ that version and this file.
 
 ## Unreleased
 
+- **Developer experience and output-quality hardening (`core-engineering`
+  0.10.2, `product-discovery` 0.1.5).** Added a three-tier capability map,
+  read-only `/core-engineering:ce-init --readiness` reporting, and a supported
+  runtime/upgrade guide. Focused plugin agents now pause at skill-owned human
+  gates through a structured, resumable parent handoff. Verification's cumulative
+  report and metrics writes are protected by an explicit write lease; release GO
+  now requires strict, affirmative task-evidence freshness, while an external
+  release-owner exception remains NO-GO in the workflow. Metrics schema v2 adds
+  optional run identity, terminal outcomes, measured duration, and resolved
+  runtime metadata; repository reporting distinguishes missing streams and
+  invalid events from zero activity. Live-eval receipts now record the observed
+  Claude CLI and loaded plugin manifest versions without inventing token/cost
+  data, and `ce-go` has a no-write intent-routing scenario instead of a coverage
+  waiver. Never-overwritten dated workflows now use shared same-day `-2`, `-3`
+  keys; durable audit export also refuses occupied/symlink targets and creates
+  files exclusively.
 - **Simplified supported product surface (`core-engineering` 0.10.1).** Removed
   enforcement-count publishing, duplicate CI validator runs, the built-in MCP
   gate wrapper, and `/ce-ship-deliver`. The Managed Agent beta cookbooks and

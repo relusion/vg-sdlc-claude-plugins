@@ -31,8 +31,10 @@ from eval_check import IGNORED_STATE_EXCLUDED_DIRS, PROFILES, load_scenarios, re
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TIMEOUT_SECONDS = 900
+CLI_VERSION_TIMEOUT_SECONDS = 10
 BUDGET_EXCEEDED = "Exceeded USD budget"
 AUTH_REQUIRED = "Not logged in"
+EVAL_PLUGIN_DIRS = (Path("plugins/core-engineering"),)
 
 
 def select_scenarios(all_scenarios: list[dict], wanted: list[str], profiles: list[str],
@@ -88,6 +90,85 @@ def fixture_process_env() -> dict[str, str]:
     for key in [name for name in env if name.startswith("GIT_")]:
         del env[key]
     return env
+
+
+def capture_claude_cli_provenance(args, root: Path) -> dict:
+    """Best-effort version evidence for the CLI used by an executed run."""
+    provenance = {
+        "binary": args.claude_bin,
+        "status": "unavailable",
+        "version": None,
+        "reason": "not-probed-dry-run",
+    }
+    if args.dry_run:
+        return provenance
+
+    try:
+        proc = subprocess.run(
+            [args.claude_bin, "--version"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=CLI_VERSION_TIMEOUT_SECONDS,
+            env=fixture_process_env(),
+        )
+    except subprocess.TimeoutExpired:
+        provenance["reason"] = "version-probe-timeout"
+        return provenance
+    except OSError:
+        provenance["reason"] = "version-probe-error"
+        return provenance
+
+    if proc.returncode != 0:
+        provenance["reason"] = f"version-probe-exited-{proc.returncode}"
+        return provenance
+    output = proc.stdout.strip() or proc.stderr.strip()
+    if not output:
+        provenance["reason"] = "version-probe-empty-output"
+        return provenance
+
+    provenance.update({
+        "status": "resolved",
+        "version": output.splitlines()[0][:256],
+        "reason": None,
+    })
+    return provenance
+
+
+def capture_plugin_manifest_provenance(root: Path) -> list[dict]:
+    """Read versions for the local plugin directories supplied to Claude."""
+    records = []
+    for relative_dir in EVAL_PLUGIN_DIRS:
+        plugin_dir = root / relative_dir
+        manifest = plugin_dir / ".claude-plugin" / "plugin.json"
+        record = {
+            "source": "--plugin-dir",
+            "plugin_dir": rel(root, plugin_dir),
+            "manifest": rel(root, manifest),
+            "status": "unavailable",
+            "name": None,
+            "version": None,
+            "reason": None,
+        }
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            record["reason"] = "manifest-missing"
+        except (OSError, json.JSONDecodeError):
+            record["reason"] = "manifest-unreadable"
+        else:
+            name = data.get("name") if isinstance(data, dict) else None
+            version = data.get("version") if isinstance(data, dict) else None
+            if isinstance(name, str) and name and isinstance(version, str) and version:
+                record.update({
+                    "status": "resolved",
+                    "name": name,
+                    "version": version,
+                })
+            else:
+                record["reason"] = "name-or-version-missing"
+        records.append(record)
+    return records
 
 
 def initialize_fixture_worktree(work_dir: Path) -> None:
@@ -220,9 +301,9 @@ def build_claude_cmd(args, root: Path, scenario: dict) -> list[str]:
     ]
     if args.bare:
         cmd.append("--bare")
+    for relative_dir in EVAL_PLUGIN_DIRS:
+        cmd.extend(["--plugin-dir", str(root / relative_dir)])
     cmd.extend([
-        "--plugin-dir",
-        str(root / "plugins" / "core-engineering"),
         "--permission-mode",
         args.permission_mode,
         "--no-session-persistence",
@@ -415,7 +496,8 @@ def write_summary(out_dir: Path, metadata: dict) -> None:
         for key in (
             "schema_version", "run_id", "started_at", "completed_at", "git_head",
             "source_clean", "dry_run", "bare", "permission_mode", "max_budget_usd",
-            "model", "effort", "grade_status", "grade_returncode", "graded_scenarios",
+            "model", "effort", "claude_cli", "plugin_manifests", "grade_status",
+            "grade_returncode", "graded_scenarios",
         )
     }
     summary["scenarios"] = scenarios
@@ -430,6 +512,8 @@ def write_metadata(
     run_id: str,
     started_at: str,
     completed_at: str,
+    claude_cli: dict,
+    plugin_manifests: list[dict],
 ) -> None:
     metadata = {
         "schema_version": 1,
@@ -442,6 +526,8 @@ def write_metadata(
         "max_budget_usd": args.max_budget_usd,
         "model": args.model,
         "effort": args.effort,
+        "claude_cli": claude_cli,
+        "plugin_manifests": plugin_manifests,
         "git_head": source_provenance.get("git_head"),
         "source_clean": source_provenance.get("source_clean"),
         "grade_status": "not-run",
@@ -511,6 +597,8 @@ def main(argv=None) -> int:
         selected = select_scenarios(data["scenarios"], args.scenario, args.profile, args.all)
         if args.execute:
             check_execute_preconditions(args, selected)
+        claude_cli = capture_claude_cli_provenance(args, root)
+        plugin_manifests = capture_plugin_manifest_provenance(root)
         source_provenance = source_git_provenance(root)
         out_dir = Path(args.out_dir) if args.out_dir else root / "evals" / "runs" / run_id
         if not out_dir.is_absolute():
@@ -528,7 +616,8 @@ def main(argv=None) -> int:
             and final_source.get("git_head") == source_provenance.get("git_head")
         )
         write_metadata(
-            out_dir, args, records, source_provenance, run_id, started_at, utc_timestamp()
+            out_dir, args, records, source_provenance, run_id, started_at, utc_timestamp(),
+            claude_cli, plugin_manifests,
         )
     except (ValueError, subprocess.TimeoutExpired) as exc:
         print(f"eval-run: ERROR — {exc}", file=sys.stderr)

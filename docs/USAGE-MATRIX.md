@@ -6,12 +6,27 @@ Use `docs/GETTING-STARTED.md` for a first session,
 `docs/WORKFLOW-RECIPES.md` for end-to-end operating paths, and
 `docs/README.md` for the complete documentation index.
 
+## Adopt In Three Tiers
+
+The tiers are an adoption order, not a reliability rating. Start with the
+smallest workflow that solves the developer's job; add autonomy or specialist
+probes only when the repository has their inputs, owners, and review path.
+
+| Tier | Capabilities | Adopt when |
+|---|---|---|
+| **Core developer path** | `/core-engineering:ce-go`, `/core-engineering:ce-init`, `/core-engineering:ce-ask`, `/core-engineering:ce-impact`, `/core-engineering:ce-patch`, `/core-engineering:ce-plan`, `/core-engineering:ce-spec`, `/core-engineering:ce-implement`, `/core-engineering:ce-review`, `/core-engineering:ce-verify`, `/core-engineering:ce-debug` | Default for individual developers. Run `/core-engineering:ce-init --readiness` to expose missing local prerequisites without claiming host controls are enabled. |
+| **Advanced delivery controls** | `/core-engineering:ce-brief`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-auto-build`, `/core-engineering:ce-ux-audit`, the four `ce-probe-*` skills, `/core-engineering:ce-retro`, `/core-engineering:ce-ship-release`, `/core-engineering:ce-ship-document` | The team has stable test/CI commands, named reviewers, bounded targets, and a quality/release owner. Direct-only and consent gates still apply. |
+| **Optional specialist workflows** | `product-discovery`, `/core-engineering:ce-domain`, `/core-engineering:ce-onboard`, `/core-engineering:ce-decide`, `/core-engineering:ce-ship-backlog`, `/core-engineering:ce-humanize`, `/core-engineering:ce-doc-audit` | A specific discovery, learning, decision, tracker-export, prose, or documentation-validation job exists. Install or invoke only that capability. |
+
+Tiering changes discoverability, not authority: no tier can merge, deploy, accept
+security risk, or convert missing evidence into approval.
+
 ## Starting Points
 
 | I want to... | Use | Why |
 |---|---|---|
 | Not sure which skill runs this | `/core-engineering:ce-go <what you want>` | The front door: inspects repo state, proposes one route, then starts a model-invocable skill or returns the exact direct-only command. Routes, never executes. |
-| Bootstrap this framework in a repo | `/core-engineering:ce-init --write` | Profiles commands, package managers, CI, risk surfaces, and writes starter `docs/plans/` policy artifacts. |
+| Bootstrap this framework in a repo | `/core-engineering:ce-init --write` | Profiles commands, package managers, CI, risk surfaces, and writes starter `docs/plans/` policy artifacts. Add `--readiness` for an explicit local-vs-host adoption gap report. |
 | Shape a raw idea before planning | `/core-engineering:ce-brief` | Elicits intent through selected persona lenses and writes a planning-ready brief. |
 | Validate market context before investing planning time | `/product-discovery:ce-market-scan` *(product-discovery plugin)* | Produces sourced market and competitor findings without rendering a go/no-go verdict. |
 | Score one product idea | `/product-discovery:ce-idea-score` *(product-discovery plugin)* | Renders an opinionated, evidence-tagged Pursue / Park / Drop style verdict. |

@@ -54,6 +54,9 @@ an `evidence/` directory in the plan directory (`docs/plans/<slug>/`);
 **adversarial-discovery** → a dated `docs/ux-audits/<date>-<slug>.md` +
 `docs/ux-audits/evidence/<date>-<slug>/` (never overwritten — each run is a dated
 snapshot).
+For an adversarial same-day collision, resolve the run key before writing: use
+`<date>-<slug>` first, then `<date>-<slug>-2`, `-3`, and so on for report and
+evidence together.
 
 ## Preconditions
 

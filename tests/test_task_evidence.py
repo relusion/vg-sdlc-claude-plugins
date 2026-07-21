@@ -9,8 +9,8 @@ invariant that a stamped tasks.json still passes spec-lint H1-H4 (fields are add
 
 Also covers the WS3-T4 `check` subcommand — the consumer-side freshness verdict:
 fresh (commit_sha in HEAD's ancestry), stale (rewound past the stamped commit → exit
-1), unstamped (legacy / uncommitted / no-git → warn, exit 0), and the test_run_digest
-mismatch → stale path.
+1), unstamped (legacy / uncommitted / no-git → warn, exit 0 by default), strict
+release mode (unstamped → exit 1), and the test_run_digest mismatch → stale path.
 """
 
 import hashlib
@@ -24,6 +24,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "plugins/core-engineering/skills/ce-implement/scripts/task-evidence.py"
 SPEC_LINT = REPO / "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py"
+RELEASE_SKILL = REPO / "plugins/core-engineering/skills/ce-ship-release/SKILL.md"
+RELEASE_STAGES = REPO / "plugins/core-engineering/skills/ce-ship-release/stages.md"
 
 FEATURE_ID = "03-widget"
 
@@ -347,6 +349,31 @@ class CheckSubcommand(unittest.TestCase):
             self.assertEqual(verds["T-2"], "unstamped")
             self.assertEqual(doc["counts"]["unstamped"], 2)
             self.assertEqual(doc["stamped"], 1)  # only T-2 carried a stamp
+            self.assertFalse(doc["strict"])
+            self.assertEqual(doc["blocking"], [])
+
+    def test_strict_blocks_legacy_and_uncommitted_done_tasks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = git_repo(Path(tmp))
+            tj = root / "tasks.json"
+            data = base_tasks()
+            data["tasks"][0]["status"] = "done"  # legacy: no evidence stamp
+            data["tasks"][1].update({
+                "status": "done",
+                "completed_at": "2026-07-04T00:00:00Z",
+                "commit_sha": None,
+            })
+            write_tasks(tj, data)
+
+            r = run("check", str(tj), "--repo", str(root), "--strict", "--json")
+
+            self.assertEqual(r.returncode, 1, r.stderr)
+            doc = json.loads(r.stdout)
+            self.assertTrue(doc["strict"])
+            self.assertEqual(doc["stale"], [])
+            self.assertEqual(doc["unstamped"], ["T-1", "T-2"])
+            self.assertEqual(doc["blocking"], ["T-1", "T-2"])
+            self.assertEqual(doc["exit"], 1)
 
     def test_digest_mismatch_is_stale(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -387,10 +414,12 @@ class CheckSubcommand(unittest.TestCase):
                 {"task_id": "T-1", "verdict": "pass", "ts": "t",
                  "snapshot_sha256": digest}])
             r = run("check", str(tj), "--repo", str(root),
-                    "--passes", str(passes), "--json")
+                    "--passes", str(passes), "--strict", "--json")
             self.assertEqual(r.returncode, 0, r.stderr)
-            t1 = next(t for t in json.loads(r.stdout)["tasks"] if t["id"] == "T-1")
+            doc = json.loads(r.stdout)
+            t1 = next(t for t in doc["tasks"] if t["id"] == "T-1")
             self.assertEqual(t1["verdict"], "fresh")
+            self.assertEqual(doc["blocking"], [])
 
     def test_check_missing_tasks_json_exits_2(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -429,6 +458,18 @@ class SpecLintUnaffected(unittest.TestCase):
             res = spec_lint(spec_dir)
             self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
             self.assertEqual(json.loads(res.stdout)["status"], "pass")
+
+
+class ReleaseConsumerContract(unittest.TestCase):
+    def test_release_requires_strict_freshness_for_tool_go(self):
+        stages = RELEASE_STAGES.read_text(encoding="utf-8")
+        skill = RELEASE_SKILL.read_text(encoding="utf-8")
+        self.assertIn(
+            'task-evidence.py" check specs/<id>/tasks.json --strict --json',
+            stages,
+        )
+        self.assertIn("does not change the workflow result to `GO`", skill)
+        self.assertIn("external release-owner authority", stages)
 
 
 if __name__ == "__main__":

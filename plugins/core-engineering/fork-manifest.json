@@ -75,6 +75,7 @@
         "plugins/core-engineering/skills/ce-probe-perf/scripts/write-lease.py",
         "plugins/core-engineering/skills/ce-probe-sec/scripts/write-lease.py",
         "plugins/core-engineering/skills/ce-retro/scripts/write-lease.py",
+        "plugins/core-engineering/skills/ce-verify/scripts/write-lease.py",
         "plugins/core-engineering/skills/ce-ux-audit/scripts/write-lease.py"
       ],
       "why": "session write lease set/restore for every read-only-on-code skill \u2014 the Stage-0/exit halves of the write-scope-guard lease discipline; each skill bundles its own copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash"

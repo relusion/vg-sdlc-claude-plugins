@@ -36,7 +36,7 @@ Two forms of the one `stamp` subcommand (mutually exclusive selector):
 The `check` subcommand (WS3-T4) is the CONSUMER side — it verdicts recorded done-ness
 against THIS checkout and NEVER writes:
 
-  check <tasks.json> [--repo <path>] [--passes <passes.json>] [--json]
+  check <tasks.json> [--repo <path>] [--passes <passes.json>] [--strict] [--json]
       For every `done` task, one verdict from a closed set:
         fresh      commit_sha is an ancestor of HEAD — the proving commit is in this
                    checkout's history (and test_run_digest still matches the current
@@ -47,12 +47,15 @@ against THIS checkout and NEVER writes:
                    not contain: stranded evidence, exactly what this stamp exists to
                    catch;
         unstamped  not affirmatively verifiable — legacy (pre-stamp, no completed_at),
-                   stamped-but-uncommitted (commit_sha null), or no git HEAD here:
-                   WARNED, never a hard fail, so pre-WS3-T3 plans do not brick.
-      Exit 0 when no `done` task is stale, 1 when any is (unstamped never fails). The
-      three done-ness consumers — `/core-engineering:ce-implement` resume, `/core-engineering:ce-verify` Stage 0, and
-      `/core-engineering:ce-ship-release` rule 2 — run this and DOWNGRADE a stale task from done rather
-      than trust the flag; each ships its own byte-identical fork copy (fork-manifest).
+                   stamped-but-uncommitted (commit_sha null), or no git HEAD here.
+      By default, exit 0 when no `done` task is stale and 1 when any is; unstamped
+      remains warning-only so legacy consumers do not brick. With `--strict`, exit 1
+      when any `done` task is stale OR unstamped, allowing release callers to require
+      affirmative freshness without changing the compatibility default. The three
+      done-ness consumers ship byte-identical fork copies (fork-manifest):
+      `/core-engineering:ce-implement` resume and `/core-engineering:ce-verify` may use the warning-compatible
+      default, while `/core-engineering:ce-ship-release` rule 2 uses `--strict` and never treats
+      unverifiable done-ness as release-ready.
 
 The write is ATOMIC (tmp + rename) so a crash mid-stamp never truncates tasks.json.
 The three fields are additive: `/core-engineering:ce-spec` writes `status: "todo"` and no evidence
@@ -60,10 +63,11 @@ fields; they are IMPLEMENT-written, so spec-lint.py's H1-H4 (which read `id`,
 `verifies`, `status`) are unaffected by their presence.
 
 Exit codes (the house 0/1/2 contract, so callers gate uniformly):
-    0  OK      — the stamp was written (stamp); no `done` task is stale (check).
+    0  OK      — the stamp was written (stamp); no `done` task is stale (check),
+                 and under `check --strict` every `done` task is affirmatively fresh.
     1  REFUSED — `--task <id>` names a task not in tasks.json (stamp; nothing written)
-                 / at least one `done` task is STALE (check; a downgrade signal, not
-                 an error — the caller treats those tasks as not-done).
+                 / at least one `done` task is STALE (check), or STALE/UNSTAMPED
+                 under `check --strict` (a downgrade signal, not an execution error).
     2  ERROR   — tasks.json missing / unparseable / wrong shape, an unresolvable
                  --commit, a missing --test-log, or an IO error; the caller falls
                  back to recording done-ness by hand (loudly).
@@ -349,7 +353,12 @@ def cmd_check(args) -> int:
                         "commit_sha": t.get("commit_sha"), "reason": reason})
 
     stale_ids = [r["id"] for r in results if r["verdict"] == "stale"]
-    exit_code = 1 if stale_ids else 0
+    unstamped_ids = [r["id"] for r in results if r["verdict"] == "unstamped"]
+    blocking_ids = [
+        r["id"] for r in results
+        if r["verdict"] == "stale" or (args.strict and r["verdict"] == "unstamped")
+    ]
+    exit_code = 1 if blocking_ids else 0
     payload = {
         "tool": "task-evidence check",
         "tasks_path": str(tasks_path),
@@ -358,7 +367,10 @@ def cmd_check(args) -> int:
         "head": head,
         "counts": counts,
         "stamped": stamped,
+        "strict": args.strict,
         "stale": stale_ids,
+        "unstamped": unstamped_ids,
+        "blocking": blocking_ids,
         "tasks": results,
         "exit": exit_code,
     }
@@ -369,12 +381,18 @@ def cmd_check(args) -> int:
           f"{counts['stale']} stale, {counts['unstamped']} unstamped")
     for r in results:
         if r["verdict"] != "fresh":
-            mark = "STALE" if r["verdict"] == "stale" else "warn "
+            mark = ("STALE" if r["verdict"] == "stale" else
+                    "BLOCK" if args.strict else "warn ")
             print(f"  {mark} {r['id']}: {r['reason']}")
-    if stale_ids:
-        print(f"  -> {len(stale_ids)} stale task(s): the `done` flag points at code "
-              f"this checkout does not contain — treat them as NOT done.",
-              file=sys.stderr)
+    if blocking_ids:
+        if args.strict:
+            print(f"  -> {len(blocking_ids)} non-fresh task(s): strict mode requires "
+                  f"every `done` task to be affirmatively fresh — treat them as NOT "
+                  f"release-ready.", file=sys.stderr)
+        else:
+            print(f"  -> {len(stale_ids)} stale task(s): the `done` flag points at code "
+                  f"this checkout does not contain — treat them as NOT done.",
+                  file=sys.stderr)
     return exit_code
 
 
@@ -407,6 +425,8 @@ def main(argv=None) -> int:
     ck.add_argument("--repo", metavar="PATH", help="repo root (default: git toplevel of tasks.json's dir)")
     ck.add_argument("--passes", metavar="FILE",
                     help="explicit path to .test-guard/<feature-id>/passes.json (for the test_run_digest re-check)")
+    ck.add_argument("--strict", action="store_true",
+                    help="fail when any done task is stale or unstamped (release-ready mode)")
     ck.add_argument("--json", action="store_true", help="machine-readable result")
     ck.set_defaults(func=cmd_check)
 

@@ -8,7 +8,7 @@
     },
     {
       "date": "2026-10-31",
-      "unblocker": "WS6-T8 golden written-plan/spec fixtures + the ce-go intent-fixture harness",
+      "unblocker": "WS6-T8 golden written-plan/spec fixtures",
       "max_waivers": 8
     },
     {
@@ -76,11 +76,6 @@
     {
       "skill": "ce-ship-backlog",
       "reason": "mechanical model->backlog.json map + a stdlib emitter unit-tested in test_backlog_emit (all four formats + the parent-linking rule); live scenario needs WS6-T8's golden spec fixture (model-policy down-routable)",
-      "expires": "2026-10-31"
-    },
-    {
-      "skill": "ce-go",
-      "reason": "router over already-evaluated skills; needs the intent-fixture eval that seeds repo states (plan present/absent, spec dir, running target) and asserts the routed /ce-* target",
       "expires": "2026-10-31"
     },
     {

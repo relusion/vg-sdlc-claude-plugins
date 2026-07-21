@@ -65,6 +65,8 @@ back to `/core-engineering:ce-ask`, so the tutor's agenda stays intact.
    `/core-engineering:ce-domain` skill's `allowed-tools` deliberately exclude `Edit`.
 2. **Read-only on existing artifacts.** Write only the one optional domain primer
    (Stage 3), and only with consent.
+   For a same-day collision, resolve the snapshot key before writing: use
+   `<date>-<scope>`, then `<date>-<scope>-2`, `-3`, and so on; never overwrite.
 3. **Every claim cites `file:line` or a named artifact.** No citation, no claim. Show
    evidence over paraphrasing it — quote the enforcing lines, the enum, the brief's own
    words. (The `ask` grounding contract, reused verbatim.)

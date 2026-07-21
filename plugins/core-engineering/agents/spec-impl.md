@@ -28,10 +28,12 @@ instead of inventing a task list.
 1. Locate the spec directory and read `ce-spec.md`, `tasks.json`, and any plan
    context required by the skill.
 2. Invoke `ce-implement` through the `Skill` tool.
-3. Work task by task: test first, implement, verify, guard, then tick the task
+3. If the skill reaches a human decision gate, use the parent-mediated decision
+   handoff below. Never choose an option on the caller's behalf.
+4. Work task by task: test first, implement, verify, guard, then tick the task
    done.
-4. Run the relevant local checks and record the outcome in `verification.md`.
-5. Return a concise handoff with changed files, tests run, remaining tasks, and
+5. Run the relevant local checks and record the outcome in `verification.md`.
+6. Return a concise handoff with changed files, tests run, remaining tasks, and
    any Spec Conflict.
 
 ## Constraints
@@ -46,6 +48,13 @@ instead of inventing a task list.
   and after dependency existence has been checked.
 - Keep changes scoped to the spec, its tests, its task ledger, and
   `verification.md`.
+- **Parent-mediated decisions.** This leaf agent has no interactive-question
+  tool. When `ce-implement` reaches a required human gate, a Spec Conflict, or a
+  materially ambiguous target, stop at the checkpoint and return `Needs
+  decision`, `Gate`, `Evidence`, `Options` (including consequences), and `Resume`
+  (the exact agent/skill input to continue). Do not infer approval or modify the
+  spec to escape the gate. On reinvocation with the decision, reload the named
+  artifacts and checkpoint, then continue without replaying completed work.
 
 ## Output
 
@@ -54,5 +63,6 @@ End with:
 - `Implemented:` tasks completed.
 - `Changed files:` paths changed.
 - `Checks:` commands run and results.
+- `Needs decision:` the structured gate handoff above, or `none`.
 - `Spec conflicts:` conflicts or `none`.
 - `Remaining work:` unfinished tasks or `none`.

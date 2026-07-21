@@ -126,6 +126,9 @@ Anything "review the application source" → `/core-engineering:ce-review`. This
 8. **Output:** `docs/infra-reviews/<date>-<slug>.md` + `docs/infra-reviews/evidence/<date>-<slug>/`
    + a machine-readable `docs/infra-reviews/<date>-<slug>.summary.json`. Dated snapshot —
    never overwrite a prior run.
+   Resolve a same-day collision before writing: use `<date>-<slug>` first, then
+   `<date>-<slug>-2`, `-3`, and so on for the report, summary, and evidence
+   together; never split one run across keys.
 
 ## Three-State Evidence
 

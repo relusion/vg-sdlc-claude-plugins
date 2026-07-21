@@ -15,6 +15,9 @@ want to get useful output in the first session.
 - **Model-spend awareness** — skills make model calls on your plan or API key;
   see [What It Costs](#what-it-costs) below for historical budget caps.
 
+The tested runtime floor and upgrade/migration policy are in
+[Compatibility and Upgrades](COMPATIBILITY.md).
+
 ## Install
 
 ```bash
@@ -92,6 +95,13 @@ nothing itself.
    (`.claude/ce-write-scope.json`, `.claude/ce-write-scope.session.json`,
    `.claude/ce-guard-log.jsonl`, `.claude/ce-session-model.json`, and
    `.claude/ce-net-policy.json`) when they are absent.
+
+   Add `--readiness` for a deterministic follow-up that separates local setup
+   blockers from repository-host controls that require administrator evidence:
+
+   ```text
+   /core-engineering:ce-init --readiness
+   ```
 
 2. Ask one grounded question:
 
@@ -198,7 +208,7 @@ The framework is intentionally conservative:
 | `/core-engineering:ce-impact` refuses | The change description is too thin | Add subject, action, and desired outcome |
 | `/core-engineering:ce-patch` routes to `/core-engineering:ce-plan` before editing | The screen found more than 2 files, a reviewer-trigger surface, a cross-feature collision, a dependency manifest, or uncertain scope | Narrow the request or continue with `/core-engineering:ce-plan`; patch never silently expands its scope |
 | A probe refuses | Target, environment, or authorization is unsafe or unclear | Use a local/dedicated target and pass the consent gate |
-| A release is NO-GO | Verification, review, rollback, or supply-chain evidence is missing | Run the routed skill or have the human accept the gap |
+| A release is NO-GO | Verification/freshness, review, rollback, or supply-chain evidence is missing | Run the routed skill. Unverified, stale, or unstamped work cannot become workflow GO; the release owner may accept only the other documented risk gaps inside this workflow. |
 | Claude asked me to confirm a `git push` / PR command | The `git-guard` backstop is preserving human authority over shared history | Approve or refuse the prompt. For hard-deny tiers and environment variables, see the [hooks guide](../plugins/core-engineering/hooks/README.md). |
 | A file edit was denied mid-skill | A read-only skill holds the session write lease and the edit is outside its scope | Let a live skill finish. For a stale or ambiguous lease, follow the guard's recovery message and the [hooks guide](../plugins/core-engineering/hooks/README.md); do not bypass a live lease. |
 

@@ -49,9 +49,27 @@ class EvalRun(unittest.TestCase):
             self.assertNotEqual(metadata["run_id"], out.name)
             self.assertTrue(metadata["started_at"].endswith("Z"))
             self.assertTrue(metadata["completed_at"].endswith("Z"))
+            self.assertEqual(metadata["claude_cli"], {
+                "binary": "claude",
+                "status": "unavailable",
+                "version": None,
+                "reason": "not-probed-dry-run",
+            })
+            self.assertEqual(len(metadata["plugin_manifests"]), 1)
+            self.assertEqual(metadata["plugin_manifests"][0]["source"], "--plugin-dir")
+            self.assertEqual(metadata["plugin_manifests"][0]["name"], "core-engineering")
+            self.assertEqual(
+                metadata["plugin_manifests"][0]["version"],
+                json.loads(
+                    (REPO / "plugins/core-engineering/.claude-plugin/plugin.json").read_text()
+                )["version"],
+            )
+            self.assertEqual(metadata["plugin_manifests"][0]["status"], "resolved")
             self.assertEqual(metadata["records"][0]["id"], "EVAL-003")
             summary = json.loads((out / "summary.json").read_text())
             self.assertEqual(summary["run_id"], metadata["run_id"])
+            self.assertEqual(summary["claude_cli"], metadata["claude_cli"])
+            self.assertEqual(summary["plugin_manifests"], metadata["plugin_manifests"])
             self.assertEqual(summary["scenarios"], [{
                 "id": "EVAL-003", "skill": "ce-impact", "status": "planned",
             }])
@@ -100,7 +118,10 @@ class EvalRun(unittest.TestCase):
             metadata = json.loads((out / "metadata.json").read_text())
             self.assertEqual(
                 [record["id"] for record in metadata["records"]],
-                ["EVAL-001", "EVAL-002", "EVAL-003", "EVAL-011", "EVAL-012", "EVAL-018"],
+                [
+                    "EVAL-001", "EVAL-002", "EVAL-003", "EVAL-011", "EVAL-012",
+                    "EVAL-018", "EVAL-019",
+                ],
             )
             self.assertTrue(all(record["profile"] == "smoke" for record in metadata["records"]))
 
@@ -178,6 +199,87 @@ class EvalRun(unittest.TestCase):
             self.assertEqual(state["after"]["ignored_files_sha256"], {})
             metadata = json.loads((out / "metadata.json").read_text())
             self.assertEqual(metadata["grade_status"], "not-run")
+
+    def test_live_receipt_records_actual_cli_and_loaded_plugin_versions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "run"
+            fake = root / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then\n"
+                "  printf '%s\\n' '9.9.9 (Claude Code)'\n"
+                "  exit 0\n"
+                "fi\n"
+                "printf '%s\\n' 'Not analyzable yet — too thin to ground'\n"
+            )
+            fake.chmod(0o755)
+            res = run(
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            metadata = json.loads((out / "metadata.json").read_text())
+            self.assertEqual(metadata["claude_cli"], {
+                "binary": str(fake),
+                "status": "resolved",
+                "version": "9.9.9 (Claude Code)",
+                "reason": None,
+            })
+            self.assertEqual(metadata["plugin_manifests"][0]["status"], "resolved")
+            self.assertEqual(metadata["plugin_manifests"][0]["name"], "core-engineering")
+            self.assertEqual(
+                json.loads((out / "summary.json").read_text())["claude_cli"],
+                metadata["claude_cli"],
+            )
+
+    def test_live_receipt_labels_unavailable_cli_version_without_guessing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "run"
+            fake = root / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then exit 17; fi\n"
+                "printf '%s\\n' 'Not analyzable yet — too thin to ground'\n"
+            )
+            fake.chmod(0o755)
+            res = run(
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            provenance = json.loads((out / "metadata.json").read_text())["claude_cli"]
+            self.assertEqual(provenance["status"], "unavailable")
+            self.assertIsNone(provenance["version"])
+            self.assertEqual(provenance["reason"], "version-probe-exited-17")
+
+    def test_receipt_labels_missing_plugin_manifest_without_guessing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            (repo / "plugins/core-engineering/.claude-plugin/plugin.json").unlink()
+            out = Path(tmp) / "run"
+            res = run(
+                "--root", str(repo),
+                "--scenario", "EVAL-003",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            manifest = json.loads(
+                (out / "metadata.json").read_text(encoding="utf-8")
+            )["plugin_manifests"][0]
+            self.assertEqual(manifest["status"], "unavailable")
+            self.assertIsNone(manifest["name"])
+            self.assertIsNone(manifest["version"])
+            self.assertEqual(manifest["reason"], "manifest-missing")
 
     def test_deterministic_grade_is_recorded_in_live_receipt(self):
         for output, expected_code, expected_grade in (

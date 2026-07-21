@@ -252,6 +252,47 @@ class EvalCheck(unittest.TestCase):
         errors = eval_check.grade_one_output("EVAL-009", text, checks)
         self.assertTrue(any("Red command/result:" in error for error in errors))
 
+    def test_ce_go_scenario_pins_direct_only_route_and_zero_writes(self):
+        catalog = json.loads((REPO / "evals" / "scenarios.json").read_text())
+        scenario = next(
+            item for item in catalog["scenarios"] if item["id"] == "EVAL-019"
+        )
+        self.assertNotIn("ce-patch", scenario["prompt"])
+        self.assertIn(
+            "Routing to /core-engineering:ce-patch",
+            scenario["output_checks"]["required_substrings"],
+        )
+        self.assertEqual(scenario["git_checks"]["changed_paths_exact"], [])
+        for key in (
+            "head_unchanged",
+            "branch_unchanged",
+            "refs_unchanged",
+            "worktrees_unchanged",
+            "local_config_unchanged",
+        ):
+            self.assertIs(scenario["git_checks"][key], True)
+
+        passing = (
+            "Gate 1 of 1 — confirm the route\n"
+            "Routing to /core-engineering:ce-patch because this is a bounded typo fix.\n"
+            "Proceed | Pick another | Abort\n"
+        )
+        self.assertEqual(
+            eval_check.grade_one_output(
+                "EVAL-019", passing, scenario["output_checks"]
+            ),
+            [],
+        )
+        wrong_route = passing.replace("ce-patch", "ce-plan")
+        self.assertTrue(
+            any(
+                "Routing to /core-engineering:ce-patch" in error
+                for error in eval_check.grade_one_output(
+                    "EVAL-019", wrong_route, scenario["output_checks"]
+                )
+            )
+        )
+
     def test_eval017_retry_sentinel_is_unconditional(self):
         path = (
             REPO / "evals/fixtures/auto-build-three-feature/checks/export_check.py"

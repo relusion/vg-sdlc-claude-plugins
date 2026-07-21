@@ -70,7 +70,7 @@ can invoke it directly.
 | Skill | Responsibility |
 |---|---|
 | `/core-engineering:ce-go` | Route a request to one appropriate skill; it does not perform the work itself. |
-| `/core-engineering:ce-init` | Profile the repository and, with `--write`, create starter policy and guard configuration. |
+| `/core-engineering:ce-init` | Profile the repository and, with `--write`, create starter policy and guard configuration; `--readiness` separates local prerequisites from host controls that still need administrator evidence. |
 | `/core-engineering:ce-ask` | Answer one codebase question with `file:line` evidence and no writes. |
 | `/core-engineering:ce-impact` | Analyze the blast radius and unknowns of a proposed change without implementing it. |
 | `/core-engineering:ce-domain` | Teach the business concepts encoded in a codebase, separating recorded, enforced, and inferred claims. |
@@ -182,6 +182,13 @@ Other skills write dated, never-overwritten reports such as
 `docs/onboarding/<date>-<target>.md`. The relevant skill defines the exact
 schema.
 
+`<date>` is the first run key for that UTC day. A never-overwritten workflow
+resolves every companion path before it writes: if the first key already exists,
+the next run uses a shared `-2`, then `-3`, suffix across its report, machine
+companion, and evidence directory. For example, a second same-day audit uses
+`<date>-<slug>-2` everywhere. This keeps reruns distinct without splitting one
+evidence set across different keys.
+
 Draft directories under `docs/briefs/.drafts/` and `docs/plans/.drafts/` are
 crash-resume scratch space. They are not registered plans or approved inputs
 and are removed when the final artifact is accepted. Runtime guard state under
@@ -190,7 +197,12 @@ and are removed when the final artifact is accepted. Runtime guard state under
 `tasks.json` is more than a checklist. When implementation marks work done, its
 helper scripts can bind the state to a completion time, commit, and test-run
 digest. Downstream workflows re-check that evidence and may report a task as
-stale after a rebase, revert, or mismatched test record. A dated evidence pack
+stale after a rebase, revert, or mismatched test record. Legacy evidence checks
+continue to warn on unstamped tasks, while release uses the explicit strict mode:
+every done task must be stamped and fresh before the workflow can issue GO.
+Unstamped, stale, malformed, or unreadable evidence keeps the workflow at NO-GO;
+a release owner can act under separate external authority, but that exception is
+not relabeled as tool approval. A dated evidence pack
 copies and hashes available artifacts; it compiles what the pipeline recorded
 but is not a compliance attestation.
 
@@ -222,9 +234,11 @@ does not tag, publish, or deploy the release.
 On the Claude Code plugin surface, four PreToolUse hooks backstop common
 high-risk capabilities:
 
-- `git-guard.py` asks or denies, according to configured tiers, before shared-
-  history operations such as push, pull-request mutation, tag creation, and
-  writes on a protected branch.
+- `git-guard.py` asks or denies, according to configured tiers, before recognized
+  shared-history operations: pushes, `gh pr create` / `gh pr merge`, mutating
+  `gh api` calls to pull/merge endpoints, tag changes, and history writes on a
+  protected branch. Other clients and indirect shell forms remain outside this
+  pattern-based backstop.
 - `env-guard.py` blocks high-risk credential-store and out-of-workspace secret
   reads. It is targeted confinement, not complete data-loss prevention.
 - `write-scope-guard.py` enforces the active skill's session-bound write lease
@@ -242,7 +256,11 @@ shipped manifest. These controls are tamper-evident rather than tamper-proof: a
 process with broad shell access is not contained the way an OS or container
 sandbox would contain it.
 
-Code-read-only skills set a write lease at entry and clear it at exit.
+Code-read-only skills set a write lease at entry and clear it at exit. A skill
+may still own a narrow evidence artifact: for example, `/core-engineering:ce-verify`
+can update its cumulative `verification-report.md` and append best-effort
+`.metrics.jsonl`, while source, plans, specs, task state, and implementation
+evidence remain outside its lease.
 `/core-engineering:ce-init --write` creates the deny-only baseline and starter network policy. Without the
 relevant policy file, a hook may intentionally remain inert; the hook README
 documents each default and limitation.
@@ -347,7 +365,10 @@ The plugin ships two leaf custom agents:
 
 They use the same skills and artifact contracts as direct invocations. They do
 not spawn nested task workers and do not gain push, merge, or deployment
-authority.
+authority. Because these leaf agents do not own an interactive-question channel,
+a skill gate pauses through a structured parent handoff (`Needs decision`, gate,
+evidence, options and consequences, and an exact resume input). The caller's
+answer resumes from the named checkpoint; silence is never approval.
 
 `/core-engineering:ce-auto-build` is different: it is the in-plugin orchestrator for a complete
 plan. Stage 0 fixes the feature range, failure-attempt cap, park cap, and budget. Features
@@ -368,7 +389,9 @@ Repository validation combines several layers:
 - unit tests exercise hooks, gate scripts, the merge runner, eval tooling, and
   documentation drift checks;
 - the eval corpus runs skills against small fixture repositories and replays
-  frozen artifacts through deterministic gates;
+  frozen artifacts through deterministic gates; executed receipts record the
+  observed Claude CLI version and local plugin manifest version when available,
+  while unavailable provenance and unobserved token/cost data remain explicit;
 - CI pins third-party actions, scans history for secrets, validates both
   plugins, and runs the portable gate corpus without Claude Code.
 
@@ -384,6 +407,14 @@ security, or product guarantee. The control mapping in
 explicit residual owners and gaps, not a certification. Dynamic probes are
 bounded observations, static checks have false-positive and false-negative
 risk, and model-written prose still needs human review.
+
+Best-effort plan telemetry uses a versioned event contract. Current producers
+can add run identity, terminal outcome, measured duration, and resolved runtime
+versions; legacy streams remain readable. Repository reports validate new event
+shapes and count missing streams and metadata as coverage gaps rather than zero
+activity. Events must not contain prompt bodies, source, credentials, raw tool
+output, or unnecessary personal data, and the adopter owns access and retention
+for both `.metrics.jsonl` and any evidence-pack copy.
 
 ## 8. Contributor architecture
 

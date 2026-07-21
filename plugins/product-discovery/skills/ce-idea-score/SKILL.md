@@ -220,6 +220,10 @@ Write the artifact (never overwritten):
 docs/idea-scores/<slug>/<date>.md
 ```
 
+**Same-day collision rule:** resolve the path before writing. The first run uses
+`<date>`; if it exists, use `<date>-2`, then `<date>-3`, and so on. Never
+overwrite a prior score.
+
 Then run the Verdict-Honesty gate:
 
 ```bash
