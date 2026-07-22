@@ -888,13 +888,31 @@ If the Sizing Gate recommends a single-feature plan and the user accepts, skip t
 
 The single feature should still include:
 
+- `Feature ID: <id>` on its own line, using the same stable, unqualified id
+  convention as a full plan's `features/<id>.md` (for example
+  `Feature ID: 01-health-check`);
 - final Complexity
 - Risk-Profile
 - Scope
 - Excluded
 - Open-Unknowns
 - Validation Target
-- Run line
+- exactly one qualified downstream run line whose slug and id match the
+  registry entry and `Feature ID`, for example
+  `Run: /core-engineering:ce-spec service-health/01-health-check`. Never emit an
+  unqualified run line for this shape: the pair is the machine-readable handoff
+  that lets `/core-engineering:ce-spec` resolve a plan with no `plan.json` or
+  `features/` directory.
+
+`Feature ID` and the qualified `Run` line are durable identity fields, not
+display prose. They must agree exactly and may change only through an explicit
+plan revision; a title or heading is not a substitute for either field.
+
+The `## 6. Execution Checklist` must contain exactly one implementation checkbox
+keyed by that same id, for example
+`- [ ] 01-health-check — implemented and verified`. `/core-engineering:ce-implement`
+ticks that existing row after acceptance; it never guesses which checkbox owns
+the feature or appends a replacement row.
 
 **No `threat-model.md` / `interaction-contract.md`.** The single-feature minimal output deliberately omits both read-only re-projections: a one-feature plan has no cross-feature edge, no durable noun touched by >1 feature, and no cross-boundary surface *by construction*, so the *No Security Surface* / *No Cross-Feature Protocol* attested-negatives are satisfied by the directory shape itself — not a silent omission. If the lone feature later grows a real security or cross-feature surface, that is a Sizing-Gate re-evaluation into a full multi-feature plan, which writes both files.
 
@@ -916,4 +934,3 @@ The single feature should still include:
 | Open-Unknowns | Checklist / comments | Checklist / comments | Task list | Comments / sub-issues |
 | Validation Target | Acceptance criteria seed | Acceptance criteria seed | Checklist | Checklist |
 | Execution Checklist | Delivery checklist | Epic checklist | Project board | Project milestones |
-

@@ -293,6 +293,34 @@ class EvalCheck(unittest.TestCase):
             )
         )
 
+    def test_ce_architecture_scenario_stops_at_scope_gate_without_publication(self):
+        catalog = json.loads((REPO / "evals/scenarios.json").read_text())
+        scenario = next(
+            item for item in catalog["scenarios"] if item["id"] == "EVAL-020"
+        )
+        required = scenario["output_checks"]["required_substrings"]
+        self.assertIn("Scope Confirmation", required)
+        self.assertIn("Proceed with this evidence set", required)
+        self.assertIn(
+            "Architecture written:",
+            scenario["output_checks"]["forbidden_substrings"],
+        )
+        self.assertEqual(
+            scenario["artifact_checks"],
+            [{
+                "type": "path_absent",
+                "path": "docs/plans/team-invitations-rbac/architecture",
+            }],
+        )
+        self.assertEqual(
+            set(scenario["git_checks"]["allowed_changed_path_globs"]),
+            {
+                ".claude/ce-write-scope.json",
+                ".claude/ce-write-scope.session.json",
+                ".claude/ce-guard-log.jsonl",
+            },
+        )
+
     def test_eval017_retry_sentinel_is_unconditional(self):
         path = (
             REPO / "evals/fixtures/auto-build-three-feature/checks/export_check.py"
@@ -724,6 +752,49 @@ class EvalCheck(unittest.TestCase):
             self.assertIn("spec_lint failed", res.stderr)
             self.assertIn("artifact", res.stderr)
 
+    def test_artifact_architecture_lint_failure_is_attributed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / "repo"
+            shutil.copytree(REPO / "evals/golden/EVAL-020", work)
+            arch_dir = (
+                work
+                / "docs/plans/team-invitations-rbac/architecture"
+            )
+            manifest_path = arch_dir / "architecture.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["relationships"][0]["to"] = "C-999"
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+            errors = eval_check.grade_artifact_target(
+                REPO,
+                "EVAL-020",
+                {"type": "architecture_lint", "path": "unused"},
+                "architecture_lint",
+                arch_dir,
+                artifact_repo_root=work,
+            )
+            self.assertTrue(
+                any("architecture_lint failed" in error for error in errors),
+                errors,
+            )
+            self.assertTrue(any("C-999" in error for error in errors), errors)
+
+    def test_path_absent_artifact_check_catches_premature_publication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "docs/plans/demo/architecture"
+            check = {"type": "path_absent", "path": "docs/plans/demo/architecture"}
+            self.assertEqual(
+                eval_check.grade_artifact_target(
+                    REPO, "EVAL-020", check, "path_absent", target
+                ),
+                [],
+            )
+            target.mkdir(parents=True)
+            errors = eval_check.grade_artifact_target(
+                REPO, "EVAL-020", check, "path_absent", target
+            )
+            self.assertTrue(any("before human approval" in error for error in errors))
+
     def test_artifact_path_glob_checks_can_pass(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -834,13 +905,13 @@ class EvalCheck(unittest.TestCase):
 class GoldenGates(unittest.TestCase):
     """The deterministic replay gates over frozen evals/golden/ artifacts."""
 
-    def test_golden_gate_count_is_at_least_five(self):
+    def test_golden_gate_count_is_at_least_six(self):
         import re
         res = run()
         self.assertEqual(res.returncode, 0, f"stdout={res.stdout}\nstderr={res.stderr}")
         m = re.search(r"(\d+) golden gate\(s\)", res.stdout)
         self.assertIsNotNone(m, res.stdout)
-        self.assertGreaterEqual(int(m.group(1)), 5, res.stdout)
+        self.assertGreaterEqual(int(m.group(1)), 6, res.stdout)
 
     def test_broken_golden_plan_json_fails_plan_lint_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -854,6 +925,22 @@ class GoldenGates(unittest.TestCase):
             self.assertEqual(res.returncode, 1, res.stdout)
             self.assertIn("plan_lint failed", res.stderr)
             self.assertIn("99-does-not-exist", res.stderr)
+
+    def test_dangling_golden_architecture_endpoint_fails_architecture_lint_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            manifest_path = (
+                repo
+                / "evals/golden/EVAL-020/docs/plans/team-invitations-rbac/"
+                "architecture/architecture.json"
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["relationships"][0]["to"] = "C-999"
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1, res.stdout)
+            self.assertIn("architecture_lint failed", res.stderr)
+            self.assertIn("C-999", res.stderr)
 
     def test_dropped_blocking_high_key_fails_json_fields_gate(self):
         with tempfile.TemporaryDirectory() as tmp:

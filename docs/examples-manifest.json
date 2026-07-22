@@ -46,9 +46,9 @@
       "expected_exit": 0,
       "expected_anchors": [
         "eval-check: OK",
-        "5 golden gate(s)"
+        "6 golden gate(s)"
       ],
-      "note": "Replays EXAMPLES.md section 4's headline claim: eval_check.py runs all five frozen goldens back through their lints/schema checks and prints '5 golden gate(s)'. Any mutated golden (a broken plan.json, a dropped blocking_high, a missing eligibility clause) fails a gate and turns the eval_check run — and this replay — red. If a sixth golden is added, update section 4's prose and this anchor together."
+      "note": "Replays EXAMPLES.md section 4's headline claim: eval_check.py runs all six frozen goldens back through their lints/schema checks and prints '6 golden gate(s)'. Any mutated golden (a broken plan.json, a dropped blocking_high, a missing eligibility clause, or a dangling architecture endpoint) fails a gate and turns the eval_check run — and this replay — red."
     }
   ]
 }

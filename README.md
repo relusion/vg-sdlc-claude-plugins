@@ -82,7 +82,7 @@ For adoption decisions, use the [comparison](./docs/COMPARISON.md) and
 
 ## The `core-engineering` plugin
 
-The core plugin carries **28 skills** and **2 plugin-shipped custom agents**. It
+The core plugin carries **29 skills** and **2 plugin-shipped custom agents**. It
 centers on one spec-driven spine, with supporting codebase, probe, and release
 workflows. The upstream idea/market trio lives in the companion
 `product-discovery` plugin described [below](#the-product-discovery-plugin).
@@ -95,8 +95,8 @@ The [documentation index](./docs/README.md) routes by audience. Start with
 The production spine — each skill escalates conflicts *up* a layer, never expands its own scope:
 
 ```
-brief → plan → spec → implement
-                       gated by verify · review · debug
+brief → plan → [architecture] → spec → implement
+                                        gated by verify · review · debug
        auto-build  runs the bounded loop after kickoff approval
        patch       handles one low-risk change of at most two files
        ux-audit    walks the plan's journeys against the running app (or, plan-free, adversarially probes it)
@@ -112,7 +112,7 @@ Plugin skills are invoked directly with plugin-qualified names, e.g. `/core-engi
 |---|---|---|
 | Front door | `/core-engineering:ce-go` | Not sure which skill runs your request: inspect repo state and route to the one right skill (it routes, never executes). |
 | Repository setup | `/core-engineering:ce-init` | First-run repo bootstrap: profile commands, CI, surfaces, and write starter SDLC policy artifacts. |
-| Production spine | `/core-engineering:ce-brief`, `/core-engineering:ce-plan`, `/core-engineering:ce-spec`, `/core-engineering:ce-implement` | Turn an idea into a plan, specs, tasks, and working code under the Scope Lock (planned boundary, then approved spec). |
+| Production spine | `/core-engineering:ce-brief`, `/core-engineering:ce-plan`, `/core-engineering:ce-architecture`, `/core-engineering:ce-spec`, `/core-engineering:ce-implement` | Turn an idea into a plan, optionally establish its cross-feature solution architecture, then produce specs, tasks, and working code under the Scope Lock. |
 | Spine gates | `/core-engineering:ce-verify`, `/core-engineering:ce-review`, `/core-engineering:ce-debug`, `/core-engineering:ce-ux-audit` | Check behavior, code quality, and UX journeys (planned, or adversarially probed plan-free), and diagnose any failure — a planned feature or a plan-free component (a stuck service/worker) — without widening scope. |
 | Autonomous / small change | `/core-engineering:ce-auto-build`, `/core-engineering:ce-patch` | Run the spine sequentially under explicit bounds, or handle one low-risk change of at most two files through one gate. |
 | Codebase bridging | `/core-engineering:ce-ask`, `/core-engineering:ce-impact`, `/core-engineering:ce-onboard`, `/core-engineering:ce-domain`, `/core-engineering:ce-decide`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-retro` | Ask grounded questions, analyze change impact, teach the implementation (or the business domain the code encodes), choose technical options, audit plans, and review pipeline signals. |
@@ -129,7 +129,7 @@ Plugin skills are invoked directly with plugin-qualified names, e.g. `/core-engi
 ### Practical starting paths
 
 - First run in an existing repo: `/core-engineering:ce-init --write`, then `/core-engineering:ce-ask` or `/core-engineering:ce-impact`.
-- New product or feature: `/core-engineering:ce-brief` → `/core-engineering:ce-plan` → `/core-engineering:ce-spec` → `/core-engineering:ce-implement`.
+- New product or feature: `/core-engineering:ce-brief` → `/core-engineering:ce-plan` → optionally `/core-engineering:ce-architecture` for a multi-feature solution baseline → `/core-engineering:ce-spec` → `/core-engineering:ce-implement`.
 - Small bounded fix: `/core-engineering:ce-patch`; it graduates to `/core-engineering:ce-plan` if the change proves structural.
 - Existing code question: `/core-engineering:ce-ask` for one answer, `/core-engineering:ce-onboard` when a maintainer needs a paced walkthrough, or `/core-engineering:ce-domain` to learn the business domain the code encodes.
 - Work-item refinement: `/core-engineering:ce-impact` for a grounded, file-cited blast-radius read before planning or estimating.

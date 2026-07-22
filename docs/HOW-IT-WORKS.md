@@ -2,7 +2,7 @@
 
 `core-engineering` is a Claude Code plugin for planning, implementing, and
 checking software changes through repository-resident artifacts. It contains
-**28 skills** and **2 plugin-shipped custom agents**. A separate
+**29 skills** and **2 plugin-shipped custom agents**. A separate
 `product-discovery` plugin adds three optional idea and market-research skills.
 
 The Claude Code plugin is the primary runtime. The repository also contains an
@@ -19,10 +19,10 @@ The main workflow is a spine where each stage produces a durable input for the
 next:
 
 ```text
-/core-engineering:ce-brief -> /core-engineering:ce-plan -> /core-engineering:ce-spec -> /core-engineering:ce-implement
-                                |-> /core-engineering:ce-verify   behavior and acceptance proof
-                                |-> /core-engineering:ce-review   code-quality findings
-                                `-> /core-engineering:ce-debug    cause analysis and fix routing
+/core-engineering:ce-brief -> /core-engineering:ce-plan -> [/core-engineering:ce-architecture] -> /core-engineering:ce-spec -> /core-engineering:ce-implement
+                                                                 |-> /core-engineering:ce-verify   behavior and acceptance proof
+                                                                 |-> /core-engineering:ce-review   code-quality findings
+                                                                 `-> /core-engineering:ce-debug    cause analysis and fix routing
 
 /core-engineering:ce-auto-build  orchestrates the planned spine across multiple features
 /core-engineering:ce-patch       handles one low-risk change of at most two files
@@ -32,15 +32,21 @@ release tail: /core-engineering:ce-ship-release -> /core-engineering:ce-ship-doc
 ```
 
 The artifacts, rather than a chat transcript, are the handoff contract. A plan
-defines feature boundaries and order. A spec defines acceptance criteria,
-tests, and tasks for one feature. Implementation works against that approved
-spec. Verification and review inspect the result and route defects back to the
-layer that owns the correction.
+defines feature boundaries and order. For a multi-feature solution that needs
+a shared design baseline, the optional architecture stage projects that frozen
+plan into approved system, deployment, data/integration, and quality views. A
+spec then defines acceptance criteria, tests, and tasks for one feature.
+Implementation works against that approved spec. Verification and review
+inspect the result and route defects back to the layer that owns the
+correction.
 
 ### Scope Lock: escalate up, do not widen in place
 
 Every write-capable stage has a **Scope Lock**:
 
+- `/core-engineering:ce-architecture` may synthesize cross-feature views from a
+  written plan, but it may not re-cut features, add obligations, or make
+  feature-level design decisions.
 - `/core-engineering:ce-spec` may refine one planned feature, but it may not expand the plan.
 - `/core-engineering:ce-implement` may implement the approved spec, but it may not redesign it.
 - `/core-engineering:ce-patch` may touch only its approved file set; structural work graduates
@@ -82,6 +88,7 @@ can invoke it directly.
 |---|---|
 | `/core-engineering:ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
 | `/core-engineering:ce-plan` | Decompose work into ordered features, decisions, risks, and cross-feature obligations. |
+| `/core-engineering:ce-architecture` | Turn one written multi-feature plan into a human-approved, repository-grounded solution-architecture package; it does not decompose work or replace feature specifications. |
 | `/core-engineering:ce-plan-audit` | Lint and review an existing plan without rewriting it. |
 | `/core-engineering:ce-spec` | Convert one planned feature into EARS acceptance criteria, tests, and `tasks.json`. |
 | `/core-engineering:ce-implement` | Execute an approved task list test-first and record verification evidence. |
@@ -146,6 +153,12 @@ docs/
         ├── interaction-contract.md
         ├── plan.json
         ├── features/<id>.md
+        ├── architecture/
+        │   ├── solution-architecture.md
+        │   ├── views.md
+        │   ├── data-and-integrations.md
+        │   ├── quality-attributes.md
+        │   └── architecture.json
         ├── specs/<id>/
         │   ├── ce-spec.md
         │   ├── tasks.json
@@ -165,7 +178,10 @@ docs/
         └── evidence-pack/<date>/
 ```
 
-Not every plan contains every file. For example, review and diagnosis artifacts
+Not every plan contains every file. The `architecture/` package is optional and
+is written as one coherent set only after human approval; an approved package
+is design context for downstream specs, not implementation, security,
+compliance, release, or deployment authority. Review and diagnosis artifacts
 appear only when those workflows run. `STATUS.md` is a generated projection of
 plan and auto-build state, not a second source of truth.
 

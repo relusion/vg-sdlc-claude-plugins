@@ -2,7 +2,7 @@
 name: ce-plan
 description: |
   Decompose a project into an ordered, dependency-aware feature plan with sizing, risk, reachability, and session-fit gates — the spec-driven decomposition downstream stages consume.
-  Triggers: plan/decompose/break a project into features or specs. Produces the multi-feature plan /core-engineering:ce-spec then details one feature at a time.
+  Triggers: plan/decompose/break a project into features. For a consolidated cross-feature solution baseline after planning use /core-engineering:ce-architecture; /core-engineering:ce-spec details one planned feature at a time.
 argument-hint: "[project description]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---

@@ -1208,6 +1208,68 @@
         "local_config_unchanged": true,
         "changed_paths_exact": []
       }
+    },
+    {
+      "id": "EVAL-020",
+      "invocation": "/core-engineering:ce-architecture",
+      "skill": "ce-architecture",
+      "fixture": "architecture-ready-plan",
+      "profile": "full",
+      "recommended_budget_usd": 3.0,
+      "prompt": "Prepare the repository-grounded solution-architecture workflow for the registered team-invitations-rbac plan. Inspect and lint the evidence, render the first Scope Confirmation gate with its choices, then stop for my decision. Do not infer approval, publish architecture artifacts, implement, release, or deploy anything.",
+      "expected_files": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/plans.json",
+        "docs/plans/team-invitations-rbac/plan.json",
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/shared-context.md",
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md",
+        "docs/plans/team-invitations-rbac/features/02-team-invitations.md"
+      ],
+      "gate_checks": [
+        {
+          "type": "architecture_lint",
+          "architecture_dir": "evals/golden/EVAL-020/docs/plans/team-invitations-rbac/architecture",
+          "repo_root": "evals/golden/EVAL-020"
+        }
+      ],
+      "output_checks": {
+        "required_substrings": [
+          "Gate 1 of",
+          "Scope Confirmation",
+          "team-invitations-rbac",
+          "Proceed with this evidence set",
+          "Add or correct evidence",
+          "Revise the plan first",
+          "Abort"
+        ],
+        "forbidden_substrings": [
+          "Architecture written:",
+          "production approved",
+          "compliance attestation",
+          "deployment complete"
+        ]
+      },
+      "artifact_checks": [
+        {
+          "type": "path_absent",
+          "path": "docs/plans/team-invitations-rbac/architecture"
+        }
+      ],
+      "git_checks": {
+        "head_unchanged": true,
+        "branch_unchanged": true,
+        "refs_unchanged": true,
+        "worktrees_unchanged": true,
+        "local_config_unchanged": true,
+        "allowed_changed_path_globs": [
+          ".claude/ce-write-scope.json",
+          ".claude/ce-write-scope.session.json",
+          ".claude/ce-guard-log.jsonl"
+        ]
+      }
     }
   ]
 }

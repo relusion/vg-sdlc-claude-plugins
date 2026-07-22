@@ -67,19 +67,29 @@ GIT_CHECK_KEYS = {
     "allowed_changed_path_globs",
 }
 ARTIFACT_BASE_KEYS = {"type", "path", "path_glob"}
-ARTIFACT_TYPES = {"file_contains", "json_fields", "jsonl_records", "spec_lint"}
+ARTIFACT_TYPES = {
+    "architecture_lint",
+    "file_contains",
+    "json_fields",
+    "jsonl_records",
+    "path_absent",
+    "spec_lint",
+}
 ARTIFACT_TYPE_KEYS = {
+    "architecture_lint": ARTIFACT_BASE_KEYS,
     "file_contains": ARTIFACT_BASE_KEYS | {"substrings", "forbidden_substrings"},
     "json_fields": ARTIFACT_BASE_KEYS | {"equals", "contains", "min_lengths"},
     "jsonl_records": ARTIFACT_BASE_KEYS | {"where", "equals", "contains", "count"},
+    "path_absent": {"type", "path"},
     "spec_lint": ARTIFACT_BASE_KEYS,
 }
 
 # Golden-gate (gate_checks) vocabulary — deterministic replays over frozen
 # artifacts under evals/golden/, run on every CI push (no model call). Each gate
 # names a repo-relative path/dir and asserts the verdict its lint/schema yields.
-GATE_TYPES = {"spec_lint", "plan_lint", "json_fields"}
+GATE_TYPES = {"architecture_lint", "spec_lint", "plan_lint", "json_fields"}
 GATE_TYPE_KEYS = {
+    "architecture_lint": {"type", "architecture_dir", "repo_root"},
     "spec_lint": {"type", "spec_dir"},
     "plan_lint": {"type", "plan_dir"},
     "json_fields": {"type", "path", "equals", "contains", "min_lengths"},
@@ -556,6 +566,8 @@ def run_gate(root: Path, sid: str, gate: object) -> list[str]:
         return run_spec_lint_gate(root, sid, gate)
     if gtype == "plan_lint":
         return run_plan_lint_gate(root, sid, gate)
+    if gtype == "architecture_lint":
+        return run_architecture_lint_gate(root, sid, gate)
     return run_json_fields_gate(root, sid, gate)
 
 
@@ -579,6 +591,36 @@ def run_plan_lint_gate(root: Path, sid: str, gate: dict) -> list[str]:
     if not path.is_dir():
         return [f"{sid}: plan_lint plan_dir not found: {rel(root, path)}"]
     return run_plan_lint(root, sid, path, f"gate {rel(root, path)}")
+
+
+def run_architecture_lint_gate(root: Path, sid: str, gate: dict) -> list[str]:
+    architecture_dir = gate.get("architecture_dir")
+    repo_root = gate.get("repo_root")
+    errors = validate_gate_path(
+        sid, "architecture_lint gate architecture_dir", architecture_dir
+    )
+    errors.extend(
+        validate_gate_path(sid, "architecture_lint gate repo_root", repo_root)
+    )
+    if errors:
+        return errors
+    path = root / architecture_dir
+    source_root = root / repo_root
+    if not path.is_dir():
+        return [
+            f"{sid}: architecture_lint architecture_dir not found: {rel(root, path)}"
+        ]
+    if not source_root.is_dir():
+        return [
+            f"{sid}: architecture_lint repo_root not found: {rel(root, source_root)}"
+        ]
+    return run_architecture_lint(
+        root,
+        sid,
+        path,
+        source_root,
+        f"gate {rel(root, path)}",
+    )
 
 
 def run_json_fields_gate(root: Path, sid: str, gate: dict) -> list[str]:
@@ -641,6 +683,49 @@ def run_plan_lint(root: Path, sid: str, path: Path, label: str) -> list[str]:
         if detail:
             msg = detail[0]
     return [f"{sid}: plan_lint failed for {label}: {msg}"]
+
+
+def run_architecture_lint(
+    root: Path,
+    sid: str,
+    path: Path,
+    repo_root: Path,
+    label: str,
+) -> list[str]:
+    """Replay a ce-architecture package through its deterministic lint."""
+    script = (
+        root
+        / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-lint.py"
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            str(path),
+            "--repo-root",
+            str(repo_root),
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=root,
+        timeout=30,
+    )
+    if proc.returncode == 0:
+        return []
+    msg = f"exit {proc.returncode}"
+    try:
+        data = json.loads(proc.stdout)
+        if isinstance(data, dict):
+            if data.get("hard_failures"):
+                msg = str(data["hard_failures"][0])
+            elif data.get("error"):
+                msg = str(data["error"])
+    except (json.JSONDecodeError, ValueError):
+        detail = (proc.stdout or proc.stderr).strip().splitlines()
+        if detail:
+            msg = detail[0]
+    return [f"{sid}: architecture_lint failed for {label}: {msg}"]
 
 
 def load_run_records(outputs_dir: Path) -> dict:
@@ -960,13 +1045,50 @@ def grade_artifacts(root: Path, outputs_dir: Path, scenario: dict, record: objec
         if target_errors:
             continue
         for path in targets:
-            errors.extend(grade_artifact_target(root, sid, check, ctype, path))
+            errors.extend(
+                grade_artifact_target(
+                    root,
+                    sid,
+                    check,
+                    ctype,
+                    path,
+                    artifact_repo_root=base,
+                )
+            )
 
     return errors
 
 
-def grade_artifact_target(root: Path, sid: str, check: dict, ctype: object, path: Path) -> list[str]:
+def grade_artifact_target(
+    root: Path,
+    sid: str,
+    check: dict,
+    ctype: object,
+    path: Path,
+    artifact_repo_root: Path | None = None,
+) -> list[str]:
     errors: list[str] = []
+    if ctype == "path_absent":
+        if path.exists() or path.is_symlink():
+            return [
+                f"{sid}: artifact path must remain absent before human approval: "
+                f"{rel(root, path)}"
+            ]
+        return []
+
+    if ctype == "architecture_lint":
+        if not path.is_dir():
+            return [f"{sid}: artifact architecture dir missing: {rel(root, path)}"]
+        if artifact_repo_root is None:
+            return [f"{sid}: architecture_lint artifact requires an eval work root"]
+        return run_architecture_lint(
+            root,
+            sid,
+            path,
+            artifact_repo_root,
+            f"artifact {rel(root, path)}",
+        )
+
     if ctype == "spec_lint":
         if not path.is_dir():
             return [f"{sid}: artifact spec dir missing: {rel(root, path)}"]

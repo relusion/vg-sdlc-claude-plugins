@@ -2,6 +2,13 @@
   "$comment": "Registry of deliberately forked gate scripts. Each consuming skill carries its own byte-identical copy because ${CLAUDE_SKILL_DIR} is the only portable path available to skill Bash calls. Duplication is intentional; silent drift is the bug. Never hand-edit a copy: edit the canonical, then run `python3 scripts/fork_sync.py --write`. To add a consumer skill, append its copy path here and run --write. check.py (\u00a75) and supply_chain_check.py assert byte-identity from this file in CI.",
   "forks": [
     {
+      "canonical": "plugins/core-engineering/skills/ce-architecture/scripts/architecture-lint.py",
+      "copies": [
+        "plugins/core-engineering/skills/ce-spec/scripts/architecture-lint.py"
+      ],
+      "why": "architecture package integrity and stale-source gate: /core-engineering:ce-architecture validates before publishing, and /core-engineering:ce-spec validates any present optional package before consuming its feature mappings; each consumer bundles its own copy because CLAUDE_SKILL_DIR is the only portable path available to skill Bash calls"
+    },
+    {
       "canonical": "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py",
       "copies": [
         "plugins/core-engineering/skills/ce-auto-build/scripts/spec-lint.py"
@@ -63,6 +70,7 @@
     {
       "canonical": "plugins/core-engineering/skills/ce-review/scripts/write-lease.py",
       "copies": [
+        "plugins/core-engineering/skills/ce-architecture/scripts/write-lease.py",
         "plugins/core-engineering/skills/ce-ask/scripts/write-lease.py",
         "plugins/core-engineering/skills/ce-debug/scripts/write-lease.py",
         "plugins/core-engineering/skills/ce-doc-audit/scripts/write-lease.py",
@@ -90,6 +98,7 @@
     {
       "canonical": "plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py",
       "copies": [
+        "plugins/core-engineering/skills/ce-architecture/scripts/plan-lint.py",
         "plugins/core-engineering/skills/ce-plan/scripts/plan-lint.py",
         "plugins/core-engineering/skills/ce-auto-build/scripts/plan-lint.py"
       ],

@@ -2,7 +2,7 @@
 name: ce-go
 description: |
   The front door — take a plain-language request ("why does export fail", "score this idea", "is the code good"), inspect repo state (a plan on disk? a spec for the named feature? a running target?), and route to the one right `/ce-*` skill with its reasoning shown first. Routes, never executes: it starts one model-invocable skill or returns the exact command for a direct-only skill, and writes nothing itself.
-  Triggers: you know what you want but not which of the ~28 `/ce-*` skills runs it. ce-go picks; the routed skill does the work (and auto-detects any plan-existence mode itself, so you never have to).
+  Triggers: you know what you want but not which of the ~29 `/ce-*` skills runs it. ce-go picks; the routed skill does the work (and auto-detects any plan-existence mode itself, so you never have to).
 argument-hint: "[what you want, in plain language]"
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -77,6 +77,7 @@ outside the markers — the parity lint reads only what is between them.
 | a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/core-engineering:ce-patch` | one express-only gate; any failed or uncertain screen routes to `/core-engineering:ce-plan` |
 | a raw idea that needs shaping before planning | `/core-engineering:ce-brief` | persona-lens interview → a planning-ready brief |
 | a real project/feature to decompose | `/core-engineering:ce-plan` | ordered, dependency-aware feature plan with gates |
+| a written multi-feature plan that needs system context, runtime/container, deployment, data/integration, and quality views | `/core-engineering:ce-architecture` | plan-backed cross-feature solution baseline with source hashes, traceability, gaps, and human approval |
 | ONE already-planned feature to detail | `/core-engineering:ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |
 | a specified feature's task list to build | `/core-engineering:ce-implement` | test-first execution to done under Scope Lock |
 | a whole plan to run unattended | `/core-engineering:ce-auto-build` | bounded sequential spec/implement/verify/review orchestration |

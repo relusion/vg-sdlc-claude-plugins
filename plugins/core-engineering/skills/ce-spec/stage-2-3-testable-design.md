@@ -62,6 +62,14 @@ state-driven criteria with real numbers.
 
 #### Security Criteria
 
+For `plan_mode: single-feature-minimal`, plan-owned `TZ-NNN`, `IC-NNN`,
+governance-reciprocal, and cross-feature Journey obligations are `N/A by
+construction`; do not manufacture their absent full-plan files or ids. Ordinary
+reviewer-trigger and surface criteria still apply. If the real scope crosses a
+trust boundary, introduces shared durable state, or otherwise needs one of
+those plan-owned obligations, the minimal-plan sizing premise is false: route
+to `/core-engineering:ce-plan` and stop before drafting criteria.
+
 When the plan's `threat-model.md` assigns this feature one or more `TZ-NNN`
 threat-ids (its **Per-Feature Security Obligations** block — a feature that crosses
 a trust boundary or owns the security / secrets surface), each is a **stated
@@ -272,6 +280,12 @@ Test cases describe **what** to verify, not harness mechanics (that is Stage 3).
 - Every **`IC-NNN` obligation** the plan's `interaction-contract.md` assigns this feature → ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** ≥ 1 test case proving it. This is **human/agent-attested** (like the §3.5 SHARED reconciliation and the `[SURFACE]`/A4 advisory) — no machine signal can prove an AC captures a behavioural invariant or a numeric NFR, so there is **no H5-style hard gate**; an assigned `IC-NNN` with no `[CONTRACT:]` AC is a gap to surface or consent-exclude in the plan, never silently dropped.
 - No criterion or test case touches an Excluded item or unplanned scope.
 
+In `single-feature-minimal` mode, record the Journey Map, governance reciprocal,
+`TZ-NNN`, and `IC-NNN` rows above as `N/A by construction`; the Scope chain and
+all applicable reviewer-trigger/surface checks still run. Any evidence that one
+of those cross-feature rows is applicable is a planning escalation, not an
+implicit waiver.
+
 Report the check result.
 
 ### 2.4 Review  [tiered]
@@ -291,11 +305,13 @@ Read the actual files: the areas this feature will touch, the hard-dependency
 specs or built code (real interfaces), existing patterns and conventions, and the
 test harness.
 
-Also read the **binding architectural decisions**. Use the Resolved Project
-Decisions ledger in `shared-context.md` as the index: open only the ADR files
-(`docs/adr/`) whose decisions bear on this feature's surfaces or cross-cutting
-concerns — not the whole directory. Consider only ADRs with `Status: accepted`;
-skip superseded ones.
+Also read the **binding architectural decisions**. For a full plan, use the
+Resolved Project Decisions ledger in `shared-context.md` as the index. In
+`single-feature-minimal` mode, use only ADRs explicitly cited by
+`feature-plan.md` or applicable repository rules; do not scan the whole ADR
+directory to compensate for the intentionally absent ledger. Open only ADRs
+whose decisions bear on this feature's surfaces or cross-cutting concerns.
+Consider only ADRs with `Status: accepted`; skip superseded ones.
 
 ### 3.2 Produce the Design
 
@@ -306,7 +322,8 @@ skip superseded ones.
 - **Interface foundation** — if this feature exposes a foundationed surface (`browser`, or another live surface), the design consumes the shared tokens/primitives or contract from its ADR; no ad-hoc styling. Name the primitives/contract elements it uses. **If this feature *is* the foundation owner, the design includes the conformance checker** the contract is enforced by.
 - **Data / schema** changes. For each persisted schema, event, message, or wire/API contract this feature touches, classify the shape **NEW** (introduced here) or **SHARED** (already read or written by an earlier *shipped* feature). Mark each SHARED shape this feature **modifies** — it carries forward into §3.5.
 - **Test harness mapping** — where each test case's test will live; fixtures.
-- **Pitfalls** from `shared-context.md` that apply.
+- **Pitfalls** from the full plan's `shared-context.md`, or the minimal plan's
+  inline Codebase Profile / Notes, that apply.
 
 ### 3.3 Boundary Reconciliation
 
@@ -316,9 +333,11 @@ required, a plan assumption is false, or a hard dependency is missing — raise 
 **Boundary Conflict** and present it as a *material* decision.
 
 - **Local fix** (this feature's Scope, Excluded, surfaces, unknowns, validation
-  target): on human approval, edit `features/<id>.md`, stamp it
-  (`revised_by: spec`, date, reason), log it in the Boundary-Conflict Log, then
-  re-enter Stage 1 (if unknowns changed) or Stage 2 (if criteria changed).
+  target): on human approval, edit `features/<id>.md` for a full plan. In
+  `single-feature-minimal` mode edit only the `## 4. Single Feature` block and
+  append the `revised_by: spec`, date, and reason stamp to its Notes. Log the
+  change in the Boundary-Conflict Log, then re-enter Stage 1 (if unknowns
+  changed) or Stage 2 (if criteria changed).
 - **Structural fix** (dependencies, IDs, ship order, other features): the spec
   cannot make it — escalate to `/core-engineering:ce-plan` and stop.
 
@@ -337,6 +356,12 @@ architecturally significant and cross-feature, promote it to an ADR (see
 *Architecture Decision Records* in `SKILL.md`).
 
 ### 3.5 Shared-Shape Change Reconciliation
+
+For `plan_mode: single-feature-minimal`, record this check as `N/A by
+construction`. If code inspection finds another feature, migration owner, or
+planned consumer whose contract must change, the minimal shape is disproven;
+raise the structural Boundary Conflict and route to planning rather than
+running an in-place cross-feature reconciliation.
 
 The write-side inverse of Interface Conformance (§2.1, §3.2): conformance makes a
 feature *match* a shape it consumes; this makes a feature *reconcile* a shape it
@@ -406,6 +431,11 @@ A SHARED shape with zero enumerated consumers is **not** a pass — surface it a
 reconciliation gap step 1 names, never an empty Additive default.
 
 ### 3.6 Cross-Feature Flow Reconciliation
+
+For `plan_mode: single-feature-minimal`, record `Cross-Feature Flow: N/A by
+construction`. If the design actually spans another feature, do not attempt to
+match an absent Journey Map: the minimal shape is disproven, so route to
+planning and stop.
 
 The **path-side** sibling of §3.5: where §3.5 reconciles a *shape* an earlier shipped
 feature consumes, this reconciles a *flow* the plan never traced. §3.3 catches a wrong

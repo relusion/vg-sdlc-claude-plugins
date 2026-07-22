@@ -15,7 +15,7 @@ probes only when the repository has their inputs, owners, and review path.
 | Tier | Capabilities | Adopt when |
 |---|---|---|
 | **Core developer path** | `/core-engineering:ce-go`, `/core-engineering:ce-init`, `/core-engineering:ce-ask`, `/core-engineering:ce-impact`, `/core-engineering:ce-patch`, `/core-engineering:ce-plan`, `/core-engineering:ce-spec`, `/core-engineering:ce-implement`, `/core-engineering:ce-review`, `/core-engineering:ce-verify`, `/core-engineering:ce-debug` | Default for individual developers. Run `/core-engineering:ce-init --readiness` to expose missing local prerequisites without claiming host controls are enabled. |
-| **Advanced delivery controls** | `/core-engineering:ce-brief`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-auto-build`, `/core-engineering:ce-ux-audit`, the four `ce-probe-*` skills, `/core-engineering:ce-retro`, `/core-engineering:ce-ship-release`, `/core-engineering:ce-ship-document` | The team has stable test/CI commands, named reviewers, bounded targets, and a quality/release owner. Direct-only and consent gates still apply. |
+| **Advanced delivery controls** | `/core-engineering:ce-brief`, `/core-engineering:ce-architecture`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-auto-build`, `/core-engineering:ce-ux-audit`, the four `ce-probe-*` skills, `/core-engineering:ce-retro`, `/core-engineering:ce-ship-release`, `/core-engineering:ce-ship-document` | The team has stable test/CI commands, named reviewers, bounded targets, and a quality/release owner. Direct-only and consent gates still apply. |
 | **Optional specialist workflows** | `product-discovery`, `/core-engineering:ce-domain`, `/core-engineering:ce-onboard`, `/core-engineering:ce-decide`, `/core-engineering:ce-ship-backlog`, `/core-engineering:ce-humanize`, `/core-engineering:ce-doc-audit` | A specific discovery, learning, decision, tracker-export, prose, or documentation-validation job exists. Install or invoke only that capability. |
 
 Tiering changes discoverability, not authority: no tier can merge, deploy, accept
@@ -32,6 +32,7 @@ security risk, or convert missing evidence into approval.
 | Score one product idea | `/product-discovery:ce-idea-score` *(product-discovery plugin)* | Renders an opinionated, evidence-tagged Pursue / Park / Drop style verdict. |
 | Generate and rank many ideas | `/product-discovery:ce-idea-scout` *(product-discovery plugin)* | Creates a shortlist, cuts weak candidates with reasons, then deep-scores survivors. |
 | Decompose a real feature/project | `/core-engineering:ce-plan` | Owns scope, feature boundaries, ship order, reachability, and plan artifacts. |
+| Establish the cross-feature solution architecture for a written plan | `/core-engineering:ce-architecture <plan-slug>` | Projects the frozen plan and repository evidence into human-approved system, deployment, data/integration, and quality views. It does not decompose the request or replace feature specs. |
 | Make one genuinely small change | `/core-engineering:ce-patch` | Uses a ≤ 2-file express lane with one approval gate and one ledger line. Any failed or uncertain admission check routes to `/core-engineering:ce-plan`; patch never expands into a larger lane. |
 
 ## Build Path
@@ -39,6 +40,7 @@ security risk, or convert missing evidence into approval.
 | I have... | Use | Output |
 |---|---|---|
 | A written plan and one feature to detail | `/core-engineering:ce-spec <feature-id>` | `ce-spec.md` + `tasks.json` with acceptance criteria and traceability. |
+| A written multi-feature plan that needs a shared design baseline | `/core-engineering:ce-architecture <plan-slug>` | Five-file package under `docs/plans/<slug>/architecture/`, structurally linted and written only after final human approval. |
 | An approved spec and task list | `/core-engineering:ce-implement <feature-id>` | Code/tests updated, tasks marked done, `verification.md` written. |
 | A whole plan to run unattended | `/core-engineering:ce-auto-build <plan-slug>` | Per-feature spec/implement runs, gates, status board, and end-review package. |
 | A plan on disk and a need to see where it stands | Open `docs/plans/<slug>/STATUS.md`; use `/core-engineering:ce-auto-build <slug> --resume` only when you intend to continue a halted run | Last generated status plus a deliberate continuation route; inspect plan/spec artifacts directly if the projection is stale (Recipe 19). |
@@ -69,7 +71,7 @@ security risk, or convert missing evidence into approval.
 | Capture what a departing owner knows, before they go | `/core-engineering:ce-ask` per claim, then an ADR backfill in `docs/adr/` | The inverse of `/core-engineering:ce-onboard`: the human teaches, and every claim is verified to `file:line`, marked CONTRADICTED, or recorded as unverified lore — never enshrined unchecked (Recipe 34). |
 | Split an epic along real seams | `/core-engineering:ce-impact` → `/core-engineering:ce-brief` → `/core-engineering:ce-plan` | `/core-engineering:ce-impact` names the seams and the open questions; `/core-engineering:ce-plan` owns the cut, because it owns the sizing, dependency, and reachability gates (Recipe 2). |
 | Investigate a misbehaving component with no plan/spec | `/core-engineering:ce-debug <component> <symptom>` | Ranked hypotheses plus discrimination plan (plan-free mode — auto-detected); no fixes. |
-| Choose among technical options | `/core-engineering:ce-decide <decision + options>` | Evidence-tagged engineering recommendation plus proposed ADR. |
+| Choose among technical options | `/core-engineering:ce-decide <decision + options>` | Scores one consequential option set and drafts a proposed ADR. Use `/core-engineering:ce-architecture` for the whole cross-feature solution baseline. |
 
 ## Probes
 
@@ -96,7 +98,7 @@ This is the canonical route list — `README.md` and the other guides link here
 rather than duplicating it.
 
 - First run in a repo: `/core-engineering:ce-init --write`, then `/core-engineering:ce-ask` or `/core-engineering:ce-impact`.
-- New feature: `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` -> (`/core-engineering:ce-plan-audit`) -> `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` -> `/core-engineering:ce-review` + `/core-engineering:ce-verify`.
+- New feature: `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` -> (`/core-engineering:ce-plan-audit`) -> optionally `/core-engineering:ce-architecture` for a multi-feature solution baseline -> `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` -> `/core-engineering:ce-review` + `/core-engineering:ce-verify`.
 - Small fix: `/core-engineering:ce-patch` for a ≤ 2-file change (one gate, one ledger line, no spec artifacts); use `/core-engineering:ce-plan` when admission fails or scope is uncertain.
 - Unattended: `/core-engineering:ce-plan-audit` -> `/core-engineering:ce-auto-build` -> `/core-engineering:ce-onboard` -> `/core-engineering:ce-retro`.
 - Pre-release: `/core-engineering:ce-probe-deps` + `/core-engineering:ce-probe-infra` (add `/core-engineering:ce-probe-sec` / `/core-engineering:ce-probe-perf` / `/core-engineering:ce-ux-audit` with a running target) -> `/core-engineering:ce-ship-release` -> `/core-engineering:ce-ship-document`.

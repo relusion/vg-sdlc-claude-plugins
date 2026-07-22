@@ -69,12 +69,20 @@ Appending to the ledger **mutates a shared artifact** — present each proposed
 ledger entry as a *material* decision and let the human approve the wording.
 Never sync silently, and never push a feature-local choice into shared context.
 
+For `plan_mode: single-feature-minimal`, only the Feature-local bucket may
+complete here. There is no `shared-context.md` ledger to append to, and this
+workflow must not create one. Any cross-feature or plan-error bucket disproves
+the minimal shape: route to `/core-engineering:ce-plan` and stop; an ADR does not
+bypass that structural escalation.
+
 ### 5.3 Validation Checklist Before Writing
 
 The **consolidated final gate**, run on the **assembled, frozen `ce-spec.md`** — not a restatement of earlier gates. Stage 5.1 assembles the artifact *after* propagation triage (5.2), and the Stage 3.3 / 4.3 back-edges can mutate the spec after Stages 2–4 validated it, so several checks below are a deliberate **re-verification on the frozen artifact** (re-confirming Stages 2.3, 3.1/3.3, and 4.3 against what will be written). Do not rubber-stamp: if any item fails, return to the stage that owns it. All must pass. Items (or clauses) marked **`[machine-verified: H#]`** are *also* mechanically enforced by `spec-lint.py` at 5.1.5 (the named hard check) — the marker means the lint **supplements** that item; it stays a checklist item and the human still owns the surrounding judgment.
 
 - [ ] Feature framed; frozen boundary recorded.
-- [ ] Every hard dependency is specced or built.
+- [ ] Every hard dependency is specced or built; minimal mode records
+  `N/A — sizing-attested single feature` and has escalated any discovered
+  dependency to planning.
 - [ ] Every Open Unknown is resolved, or recorded as a signed-off Assumption.
 - [ ] Every Scope item → ≥ 1 acceptance criterion → ≥ 1 test case → ≥ 1 task.
 - [ ] No orphan task **[machine-verified: H3]**; no criterion or test case outside the boundary — boundary judgment stays the human's.
@@ -88,16 +96,18 @@ The **consolidated final gate**, run on the **assembled, frozen `ce-spec.md`** �
 - [ ] Every resolved decision is triaged for propagation; approved ledger entries are queued.
 - [ ] Every test case is tagged `auto`, `manual:harness-gap`, or `manual:judgment` **[machine-verified: H2]**; each `manual` case has a reason and a usable check script (human).
 - [ ] Every test case carries a `modality`; `manual` modality pairs with `manual:judgment`. **[machine-verified: H2]**
-- [ ] Every journey step this feature owns is covered by ≥ 1 test case carrying that step's modality.
+- [ ] Every journey step this feature owns is covered by ≥ 1 test case carrying that step's modality; minimal mode records Journey Map coverage `N/A by construction`.
 - [ ] Every SHARED shape this feature modifies carries a `shared-shape-modify` block (consumers enumerated, each `additive`/`breaking`); every `breaking` one is escalated as a Boundary Conflict, or the spec records `Shared-Shape Reconciliation: N/A` (§3.5).
-- [ ] Every cross-feature flow this design realizes is traced by a plan Journey Map row, or a new untraced flow was escalated as a Boundary Conflict, or the spec records `Cross-Feature Flow: N/A` (§3.6) — flow judgment stays the human's.
-- [ ] Every governance reciprocal the plan's Stage 6.3 closure dispositions `owned-by:` this feature (`retain` / `export` / `erase`) is bound by ≥ 1 acceptance criterion and ≥ 1 test case (§2.1).
-- [ ] Every `TZ-NNN` the plan's `threat-model.md` assigns this feature is bound by ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` **[machine-verified: H5]** (H5 checks the marker; an N/A feature has no threat-ids) **and** proven by ≥ 1 test case (human — the per-AC test-case rule, only advisorily A2) — or the obligation is consent-excluded in the plan (autonomous: parked). Whether the security criterion is *substantively adequate* stays the human's.
-- [ ] Every `IC-NNN` the plan's `interaction-contract.md` assigns this feature is bound by ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** proven by ≥ 1 test case (**human/agent-attested — no lint**; behavioural-protocol invariants and NFRs are un-derivable from markdown, like §3.5/§3.6) — or the obligation is consent-excluded in the plan (autonomous: parked). Whether the interaction criterion is *substantively adequate* stays the human's.
+- [ ] Every cross-feature flow this design realizes is traced by a plan Journey Map row, or a new untraced flow was escalated as a Boundary Conflict, or the spec records `Cross-Feature Flow: N/A` (§3.6) — flow judgment stays the human's; minimal mode must record `N/A by construction` or escalate.
+- [ ] Every governance reciprocal the plan's Stage 6.3 closure dispositions `owned-by:` this feature (`retain` / `export` / `erase`) is bound by ≥ 1 acceptance criterion and ≥ 1 test case (§2.1); minimal mode records this row `N/A by construction`.
+- [ ] Every `TZ-NNN` the plan's `threat-model.md` assigns this feature is bound by ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` **[machine-verified: H5]** (H5 checks the marker; an N/A feature has no threat-ids) **and** proven by ≥ 1 test case (human — the per-AC test-case rule, only advisorily A2) — or the obligation is consent-excluded in the plan (autonomous: parked). Minimal mode records plan-owned threat ids `N/A by construction` but still covers ordinary security reviewer-triggers. Whether the security criterion is *substantively adequate* stays the human's.
+- [ ] Every `IC-NNN` the plan's `interaction-contract.md` assigns this feature is bound by ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** proven by ≥ 1 test case (**human/agent-attested — no lint**; behavioural-protocol invariants and NFRs are un-derivable from markdown, like §3.5/§3.6) — or the obligation is consent-excluded in the plan (autonomous: parked). Minimal mode records plan-owned interaction obligations `N/A by construction`. Whether the interaction criterion is *substantively adequate* stays the human's.
 
 ### 5.4 Final Approval  [material]
 
-Present the full spec, plus any queued ledger entries and new ADRs. Ask:
+Present the full spec, plus any queued ledger entries and new ADRs. Minimal mode
+must show `Ledger entries: N/A — no shared-context.md` rather than inventing a
+queue. Ask:
 
 | Option | Result |
 |---|---|
@@ -107,15 +117,18 @@ Present the full spec, plus any queued ledger entries and new ADRs. Ask:
 
 ### 5.5 Write
 
-Write `docs/plans/[slug]/specs/<id>/ce-spec.md` and `tasks.json`. Append
-each approved entry to the **Resolved Project Decisions** ledger in
-`shared-context.md`, citing this spec as the origin.
+Write `docs/plans/[slug]/specs/<id>/ce-spec.md` and `tasks.json`. For a full
+plan, append each approved entry to the **Resolved Project Decisions** ledger
+in `shared-context.md`, citing this spec as the origin. For
+`plan_mode: single-feature-minimal`, write the same normal spec outputs and no
+ledger file; any approved local Boundary Conflict is already recorded in the
+sole `feature-plan.md` authority.
 
 **Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "spec"`) — plus any `escalation` raised this run — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive every field from data already produced, label any token figure an estimate, and **never** let this block or fail the spec. It powers `/core-engineering:ce-retro`.
 
 ### 5.6 Closing
 
-Confirm the created paths (`ce-spec.md`, `tasks.json` under `docs/plans/[slug]/specs/<id>/`) and any ledger or ADR updates — and, if a Boundary Conflict edited `features/<id>.md` or ADRs were created, note those too. Then point to the next step:
+Confirm the created paths (`ce-spec.md`, `tasks.json` under `docs/plans/[slug]/specs/<id>/`) and any ledger or ADR updates — and, if a Boundary Conflict edited `features/<id>.md` or the minimal plan's Single Feature block, or ADRs were created, note those too. Then point to the next step:
 
 ```text
 Implement:  /core-engineering:ce-implement <id>

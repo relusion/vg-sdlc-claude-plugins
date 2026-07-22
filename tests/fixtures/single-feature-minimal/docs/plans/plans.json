@@ -1,0 +1,9 @@
+{
+  "plans": [
+    {
+      "slug": "service-health",
+      "description": "Expose one bounded service health endpoint.",
+      "relates_to": []
+    }
+  ]
+}

@@ -11,6 +11,11 @@
     "cheap-ok": ["haiku"]
   },
   "skills": {
+    "ce-architecture": {
+      "tier": "strong",
+      "down_routable": false,
+      "note": "solution-architecture synthesis, evidence reconciliation, cross-feature traceability, material technical calls, and approval gates are judgment work — never route down"
+    },
     "ce-ask": {
       "tier": "strong",
       "down_routable": false

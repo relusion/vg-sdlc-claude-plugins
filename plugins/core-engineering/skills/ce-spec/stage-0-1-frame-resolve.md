@@ -11,20 +11,97 @@ Stage file for the `spec` skill. The orchestrator is `SKILL.md` — read it firs
 ### 0.1 Locate and Load
 
 Resolve the plan directory via `docs/plans/plans.json`. If the feature id is
-qualified (`<plan-slug>/<id>`), use the named plan; if unqualified, find the
-plan whose `features/<id>.md` exists — if more than one matches, ask the human
-which. Load `features/<id>.md`, `shared-context.md`, `feature-plan.md`,
-`plan.json`, and the project docs listed in `shared-context.md`.
+qualified (`<plan-slug>/<id>`), use the named registry entry. If unqualified,
+match it against both full-plan `features/<id>.md` paths and the explicit
+`Feature ID` in each registry-backed minimal plan; if more than one matches,
+ask the human which. Do not infer a feature id from a title or directory name.
 
-Read this plan's `relates_to` (from `plan.json`). For every related sibling
-plan, also load its `shared-context.md` — its Resolved Project Decisions ledger
-becomes part of the input set for Stage 1.2.
+Classify the selected registered directory as exactly one shape:
+
+- **Full plan:** `plan.json` and the normal `features/<id>.md`,
+  `shared-context.md`, and `feature-plan.md` inputs exist. Load those inputs and
+  the project docs listed in `shared-context.md`. Read `relates_to` from
+  `plan.json`; for every related sibling plan, also load its
+  `shared-context.md` ledger for Stage 1.2.
+- **Single-feature minimal plan:** `plan.json`, `shared-context.md`,
+  `threat-model.md`, `interaction-contract.md`, and `features/` are absent, and
+  a regular, non-symlink `feature-plan.md` is the sole plan authority. Require
+  exactly one `## 4. Single Feature` block, one `Feature ID: <id>` field, and
+  one `Run: /core-engineering:ce-spec <slug>/<id>` line. The two ids must match
+  each other, the registered slug, and any invocation id. Set
+  `plan_mode: single-feature-minimal` and load Scope, Excluded, Open Unknowns,
+  Validation Target, Project Context, Codebase Profile, and Notes from that
+  file. It has no sibling ledgers or `relates_to` inputs.
+
+A missing or non-regular authority file, a mixed shape, duplicate identity
+fields, or any slug/id mismatch is not a minimal-plan shortcut. Stop and route
+the exact defect to `/core-engineering:ce-plan`; never guess or manufacture the
+missing full-plan files.
+
+Before treating `architecture/` as present or absent, inventory direct children
+of the plan directory whose names start with `.architecture-publish-`, without
+following symlinks. Any lock, stage, backup, or rejected path means publication
+may be live or may have crashed while the canonical target was temporarily
+absent. Stop, list every exact path, and route to
+`/core-engineering:ce-architecture <slug>` for explicit human recovery. Never
+delete or consume a transaction path, and never record architecture as absent
+while one remains.
+
+In `single-feature-minimal` mode, the architecture seam is `N/A by
+construction`. Use lstat-style namespace occupancy: if any entry named
+`architecture` is present (including a broken symlink, symlinked directory, or
+non-directory), stop and route to
+`/core-engineering:ce-architecture <slug>` for explicit obsolete-package
+disposition; never ignore or consume it. Otherwise record
+`Architecture: N/A — single-feature minimal plan` and skip package validation.
+
+For a full plan, use an lstat-style namespace check: if any entry named
+`architecture` occupies that path — including a broken symlink, a symlinked
+directory, a non-directory, or a partial directory lacking
+`architecture.json` — send that exact path to the consumer validator before
+using or classifying it:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" \
+  docs/plans/<slug>/architecture --repo-root . --consumer --json
+```
+
+- **exit 0:** load `architecture.json` and the four Markdown projections. Carry
+  this feature's mapped components, data entities/lifecycle dispositions,
+  integration flows, and quality scenarios into the Feature Frame and Stage 3
+  design. Surface every `repository evidence drift` advisory and re-check its
+  affected claim against the current code; expected implementation drift does
+  not by itself invalidate the plan-owned baseline. If current code contradicts
+  a cross-feature boundary, route to `/core-engineering:ce-architecture`; a
+  feature-local implementation delta stays in this spec. If status is
+  `approved-with-gaps`, surface every gap relevant to this feature and keep it
+  unknown; never silently complete it in the spec. The package is design
+  context; accepted ADRs remain the binding technical decisions.
+- **exit 1:** the package is invalid or stale against the current plan. Stop
+  and run `/core-engineering:ce-architecture <slug>` to revise it; never
+  silently design against stale architecture.
+- **exit 2:** the package could not be validated. Stop with the error and route
+  to `/core-engineering:ce-architecture <slug>`; absence is optional, but a
+  present package is never silently ignored.
+
+For a full plan, after that clean transaction-state scan, only lstat-confirmed
+namespace absence (no entry named `architecture`) records
+`Architecture: N/A — optional package absent`; continue normally.
 
 If `specs/<id>/ce-spec.md` already exists, this is a **revision**: load it, note
-what changed in `features/<id>.md` since, and revise rather than overwrite.
-Increment `spec_revision` at write time.
+what changed in `features/<id>.md` or the minimal plan's Single Feature block
+since, and revise rather than overwrite. Increment `spec_revision` at write
+time.
 
 ### 0.2 Enforce Dependency Order
+
+For `plan_mode: single-feature-minimal`, record
+`Dependency Order: N/A — sizing-attested single feature` and continue to Stage
+0.3. Do not invent a dependency check against absent files. If repository
+evidence reveals a dependency or another planned feature is required, the
+minimal-plan premise is false: route to `/core-engineering:ce-plan` and stop.
+
+For a full plan, enforce the order below.
 
 For each **hard** dependency of this feature, resolve the id first:
 
@@ -50,7 +127,8 @@ bridges.
 
 ### 0.3 Build the Feature Frame
 
-Restate the bounded feature from `features/<id>.md`:
+Restate the bounded feature from `features/<id>.md`, or from the sole Single
+Feature block when `plan_mode: single-feature-minimal`:
 
 - id, title, type, description
 - **Scope** and **Excluded** — the frozen boundary
@@ -59,6 +137,11 @@ Restate the bounded feature from `features/<id>.md`:
 - reviewer-triggers
 - hard dependencies (specced/built) and soft dependencies (+ bridges)
 - any bridge this feature owns
+- accepted architecture mapping (components, data entities/lifecycle, flows,
+  and quality scenarios), including any repository-evidence drift advisory, or
+  `N/A — optional package absent`; in minimal mode record architecture,
+  dependencies, bridges, Journey Map, and cross-feature obligations as
+  `N/A by construction`
 
 ### 0.4 Frame Checkpoint  [material]
 
@@ -82,16 +165,22 @@ Take every entry in the feature's `open_unknowns`. If there are none, record
 
 ### 1.2 Research
 
-First check the **Resolved Project Decisions** ledger — both this plan's (in its
-`shared-context.md`) **and** the ledgers of every plan in `relates_to`. If an
-unknown is already resolved in any of them, do not re-research it — carry that
-resolution forward and present it in Stage 1.4 as a pre-resolved default for the
-human to confirm it applies here (a later feature may have a nuance, or a
-sibling plan's decision may not transfer).
+For a full plan, first check the **Resolved Project Decisions** ledger — both
+this plan's (in its `shared-context.md`) **and** the ledgers of every plan in
+`relates_to`. If an unknown is already resolved in any of them, do not
+re-research it — carry that resolution forward and present it in Stage 1.4 as a
+pre-resolved default for the human to confirm it applies here (a later feature
+may have a nuance, or a sibling plan's decision may not transfer).
 
-For every remaining unknown, use the codebase, `shared-context.md` (codebase
-profile, pitfalls, project docs), and hard-dependency specs to inform a
-resolution. Research is autonomous — do not present a guess as fact.
+For `plan_mode: single-feature-minimal`, there is no shared ledger. Use only the
+Project Context, Codebase Profile, and Notes in `feature-plan.md` as recorded
+plan context. Do not create `shared-context.md` from inside this workflow.
+
+For every remaining unknown, use the codebase, the available plan context (the
+full plan's `shared-context.md`, or the minimal plan's inline Project Context,
+Codebase Profile, and Notes), and any applicable full-plan hard-dependency specs
+to inform a resolution. Research is autonomous — do not present a guess as
+fact.
 
 ### 1.3 Draft Resolutions
 
@@ -111,4 +200,6 @@ bulk approve-with-veto. The human resolves each.
 
 Log each resolution as a Resolved Decision. If a resolution is architecturally
 significant and cross-feature, promote it to an ADR (see *Architecture Decision
-Records* in `SKILL.md`). New unknowns surfaced later (Stage 3) return here.
+Records* in `SKILL.md`). In minimal mode, any cross-feature resolution first
+invalidates the plan shape and routes to planning; do not use ADR propagation to
+bypass that boundary. New unknowns surfaced later (Stage 3) return here.

@@ -85,6 +85,7 @@ the path back to a live label.
 | EVAL-017 | `/core-engineering:ce-auto-build` | fixed sequential three-feature run: success, product park, retry exhaustion, schema-v2 state, and final human-review gate | $20.00 | design-verified, not live-run |
 | EVAL-018 | `/core-engineering:ce-humanize` | rewrites generic prose while preserving facts, links, and structure | $1.00 | design-verified, not live-run |
 | EVAL-019 | `/core-engineering:ce-go` | routes a bounded low-risk change to direct-only `/core-engineering:ce-patch`, then stops without writes | $1.00 | design-verified, not live-run |
+| EVAL-020 | `/core-engineering:ce-architecture` | loads and lints the written plan, renders the evidence-first Scope Confirmation gate, and stops without publishing before human approval; its frozen package separately passes `architecture-lint.py` | $3.00 | design-verified, not live-run |
 
 Honest failure log from the same batch — kept because it calibrated the
 budgets and the runner behavior:
@@ -116,13 +117,14 @@ autonomous is budget-capped up front
 
 ## What is *not* yet measured — the honest boundary
 
-- **Nine scenarios have never had a committed live pass:** adversarial
+- **Ten scenarios have never had a committed live pass:** adversarial
   `EVAL-011`/`EVAL-012`, cross-stack `EVAL-013`–`015`, dependency probing
   `EVAL-016`, auto-build `EVAL-017`, humanization `EVAL-018`, and front-door
-  routing `EVAL-019`. Their current
+  routing `EVAL-019`, plus architecture generation `EVAL-020`. Their current
   claims rest on fixtures and deterministic checks, not committed or citable
   model evidence.
-- **Coverage:** the 2026-06-27 batch recorded live passes for 8 of 30 skills then shipped (the corpus is 31 today)
+- **Coverage:** the 2026-06-27 batch recorded live passes for 8 of 30 skills then
+  shipped (the corpus is 32 today)
   (10 scenario passes — `/core-engineering:ce-impact` and `/core-engineering:ce-patch` each contribute two), but
   the recency ratchet has since degraded all ten of those rows to
   design-verified because that hardening pass changed every one of those

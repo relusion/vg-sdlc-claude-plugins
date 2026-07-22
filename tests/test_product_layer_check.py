@@ -191,14 +191,14 @@ class SupportedSurface(unittest.TestCase):
             comparison = repo / "docs" / "COMPARISON.md"
             text = comparison.read_text(encoding="utf-8")
             changed = text.replace(
-                "(31 skills across 2 plugins)", "(32 skills across 2 plugins)"
+                "(32 skills across 2 plugins)", "(33 skills across 2 plugins)"
             )
             self.assertNotEqual(text, changed, "fixture drift: inventory not found")
             comparison.write_text(changed, encoding="utf-8")
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
-            self.assertIn("supported inventory says 32 skills", res.stderr)
-            self.assertIn("contains 31 skills", res.stderr)
+            self.assertIn("supported inventory says 33 skills", res.stderr)
+            self.assertIn("contains 32 skills", res.stderr)
 
     def test_retired_delivery_claims_and_duplicate_validator_fail(self):
         with tempfile.TemporaryDirectory() as tmp:

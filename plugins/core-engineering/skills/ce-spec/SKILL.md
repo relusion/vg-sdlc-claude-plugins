@@ -2,7 +2,7 @@
 name: ce-spec
 description: |
   Turn ONE planned feature into an implementation-ready spec — resolve unknowns, EARS acceptance criteria → tagged test cases, design against the real codebase, an ordered tasks.json — without widening the planned boundary (Scope Lock).
-  Triggers: spec/specify/detail one planned feature for implementation. /core-engineering:ce-plan produces the decomposition; /core-engineering:ce-spec details one feature of it.
+  Triggers: spec/specify/detail one planned feature for implementation. /core-engineering:ce-plan owns decomposition; /core-engineering:ce-architecture owns the optional cross-feature solution baseline; /core-engineering:ce-spec owns feature-local design.
 argument-hint: "[feature-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -40,23 +40,42 @@ detailed procedure loads on demand — see *How to Run This Workflow* below.
   registry), list the features under each plan, and ask which to specify. Do not
   guess.
 - **The plan directory:** resolve via the registry. An unqualified id that
-  matches exactly one plan is unambiguous; if it matches more than one, ask
-  which.
-- **Loaded automatically:** `features/<id>.md`, `shared-context.md`,
-  `feature-plan.md`, `plan.json`, `threat-model.md` (this feature's
+  matches exactly one full plan's `features/<id>.md` or one minimal plan's
+  explicit `Feature ID` is unambiguous; if it matches more than one, ask which.
+- **Plan shape (auto-detected):** a full plan loads `features/<id>.md`,
+  `shared-context.md`, `feature-plan.md`, and `plan.json`. A registry-backed
+  single-feature minimal plan intentionally has no `plan.json`,
+  `shared-context.md`, or `features/` directory: its regular, non-symlink
+  `feature-plan.md` is the sole plan authority. Minimal mode is valid only when
+  its `## 4. Single Feature` block has exactly one explicit
+  `Feature ID: <id>` and exactly one qualified
+  `Run: /core-engineering:ce-spec <slug>/<id>` line, and those values agree with
+  the registry, invocation, and plan directory. Ambiguous or mismatched identity
+  routes to `/core-engineering:ce-plan` for repair; never infer the id from a
+  title or directory name. Set `plan_mode: single-feature-minimal` for the
+  downstream N/A dispositions below; otherwise use full-plan behavior.
+- **Loaded automatically for a full plan:** `threat-model.md` (this feature's
   **Per-Feature Security Obligations** — the `TZ-NNN` threat-ids §2.1 derives
   `[SECURITY]` criteria from, and the trust boundaries / data-classes its design
   must honor; absent ⇒ no security obligations for this feature),
   `interaction-contract.md` (this feature's **Per-Feature Interaction Obligations** —
   the `IC-NNN` behavioural-protocol invariants and architecture-determining NFRs §2.1
   derives `[CONTRACT]` criteria from; absent ⇒ no interaction obligations for this
-  feature), each hard
+  feature), an optional **approved architecture package** under `architecture/`
+  (validated before use; its feature mapping, components, plan-owned data and
+  lifecycle mappings, flows, and quality scenarios are design context while
+  accepted ADRs remain the binding decision records), each hard
   dependency's `specs/<dep>/ce-spec.md` (or its built code), the project docs listed
   in `shared-context.md`, the accepted ADRs in `docs/adr/` relevant to this
   feature — opened individually via the Resolved Project Decisions ledger index
   when their decisions bear on this feature's surfaces (see Stage 3.1), not the
   whole directory — and the `shared-context.md` of every plan in this plan's
   `relates_to` (their ledger entries become readable defaults — see Stage 1.2).
+  In minimal mode these full-plan, dependency, cross-feature, and architecture
+  inputs are `N/A by construction`; use the Scope, Excluded, Open Unknowns,
+  Validation Target, Project Context, Codebase Profile, and Notes recorded in
+  the sole `feature-plan.md`. Discovery of any dependency or cross-feature
+  obligation disproves the minimal shape and routes to planning before design.
 
 ## Execution Contract
 
@@ -69,17 +88,18 @@ Follow the workflow exactly. Do not skip stages, gates, or validation.
 1. **Never write the spec before Final Approval** (Stage 5.4 → `Write`).
 2. **Honor the Scope Lock** (below). Scope changes only through an approved, logged Boundary Conflict — never silently.
 3. **Tiered human-in-the-loop** (below). Every judgment call is the human's. Default to asking; never assume silently.
-4. **Enforce dependency order** (Stage 0.2). Do not proceed unless every hard dependency is specced or built.
-5. **Maintain traceability:** Scope item → Acceptance Criterion → Test Case → Task, and every journey step this feature owns → ≥ 1 Test Case (carrying the step's modality). No orphans at any link.
+4. **Enforce dependency order** (Stage 0.2). Do not proceed unless every hard dependency is specced or built. For a valid single-feature minimal plan, record dependency order `N/A by construction`; discovering a dependency routes to planning.
+5. **Maintain traceability:** Scope item → Acceptance Criterion → Test Case → Task, and every journey step this feature owns → ≥ 1 Test Case (carrying the step's modality). No orphans at any link. A minimal plan has no Journey Map, so only the Scope chain applies unless planning expands the shape.
 6. **Stay focused.** Scale effort to feature size — a Simple feature with no unknowns runs light. Do not manufacture ceremony. The artifact template's **Tier-scaling** rule names which `ce-spec.md` sections such a feature omits (omit the empty section, never the analysis); `spec-lint` H1–H5 still pass on the reduced spec.
-7. **Log every decision** with its options, choice, rationale, tier, and `decided_by: human`. Propagate cross-feature resolutions — architecturally-significant ones to a project ADR, others to the shared-context ledger (Stage 5.2).
+7. **Log every decision** with its options, choice, rationale, tier, and `decided_by: human`. Propagate cross-feature resolutions — architecturally-significant ones to a project ADR, others to the shared-context ledger (Stage 5.2). Minimal mode has no shared ledger: a cross-feature resolution invalidates that mode and routes to planning rather than creating a missing artifact from inside spec.
 8. **Run the Mechanical Lint Gate** (below) before Final Approval — auto-build runs the same script as a blocking spec-artifact gate.
 9. **Output:** write `ce-spec.md` and `tasks.json` to `docs/plans/[slug]/specs/<id>/`.
 
 ## Scope Lock — the planned feature boundary
 
-The feature's **Scope** and **Excluded** lists, from `features/<id>.md`, are the
-frozen boundary. Three invariants:
+The feature's **Scope** and **Excluded** lists, from `features/<id>.md` in a full
+plan or the `## 4. Single Feature` block in a minimal plan, are the frozen
+boundary. Three invariants:
 
 - **Frozen.** Every unknown resolution, acceptance criterion, test case, design
   element, and task is **boundary-checked** — it must trace up to a Scope item, and
@@ -87,15 +107,17 @@ frozen boundary. Three invariants:
 - **Narrow, never widen.** The spec may **narrow** within boundary (defer something
   as a recorded, signed-off limitation) but never **widen** it on its own.
 - **Structural changes escalate and stop.** The spec edits **only this feature's
-  file**, and only **local** fields: Scope, Excluded, surfaces, open unknowns,
+  authority** (`features/<id>.md`, or the minimal plan's Single Feature block),
+  and only **local** fields: Scope, Excluded, surfaces, open unknowns,
   validation target. Anything **structural** — dependencies, IDs, ship order,
   impact on other features, or a **new cross-feature flow the plan never traced**
   (§3.6) — is beyond a single feature edit: escalate to a plan
   revision (`/core-engineering:ce-plan`) and stop.
 
-Scope changes only via a **Boundary Conflict**, applied to `features/<id>.md` by
-the canonical procedure in **Stage 3.3** (detect → present as *material* → human
-approves → stamp `revised_by: spec` + log it). Never widen Scope to absorb a conflict.
+Scope changes only via a **Boundary Conflict**, applied to `features/<id>.md` or
+the minimal plan's Single Feature block by the canonical procedure in **Stage
+3.3** (detect → present as *material* → human approves → stamp/log the revision
+in the owning plan artifact). Never widen Scope to absorb a conflict.
 
 ## Human-in-the-Loop — tiered
 
@@ -192,6 +214,11 @@ canonical `specs/<id>/` layout, so spec-lint can neither auto-discover the
 threat-model nor infer the feature id from the path — give it both explicitly. (The
 auto-build orchestrator needs neither flag — it lints the real `specs/<id>/`, where
 both are auto-discovered.)
+
+For a single-feature minimal plan, omit both `--threat-model` and `--feature`:
+the absent threat model is an intentional `N/A`, while H1–H4 still validate the
+normal `ce-spec.md` + `tasks.json` output. Do not manufacture full-plan files to
+enable H5.
 
 It checks (H1–H4, and **H5** when `--threat-model` is passed): every `tasks.json`
 `verifies` resolves to a real TC; every TC carries a `modality:` and a

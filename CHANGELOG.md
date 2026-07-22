@@ -7,6 +7,17 @@ that version and this file.
 
 ## Unreleased
 
+- **Composable solution architecture (`core-engineering` 0.10.3).** Added
+  `/core-engineering:ce-architecture` as an optional seam between a written
+  multi-feature plan and feature specification. It produces a human-approved,
+  repository-grounded five-file architecture package with deterministic
+  structural validation, explicit evidence and coverage gaps, a plan-owned
+  Scope Lock, transactional publication, and no code, deployment,
+  security-acceptance, or release authority. Downstream specification validates
+  any present package; valid single-feature minimal plans retain their shorter
+  spec/implement path, including token-bound retirement of an obsolete package.
+  Planning and single-option decisions remain owned by
+  `/core-engineering:ce-plan` and `/core-engineering:ce-decide`.
 - **Developer experience and output-quality hardening (`core-engineering`
   0.10.2, `product-discovery` 0.1.5).** Added a three-tier capability map,
   read-only `/core-engineering:ce-init --readiness` reporting, and a supported

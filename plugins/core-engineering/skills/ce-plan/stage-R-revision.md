@@ -55,6 +55,15 @@ since it was written, so re-scan (Stage 1.2, single batched sweep) only what the
 change plausibly touches — do not replay the full nine-dimension profile unless the change
 is broad. Record what you re-scanned.
 
+Before deciding whether an architecture package exists, inventory direct children of the
+plan directory whose names start with `.architecture-publish-`, without following
+symlinks. Any lock, stage, backup, or rejected path means architecture publication may be
+live or may have crashed while the canonical directory was temporarily absent. Park the
+plan revision, list every exact path, and route to
+`/core-engineering:ce-architecture <slug>` for an explicit human recovery decision. Never
+delete or consume those transaction paths, and never treat their presence as architecture
+absence.
+
 ---
 
 ## R.1 — State the delta as a diff against the frozen shape
@@ -200,7 +209,13 @@ Two deltas from a fresh write:
 for a revision. Print the locator (`Gate M of M — Final Revision Approval`) and render, as
 Markdown: the revised feature table (new / re-cut / re-ordered / removed marked), the
 re-run gate outcomes, the **held-from-N-1** list, the touched-spec staleness list, and the
-target `plan_revision: <N>`. Label each option by consequence (R1/R5):
+target `plan_revision: <N>`. When an lstat-style namespace check finds any entry
+named `architecture` — including a broken symlink, symlinked directory,
+non-directory, or partial package — also state that the plan revision will make
+its revision/hash boundary stale or malformed and that
+`/core-engineering:ce-architecture <slug>` must run before any touched/new spec;
+the planning workflow does not silently refresh or remove that sibling-owned
+package. Label each option by consequence (R1/R5):
 
 | Option | What happens next |
 |---|---|
@@ -230,7 +245,12 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
    let it block the write.
 
 **Closing.** Confirm what changed (files written, features touched, `plan_revision: <N>`),
-then name the next actions: for each touched feature whose spec is now stale
+then name the next actions. If that lstat-style check found any `architecture`
+namespace occupant, print
+`/core-engineering:ce-architecture <slug>` first and do not print a direct spec
+command as the immediate next action; when the revised plan has only one
+feature, that architecture run owns the explicit obsolete-package disposition.
+Otherwise, for each touched feature whose spec is now stale
 (`revised_by: plan-revision <N>` with an existing `specs/<id>/`), print its
 `/core-engineering:ce-spec <slug> <id>` re-run line; for each new feature, print its `/core-engineering:ce-spec` line. Do not
 start downstream specification automatically.

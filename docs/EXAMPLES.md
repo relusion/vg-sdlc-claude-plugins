@@ -96,7 +96,7 @@ on every CI push. To regenerate the live equivalent:
 
 ## 4. The golden-replay layer — frozen artifacts, replayed through their lints
 
-The `/core-engineering:ce-spec` golden above is one of **five** deterministic gates
+The `/core-engineering:ce-spec` golden above is one of **six** deterministic gates
 `scripts/eval_check.py` replays on every CI push — a frozen known-good artifact
 run back through the same lint or schema check its producing skill emits, with no
 model call. When a validator changes (a new `plan-lint` hard check, a
@@ -110,17 +110,19 @@ free. Each is a minimized real skill output kept in-repo under `evals/golden/`:
 | EVAL-007 | `evals/golden/EVAL-007/review-summary.json` | `json_fields` schema check | `status: blocked`, integer `blocking_high: 1`, the `CR-1` IDOR finding shape auto-build gates on |
 | EVAL-008 | `evals/golden/EVAL-008/infra-summary.json` | `json_fields` schema check | `status: pass`, `blocking_hard: 0`, all three formats detected, secrets redacted |
 | EVAL-009 | `evals/golden/EVAL-009/express.json` | `json_fields` schema check | the admitted two-file scope and requested label fix stay frozen for the express-only lane |
+| EVAL-020 | `evals/golden/EVAL-020/docs/plans/team-invitations-rbac/architecture/` | `architecture-lint.py --json` | the architecture package is source-current, structurally coherent, and feature/flow/quality references resolve |
 
 Provenance: committed golden artifacts, each a minimized real skill output
 distilled from the live eval batch of 2026-06-27 (`evals/runs/` originals):
 EVAL-004 from `20260627-060527Z`, EVAL-007 from `20260627-045826Z`, and EVAL-008
 from `20260627-053616Z`. EVAL-009 was replaced in 2026-07 when the patch contract
-became express-only; its current golden is design-verified and awaits a fresh
-live run. The plan golden is trimmed to the structural surface `plan-lint.py`
-reads.
+became express-only, and EVAL-020 was added with the architecture capability;
+both current goldens are design-verified and await a fresh live run. The plan
+golden is trimmed to the structural surface `plan-lint.py` reads.
 
 Reproduce (no model call — deterministic replay):
-`python3 scripts/eval_check.py` replays all five goldens and prints
-`5 golden gate(s)`. A mutated golden (a broken `plan.json`, a dropped
-`blocking_high`, a changed admitted file) turns the run red — see
+`python3 scripts/eval_check.py` replays all six goldens and prints
+`6 golden gate(s)`. A mutated golden (a broken `plan.json`, a dropped
+`blocking_high`, a changed admitted file, or a dangling architecture endpoint)
+turns the run red — see
 `tests/test_eval_check.py::GoldenGates`.

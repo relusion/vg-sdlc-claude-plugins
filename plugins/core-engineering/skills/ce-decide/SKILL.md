@@ -2,7 +2,7 @@
 name: ce-decide
 description: |
   Weigh two or more TECHNICAL/architecture options for one decision and render an evidence-tagged Adopt/Adopt-with-mitigations/Spike-first/Reject recommendation plus a proposed ADR — situation-derived weights, knockout gates, a falsifiable DEAD-IF. Engineering-side verdict (unlike /product-discovery:ce-idea-score, which scores PRODUCT ideas).
-  Triggers: choose between, compare, or weigh technical/architecture/fix options for one decision.
+  Triggers: choose between, compare, or weigh technical/architecture/fix options for one decision. For a complete cross-feature solution baseline rather than one option set, use /core-engineering:ce-architecture.
 argument-hint: "[the decision + options, or a path to a /core-engineering:ce-debug diagnosis or problem statement] [--evidence measured|reasoned]"
 allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill
 ---

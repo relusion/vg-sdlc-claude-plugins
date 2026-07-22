@@ -162,6 +162,7 @@ discipline (a literal `Gate N of M` instruction) somewhere in its files.
 Skills with adjacent intents stay routable only through **mutual contrastive
 clauses** ("For X use /ce-…", naming the sibling). The overlap clusters are registered in
 `authoring_check.py` (A6): review↔verify,
+architecture↔plan↔spec, architecture↔decide,
 probe-infra↔probe-deps, doc-audit↔ship-document, onboard↔domain, and
 idea-score↔idea-scout↔market-scan (this last cluster lives
 in the companion `product-discovery` plugin — a cluster may span plugins, and

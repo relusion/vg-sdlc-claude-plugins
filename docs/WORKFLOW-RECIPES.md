@@ -23,7 +23,7 @@ changes one bounded thing, a **core workflow** advances delivery state, a
 | I need to... | Start here | Primary user | Prerequisite | Outcome to measure |
 |---|---|---|---|---|
 | understand an unfamiliar repository | [Recipe 1](#recipe-1-answer-a-codebase-question), [Recipe 11](#recipe-11-learn-a-built-system), or [Recipe 35](#recipe-35-onboard-into-the-business-domain) | Developer, maintainer, PM | Read access to the repository | Time to first correct change; onboarding time |
-| refine, plan, or revise work | [Recipe 2](#recipe-2-refine-a-work-item), [Recipe 3](#recipe-3-plan-a-new-feature), or [Recipe 24](#recipe-24-mid-sprint-scope-change-without-losing-the-plan) | Tech lead, developer, PM | A concrete outcome or change request | Rework caused by missing scope; planning lead time |
+| refine, plan, architect, or revise work | [Recipe 2](#recipe-2-refine-a-work-item), [Recipe 3](#recipe-3-plan-a-new-feature), or [Recipe 24](#recipe-24-mid-sprint-scope-change-without-losing-the-plan) | Tech lead, developer, PM | A concrete outcome or change request | Rework caused by missing scope or cross-feature design; planning lead time |
 | make a small, safe change | [Recipe 6](#recipe-6-handle-a-small-fix) | Developer | A bounded, low-risk change | Patch cycle time; patch-to-plan graduation rate |
 | build planned work | [Recipe 4](#recipe-4-build-one-planned-feature) or [Recipe 25](#recipe-25-build-overnight-trust-it-by-morning) | Developer, tech lead | Approved plan; a spec for implementation | Feature cycle time; first-pass verification rate |
 | review and prove a change | [Recipe 5](#recipe-5-review-and-verify-before-handoff) or [Recipe 31](#recipe-31-work-a-human-pr-review-round) | Developer, reviewer | Implemented code or review comments | Escaped defects; review rework; finding acceptance rate |
@@ -40,7 +40,7 @@ entry point.
 | Stage | Adopt | Why now | Exit signal |
 |---|---|---|---|
 | **1 — Establish trust** | [Bootstrap](#recipe-18-bootstrap-a-repository), [small fixes](#recipe-6-handle-a-small-fix), [review and verify](#recipe-5-review-and-verify-before-handoff), then the [merge bar](#recipe-29-roll-out-the-merge-bar) | These are frequent, bounded workflows with visible checks and limited autonomy. They establish repository policy and a common quality floor. | Developers repeat the workflows voluntarily; protected PRs require both mechanical integrity and human validity. |
-| **2 — Standardize delivery** | [Refine](#recipe-2-refine-a-work-item), [plan](#recipe-3-plan-a-new-feature), [build](#recipe-4-build-one-planned-feature), [revise](#recipe-21-revise-an-existing-plan), and [release handoff](#recipe-9-prepare-a-release-handoff) | Durable briefs, plans, specs, and evidence make handoffs repeatable across developers and teams. | A representative feature moves through the spine without undocumented scope changes or artifact repair. |
+| **2 — Standardize delivery** | [Refine](#recipe-2-refine-a-work-item), [plan and optionally architect](#recipe-3-plan-a-new-feature), [build](#recipe-4-build-one-planned-feature), [revise](#recipe-21-revise-an-existing-plan), and [release handoff](#recipe-9-prepare-a-release-handoff) | Durable briefs, plans, architecture views, specs, and evidence make handoffs repeatable across developers and teams. | A representative feature moves through the spine without undocumented scope or cross-feature design changes or artifact repair. |
 | **3 — Add bounded autonomy** | [Plan audit](#recipe-14-audit-planning-and-process), [auto-build](#recipe-10-run-the-full-spine-autonomously), [supervision](#recipe-20-operate-an-unattended-run), and the [morning trust ritual](#recipe-25-build-overnight-trust-it-by-morning) | Autonomy becomes useful only after inputs, stops, and independent checks are trusted. | Parked decisions are actionable, retry rates are understood, and unattended output passes independent verification. |
 | **4 — Expand by organizational need** | Incident, security, debt, governance, and knowledge-transfer campaigns | These create high value for specific operating contexts but should reuse the proven core rather than form a parallel process. | The owning team has named metrics, an accountable human owner, and a review cadence for each adopted campaign. |
 
@@ -164,22 +164,35 @@ all, it is not a work item yet — it is an idea, and `/core-engineering:ce-brie
 ```text
 /core-engineering:ce-brief Add team invitations with role-based access.
 /core-engineering:ce-plan <brief-or-project-description>
+/core-engineering:ce-architecture <plan-slug>  # optional for a multi-feature solution baseline
 ```
 
 **Expected artifacts:** `docs/briefs/<slug>.md`, then `docs/plans/<slug>/` with
 `feature-plan.md`, `plan.json`, `threat-model.md`, `interaction-contract.md`,
-and feature files.
+and feature files. When the optional architecture step runs, it writes the
+human-approved five-file package under `docs/plans/<slug>/architecture/`.
 
 **Done when:** the plan has bounded features, ship order, journey trace,
-durable-state closure, security obligations, and interaction contracts.
+durable-state closure, security obligations, and interaction contracts. If the
+solution needs a shared cross-feature design, the architecture package also
+traces system, deployment, data/integration, and quality views to that frozen
+plan and repository evidence before feature specification begins.
+
+**Measure:** first-pass `architecture-lint` pass rate and downstream spec
+rework caused by missing cross-feature design. Invocation count alone is not an
+outcome.
 
 **Stop or escalate when:** a material product, scope, or security decision is
-unknown. The human decides; the skill records.
+unknown. The human decides; the skill records. Architecture may expose a
+missing plan boundary or one consequential technical fork, but it must route
+those back to `/core-engineering:ce-plan` or `/core-engineering:ce-decide`
+instead of silently changing the plan.
 
 ## Recipe 4: Build One Planned Feature
 
 **Use when:** a plan exists and one feature is ready for detailed design and
-implementation.
+implementation. An approved architecture package is consumed as design context
+when present; it is not a substitute for the feature spec.
 
 ```text
 /core-engineering:ce-spec <plan-slug> <feature-id>
@@ -389,8 +402,10 @@ the idea in discovery; do not feed unsupported claims into planning.
 
 ## Recipe 13: Make A Technical Decision
 
-**Use when:** a plan, review, debug run, or human discussion exposes a real
-engineering fork with multiple viable options.
+**Use when:** a plan, architecture run, review, debug run, or human discussion
+exposes one real engineering fork with multiple viable options. Use
+`/core-engineering:ce-architecture` when the job is to establish the whole
+cross-feature solution baseline rather than score one option set.
 
 ```text
 /core-engineering:ce-decide <situation, options, constraints>

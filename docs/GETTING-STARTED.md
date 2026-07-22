@@ -126,9 +126,12 @@ nothing itself.
    ```text
    /core-engineering:ce-brief Add team invitations with role-based access.
    /core-engineering:ce-plan <brief-or-project-description>
+   /core-engineering:ce-architecture <plan-slug>  # optional for a multi-feature solution baseline
    ```
 
-   Expected output: `docs/briefs/<slug>.md`, then `docs/plans/<slug>/`.
+   Expected output: `docs/briefs/<slug>.md`, then `docs/plans/<slug>/`. The
+   optional architecture step writes an approved five-file package under
+   `docs/plans/<slug>/architecture/` without changing the plan or code.
 
 5. If the work is genuinely small:
 
@@ -150,6 +153,7 @@ nothing itself.
 | I need to understand code | `/core-engineering:ce-ask` | Cited answer, no writes |
 | I need to refine a work item | `/core-engineering:ce-impact` | Blast-radius read and open questions |
 | I have a raw feature idea | `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` | Brief, plan, feature decomposition |
+| I have a written multi-feature plan that needs a shared solution design | `/core-engineering:ce-architecture <plan-slug>` | Human-approved system, deployment, data/integration, quality, and traceability views |
 | I have an approved plan feature | `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` | `ce-spec.md`, `tasks.json`, code, tests, verification |
 | I need confidence before handoff | `/core-engineering:ce-review` + `/core-engineering:ce-verify` | Review findings and behavior-verification evidence |
 | I need release readiness | `/core-engineering:ce-ship-release` | Release decision package and changelog proposal |

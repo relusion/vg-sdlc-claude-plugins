@@ -401,17 +401,23 @@ Created: docs/plans/[project-slug]/
 Updated: docs/plans/plans.json
 ```
 
-Then point to the first feature to specify:
+Then point to the optional architecture seam and the first feature to specify:
 
 ```text
 Next feature:
 01-feature-slug
 
-Run:
- /core-engineering:ce-spec 01-feature-slug
+Optional cross-feature architecture baseline (for a multi-feature system that
+needs formal context, runtime/container, deployment, data/integration, and
+quality views):
+ /core-engineering:ce-architecture [project-slug]
+
+Otherwise run:
+ /core-engineering:ce-spec [project-slug]/01-feature-slug
 ```
 
-Do not start downstream specification automatically unless the user explicitly asks.
+Do not start architecture or downstream specification automatically unless the
+user explicitly asks. Architecture is optional; when present, specification
+validates and consumes it.
 
 ---
-

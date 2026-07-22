@@ -1,0 +1,11 @@
+services:
+  app:
+    build: ..
+    environment:
+      DATABASE_URL: postgresql://postgres@db/team
+    depends_on: [db]
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: team
+      POSTGRES_HOST_AUTH_METHOD: trust

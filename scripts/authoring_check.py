@@ -5,7 +5,7 @@ The normative guide is ``docs/contributing/SKILL-AUTHORING.md``.
 
 corpus_lint.py catches referential drift (stale names, broken companion refs,
 missing skeleton headings). This lint locks the *vocabulary and structural
-conventions* that keep 29 independently authored skills reading as one
+conventions* that keep 32 independently authored skills reading as one
 product — the drift class that previously accumulated silently because only
 reviewer diligence guarded it:
 
@@ -113,6 +113,8 @@ INVARIANT_MENTIONS = {
 # only their contrastive description clauses keep a router from misfiring.
 # Every member's frontmatter must name every sibling as /<name>.
 CLUSTERS = (
+    ("ce-architecture", "ce-plan", "ce-spec"),
+    ("ce-architecture", "ce-decide"),
     ("ce-review", "ce-verify"),
     ("ce-probe-infra", "ce-probe-deps"),
     ("ce-idea-score", "ce-idea-scout", "ce-market-scan"),

@@ -1,0 +1,9 @@
+{
+  "plans": [
+    {
+      "slug": "team-invitations-rbac",
+      "description": "Team invitations backed by role-based authorization",
+      "relates_to": []
+    }
+  ]
+}
