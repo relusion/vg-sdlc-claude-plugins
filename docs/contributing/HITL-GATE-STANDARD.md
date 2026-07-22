@@ -2,14 +2,16 @@
 
 A presentation discipline for **every interactive Human-in-the-Loop (HITL) gate**
 in the framework. One rule governs it: *a human standing at a gate must have enough
-context, in the place the decision is made, to choose well — without scrolling back,
-without already knowing framework jargon, and without rubber-stamping.*
+context and the right authority, in the place the decision is made, to choose well —
+without scrolling back, already knowing framework jargon, guessing outside their
+role, or rubber-stamping.*
 
-This is a **contributor discipline, not a `check.py` gate** — like the
-skill-naming rule and the doc-currency rule (CLAUDE.md). Prose
-presentation can't be mechanically linted; the standard is enforced by review and by
-this document. When you add or edit any gate that asks the human to choose, make it
-conform.
+This is primarily a **contributor discipline** — like the skill-naming rule and
+the doc-currency rule (CLAUDE.md). Prose quality and decision sufficiency cannot be
+mechanically proved, so review and this document remain authoritative. Structural
+backstops in `authoring_check.py` protect the shared glossary, gate-locator
+discipline, and the four-question/four-option harness limit. When you add or edit any
+gate that asks the human to choose, make it conform.
 
 > **This doc is authoring infrastructure — it does not ship with either plugin and no
 > skill reads it at runtime.** This file lives outside the plugin packages in the
@@ -47,11 +49,19 @@ the concrete cost if it's wrong**, in plain terms the human can weigh. A bare
 "confirm the threat-ids?" restated under a new heading does **not** satisfy R2 — the
 basis and cost-if-wrong must be *rendered*.
 
-**R3 — Isolate material attestations.** A *material* judgment (security model,
-data-class, destructive/irreversible op, scope/boundary, a contract break) gets its
-**own** prompt — never a bullet inside an informational dump that rides through on a
-single "Approve"/"Write". Routine items bulk-approve-with-veto. (Material vs routine:
-see the `spec` tiering exemplar.)
+**R3 — Isolate material attestations and route authority.** A *material* judgment
+(security model, data-class, destructive/irreversible op, scope/boundary, a contract
+break) gets its **own** question — never a bullet inside an informational dump that
+rides through on a single "Approve"/"Write". Up to four independent material
+questions may share one `AskUserQuestion` call, but each keeps its own evidence,
+owner, answer, and checkpointed disposition. A negative assertion is still material;
+"nothing detected" is not an exception. Routine items bulk-approve-with-veto.
+
+Every material question names the **decision owner or required expertise**. If the
+person at the gate lacks that authority, or the evidence is insufficient, the dialog
+must provide a safe **gather evidence / route to owner / park** path. `Abort` is not a
+substitute for escalation, and silence is never approval. (Material vs routine: see
+the `spec` tiering exemplar.)
 
 **R4 — Triage dense gates.** When a gate prints many rows, **lead with "What needs
 your decision"** — only the rows that need a human call (undispositioned, escalated,
@@ -163,12 +173,15 @@ registered in `GLOSSARY_ANCHORS` — A11, not A9, keeps it and its per-skill map
 Gate N of M — <name>
 
 Decision [D-n] — <short title>   [material | routine]
+Decision owner: <role or required expertise; say who may accept the risk>
 Context:    <1–3 sentences, jargon glossed>
 Question:   <the question>
 Options:
   A. <option> — <what happens if you pick this>
   B. <option> — <what happens if you pick this>
+  C. Need evidence / route to <owner> / park — no decision is recorded
 Recommendation: <A/B> — <reasoning>
+Confidence: <high/medium/low> — <basis and material unknowns>
 ```
 
 **Evidence-first attestation (R2)** — for a model-derived assertion:
@@ -178,7 +191,7 @@ Recommendation: <A/B> — <reasoning>
 attribute / the consumers enumerated>.
 If this is wrong: <one concrete sentence — what ships unguarded / what breaks>.
 
-Confirm  /  Override (state the reason)
+Confirm  /  Override (state the reason)  /  Need evidence or route to owner
 ```
 
 **Triage lead for a dense gate (R4):**

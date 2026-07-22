@@ -144,12 +144,16 @@ locator rather than letting the nested skill start a second `1 of 1` sequence.
 
 Render the full result as Markdown first. Then present only the rows needing a
 human call under **What needs your decision**; collapse direct source-backed
-rows to a count. Print the computed `Gate N of M` locator before every prompt.
+rows to a count. Before every prompt, render the **Material-Gate Decision
+Authority** block from `SKILL.md`; name the architecture/plan owner authorized
+to accept the displayed structural change, waiver, or coverage gap. Print the
+exact computed locator named by the result branch below.
 
 ### `converged` — Architecture-Plan Convergence `[material]`
 
 Evidence-first, show why the provisional component/deployment/data/quality
-shape fits the feature cut and the cost if that inference is wrong. Ask:
+shape fits the feature cut and the cost if that inference is wrong. Print
+`Gate N of M — Architecture-Plan Convergence`, then ask:
 
 | Option | What happens next |
 |---|---|
@@ -166,7 +170,7 @@ record `convergence.status: converged`. On waiver, record `decision: waived`,
 
 Show the exact proposed add/remove/re-cut/reorder/dependency/owner/boundary rows,
 their evidence, and cost-if-wrong. Architecture has proposed them, not applied
-them. Ask:
+them. Print `Gate N of M — Architecture Decomposition Impact`, then ask:
 
 | Option | What happens next |
 |---|---|
@@ -180,7 +184,8 @@ Never hide a structural delta as a waiver note while also marking convergence.
 ### `requires-decision` — Material Architecture Decision `[material]`
 
 Show exactly one option set, evidence, reversibility, affected provisional
-features, and cost-if-wrong. Ask:
+features, and cost-if-wrong. Print `Gate N of M — Material Architecture
+Decision`, then ask:
 
 | Option | What happens next |
 |---|---|
@@ -198,7 +203,7 @@ direction, return to Stage 1A and rerun exploration instead.
 ### `blocked` — Architecture Coverage Gap `[material]`
 
 Show the exact missing evidence/authority and what could be wrong without it.
-Ask:
+Print `Gate N of M — Architecture Coverage Gap`, then ask:
 
 | Option | What happens next |
 |---|---|

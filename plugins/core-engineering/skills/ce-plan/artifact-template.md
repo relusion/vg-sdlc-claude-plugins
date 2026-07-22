@@ -2,8 +2,8 @@
 
 Output structure, section templates, manifest schema, and tooling mapping for the
 plan directory the plan skill writes, **plus the repo-level layer** every
-plan in the repo shares. The skill loads this file at write time (Stage 9, or a
-single-feature artifact accepted at the Sizing Gate).
+plan in the repo shares. The skill loads this file at write time (Stage 9, after
+either the single-feature or multi-feature Final Plan Approval).
 
 ---
 
@@ -130,8 +130,8 @@ Place it per this map:
 
 `feature-plan.md` must **not** inline the per-feature blocks — it carries only the
 compact Feature Table and links to `features/<id>.md`. For a single-feature plan
-accepted at the Sizing Gate, use **Recommended Minimal Output** instead — one
-file, no directory.
+approved after the separate security attestation and complete minimal preview,
+use **Recommended Minimal Output** instead — one file, no directory.
 
 ---
 
@@ -939,7 +939,9 @@ Include:
 - durable-noun reciprocals excluded by design (with reason) — usability (revisit / amend / retire) **and** governance (retain / export / erase), each named
 - any durable-noun data-class downgrade (`personal` → `operational`) or upgrade (`personal` → `sensitive`), with reason
 - existing surfaces hard-broken by design (with reason and blast radius)
-- the light-plan tier and its merged gates when `plan_tier: light` — a `plan-tier: light` entry naming what folded (Candidate Decision → Final Approval, and the combined §8.2.3 attestation when it fired)
+- the light-plan tier when `plan_tier: light` — a `plan-tier: light` entry naming
+  the one folded gate (Candidate Decision → Final Approval) and confirming that
+  threat-model and interaction-contract attestations remained separate
 
 ---
 
@@ -1148,20 +1150,25 @@ their specs are preserved byte-for-byte.
 plan written before this key existed needs no migration. It is written `light` only when the
 run entered the **light-plan tier** (SKILL.md Execution Contract item 19 · stage-4-7-gates.md
 §4.3) — a ≤ 3-feature plan with no contested Boundary-Owner, no `sensitive` data-class, and no required architecture route —
-and did **not** expand back to the full gates at 8.3. In the light tier the standalone
-Candidate Decision (§5.4) folds into Final Approval and, when both read-only re-projections
-resolve negative, the 8.2.1 + 8.2.2 attestations combine into one (§8.2.3); the correctness
-gates (Reachability §6, Session-Fit §7) still run in full. The key lets `/core-engineering:ce-plan-audit` and a
-later **Stage R** read the merged-gate set from the artifact rather than re-deriving which
-gates fired. A matching `plan-tier: light` entry in Notes (§13) names the merged gates in
-prose. `light` is only ever written for a multi-feature directory plan — a single-feature
-minimal plan has no `plan.json` to carry the key.
+and did **not** expand back to the full gates at 8.3. In the light tier the
+standalone Candidate Decision (§5.4) folds into Final Approval; the correctness
+gates (Reachability §6 and Session-Fit §7) and both material attestations
+(Threat-Model §8.2.1 and Interaction-Contract §8.2.2) still run separately. The
+key lets `/core-engineering:ce-plan-audit` and a later **Stage R** read the folded
+gate set from the artifact rather than re-deriving which gates fired. A matching
+`plan-tier: light` entry in Notes (§13) names the Candidate Decision fold and the
+separate attestation checkpoints in prose. `light` is only ever written for a
+multi-feature directory plan — a single-feature minimal plan has no `plan.json`
+to carry the key.
 
 ---
 
 ## Recommended Minimal Output for Very Small Projects
 
-If the Sizing Gate recommends a single-feature plan and the user accepts, skip the directory structure and write a single simplified file — `docs/plans/[project-slug]/feature-plan.md` — with:
+If the Sizing Gate recommends a single-feature plan, the separate security
+attestation passes, and the user approves the complete preview at
+Single-Feature Final Plan Approval, skip the directory structure and write a
+single simplified file — `docs/plans/[project-slug]/feature-plan.md` — with:
 
 1. Overview
 2. Project Context
@@ -1200,7 +1207,8 @@ ticks that existing row after acceptance; it never guesses which checkbox owns
 the feature or appends a replacement row.
 
 Inside `## 4. Single Feature`, include `### Security Projection`. Copy the
-Sizing Gate's human-confirmed feature-local trust/exposure screen: entry points,
+Single-Feature Security Attestation's human-confirmed feature-local
+trust/exposure screen: entry points,
 untrusted input, auth/authz, external integrations, secrets, and
 personal/sensitive data. Assign `TZ-NNN` only for a detected boundary/security
 surface and preserve this machine-readable block even when the list is empty:
@@ -1216,7 +1224,8 @@ When no surface is found, write an explicit assessed negative with the checked
 conditions, evidence, human confirmation, and `threat_ids: []`. This is not a
 claim that one feature has no security surface by construction. A sensitive or
 personal noun without an owned boundary remains an advisory; an unresolved
-security surface blocks the minimal write until the Sizing Gate is revisited.
+security surface blocks the minimal write until the security attestation and
+Single-Feature Final Plan Approval are rerun.
 
 **No separate `threat-model.md` / `interaction-contract.md`.** The minimal file
 embeds its feature-local security projection so `/core-engineering:ce-spec` can

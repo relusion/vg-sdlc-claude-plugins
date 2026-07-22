@@ -1,6 +1,10 @@
 # Feature-Plan Workflow — Stages 8–9: Final Review and Write
 
-Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers Final Plan Review, the Validation Checklist, writing the plan directory, and closing. Load this file after Stage 7 passes, or directly from Stage 4 on a single-feature accept.
+Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers Final Plan
+Review, the Validation Checklist, writing, and closing. Load this file after
+Stage 7 passes. After a Single-Feature Final Plan Approval (§4.1.3), enter only
+the Recommended Minimal Output write plus Stage 9 validation/cleanup/closing;
+do not replay the multi-feature Stage 8 gates.
 
 At the write step, also read `${CLAUDE_SKILL_DIR}/artifact-template.md` for the plan directory structure and per-file templates.
 
@@ -10,7 +14,8 @@ At the write step, also read `${CLAUDE_SKILL_DIR}/artifact-template.md` for the 
 
 After reachability/consumability and session-fit checks pass, present the final plan.
 
-This is the first true final approval point.
+For a multi-feature plan, this is the final approval point. The separately
+attested single-feature route has its abbreviated final approval at §4.1.3.
 
 ---
 
@@ -43,7 +48,67 @@ the final plan.
 
 ### 8.2 Present Final Plan
 
-Print:
+Lead with this exact heading; do not make the human find the decision surface
+inside the complete plan:
+
+```text
+What needs your decision
+```
+
+Under it, render these blocks in order:
+
+1. **Decision delta** — what changed since the last human checkpoint. Name the
+   changed candidate revision, features, dependencies/order, journeys, bridges,
+   risks, architecture direction/disposition, `TZ-NNN` / `IC-NNN` rows, NFRs,
+   and deferred scope. If nothing changed, say `No decision-bearing delta` and
+   name the checkpoint compared. In the light tier, where §5.4 did not fire,
+   compare against the last Stage 4–7 checkpoint and label this the first
+   decomposition review.
+2. **Unknowns and material rows** — one row per unresolved unknown, explicit
+   deferral, high-risk justification, architecture waiver/gap/park, foundation
+   exception, continuity/bulk/bridge disposition, and material `TZ-NNN` or
+   `IC-NNN` assignment. Give every row an id, current disposition, **basis +
+   cost-if-wrong**, required owner/authority, evidence state, and the later gate
+   or stage that owns resolution. Never aggregate distinct TZ/IC rows into a
+   single consent surface.
+3. **Recommendation** — name the recommended Final Approval option (or the
+   specific adjustment/evidence/owner route), confidence `high` / `medium` /
+   `low`, the evidence supporting it, and what new fact would change it. For a
+   required architecture disposition, say whether the recommendation is
+   `Write plan & continue to architecture` or `Write plan & park architecture`
+   and state that specification remains blocked until publication succeeds.
+4. **Consequence preview** — state what the recommended choice writes, what it
+   does not settle, the next human-owned gate, and the output directory path.
+
+Then collapse settled material so it remains inspectable without competing
+with the decision surface:
+
+```markdown
+<details>
+<summary>Auto-resolved (<count>)</summary>
+
+<id — resolution — evidence/checkpoint> ...
+
+</details>
+```
+
+An item belongs in `Auto-resolved` only when its evidence and owning checkpoint
+are recorded and no human choice remains. A model inference, missing authority,
+or unanswered unknown is not auto-resolved.
+
+Finally retain the complete plan as supporting detail, after the triage above,
+using a second collapsed section (or the UI's equivalent disclosure control):
+
+```markdown
+<details>
+<summary>Supporting detail — full final plan</summary>
+
+<the complete final-plan presentation>
+
+</details>
+```
+
+The supporting detail must still contain:
 
 - project summary
 - Brownfield friction tier and reason
@@ -52,8 +117,18 @@ Print:
 - journey/consumability summary
 - bridge summary
 - risk summary
-- **threat-model summary** — the trust boundaries, the `sensitive`/`personal` nouns (re-projected from §6.3), and the per-feature security obligations (`TZ-NNN` threat-ids, *surface-don't-force*); or an explicit **No Security Surface** if none detected. *(Its model-derived assignment is attested separately in 8.2.1 — never by silence in this summary.)*
-- **interaction-contract summary** — the cross-feature producer→consumer edges and the §6.3 durable nouns touched by >1 feature (the `IC-NNN` behavioural-protocol invariants: medium / idempotency / delivery / ordering / retry / concurrency), and the architecture-determining numeric NFRs re-projected with their source and shaping consequence; or an explicit **No Cross-Feature Protocol** if none detected. *(Its model-derived assignment is attested separately in 8.2.2 — never by silence in this summary.)*
+- **threat-model summary** — the trust boundaries, the `sensitive`/`personal`
+  nouns (re-projected from §6.3), and the per-feature security obligations
+  (`TZ-NNN` threat-ids, *surface-don't-force*); or an explicit **No Security
+  Surface** if none detected. Its model-derived assignment is attested
+  separately in 8.2.1, never by silence in this summary.
+- **interaction-contract summary** — the cross-feature producer→consumer edges
+  and the §6.3 durable nouns touched by >1 feature (the `IC-NNN`
+  behavioural-protocol invariants: medium / idempotency / delivery / ordering /
+  retry / concurrency), and the architecture-determining numeric NFRs
+  re-projected with their source and shaping consequence; or an explicit **No
+  Cross-Feature Protocol** if none detected. Its model-derived assignment is
+  attested separately in 8.2.2, never by silence in this summary.
 - **selected architecture direction** — exploration id, selected option id/title
   and binding hashes, confidence/sensitivity, human rationale, and how the
   candidate realizes it; or the explicit human-confirmed
@@ -61,11 +136,13 @@ Print:
   recommendation at Final Review.
 - **architecture disposition** — `required`, `recommended`, `not-required`, or
   `waived`; its Stage 3.9 trigger evidence, current candidate revision,
-  convergence/deferral summary, accepted ADR refs, and downstream consequence.
-  For `required`, state plainly that specification remains blocked until the
-  post-write architecture package is current and approved.
+  convergence/deferral summary, accepted ADR refs, and downstream consequence
 - notes and deferred scope
 - output directory path and file list
+
+If the presentation channel cannot render collapsible content, keep this same
+order and print only the `Auto-resolved` count/index by default; expand its rows
+on request. Still print the full supporting plan after the decision surface.
 
 **Light-plan tier — this presentation folds the Candidate Review.** In the light tier
 (§4.3) the standalone §5.4 gate did not fire, so this final presentation **is** the candidate
@@ -73,26 +150,33 @@ review: the feature table, dependency flow, and per-feature blocks above are the
 the human signs off at 8.3. (In the standard tier they were already reviewed at §5.4 and this
 is the second, final look.)
 
-**Which attestation gate(s) fire next.** Resolve the two re-projection outcomes first, then
-route:
-
-| `plan_tier` | Threat-model | Interaction-contract | Attestation gate(s) |
-|---|---|---|---|
-| standard (any) | — | — | **§8.2.1 then §8.2.2**, always separate |
-| light | No Security Surface | No Cross-Feature Protocol | **§8.2.3 combined** — both negatives, one gate |
-| light | a real surface | any | **§8.2.1 separate** (positive restores it); §8.2.2 per its own outcome |
-| light | any | a real protocol | **§8.2.2 separate** (positive restores it); §8.2.1 per its own outcome |
-
-Any positive detection in the light tier restores the separate gate for **that**
-re-projection automatically — the combine applies **only** when *both* resolve negative. If a
-positive detection changes the count mid-run, recompute M and say so at the locator (no silent
-cap).
+**Which attestation gates fire next.** Resolve both re-projection outcomes, then
+run **§8.2.1 followed by §8.2.2 for every plan tier**. The light tier keeps each
+negative prompt compact, but never combines the two material calls and never
+relaxes HITL R3. Count both gates in M from the outset. Questions that isolate
+rows inside one attestation keep that gate's locator and do not silently change
+M; if a correction adds a conditional gate or revisits a prior gate, recompute M
+and say so at the locator.
 
 ### 8.2.1 Threat-model attestation  [material]
 
 The threat-id assignment is **model-derived**, so it is confirmed as its **own
 evidence-first prompt** (HITL Gate Standard R2/R3) — **before** Write is
 offered in 8.3 — never a bullet in the 8.2 dump the human consents to by not objecting.
+
+Print this exact locator before its questions:
+
+```text
+Gate N of M — Threat-Model Attestation
+```
+
+For every material row, identify the required authority before asking. The
+default authority is the named security/trust-boundary owner or the feature's
+security/secrets Boundary-Owner. If neither exists, name the project technical
+owner who can accept the surface and its acceptance-criterion consequence.
+The model is never the authority. Show `Owner/authority: <name or missing>` and
+`Evidence state: <refs or missing>`; a missing or unavailable owner routes to
+the park path rather than being treated as consent.
 
 For each feature the model assigned a `TZ-NNN`, render its **basis + cost-if-wrong** in
 plain language, glossing the security terms from the shared consequence-glossary (a
@@ -107,30 +191,50 @@ If this is wrong (NO): the feature ships with NO required security acceptance cr
 for that surface — the Veracode-flatline path.
 ```
 
-Then attest with `AskUserQuestion`:
+Create **one independently answerable `AskUserQuestion` question per material
+`TZ-NNN` row** under the same locator. Never offer `Confirm all`. A tool call may
+batch at most four separate row questions; when more than four remain, split
+them into ordered batches, label `batch x/y`, and do not advance the gate until
+every row resolves. Each row question uses only these options:
 
 | Option | Result |
 |---|---|
-| Confirm | Accept the assignment; each `TZ-NNN` becomes a `[SECURITY]` obligation the feature's `/core-engineering:ce-spec` must cover. |
-| Add a threat | A feature crosses a boundary the model missed — name it; add the `TZ-NNN`. |
-| Remove a threat (state the reason) | A flagged feature has no real surface — record the reason; *surface-don't-force* makes this a consented exclusion, not a silent drop. |
+| Confirm this `TZ-NNN` | The recorded owner/authority accepts this assignment; it becomes a `[SECURITY]` obligation the feature's `/core-engineering:ce-spec` must cover. |
+| Correct/remove this `TZ-NNN` | State the evidence and correction; return to the owning feature-review step, update the row, and re-present this question. A removal records the reason as a consented exclusion. |
+| Need evidence / route to owner | Name the missing evidence or required owner, route the row there, and **park this gate with resumable scratch**. This is not a decision. |
+
+`Confirm this TZ-NNN` is valid only when the answering human has the displayed
+authority or records that authority's evidence-backed approval. After all
+current rows resolve, ask one separate coverage-control question under the same
+locator (do not append it as a fifth question to a four-row batch):
+
+| Option | Result |
+|---|---|
+| Coverage complete | The required owner confirms no material security surface is missing from the resolved set. |
+| Add a missing threat | Name the feature and evidence; return to feature review, add its `TZ-NNN`, and attest the new row independently. |
+| Need evidence / route to owner | Name the missing evidence or authority and **park this gate with resumable scratch** until it is supplied. |
 
 When the summary was **No Security Surface**, attest *that* too — confirming there is
 no surface is itself a model-derived negative (R2), equally rubber-stampable as a
-printed line:
+printed line. Render the negative's basis + cost-if-wrong and the required
+owner/authority, then ask this **separate** question under `Gate N of M —
+Threat-Model Attestation`:
 
 | Option | Result |
 |---|---|
-| Confirm No Security Surface | Record the attested negative — no feature crosses a trust boundary or owns a `sensitive`/`personal` noun. |
-| Actually, there is a surface | Return to feature review to assign the missed threat. |
+| Confirm No Security Surface | The displayed owner/authority accepts the attested negative — no feature crosses a trust boundary or owns a `sensitive`/`personal` noun. |
+| Actually, there is a surface | Name its evidence; return to feature review to assign and independently attest the missed threat. |
+| Need evidence / route to owner | Name the missing evidence or authority and **park this gate with resumable scratch**. This is not a negative attestation. |
 
 Do not offer Write (8.3) until this attestation resolves.
 
 **Checkpoint — Threat-Model attestation (8.2.1) passed.** Once this attestation resolves,
 append a `## Threat-Model Attestation (8.2.1) — passed` checkpoint to
-`docs/plans/.drafts/<slug>/scratch.md` — `decided_by: human`, the option taken (Confirm /
-Add a threat / Remove a threat / Confirm No Security Surface), and the resolved `TZ-NNN`
-set — per SKILL.md → *Gate Checkpoint & Resume*.
+`docs/plans/.drafts/<slug>/scratch.md` — `decided_by: human`, the decision,
+owner/authority, and evidence reference for **each** `TZ-NNN`, the coverage-control
+result (or the separately attested negative), and the resolved `TZ-NNN` set — per
+SKILL.md → *Gate Checkpoint & Resume*. A parked route does not write a passed
+checkpoint.
 
 ### 8.2.2 Interaction-contract attestation  [material]
 
@@ -138,6 +242,21 @@ The interaction-contract invariants and architecture-NFR rows are **model-derive
 each is confirmed as its **own evidence-first prompt** (HITL Gate Standard R2/R3) —
 **after** the 8.2.1 threat-model attestation and **before** Write is offered in 8.3 —
 never a bullet in the 8.2 dump the human consents to by not objecting.
+
+Print this exact locator before its questions:
+
+```text
+Gate N of M — Interaction-Contract Attestation
+```
+
+For an `IC-NNN`, the required authority is the named owner of the shared
+producer→consumer contract; when ownership is split, record both producer and
+consumer owners or one boundary owner explicitly authorized by both. For an
+architecture-NFR row, record the cited requirement owner and the architecture
+owner authorized to accept its shaping consequence. Show
+`Owner/authority: <name(s) or missing>` and `Evidence state: <refs or missing>`
+for every row. The model is never the authority, and an absent or contested
+owner routes to evidence/owner parking.
 
 For each `IC-NNN`, render its **basis + cost-if-wrong** in plain language, glossing the
 protocol terms from the shared consequence-glossary (an `IC-NNN` is a *cross-feature
@@ -158,85 +277,62 @@ it forced `<the split / boundary>`"* — the human confirms the plan stated it *
 it shaped the cut, never elicits a fresh target; if wrong, the cut is unjustified or the
 target is unmet at integration.
 
-Then attest with `AskUserQuestion`:
+Create **one independently answerable `AskUserQuestion` question per material
+`IC-NNN` or architecture-NFR row** under the same locator. Never offer `Confirm
+all`. A tool call may batch at most four separate row questions; when more than
+four remain, split them into ordered batches, label `batch x/y`, and do not
+advance the gate until every row resolves. Each row question uses only these
+options:
 
 | Option | Result |
 |---|---|
-| Confirm | Accept the assignment; each `IC-NNN` becomes a `[CONTRACT]` obligation the feature's `/core-engineering:ce-spec` must cover. |
-| Add an invariant | A cross-feature edge / shared noun the model missed — name it; add the `IC-NNN`. |
-| Remove an invariant (state the reason) | A flagged edge has no real protocol residue (e.g. a synchronous in-proc call) — record the reason; *surface-don't-force* makes this a consented exclusion, not a silent drop. |
+| Confirm this row | The recorded owner/authority accepts this assignment; an `IC-NNN` becomes a `[CONTRACT]` obligation the feature's `/core-engineering:ce-spec` must cover, or the cited NFR remains a shaping constraint. |
+| Correct/remove this row | State the evidence and correction; return to the owning feature/architecture-review step, update the row, and re-present this question. A removal records the reason as a consented exclusion. |
+| Need evidence / route to owner | Name the missing evidence or required owner, route the row there, and **park this gate with resumable scratch**. This is not a decision. |
+
+`Confirm this row` is valid only when the answering human has the displayed
+authority or records that authority's evidence-backed approval. After all
+current rows resolve, ask one separate coverage-control question under the same
+locator (do not append it as a fifth question to a four-row batch):
+
+| Option | Result |
+|---|---|
+| Coverage complete | The required owner confirms no material cross-feature invariant or shaping NFR is missing from the resolved set. |
+| Add a missing invariant / NFR | Name its edge, noun, or cited source; return to the owning review step, add the row, and attest it independently. |
+| Need evidence / route to owner | Name the missing evidence or authority and **park this gate with resumable scratch** until it is supplied. |
 
 When the summary was **No Cross-Feature Protocol**, attest *that* too — confirming there
 is no cross-feature contract is itself a model-derived negative (R2), equally
-rubber-stampable as a printed line:
+rubber-stampable as a printed line. Render the negative's basis + cost-if-wrong
+and the required owner/authority, then ask this **separate** question under
+`Gate N of M — Interaction-Contract Attestation`:
 
 | Option | Result |
 |---|---|
-| Confirm No Cross-Feature Protocol | Record the attested negative — the four detection conditions all absent: no integration boundary carrying a cross-feature edge, no Journey-Map / Dependency-Flow edge over a durable/async medium, no >1-touched durable noun, no architecture-determining NFR cited. |
-| Actually, there is a cross-feature contract | Return to feature review to add the missed invariant or NFR. |
+| Confirm No Cross-Feature Protocol | The displayed owner/authority accepts the attested negative — the four detection conditions are all absent: no integration boundary carrying a cross-feature edge, no Journey-Map / Dependency-Flow edge over a durable/async medium, no >1-touched durable noun, no architecture-determining NFR cited. |
+| Actually, there is a cross-feature contract | Name its evidence; return to feature review to add and independently attest the missed invariant or NFR. |
+| Need evidence / route to owner | Name the missing evidence or authority and **park this gate with resumable scratch**. This is not a negative attestation. |
 
 Do not offer Write (8.3) until this attestation resolves.
 
 **Checkpoint — Interaction-Contract attestation (8.2.2) passed.** Once this attestation
 resolves, append a `## Interaction-Contract Attestation (8.2.2) — passed` checkpoint to
-`docs/plans/.drafts/<slug>/scratch.md` — `decided_by: human`, the option taken, and the
-resolved `IC-NNN` set — per SKILL.md → *Gate Checkpoint & Resume*. A crash between the
-attestations and Write re-enters at Stage 8.3 Final Decision with both attestations already
-recorded.
+`docs/plans/.drafts/<slug>/scratch.md` — `decided_by: human`, the decision,
+owner/authority, and evidence reference for **each** `IC-NNN` / NFR row, the
+coverage-control result (or the separately attested negative), and the resolved
+`IC-NNN` / NFR set — per SKILL.md → *Gate Checkpoint & Resume*. A parked route
+does not write a passed checkpoint. A crash between the attestations and Write
+re-enters at Stage 8.3 Final Decision with both attestations already recorded.
 
-### 8.2.3 Light-tier combined attestation  [material]
+### 8.2.3 Light-tier attestation routing
 
-Fires **only** in the light-plan tier (§4.3), and **only** when **both** re-projections
-resolved negative — threat-model = **No Security Surface** *and* interaction-contract = **No
-Cross-Feature Protocol**. It replaces the separate §8.2.1 + §8.2.2 gates with **one**
-attestation, cutting a stop for the small-plan case. If **either** re-projection is positive,
-do **not** use this gate — fire the positive one's separate gate (§8.2.1 / §8.2.2) per the
-routing table in §8.2.
-
-**Both calls are model-derived negatives, so each still gets its own evidence-first line**
-(HITL Gate Standard R2). The **R3 isolation rule** — a material call gets its own prompt —
-**relaxes here, and only here, because both calls are *negatives* with their evidence
-rendered**: confirming "there is no security surface" and "there is no cross-feature protocol"
-are two low-coupling attested-nothings, not two independent positive assignments where one
-could hide inside the other. **Any** positive detection restores the separate, isolated gates.
-
-Render both attested-negative lines, each with its basis + cost-if-wrong, glossing from the
-shared consequence-glossary exactly as §8.2.1 / §8.2.2 do (a `TZ-NNN` is a *security-review
-obligation*; an `IC-NNN` is a *cross-feature behavioural-protocol obligation* or an
-*architecture-determining NFR*):
-
-```text
-[1] No Security Surface — basis: no feature crosses a trust boundary and no feature owns a
-    sensitive/personal noun (per the §1.2 exposure surfaces + the §6.3 data-classes).
-    If wrong (NO): a feature ships with NO required security acceptance criterion for a real
-    surface — the Veracode-flatline path.
-
-[2] No Cross-Feature Protocol — basis: the four detection conditions are all absent — no
-    integration boundary carrying a cross-feature edge, no Journey-Map / Dependency-Flow edge
-    over a durable/async medium, no >1-touched durable noun, no architecture-determining NFR
-    cited.
-    If wrong (NO): a consumer ships with NO required dedupe/ordering acceptance criterion for a
-    real cross-feature edge, or a load-bearing NFR goes unrecorded.
-```
-
-Then attest with `AskUserQuestion` — print the gate locator first (`Gate N of M — Combined
-Attestation (No Security Surface + No Cross-Feature Protocol)`; M per the light-tier locator
-set, SKILL.md item 17):
-
-| Option | Result |
-|---|---|
-| Confirm both negatives | Record both attested negatives — write the **No Security Surface** section into `threat-model.md` and the **No Cross-Feature Protocol** section into `interaction-contract.md`. |
-| Actually, there is a security surface | Return to feature review to assign the missed `TZ-NNN`; the **separate §8.2.1** gate now fires (and §8.2.2 per its own outcome). |
-| Actually, there is a cross-feature contract | Return to feature review to add the missed `IC-NNN` / NFR; the **separate §8.2.2** gate now fires (and §8.2.1 per its own outcome). |
-
-Do not offer Write (8.3) until this attestation resolves.
-
-**Checkpoint — Combined Attestation (8.2.3) passed.** Once it resolves, append a
-`## Combined Attestation (8.2.3) — passed` checkpoint to `docs/plans/.drafts/<slug>/scratch.md`
-— `decided_by: human`, `decision: Confirm both negatives`, and the recorded No-Security /
-No-Cross-Feature negatives — per SKILL.md → *Gate Checkpoint & Resume*. This one checkpoint
-stands in for the separate §8.2.1 + §8.2.2 checkpoints in the light tier; choosing "Actually,
-there is …" routes to the separate gate, whose own checkpoint then appends.
+The light tier preserves proportionality through compact negative questions,
+not by merging material calls. Always run `Gate N of M — Threat-Model
+Attestation` (§8.2.1), write its own checkpoint, then run `Gate N of M —
+Interaction-Contract Attestation` (§8.2.2) and write its own checkpoint. When
+both projections are negative, each gate has only its one three-option negative
+question; there is no combined confirmation and no R3 relaxation. Positive
+rows use the independently answerable row questions and batching rules above.
 
 ---
 
@@ -254,7 +350,7 @@ architecture result with the exact candidate:
 - same attested TZ/IC rows and architecture-determining NFRs; and
 - no new material decision, coverage gap, or unrecorded accepted ADR.
 
-An `Add/Remove threat`, `Add/Remove invariant`, or corrected negative that
+An added, corrected, or removed threat/invariant, or a corrected negative that
 changes one of these rows increments `candidate_revision`. A mismatch that
 changes capabilities, hard constraints, quality priorities, source evidence,
 or the selected direction returns to Stage 1A and requires a new human
@@ -274,24 +370,38 @@ do not add a duplicate rubber-stamp prompt.
 
 ---
 
-### 8.3 Final Decision
+### 8.3 Final Decision `[material]`
 
-This is the **first true final-approval gate** — the only point that creates the
-artifact. Print the locator and label each option by its consequence
+This is the multi-feature **final-approval gate** and its only artifact commit
+point. Print the locator and label each option by its consequence
 (HITL Gate Standard R1/R5); the 8.2.1 threat-model and 8.2.2 interaction-contract
-attestations — **or the combined §8.2.3 attestation in the light tier** — must have already
-resolved, so `Write` is never the vehicle that also attests either:
+attestations must each have already resolved for every plan tier, so `Write` is
+never the vehicle that also attests either:
 
 ```text
 Gate N of M — Final Plan Approval
 ```
+
+Render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the project/plan owner authorized to commit the displayed
+scope, exclusions, risk acceptances, artifact paths, and downstream blockers.
+Missing or contested authority cannot authorize Write.
 
 | Option | What happens next |
 |---|---|
 | Write | **Freeze stable IDs and write the whole plan directory** to `docs/plans/<slug>/` (+ update the registry). This is the commit point. For `recommended`, `not-required`, or `waived`, use the conditional closing below. |
 | Adjust | Loop back to feature decomposition or ordering — nothing is written yet. |
 | Add context | Capture additional context, then revalidate — nothing is written yet. |
-| Abort | **Exit without writing — all planning work this session is lost.** |
+| More controls | Make no decision and open evidence/owner/park/abort controls under the same locator. |
+
+If `More controls` is selected, ask this same-locator follow-up:
+
+| Option | What happens next |
+|---|---|
+| Need evidence / route to owner | Name the exact missing evidence or accountable owner and park this gate until it returns; no approval is recorded. |
+| Park with the draft resumable | Stop at this gate with every checkpoint and reviewed artifact preserved. |
+| Abort and preserve draft | End this run without a final artifact; preserve `docs/plans/.drafts/<slug>/` until an explicit fresh-start decision or successful write removes it. |
+| Back to approval choices | Re-display the primary approval question under the same locator; no state advances. |
 
 Only `Write` creates the final artifact.
 
@@ -304,16 +414,36 @@ human-owned continuation, not a silent auto-run:
 | **Write plan & continue to architecture** | Freeze/write the plan, then invoke `/core-engineering:ce-architecture <slug>`; the architecture workflow stops at its own human gates and no spec may start until publication succeeds. |
 | **Write plan & park architecture** | Freeze/write a valid plan and stop; the missing required package remains a visible blocker for spec and auto-build. |
 | **Adjust plan or context** | Return to the owning planning stage, invalidate convergence when needed, and write nothing yet. |
-| **Abort** | Exit without a final plan; keep the resumable draft unless a later fresh-start decision removes it. |
+| **More controls** | Make no decision and open the same evidence/owner/park/abort follow-up above under this locator. |
 
 **Light-plan tier (§4.3): this gate also carries the folded Candidate Review.** The feature
 table and dependency flow presented at 8.2 are the decomposition, so `Write` accepts it and
-`Adjust` **is** the candidate re-cut (Coarsen stays unavailable — moot at ≤ 3). One extra
-option is offered, the explicit reject-path that keeps the light tier consented, never silent:
+`Adjust` **is** the candidate re-cut (Coarsen stays unavailable — moot at ≤ 3). Because the
+generic gate already has four choices, use this same-locator two-step control; never append a
+fifth option to one question. Replace the generic table above with this light-tier primary
+question:
 
 | Option | What happens next |
 |---|---|
-| Expand to full gates | Leave the light tier: re-run the standalone **Candidate Decision (§5.4)** and the **separate §8.2.1 / §8.2.2** attestations before Write. Records `plan_tier: standard`. |
+| Write | Freeze stable IDs and write the plan; this accepts the folded Candidate Review and records `plan_tier: light`. |
+| Adjust | Return to the candidate decomposition or ordering and write nothing yet. |
+| Add context | Capture context, revalidate the light-tier eligibility and candidate, and write nothing yet. |
+| More controls | Make no decision and open the expansion/evidence/owner/park controls below under the **same locator**. |
+
+If `More controls` is selected, reprint the exact same locator — `Gate N of M —
+Final Plan Approval` — and ask this follow-up question:
+
+| Option | What happens next |
+|---|---|
+| Expand to full gates | Leave the light tier: run the standalone **Candidate Decision (§5.4)**, then re-run the separate **Threat-Model Attestation (§8.2.1)** and **Interaction-Contract Attestation (§8.2.2)** before returning to Final Plan Approval. Record `plan_tier: standard`. |
+| Need evidence / route to owner / park | Name the missing evidence or accountable owner and stop with every checkpoint preserved; no approval is recorded. |
+| Abort and preserve draft | End this run without a final artifact; preserve `docs/plans/.drafts/<slug>/` and every checkpoint for resume. |
+| Back to approval choices | Make no decision and re-display the light-tier primary question under this same locator. |
+
+`More controls` and `Back to approval choices` are navigation, not approvals or
+new gates; N and M remain unchanged. A required architecture disposition cannot
+take the light tier (§4.3); if the states conflict, the required four-option
+architecture gate above wins and the workflow must correct the tier record.
 
 ---
 
@@ -366,7 +496,9 @@ Use **`${CLAUDE_SKILL_DIR}/artifact-template.md`** in this skill's directory for
 
 Write one `features/<id>.md` per feature; `feature-plan.md` carries only the compact feature table and links to those files — never the full feature blocks.
 
-For a single-feature plan accepted at the Sizing Gate, write the single-file **Recommended Minimal Output** instead of the directory (see `${CLAUDE_SKILL_DIR}/artifact-template.md`).
+For a single-feature plan whose §4.1.1 security attestation and §4.1.3 Final Plan
+Approval passed, write exactly the reviewed single-file **Recommended Minimal
+Output** instead of the directory (see `${CLAUDE_SKILL_DIR}/artifact-template.md`).
 
 Also: write the `relates_to` captured in Stage 0's Sibling Plans subsection into `plan.json`. Then **update `docs/plans/plans.json`** (the repo's plan registry) — create it if missing, append this plan's entry (slug, description, `relates_to`). The registry is what `/core-engineering:ce-spec` and `/core-engineering:ce-implement` consult to resolve feature ids across plans.
 
@@ -417,11 +549,12 @@ review surface.
 `plan_revision` — see `${CLAUDE_SKILL_DIR}/artifact-template.md` → *Plan Manifest*) whenever
 the run entered the **light-plan tier** (§4.3) and did **not** expand back at 8.3; write
 `"standard"` or omit the key otherwise (**absent ⇒ `standard`**). Also append a
-`plan-tier: light` entry to §13 Notes naming **which gates were merged** — the standalone
-Candidate Decision folded into Final Approval, and (when it fired) the combined §8.2.3
-attestation in place of the separate 8.2.1 / 8.2.2 — so `/core-engineering:ce-plan-audit` and a later Stage R
-read the merged-gate set from the artifact instead of re-deriving it. This is a **recorded
-proportionality choice**, the same discipline as the Sizing Gate's, not a silent skip.
+`plan-tier: light` entry to §13 Notes naming **which gate was folded** — the standalone
+Candidate Decision folded into Final Approval — and recording that the Threat-Model
+Attestation (§8.2.1) and Interaction-Contract Attestation (§8.2.2) remained separate, each
+with its own checkpoint. This lets `/core-engineering:ce-plan-audit` and a later Stage R read
+the proportionality choice from the artifact instead of re-deriving it. It is the same
+discipline as the Sizing Gate's, not a silent skip.
 
 **Lint the written plan (write-time gate).** Immediately after the plan directory, `plan.json`, and `plans.json` are written — and **before** deleting the gate-checkpoint scratch — run the structural-integrity lint over the *persisted* artifact, so nothing closes on a plan that fails a mechanical invariant the ~40-item Validation Checklist below only self-attests. This is the on-disk twin of `/core-engineering:ce-plan-audit`'s hard lint, run here at the moment of writing:
 

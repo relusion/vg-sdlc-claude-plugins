@@ -237,6 +237,105 @@ class EvalRun(unittest.TestCase):
                 metadata["claude_cli"],
             )
 
+    def test_scripted_turn_verifies_context_and_records_decision_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_eval_repo(Path(tmp))
+            scenarios = root / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["scripted_turns"] = [{
+                "event_id": "EVAL-003-D01",
+                "answer": "Proceed with the supplied project facts, then stop at the next gate.",
+                "required_previous_output": [
+                    "Gate 1 of 2",
+                    "Project Understanding",
+                ],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "run"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then echo '9.9.9'; exit 0; fi\n"
+                "resume=0\n"
+                "for arg in \"$@\"; do [ \"$arg\" = \"--resume\" ] && resume=1; done\n"
+                "if [ \"$resume\" -eq 1 ]; then\n"
+                "  printf '%s\\n' '{\"result\":\"Gate 2 of 2 — Architecture Evaluation Frame\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n"
+                "else\n"
+                "  printf '%s\\n' '{\"result\":\"Gate 1 of 2 — Project Understanding\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n"
+                "fi\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+
+            res = run(
+                "--root", str(root),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            output = (out / "EVAL-003.md").read_text(encoding="utf-8")
+            self.assertIn("Gate 1 of 2 — Project Understanding", output)
+            self.assertIn("Scripted decision event EVAL-003-D01", output)
+            self.assertIn("Gate 2 of 2 — Architecture Evaluation Frame", output)
+
+            record = json.loads((out / "metadata.json").read_text())["records"][0]
+            self.assertEqual(record["status"], "pass")
+            self.assertEqual(record["reported_cost_usd"], 0.2)
+            self.assertEqual(len(record["claude_commands"]), 2)
+            self.assertNotIn("--no-session-persistence", record["claude_commands"][0])
+            self.assertIn("--resume", record["claude_commands"][1])
+            second = record["claude_commands"][1]
+            self.assertEqual(second[second.index("--max-budget-usd") + 1], "0.9")
+            self.assertEqual(
+                record["scripted_decisions"][0]["event_id"],
+                "EVAL-003-D01",
+            )
+            self.assertEqual(len(record["scripted_decisions"][0]["context_sha256"]), 64)
+            self.assertEqual(len(record["scripted_decisions"][0]["answer_sha256"]), 64)
+
+    def test_scripted_turn_refuses_answer_when_gate_context_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_eval_repo(Path(tmp))
+            scenarios = root / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["scripted_turns"] = [{
+                "event_id": "EVAL-003-D01",
+                "answer": "Proceed",
+                "required_previous_output": ["Gate N of M — Missing"],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "run"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then echo '9.9.9'; exit 0; fi\n"
+                "printf '%s\\n' '{\"result\":\"A different gate\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            res = run(
+                "--root", str(root),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("refused to send decision event", res.stderr)
+            record = json.loads((out / "metadata.json").read_text())["records"][0]
+            self.assertEqual(record["failure_kind"], "scripted-context-mismatch")
+            self.assertEqual(len(record["claude_commands"]), 1)
+
     def test_live_receipt_labels_unavailable_cli_version_without_guessing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -149,6 +149,40 @@ class AuthoringCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("Gate 3 of 2", res.stderr)
 
+    def test_decision_table_with_more_than_four_options_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            skill = repo / SKILLS / "ce-ask/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8")
+                + "\n| Option | Consequence |\n"
+                + "|---|---|\n"
+                + "| A | first |\n"
+                + "| B | second |\n"
+                + "| C | third |\n"
+                + "| D | fourth |\n"
+                + "| E | fifth |\n",
+                encoding="utf-8",
+            )
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("decision table has 5 options", res.stderr)
+            self.assertIn("at most 4", res.stderr)
+
+    def test_single_round_with_more_than_four_questions_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            skill = repo / SKILLS / "ce-ask/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8")
+                + "\nAsk 5–6 targeted questions in a single interactive round.\n",
+                encoding="utf-8",
+            )
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("up to 6 questions", res.stderr)
+            self.assertIn("at most 4", res.stderr)
+
     def test_invariant_core_loss_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._copy_repo(Path(tmp))

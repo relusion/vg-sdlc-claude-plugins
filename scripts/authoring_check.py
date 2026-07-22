@@ -42,6 +42,9 @@ reviewer diligence guarded it:
   * A12 a dated, never-overwritten artifact contract states a same-day collision
         rule and the `-2` suffix convention somewhere in that skill's shipped
         docs, so a second run cannot silently clobber the first.
+  * A13 decision-option tables contain at most four choices, and prose never
+        instructs a single `AskUserQuestion` round to carry more than four
+        questions. Larger gates must use an explicit same-locator split.
 
 Stdlib-only, exit 0 clean / 1 findings, same contract as corpus_lint.py.
 """
@@ -173,6 +176,23 @@ NEVER_OVERWRITE_RE = re.compile(r"never[- ]overwrit", re.IGNORECASE)
 SAME_DAY_LITERAL = "same-day"
 COLLISION_SUFFIX_LITERAL = "-2"
 
+# A13 — the Claude Code decision harness accepts no more than four questions in
+# one AskUserQuestion call and no more than four options per question. Decision
+# tables are identified narrowly by their first two header cells so ordinary
+# comparison/data tables are not mistaken for dialogs. Question-range prose is
+# checked only when the same paragraph explicitly says the questions are in one
+# round/call; a larger total spread across several rounds remains valid.
+DECISION_TABLE_FIRST_CELLS = {"option", "user choice"}
+DECISION_TABLE_SECOND_CELLS = {"consequence", "result", "what happens next"}
+QUESTION_CALL_RANGE_RE = re.compile(
+    r"(?P<low>\d+)\s*[\-\u2013]\s*(?P<high>\d+)\s+"
+    r"(?:[a-z-]+\s+){0,3}questions\b"
+    r"(?:(?!\n\s*\n).){0,180}?"
+    r"\b(?:in\s+(?:a|one|the)\s+(?:single\s+)?round|"
+    r"single\s+(?:interactive\s+)?round|AskUserQuestion\s+call)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def rel(root: Path, path: Path) -> str:
     try:
@@ -248,6 +268,23 @@ def h2_sections(text: str) -> list[tuple[int, str, str]]:
     if current is not None:
         sections.append((current[0], current[1], "\n".join(current[2])))
     return sections
+
+
+def markdown_table_cells(line: str) -> list[str] | None:
+    """Return normalized cells for a simple pipe table row, or ``None``.
+
+    Skill decision tables intentionally use simple text cells. This parser is
+    correspondingly conservative: it does not try to interpret escaped pipes
+    or arbitrary inline HTML, avoiding false positives in non-dialog content.
+    """
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    return [cell.strip().lower() for cell in stripped[1:-1].split("|")]
+
+
+def is_markdown_separator(cells: list[str] | None) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
 
 
 def check_hitl_headings(root: Path, errors: list[str]) -> int:
@@ -561,6 +598,55 @@ def check_dated_snapshot_collisions(root: Path, errors: list[str]) -> int:
     return checked
 
 
+def check_hitl_harness_limits(root: Path, errors: list[str]) -> int:
+    """A13 — decision dialogs must fit the platform's four-by-four limit."""
+    checked = 0
+    for path in all_skill_docs(root):
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+
+        for index, line in enumerate(lines):
+            header = markdown_table_cells(line)
+            if (
+                header is None
+                or len(header) < 2
+                or header[0] not in DECISION_TABLE_FIRST_CELLS
+                or header[1] not in DECISION_TABLE_SECOND_CELLS
+                or index + 1 >= len(lines)
+                or not is_markdown_separator(markdown_table_cells(lines[index + 1]))
+            ):
+                continue
+            checked += 1
+            option_count = 0
+            cursor = index + 2
+            while cursor < len(lines):
+                row = markdown_table_cells(lines[cursor])
+                if row is None:
+                    break
+                if not is_markdown_separator(row):
+                    option_count += 1
+                cursor += 1
+            if option_count > 4:
+                errors.append(
+                    f"{rel(root, path)}:{index + 1}: decision table has "
+                    f"{option_count} options — AskUserQuestion allows at most 4; "
+                    "split the dialog under the same gate locator and state why"
+                )
+
+        for match in QUESTION_CALL_RANGE_RE.finditer(text):
+            checked += 1
+            high = int(match.group("high"))
+            if high > 4:
+                excerpt = re.sub(r"\s+", " ", match.group(0)).strip()
+                errors.append(
+                    f"{rel(root, path)}:{line_of(text, match.start())}: "
+                    f"single decision round permits up to {high} questions "
+                    f"({excerpt!r}) — AskUserQuestion allows at most 4; "
+                    "split the round under the same gate locator and state why"
+                )
+    return checked
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Lint skill-corpus authoring conformance")
     parser.add_argument("--root", default=str(DEFAULT_ROOT), help="repository root")
@@ -583,6 +669,7 @@ def main(argv: list[str] | None = None) -> int:
     checked += check_material_gate_locators(root, errors)
     checked += check_evidence_meta_scale(root, errors)
     checked += check_dated_snapshot_collisions(root, errors)
+    checked += check_hitl_harness_limits(root, errors)
 
     if errors:
         print(

@@ -77,6 +77,9 @@ so every current row is **design-verified, not live-run** until rerun.
 See the [results, budget caps, and caveats](./docs/BENCHMARKS.md) and the
 [historical outputs and current goldens](./docs/EXAMPLES.md). Deterministic
 repository, authoring, and unit-test gates enforce the structural claims in CI.
+The eval runner also supports context-checked scripted turns: it sends a
+scenario answer only after the declared gate/context anchors appear, then
+hash-binds that decision event to the preceding response in the receipt.
 For adoption decisions, use the [comparison](./docs/COMPARISON.md) and
 [pilot guide](./docs/TEAM-ROLLOUT.md).
 
@@ -169,6 +172,12 @@ Code's agent picker or as the named workers an orchestrating skill delegates to.
 When an underlying skill reaches a human gate, the leaf returns a structured
 `Needs decision` checkpoint to its parent and resumes only after the caller
 supplies that decision; it never guesses approval.
+
+Material gates identify the required decision owner, show evidence and the
+cost of being wrong, and offer gather-evidence, route-to-owner, or park paths
+when the caller lacks context or authority. Routine rows may batch; security,
+scope, destructive, data-class, and contract judgments keep independent
+answers. Dialogs stay within four questions and four options per call.
 
 ## Repository Layout
 

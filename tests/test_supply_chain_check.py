@@ -96,7 +96,7 @@ class SupplyChainCheck(unittest.TestCase):
             workflow.write_text(
                 workflow.read_text(encoding="utf-8")
                 .replace("summary.json", "receipt.json")
-                .replace("timeout-minutes: 210", "timeout-minutes: 90"),
+                .replace("timeout-minutes: 225", "timeout-minutes: 90"),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))

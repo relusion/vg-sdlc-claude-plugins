@@ -274,6 +274,16 @@ Material decisions are rendered with evidence, consequences, and a visible
 decision. A human should not be asked to confirm a model-derived classification
 without seeing its basis and the cost of being wrong.
 
+Each material question also names the decision owner or expertise required to
+accept the consequence. The person currently running a workflow is not assumed
+to own product, security, data, platform, and contract risk at once: when the
+evidence is insufficient or the current person lacks authority, the gate offers
+an explicit gather-evidence, route-to-owner, or park path. Separate material
+questions may share one interaction for efficiency, but they never share one
+answer; only routine rows bulk-approve. Every interaction stays within the
+platform limit of four questions and four options, splitting under the same gate
+locator when necessary.
+
 Architecture scores are decision support, never automatic selection. Hard
 constraints gate before weighting; a failed or materially unknown residency,
 security, contractual, platform, or accepted-decision constraint cannot be
@@ -457,7 +467,11 @@ Repository validation combines several layers:
 - the eval corpus runs skills against small fixture repositories and replays
   frozen artifacts through deterministic gates; executed receipts record the
   observed Claude CLI version and local plugin manifest version when available,
-  while unavailable provenance and unobserved token/cost data remain explicit;
+  while unavailable provenance and unobserved token/cost data remain explicit.
+  Scripted multi-turn scenarios verify declared gate/context anchors before
+  sending a scenario-scoped decision event, then hash-bind the prior response
+  and supplied answer in the receipt; they prove harness provenance, not human
+  comprehension or independent assent;
 - CI pins third-party actions, scans history for secrets, validates both
   plugins, and runs the portable gate corpus without Claude Code.
 

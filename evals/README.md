@@ -31,7 +31,8 @@ drift-checked.
 
 - `scenarios.json` declares each scenario's invocation, skill, fixture,
   profile, recommended budget, prompt, expected fixture files, output checks,
-  artifact checks, optional final Git-state checks, and deterministic gate replays.
+  artifact checks, optional final Git-state checks, deterministic gate replays,
+  and optional `scripted_turns` for context-checked human decisions.
 - `fixtures/<name>/` contains a miniature repository copied into a run-specific
   work directory before evaluation.
 - `golden/<scenario-id>/` contains frozen known-good artifacts. A golden only
@@ -102,6 +103,15 @@ runner defaults to dry-run mode: it prepares isolated work directories, prints
 the exact `claude -p` commands, and writes metadata, but does not call a model
 unless `--execute` is present.
 
+A `scripted_turns` entry contains a scenario-scoped `event_id`, the answer to
+send, and `required_previous_output` anchors. The runner first captures one
+Claude JSON response, refuses to send the answer unless every declared gate and
+context anchor is visible in that immediately preceding response, then resumes
+the same session. The transcript and metadata bind each answer to the prior
+response with SHA-256 hashes. This proves the harness supplied a decision only
+after the expected decision surface appeared; it does not claim that the model
+or a human chose the answer autonomously.
+
 To grade saved outputs, name them `<scenario-id>.md` in one directory:
 
 ```bash
@@ -149,7 +159,11 @@ Select one or more `--scenario` or `--profile` values from the catalog; use
 `recommended_budget_usd`. The runner rejects an executed selection whose cap
 is below its recommendation unless `--allow-low-budget` is supplied
 deliberately. `--max-budget-usd` is passed to each selected scenario, so the
-maximum batch exposure is the cap multiplied by the scenario count. A scenario
+maximum batch exposure is the cap multiplied by the scenario count. For a
+scripted multi-turn scenario the cap is **aggregate across its resumed turns**:
+the runner subtracts each JSON response's reported `total_cost_usd` and passes
+only the remaining amount to the next turn. Missing cost/session/result fields
+fail closed as `scripted-protocol-error`. A scenario
 may also declare `timeout_seconds` when its expected
 workflow is longer than the 900-second default; an explicit `--timeout` remains
 the operator override. Timeout failures preserve partial output and metadata.
@@ -172,8 +186,10 @@ grader result, the exact `graded_scenarios` covered by that result, the version
 reported by the Claude CLI, and the name/version from each local plugin manifest
 passed with `--plugin-dir`. A failed version probe is recorded as unavailable
 with a reason instead of inferring a version. Dry runs deliberately do not invoke
-the CLI version probe. These fields establish execution provenance; they do not
-claim actual token use or spend, which the runner cannot observe. A successful
+the CLI version probe. Scripted runs additionally record every command, decision
+event id, context hash, answer hash, session id, and the CLI-reported aggregate
+cost; non-scripted text runs still make no claim about actual token use or spend.
+These fields establish execution provenance. A successful
 Claude process without a scenario-bound passing grade is not promotable evidence.
 
 ## Human Eval Protocol And Rubric

@@ -252,6 +252,11 @@ Before invoking exploration, render:
 - quality scenarios; and
 - all six criteria, weights, bases, and the standing weighting disclaimer.
 
+Render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the product/architecture sponsor authorized to freeze this
+capability, constraint, quality, and weighting frame. A missing owner or
+load-bearing evidence can route or park but cannot confirm the frame.
+
 Print the locator from the plan's computed gate manifest:
 
 ```text

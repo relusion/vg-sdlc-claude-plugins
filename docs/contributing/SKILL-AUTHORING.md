@@ -150,14 +150,17 @@ it produces and its lock/discipline; then a `Triggers:` sentence with the verbs
 a user would say; hard cap **1536 characters** (A8 — the live-verified platform
 truncation limit).
 
-Two further mechanical rules guard the HITL trust layer: **A9** — the shared
+Three further mechanical rules guard the HITL trust layer: **A9** — the shared
 consequence-glossary's contributor mirror
 (`docs/contributing/HITL-GATE-STANDARD.md`) and
 runtime Legend (ce-plan `stage-4-7-gates.md` §6.6.1) keep term-set parity and
 each term's anchor phrase in both copies (the copies are deliberately
 format-divergent, so the check is anchor-based, not byte identity); **A10** —
 a skill that marks any `[material` gate must state the R5 gate-locator
-discipline (a literal `Gate N of M` instruction) somewhere in its files.
+discipline (a literal `Gate N of M` instruction) somewhere in its files; and
+**A13** — a decision-option table may contain at most four rows, while prose may
+not direct more than four questions into one `AskUserQuestion` round. Larger
+gates split under the same locator and state why.
 
 Skills with adjacent intents stay routable only through **mutual contrastive
 clauses** ("For X use /ce-…", naming the sibling). The overlap clusters are registered in
@@ -184,7 +187,9 @@ manifest.
 ## 8. What the lint does not check
 
 Honesty about the floor: `authoring_check.py` locks vocabulary and structure,
-not judgment. Still reviewer-owned: HITL-GATE-STANDARD rules R1–R4 (consequence
-rendering, evidence-first attestations, isolation, triage), section order,
-stage-file seam quality, and whether prose is actually good. A green lint means
-"consistent," not "well-authored."
+not judgment. A13 can reject an oversized dialog, but it cannot prove that a
+split is useful or that the person answering has the named authority. Still
+reviewer-owned: HITL-GATE-STANDARD rules R1–R4 (consequence rendering,
+evidence-first attestations, authority routing, isolation, triage), section
+order, stage-file seam quality, and whether prose is actually good. A green
+lint means "consistent," not "well-authored."

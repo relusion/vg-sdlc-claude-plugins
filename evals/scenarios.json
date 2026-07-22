@@ -1307,6 +1307,68 @@
           ".claude/ce-guard-log.jsonl"
         ]
       }
+    },
+    {
+      "id": "EVAL-021",
+      "invocation": "/core-engineering:ce-plan",
+      "skill": "ce-plan",
+      "fixture": "minimal-service",
+      "profile": "full",
+      "recommended_budget_usd": 3.0,
+      "prompt": "Plan team invitations with role-based access. Run the repository-grounded workflow normally, render the Project Understanding gate with its inferred facts, remaining ambiguities, decomposition impact, and consequence-labelled questions, then wait for my answer. Never infer a response, skip a human gate, write a final plan, implement, release, or deploy.",
+      "scripted_turns": [
+        {
+          "event_id": "EVAL-021-D01",
+          "answer": "Use the existing auth.py identity boundary. Scope invitation creation, resend, revoke, single-use acceptance, and admin/member roles; orders are out of scope. Persist invitations with inviter, invitee email, role, status, expiry, and audit timestamps. Acceptance links expire after 24 hours and must not be reusable. Treat outbound email as an adapter boundary, not a new delivery platform. There are no additional reference documents or known pitfalls. Record these answers, continue to the Architecture Evaluation Frame, render its evidence and choices, then stop there without answering it or writing a final plan.",
+          "required_previous_output": [
+            "Gate",
+            "Project Understanding",
+            "Inferred facts",
+            "Remaining ambiguities"
+          ]
+        }
+      ],
+      "expected_files": [
+        "app.py",
+        "auth.py",
+        "orders.py"
+      ],
+      "output_checks": {
+        "required_substrings": [
+          "Project Understanding",
+          "Scripted decision event EVAL-021-D01",
+          "Architecture Evaluation Frame",
+          "Decision owner",
+          "cost-if-wrong",
+          "Confirm and explore",
+          "Park"
+        ],
+        "forbidden_substrings": [
+          "Plan written",
+          "Candidate Review",
+          "implementation complete",
+          "deployment complete"
+        ]
+      },
+      "artifact_checks": [
+        {
+          "type": "path_absent",
+          "path": "docs/plans/team-invitations-rbac"
+        }
+      ],
+      "git_checks": {
+        "head_unchanged": true,
+        "branch_unchanged": true,
+        "refs_unchanged": true,
+        "worktrees_unchanged": true,
+        "local_config_unchanged": true,
+        "allowed_changed_path_globs": [
+          ".claude/ce-write-scope.json",
+          ".claude/ce-write-scope.session.json",
+          ".claude/ce-guard-log.jsonl",
+          "docs/plans/.drafts/team-invitations-rbac/**"
+        ]
+      }
     }
   ]
 }

@@ -57,6 +57,11 @@ OUTPUT_CHECK_KEYS = {
     "required_substrings_case_insensitive",
     "forbidden_substrings_case_insensitive",
 }
+SCRIPTED_TURN_KEYS = {
+    "event_id",
+    "answer",
+    "required_previous_output",
+}
 GIT_CHECK_KEYS = {
     "head_unchanged",
     "branch_unchanged",
@@ -205,6 +210,50 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
         prompt = scenario.get("prompt")
         if not isinstance(prompt, str) or not prompt.strip():
             errors.append(f"{prefix}: prompt must be a non-empty string")
+
+        scripted_turns = scenario.get("scripted_turns", [])
+        if not isinstance(scripted_turns, list):
+            errors.append(f"{prefix}: scripted_turns must be a list")
+        else:
+            event_ids: set[str] = set()
+            for turn_idx, turn in enumerate(scripted_turns):
+                label = f"scripted_turns.{turn_idx}"
+                if not isinstance(turn, dict):
+                    errors.append(f"{prefix}: {label} must be an object")
+                    continue
+                unknown = sorted(set(turn) - SCRIPTED_TURN_KEYS)
+                if unknown:
+                    errors.append(
+                        f"{prefix}: {label} has unknown key(s): {', '.join(unknown)}"
+                    )
+                event_id = turn.get("event_id")
+                if not isinstance(event_id, str) or not event_id.strip():
+                    errors.append(f"{prefix}: {label}.event_id must be a non-empty string")
+                elif event_id in event_ids:
+                    errors.append(f"{prefix}: duplicate scripted event_id {event_id!r}")
+                else:
+                    event_ids.add(event_id)
+                    if isinstance(sid, str) and sid and not event_id.startswith(f"{sid}-"):
+                        errors.append(
+                            f"{prefix}: {label}.event_id must start with {sid}- "
+                            "so decision provenance is scenario-scoped"
+                        )
+                answer = turn.get("answer")
+                if not isinstance(answer, str) or not answer.strip():
+                    errors.append(f"{prefix}: {label}.answer must be a non-empty string")
+                required = turn.get("required_previous_output")
+                errors.extend(
+                    validate_check_strings(
+                        prefix,
+                        f"{label}.required_previous_output",
+                        required,
+                    )
+                )
+                if not required:
+                    errors.append(
+                        f"{prefix}: {label}.required_previous_output must contain at least "
+                        "one gate/context anchor before the answer can be sent"
+                    )
 
         profile = scenario.get("profile")
         if profile not in PROFILES:

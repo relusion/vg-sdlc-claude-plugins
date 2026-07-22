@@ -40,7 +40,7 @@ Run: /core-engineering:ce-spec service-health/01-health-check
 
 ### Security Projection
 
-Assessed negative, confirmed by the human at the Sizing Gate:
+Assessed negative, confirmed by the human at the Single-Feature Security Attestation:
 
 - Entry point: the existing local-operator-only health listener; the feature adds no public listener.
 - Untrusted input: none; the fixed read-only request carries no user-controlled value.
@@ -68,4 +68,4 @@ The endpoint response is covered by an automated test.
 
 ## 7. Notes
 
-- Sizing Gate: single-feature minimal output accepted.
+- Single-Feature Final Plan Approval: complete minimal preview accepted and written.

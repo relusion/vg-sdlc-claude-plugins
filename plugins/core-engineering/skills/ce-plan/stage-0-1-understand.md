@@ -57,7 +57,43 @@ If the project name is ambiguous, derive a short slug from the most specific nou
 
 ---
 
-### Existing-Plan Check (Stage R)
+### Proportionality Routing
+
+Before the codebase profile, fire this gate only when the supplied request
+already establishes the `/core-engineering:ce-patch` admission shape: one bounded
+behavior in a known location, no new durable state, and no cross-feature
+surface. Render the exact facts supporting each condition; an unknown condition
+does not qualify as evidence for the patch route.
+
+Print `Gate N of M — Proportionality Routing`, then show:
+
+- **Recommendation:** use `/core-engineering:ce-patch` for this bounded change;
+- **Configured-cap context:** a historical tiny-fixture evaluation configured a
+  **$4 ceiling** for one patch run, while historical configured ceilings for
+  plan → spec → implement → review summed to **$12 across four calls**;
+- **Qualification:** actual spend was not retained; these are budget caps and
+  decision aids, **not measured costs, floors, or forecasts**; and
+- **Attention consequence:** the full spine creates more artifacts and human
+  gates and therefore requires materially more review attention.
+
+Render the authority block from `SKILL.md`; the decision owner is the requester
+or delivery/budget owner authorized to choose the workflow and attention spend.
+Then ask:
+
+| Option | Result |
+|---|---|
+| **Use `/core-engineering:ce-patch` — take the bounded one-change lane** | Stop this plan run and route the exact request to the patch workflow; no plan artifact or plan checkpoint is created. |
+| **Continue with full planning — accept the larger artifact/gate path** | Record the consent, recompute the expanded plan gate manifest, and continue below; the ceilings remain decision aids, not a spend promise. |
+| **Need evidence / route to owner / park** | Name the missing routing fact or accountable delivery/budget owner and stop without choosing a workflow. |
+| **Abort** | End without a final artifact or routing action; preserve any pre-existing draft state. |
+
+A project or multi-feature request passes this screen without a prompt. Never
+infer patch admission merely to avoid planning cost, and never continue full
+planning for a patch-shaped request without the recorded human choice.
+
+---
+
+### Existing-Plan Check (Stage R) `[material when the slug collides]`
 
 Before anything else, read `docs/plans/<slug>/plan.json` (the **written, frozen** plan —
 distinct from the `.drafts/` scratch). If it does **not** exist, there is no plan to revise:
@@ -84,15 +120,19 @@ Execution Contract item 18) rather than Stages 1–9. Four sub-cases:
   the absent legacy field as permission to skip architecture.
 - **Slug collision** — a bare `/core-engineering:ce-plan <description>` whose derived slug happens to match an
   existing written plan, with no revision signal. **Never silently overwrite.** Present the
-  routing choice, each option labelled by its consequence (HITL Gate Standard R1):
+  routing choice under the computed locator `Gate N of M — Existing Plan
+  Routing`. Render the **Material-Gate Decision Authority** block from `SKILL.md`;
+  the decision owner is the project/plan owner authorized to classify this work
+  as a revision or a distinct project. Label each option by its consequence
+  (HITL Gate Standard R1):
 
   | Option | Result |
   |---|---|
   | **Revise the existing plan** | Treat this as a change to `docs/plans/<slug>/` — load `stage-R-revision.md` and start Stage R (diff the delta, re-run only affected gates, preserve untouched specs). |
   | **New plan under a different slug** | This is a genuinely new project — derive a distinct slug and continue the fresh 0–9 spine; the existing plan is left untouched. |
-  | **Abort** | Exit now, writing nothing. |
+  | **Abort** | Exit now without a final write; leave any existing draft scratch/report untouched so an interrupted run remains resumable. |
 
-### Resume Check
+### Resume Check `[material when Start fresh is selected]`
 
 There is **no written plan** for this slug (the Existing-Plan Check fell through). Check for
 an **interrupted prior fresh run of this same slug**. Read
@@ -102,8 +142,9 @@ Plans* below and do nothing else here.
 
 If a scratch **does** exist, a prior `/core-engineering:ce-plan` for this slug was interrupted after at
 least one passed gate. Read it, identify the **last passed gate** (the last `## <gate> —
-passed` block) and its recorded `state`, then offer the recovery choice — each option
-labelled by its consequence (HITL Gate Standard R1):
+passed` block) and its recorded `state`, print `Gate N of M — Resume Planning`,
+then offer the recovery choice — each option labelled by its consequence (HITL
+Gate Standard R1):
 
 | Option | Result |
 |---|---|
@@ -139,33 +180,73 @@ questions the scratch already answered. Route the early checkpoints explicitly:
   or selected report claim without JSON never implies approval; park or start a
   fresh attempt.
 
-On **Start fresh**: delete `docs/plans/.drafts/<slug>/`, then run this stage
-normally. The scratch, Stage-1A JSON companions, and readable options report are resume state,
-never planning input for another workflow — they are not registered in
-`plans.json` and are never fed to `/core-engineering:ce-spec`.
+On **Start fresh**, do not delete immediately. Under the same locator, render the
+**Material-Gate Decision Authority** block with the project/plan owner, list every
+draft file/directory that will be removed, summarize the last recorded decision,
+and state that the operation permanently removes the only resumable transcript.
+Ask the isolated destructive confirmation with at most three options:
+
+| Option | Result |
+|---|---|
+| **Delete the listed draft state and restart** | Remove only `docs/plans/.drafts/<slug>/`, then run this stage normally; every uncommitted draft decision for this slug is permanently discarded. |
+| **Keep the draft and resume instead** | Preserve every draft file and continue after the last passed gate. |
+| **Park without deleting** | Exit without a final write; preserve the draft for a later authorized decision. |
+
+Only the first answer deletes `docs/plans/.drafts/<slug>/`. The scratch, Stage-1A
+JSON companions, and readable options report are resume state, never planning
+input for another workflow — they are not registered in `plans.json` and are
+never fed to `/core-engineering:ce-spec`.
 
 ---
 
-### Sibling Plans
+### Sibling Plans `[material]`
 
 Read `docs/plans/plans.json` (the repo's plan registry). If it does not exist
 yet, this is the first plan — no siblings.
 
-If sibling plans exist, present them — briefly surfacing what each has already
-**shipped** (its delivered features live in the codebase, so do not re-plan them) —
-and ask the human (material) whether this new plan is **related** to any of them.
-Label each option by what relating *does*, not the internal field name
-(consequence-in-option, per HITL Gate Standard R1):
+If sibling plans exist, do the evidence pass **before** asking the material
+relationship question. The registry name alone is not enough. For every sibling
+with plausible capability, data, integration, runtime, or delivery overlap, read
+its current `plan.json`, relevant feature rows in `feature-plan.md`, the Resolved
+Project Decisions / constraints in `shared-context.md`, and the exact accepted
+ADR paths those rows cite. Do not infer a relationship from a similar slug.
+
+Render a compact **Sibling relationship evidence** table in the conversation:
+
+| Sibling | Shipped capability/surface overlap | Plan-local decisions or constraints to inherit (path + summary) | Repository ADRs/patterns already global | Conflict, ambiguity, or evidence gap + owner |
+|---|---|---|---|---|
+| `<slug>` | `<actual delivered features/surfaces, or None>` | `<actual relevant rows and source paths, or None>` | `<actual ADR/pattern paths that bind either way, or None>` | `<conflict/gap and accountable owner, or None>` |
+
+Show `None — evidence: <paths checked>` rather than an empty cell. Lead with any
+conflict (for example, incompatible ownership, schema, platform, or ordering
+constraints) and state the concrete cost of inheriting or ignoring it. Then
+print the computed locator `Gate N of M — Sibling Plans` and
+render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the person or role authorized to bind this plan to another
+plan's local decision ledger.
+
+Ask whether this new plan is related to any sibling. Label each option by what
+relating does (consequence-in-option, per HITL Gate Standard R1), with no more
+than four options:
 
 | Option | Result |
 |---|---|
-| **Independent** | This plan decides everything on its own — it **ignores** other plans' recorded decisions. (`relates_to: []`) |
-| **Related to: [pick]** | This plan's feature specs will **read and honor** the chosen plan's already-recorded technical decisions, so you **don't re-decide** them. (`relates_to: [<slugs>]`) |
+| **Related to: [pick from the rendered slugs] — inherit the selected plans' local decisions** | Record those slugs in `relates_to`; this plan's feature specs read and honor their cited plan-local decisions/constraints, in addition to repository-wide ADRs and `patterns.md`. |
+| **Independent — inherit no sibling plan-local ledger** | Record `relates_to: []`; this plan makes its own plan-local calls, while repository-wide accepted ADRs and `patterns.md` still bind it. |
+| **Need evidence / route to owner — keep this gate open** | Inspect only the named missing artifact or send the rendered conflict to the accountable decision owner, then re-render this same gate; record no relationship yet. |
+| **Park — stop without deciding the relationship** | Exit without a final write; preserve any existing draft state so work can resume when the evidence or owner is available. |
 
-A *recorded decision (ADR)* is a technical decision written down once so later
-features read and honor it instead of re-deciding it — Stage 0 may be the first place
-you meet the term. (ADRs and `patterns.md` are always shared across plans regardless
-of `relates_to`.)
+When more than one sibling may be related, keep **Related to** as one primary
+option rather than creating one option per plan. Accept the named slugs in the
+response, or open a same-locator picker with at most four choices per call; if
+more candidates remain, state that the picker is split solely to respect the
+four-option harness limit.
+
+A **plan-local decision** is a resolved call recorded in that plan and inherited
+only through `relates_to`. A repository-wide accepted **ADR** is a technical
+decision written once for every applicable plan to honor; ADRs and `patterns.md`
+remain shared regardless of `relates_to`. Keep those two scopes distinct in the
+evidence table and option consequences.
 
 Record `relates_to` for use at write time (Stage 9).
 
@@ -553,7 +634,18 @@ not verdicts.
 
 Ask only the questions needed to make a reliable first feature split.
 
-Default to 4–6 targeted questions in a single interactive round. Ask fewer when the project description and Codebase Profile already provide enough signal. For small or obvious changes, 0–3 questions may be sufficient. **When a brief is present, the residue is usually small — but the Brief-Aware Skip Contract above lowers neither the value of a Profile-forced question nor the caps below: a brief never licenses skipping a question the codebase raises, and it never raises the ceiling.**
+Treat Stage 1 understanding as **one logical gate** with one computed locator:
+`Gate N of M — Project Understanding`. Default to 4–6 targeted decomposition
+questions across that gate, but put **at most four questions in any one
+`AskUserQuestion` call**. Ask fewer when the project description and Codebase
+Profile already provide enough signal; for small or obvious changes, 0–3 may be
+sufficient. When more than four remain, split them into a later call under the
+same locator and say before that call: *"Continuing Gate N of M — Project
+Understanding: this question set is split only to stay within the four-question
+harness limit; it is not a new gate."* **When a brief is present, the residue is
+usually small — but the Brief-Aware Skip Contract above lowers neither the value
+of a Profile-forced question nor the caps below: a brief never licenses skipping
+a question the codebase raises, and it never raises the ceiling.**
 
 Before asking the questions, present a brief reasoning block with:
 
@@ -576,19 +668,40 @@ The questions must focus exclusively on information that affects feature boundar
 - user roles that change feature boundaries
 - delivery or tooling constraints that affect decomposition
 
-If the first candidate decomposition reveals blocking ambiguity, ask one optional follow-up round of 2–4 questions. Do not exceed 10–12 total plan-time questions before producing a candidate plan.
+If the first candidate decomposition reveals blocking ambiguity, ask one
+optional same-locator follow-up call of 2–4 questions. Do not exceed 10–12 total
+decomposition questions before producing a candidate plan, and never exceed four
+questions in one call.
 
 Questions that are not required for feature decomposition should be deferred to the downstream specification stage as feature-level Open-Unknowns.
 
 Each Q/A pair is recorded verbatim for the output artifact.
 
-**Batch project-context capture into this same round.** Ask the **1.5 (reference docs)** and **1.6 (known pitfalls)** prompts in this *same* interactive round, as a clearly labeled, separate **"project-context capture"** group — so Stage 1 makes one grouped HITL round-trip, not three. These are **not** decomposition questions: they **do not** count against the 4–6 (or 10–12 total) cap above. Apply each sub-section's own rules unchanged (detailed in 1.5 and 1.6 below): 1.5 only *open-asks* when neither a document list was supplied as input **nor** a brief **Reference Documents** section is present; 1.6 only *open-asks* when no brief **Known Risks & Pitfalls** section is present; both append/record as before, and 1.6 creates no file when the answer is None. **When a brief is present, this group becomes confirm-and-augment, not re-ask.**
+**Collect project context in later same-locator calls.** After the decomposition
+question call(s), ask the **1.5 (reference docs)** and **1.6 (known pitfalls)**
+prompts as a clearly labeled **project-context capture** continuation under the
+same `Gate N of M — Project Understanding` locator. State that this later call is
+separated so the decomposition questions remain readable and every call stays
+within the four-question harness limit; it is not another approval gate. These
+are **not** decomposition questions and do **not** count against the 4–6 (or
+10–12 total) cap above, but they still count toward the per-call maximum of four.
+If providing a document list or clarifying a pitfall requires another response,
+continue under the same locator and state the collection reason. Apply each
+sub-section's own rules unchanged (detailed in 1.5 and 1.6 below): 1.5 only
+*open-asks* when neither a document list was supplied as input **nor** a brief
+**Reference Documents** section is present; 1.6 only *open-asks* when no brief
+**Known Risks & Pitfalls** section is present; both append/record as before, and
+1.6 creates no file when the answer is None. **When a brief is present, this
+group becomes confirm-and-augment, not re-ask.**
 
 ---
 
 ### 1.5 Capture Project-Wide Reference Docs
 
-> Asked within the **Stage 1.4** round as part of the *project-context capture* group (above) — not as a separate, later interaction. The rules below are unchanged for the no-brief path.
+> Asked after the decomposition questions in a later **same-locator Stage 1.4**
+> call as part of the *project-context capture* group above — a separate harness
+> call when needed, never a separate gate. The rules below are unchanged for the
+> no-brief path.
 
 Capture project-wide reference documents once so downstream feature specifications can auto-load them.
 
@@ -633,7 +746,10 @@ An empty list is valid.
 
 ### 1.6 Capture Known Pitfalls
 
-> Asked within the **Stage 1.4** round as part of the *project-context capture* group — not as a separate, later interaction. The rules below are unchanged for the no-brief path.
+> Asked after the decomposition questions in a later **same-locator Stage 1.4**
+> call as part of the *project-context capture* group — a separate harness call
+> when needed, never a separate gate. The rules below are unchanged for the
+> no-brief path.
 
 Capture known project or environment pitfalls.
 
@@ -675,8 +791,8 @@ If there are no pitfalls (the user chooses `None` and the brief lists none), do 
 
 ### 1.7 Checkpoint — Stage 1.4 answers passed
 
-Once the grouped Stage 1.4 round resolves (the decomposition answers, plus the batched 1.5
-/ 1.6 project-context capture), append the **first** gate checkpoint to
+Once every same-locator Stage 1.4 call resolves (the decomposition answers, plus the later
+1.5 / 1.6 project-context capture), append the **first** gate checkpoint to
 `docs/plans/.drafts/<slug>/scratch.md` — creating `.drafts/<slug>/` on this first write —
 per SKILL.md → *Gate Checkpoint & Resume*. Record `decided_by: human`, the
 `decision:` (the project-understanding Q/A pairs just captured, terse and

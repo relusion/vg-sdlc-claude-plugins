@@ -13,6 +13,10 @@ Outputs are written as:
 The runner deliberately copies fixtures before execution. Skills such as
 /core-engineering:ce-plan, /core-engineering:ce-implement, and /core-engineering:ce-patch
 may write files; eval runs must never mutate the source fixture corpus.
+
+Scenarios may declare context-checked ``scripted_turns``. Those runs use Claude
+JSON output, verify gate/context anchors before each supplied answer, resume the
+same session, and hash-bind every decision event to the preceding response.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -293,8 +298,18 @@ def capture_git_state(work_dir: Path) -> dict:
     }
 
 
-def build_claude_cmd(args, root: Path, scenario: dict) -> list[str]:
-    prompt = f"{scenario['invocation']} {scenario['prompt']}"
+def build_claude_cmd(
+    args,
+    root: Path,
+    scenario: dict,
+    *,
+    prompt: str | None = None,
+    resume_session_id: str | None = None,
+    max_budget_usd: float | None = None,
+) -> list[str]:
+    scripted = bool(scenario.get("scripted_turns"))
+    if prompt is None:
+        prompt = f"{scenario['invocation']} {scenario['prompt']}"
     cmd = [
         args.claude_bin,
         "-p",
@@ -306,7 +321,6 @@ def build_claude_cmd(args, root: Path, scenario: dict) -> list[str]:
     cmd.extend([
         "--permission-mode",
         args.permission_mode,
-        "--no-session-persistence",
         "--append-system-prompt",
         (
             "This is a controlled eval run in an isolated fixture copy. "
@@ -314,14 +328,226 @@ def build_claude_cmd(args, root: Path, scenario: dict) -> list[str]:
             "Do not read or write outside it unless the invoked skill explicitly requires it."
         ),
     ])
-    if args.max_budget_usd is not None:
-        cmd.extend(["--max-budget-usd", str(args.max_budget_usd)])
+    if scripted:
+        cmd.extend(["--output-format", "json"])
+        if resume_session_id is not None:
+            cmd.extend(["--resume", resume_session_id])
+    else:
+        cmd.append("--no-session-persistence")
+    budget = args.max_budget_usd if max_budget_usd is None else max_budget_usd
+    if budget is not None:
+        cmd.extend(["--max-budget-usd", str(budget)])
     if args.model:
         cmd.extend(["--model", args.model])
     if args.effort:
         cmd.extend(["--effort", args.effort])
     cmd.append(prompt)
     return cmd
+
+
+def parse_scripted_response(stdout: str) -> tuple[str, str, float]:
+    """Return (assistant text, session id, turn cost) from Claude JSON output."""
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Claude scripted output is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Claude scripted output must be one JSON object")
+    result = payload.get("result")
+    session_id = payload.get("session_id")
+    cost = payload.get("total_cost_usd")
+    if not isinstance(result, str) or not result.strip():
+        raise ValueError("Claude scripted output is missing non-empty result text")
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise ValueError("Claude scripted output is missing a resumable session_id")
+    if not isinstance(cost, (int, float)) or isinstance(cost, bool) or cost < 0:
+        raise ValueError("Claude scripted output is missing a non-negative total_cost_usd")
+    return result, session_id, float(cost)
+
+
+def run_scripted_turns(
+    args,
+    root: Path,
+    scenario: dict,
+    work_dir: Path,
+    out_dir: Path,
+    output_file: Path,
+    timeout_seconds: int,
+    record: dict,
+) -> dict:
+    """Execute context-checked follow-up answers in one resumable session."""
+    scripted_turns = scenario["scripted_turns"]
+    commands: list[list[str]] = []
+    decisions: list[dict] = []
+    transcript: list[str] = []
+    stderr_chunks: list[str] = []
+    session_id: str | None = None
+    next_prompt: str | None = None
+    remaining_budget = float(args.max_budget_usd)
+    reported_cost = 0.0
+    started = time.monotonic()
+
+    def persist() -> None:
+        output_file.write_text("\n".join(transcript).rstrip() + "\n", encoding="utf-8")
+        if stderr_chunks:
+            (out_dir / f"{scenario['id']}.stderr").write_text(
+                "\n".join(stderr_chunks).rstrip() + "\n",
+                encoding="utf-8",
+            )
+
+    def fail(kind: str, message: str, returncode: int | None) -> dict:
+        persist()
+        record.update({
+            "status": "failed",
+            "returncode": returncode,
+            "failure_kind": kind,
+            "failure_message": message,
+            "claude_commands": commands,
+            "scripted_decisions": decisions,
+            "reported_cost_usd": reported_cost,
+        })
+        print(f"{scenario['id']}: {message}", file=sys.stderr)
+        return record
+
+    for assistant_turn in range(1, len(scripted_turns) + 2):
+        elapsed = time.monotonic() - started
+        remaining_timeout = max(1, int(timeout_seconds - elapsed))
+        if elapsed >= timeout_seconds:
+            return fail(
+                "timeout",
+                f"Claude scripted scenario timed out after {timeout_seconds} seconds",
+                None,
+            )
+        if remaining_budget <= 0:
+            return fail(
+                "budget-exceeded",
+                "scripted scenario exhausted its aggregate USD budget before the next turn",
+                None,
+            )
+
+        cmd = build_claude_cmd(
+            args,
+            root,
+            scenario,
+            prompt=next_prompt,
+            resume_session_id=session_id,
+            max_budget_usd=remaining_budget,
+        )
+        commands.append(cmd)
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=remaining_timeout,
+                env=fixture_process_env(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            partial = exc.stdout or ""
+            if isinstance(partial, bytes):
+                partial = partial.decode("utf-8", errors="replace")
+            if partial:
+                transcript.extend([
+                    f"## Assistant turn {assistant_turn} — partial output",
+                    "",
+                    partial,
+                    "",
+                ])
+            return fail(
+                "timeout",
+                f"Claude scripted scenario timed out after {timeout_seconds} seconds",
+                None,
+            )
+
+        if proc.stderr:
+            stderr_chunks.append(f"turn {assistant_turn}:\n{proc.stderr}")
+        if proc.returncode != 0:
+            combined = "\n".join(
+                part.strip() for part in (proc.stdout, proc.stderr) if part.strip()
+            )
+            first_line = combined.splitlines()[0] if combined else f"claude exited {proc.returncode}"
+            kind = "claude-error"
+            if BUDGET_EXCEEDED in combined:
+                kind = "budget-exceeded"
+            elif AUTH_REQUIRED in combined:
+                kind = "auth-error"
+            return fail(kind, first_line, proc.returncode)
+
+        try:
+            result, response_session_id, turn_cost = parse_scripted_response(proc.stdout)
+        except ValueError as exc:
+            transcript.extend([
+                f"## Assistant turn {assistant_turn} — invalid protocol output",
+                "",
+                proc.stdout,
+                "",
+            ])
+            return fail("scripted-protocol-error", str(exc), proc.returncode)
+
+        if session_id is not None and response_session_id != session_id:
+            return fail(
+                "scripted-protocol-error",
+                "Claude changed session_id during a scripted resume",
+                proc.returncode,
+            )
+        session_id = response_session_id
+        reported_cost += turn_cost
+        remaining_budget = max(0.0, float(args.max_budget_usd) - reported_cost)
+        transcript.extend([f"## Assistant turn {assistant_turn}", "", result, ""])
+
+        if assistant_turn > len(scripted_turns):
+            break
+
+        scripted = scripted_turns[assistant_turn - 1]
+        required = scripted["required_previous_output"]
+        missing = [anchor for anchor in required if anchor not in result]
+        if missing:
+            return fail(
+                "scripted-context-mismatch",
+                "refused to send decision event "
+                f"{scripted['event_id']}: prior output missed context anchor(s): "
+                + ", ".join(repr(anchor) for anchor in missing),
+                proc.returncode,
+            )
+
+        context_sha256 = hashlib.sha256(result.encode("utf-8")).hexdigest()
+        answer = scripted["answer"]
+        answer_sha256 = hashlib.sha256(answer.encode("utf-8")).hexdigest()
+        decisions.append({
+            "event_id": scripted["event_id"],
+            "after_assistant_turn": assistant_turn,
+            "required_previous_output": required,
+            "context_sha256": context_sha256,
+            "answer_sha256": answer_sha256,
+            "session_id": session_id,
+        })
+        transcript.extend([
+            f"## Scripted decision event {scripted['event_id']}",
+            "",
+            f"- Context SHA-256: `{context_sha256}`",
+            f"- Answer SHA-256: `{answer_sha256}`",
+            f"- Verified context anchors: {', '.join(f'`{anchor}`' for anchor in required)}",
+            "",
+            answer,
+            "",
+        ])
+        next_prompt = f"[Eval decision event {scripted['event_id']}]\n{answer}"
+
+    persist()
+    record.update({
+        "status": "pass",
+        "returncode": 0,
+        "claude_commands": commands,
+        "scripted_decisions": decisions,
+        "reported_cost_usd": reported_cost,
+        "session_id": session_id,
+    })
+    print(
+        f"{scenario['id']}: wrote {rel(root, output_file)} "
+        f"({len(decisions)} scripted decision event(s))"
+    )
+    return record
 
 
 def check_execute_preconditions(args, scenarios: list[dict]) -> None:
@@ -370,6 +596,11 @@ def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
         "claude_command": cmd,
         "status": "planned",
     }
+    if scenario.get("scripted_turns"):
+        record["scripted_turn_count"] = len(scenario["scripted_turns"])
+        record["scripted_event_ids"] = [
+            turn["event_id"] for turn in scenario["scripted_turns"]
+        ]
     if initial_git_state is not None:
         record["git_state"] = {"before": initial_git_state}
 
@@ -378,6 +609,38 @@ def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
         budget_note = f" (recommended budget: ${budget:g})" if isinstance(budget, (int, float)) else ""
         print(f"{scenario['id']}: would run in {rel(root, work_dir)}{budget_note}")
         print("  " + " ".join(json.dumps(part) if " " in part else part for part in cmd))
+        if scenario.get("scripted_turns"):
+            print(
+                "  then resume with context-checked decision event(s): "
+                + ", ".join(record["scripted_event_ids"])
+            )
+        return record
+
+    if scenario.get("scripted_turns"):
+        record = run_scripted_turns(
+            args,
+            root,
+            scenario,
+            work_dir,
+            out_dir,
+            output_file,
+            timeout_seconds,
+            record,
+        )
+        try:
+            record["git_state"]["after"] = capture_git_state(work_dir)
+        except ValueError as git_exc:
+            record["git_state"]["capture_error"] = str(git_exc)
+            if record.get("status") == "pass":
+                record.update({
+                    "status": "failed",
+                    "failure_kind": "git-state-error",
+                    "failure_message": str(git_exc),
+                })
+                print(
+                    f"{scenario['id']}: final Git-state capture failed: {git_exc}",
+                    file=sys.stderr,
+                )
         return record
 
     try:

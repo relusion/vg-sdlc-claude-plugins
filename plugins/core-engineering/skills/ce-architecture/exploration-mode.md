@@ -374,6 +374,12 @@ render the **same report content** as Markdown:
   recommendation; and
 - considered-but-not-carried directions with reasons.
 
+Also render `Decision owner: <person/role or unassigned>` and the concrete
+authority that permits that owner to bind planning to a whole-solution
+direction. Participation or repository access is not authority. When the owner
+or authority is missing, the selection controls may gather evidence, return to
+Stage 1A, or abort/park, but may not bind a direction.
+
 Then print exactly the caller-provided locator; never start a nested counter:
 
 ```text

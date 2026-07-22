@@ -6,7 +6,11 @@ Check. Load this file after Stage 3's post-decomposition Architecture
 Applicability Re-screen has confirmed that the Stage 1A architecture-direction
 binding is current.
 
-**Next:** when Stage 7 passes, load `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`. If the Sizing Gate accepts a single-feature plan at Stage 4, go straight to `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`.
+**Next:** when Stage 7 passes, load `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`. A
+single-feature recommendation stays in Stage 4 long enough to run the separate
+security attestation and abbreviated Final Plan Approval below. Only that explicit
+commit gate may authorize the Recommended Minimal Output write; afterward use the
+Stage 9 cleanup and closing rules without replaying the full-plan 8.2/8.3 gates.
 
 ---
 
@@ -44,25 +48,25 @@ any of the following hold:
 Before presenting that recommendation, run the feature-local security screen
 used by the Threat Model contract: public/untrusted entry points, auth/authz,
 external API/payment/object-store boundaries, security or secrets ownership,
-and personal/sensitive durable nouns. Render detected surfaces and proposed
-`TZ-NNN` obligations, or an evidence-backed negative across every condition.
-A material unknown blocks `Accept` until resolved; feature count is never
-evidence that security is absent. The human's Sizing `Accept` confirms this
-inline projection, which is copied into the minimal artifact.
+and personal/sensitive durable nouns; feature count is never
+evidence that security is absent. A material unknown blocks the minimal route
+until resolved.
+
+The single-feature path adds **two** interactive gates to the current gate
+manifest: **Single-Feature Security Attestation** and **Single-Feature Final Plan
+Approval**. Recompute M before printing the first locator and say that the
+single-feature recommendation added these two gates. The first owns only the
+material security judgment; the second owns only artifact authorization. Never
+let one answer stand in for both.
 
 ---
 
-### 4.1 Sizing Result Block
+### 4.1 Single-feature decision sequence
 
-If the project fails the Sizing Gate, present this block. Print the **gate locator**
-and label each option by its consequence — `Accept` is a *terminal early-exit* that
-   skips every later gate, so that cost must be in the option text. Include the
-   architecture screen result and why it permits this early exit
-(HITL Gate Standard R1/R5):
+If the project fails the Sizing Gate, first render the recommendation and the
+multi-feature comparator. This is decision support, not yet an artifact approval:
 
 ```markdown
-Gate N of M — Sizing   (N/M per the gate-locator discipline in SKILL.md)
-
 ## Sizing Result
 
 Recommendation: Single-feature plan
@@ -71,29 +75,90 @@ Reason:
 - [specific reason 1]
 - [specific reason 2]
 
-Security projection:
-- [surface + TZ-NNN obligation, advisory, or explicit evidence-backed negative]
-
-If you Override, this is the multi-feature split you'd get instead:
+If you continue with decomposition, this is the multi-feature split you'd get:
 - P01-<slug> · P02-<slug> · P03-<slug>   (<one-line shape of the split>)
-
-Options:
-1. Accept — write ONE single-feature artifact and EXIT now. This skips the Candidate
-   Review, architecture shaping, Reachability, Session-Fit, and Final-Approval gates entirely.
-2. Override — build the multi-feature plan previewed above instead: more specs to
-   review and a longer pipeline, but each feature ships and is reviewed independently.
-3. Adjust — revise the project scope or decomposition approach, then re-size.
 ```
+
+#### 4.1.1 Single-Feature Security Attestation `[material]`
+
+Do the security legwork first. Print:
+
+```text
+Gate N of M — Single-Feature Security Attestation
+
+What needs your decision:
+- proposed security projection: <detected TZ-NNN rows, or No Security Surface>
+- basis: <entry-point, trust-boundary, auth/authz, integration, secrets, and
+  personal/sensitive-data evidence checked>
+- cost if wrong: <the concrete acceptance criterion that would be absent, or the
+  unnecessary obligation the feature would carry>
+- owner / authority: <named security or product decision owner; `unassigned`
+  means this gate can route or park but cannot attest>
+```
+
+Then ask one question with at most four consequence-labelled options:
+
+| Option | What happens next |
+|---|---|
+| **Confirm this security projection** | Bind exactly the displayed `TZ-NNN` set or assessed negative for the minimal artifact; this does **not** authorize writing it. |
+| **Supply evidence or correct the projection** | Provide the named missing evidence, or add/remove a surface with a reason; rerun the screen and re-render this same gate. |
+| **Route to the named security owner** | Record the owner and question, then park; no security attestation or artifact write occurs until their answer returns. |
+| **Park with the draft resumable** | Stop before artifact approval and retain the checkpoint/draft state for a later resume. |
+
+Only a confirmed, fully resolved projection advances. Append a
+`## Single-Feature Security Attestation — passed` checkpoint containing the exact
+screen, evidence, authority, decision, and resolved `TZ-NNN` set. A correction
+loops under the same locator; routing or parking does not advance it.
+
+#### 4.1.2 Complete minimal-artifact preview
+
+After the security attestation passes, load the **Recommended Minimal Output**
+section from `${CLAUDE_SKILL_DIR}/artifact-template.md` and render the complete
+ready-to-write `docs/plans/<slug>/feature-plan.md` as Markdown. Do not summarize
+or omit fields. The preview contains, in file order, all seven required sections
+(Overview, Project Context, Codebase Profile, Single Feature, Validation Target,
+Execution Checklist, Notes), the proposed final `Feature ID` (still provisional
+until the approved write), final Complexity,
+Risk-Profile, Scope, Excluded, Open-Unknowns, Validation Target, the exact
+qualified `/core-engineering:ce-spec <slug>/<id>` handoff, the one keyed
+implementation checkbox, and the confirmed Security Projection block including
+the checked negative when `threat_ids: []`. Also show the target path, the
+`plans.json` registry change, and the fact that this one-file shape has no
+cross-feature interaction contract.
+
+#### 4.1.3 Single-Feature Final Plan Approval `[material]`
+
+Only after that complete preview, print the commit locator and ask:
+
+```text
+Gate N of M — Single-Feature Final Plan Approval
+```
+
+Render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the project/plan owner authorized to commit this exact scope,
+exclusions, risk, and registry change. Missing authority routes to Park rather
+than permitting the write.
+
+| Option | What happens next |
+|---|---|
+| **Accept and write the one-feature plan** | Write exactly the previewed minimal artifact and registry entry, then exit planning after Stage 9 cleanup/closing. This is the commit point; the separate security attestation is already fixed. |
+| **Continue with the previewed multi-feature split** | Write no artifact; return to Stage 2 with the displayed split, then run Candidate Review, applicable architecture shaping, Reachability, Session-Fit, attestations, and full Final Approval. |
+| **Adjust scope or decomposition** | Write no artifact; revise the project boundary or cut and rerun Sizing plus both conditional single-feature gates if the recommendation still applies. |
+| **Park with the draft resumable** | Write no final artifact; retain the checkpoint/draft state and exact preview so a later run can resume at this approval gate after freshness checks. |
 
 If the user selects:
 
 | User Choice | Result |
 |---|---|
-| Accept | Confirm the displayed security projection, write a single-feature artifact, and exit — **skips Stages 5–8** |
-| Override | Continue with the multi-feature plan previewed above |
-| Adjust | Loop back to candidate feature decomposition |
+| Accept and write the one-feature plan | Write the exact preview using the **Recommended Minimal Output** structure, update the registry, perform Stage 9 cleanup/closing, and exit |
+| Continue with the previewed multi-feature split | Continue with the multi-feature plan previewed above |
+| Adjust scope or decomposition | Loop back to candidate feature decomposition and re-size |
+| Park with the draft resumable | Stop without a final write; retain resumable state |
 
-On `Accept`, write the single-feature artifact using the **Recommended Minimal Output** structure in `${CLAUDE_SKILL_DIR}/artifact-template.md`.
+The security attestation and commit approval are separate checkpoints and
+separate metrics events with their exact printed locator names. Never describe
+the minimal route as “skipping Final Approval”: §4.1.3 **is** its abbreviated,
+single-feature Final Plan Approval.
 
 ---
 
@@ -102,8 +167,10 @@ On `Accept`, write the single-feature artifact using the **Recommended Minimal O
 Append a `## Sizing Gate — passed` checkpoint to `docs/plans/.drafts/<slug>/scratch.md` per
 SKILL.md → *Gate Checkpoint & Resume* when the run continues into the multi-feature flow:
 
-- If the Sizing Result block fired and the human chose **Override**, record
-  `decided_by: human`, `decision: Override`, and the previewed split.
+- If the Sizing Result sequence fired and the human chose **Continue with the
+  previewed multi-feature split**, record `decided_by: human`, that exact decision,
+  and the previewed split. The separate security attestation remains evidence for
+  the abandoned minimal route, not approval of the later multi-feature threat model.
 - If the project passed the gate **without** a prompt (a plain multi-feature request),
   record `decided_by: workflow (autonomous pass)` and the candidate feature set — resume
   still needs a Stage-4 anchor.
@@ -113,8 +180,10 @@ In both cases, include the Stage 1A route and, when selected, the exact
 in `state:`. A resume must not detach the candidate from the direction under
 which it was derived.
 
-`Accept` exits to a single-feature write (Stage 9 cleans up any scratch), so it needs no
-forward checkpoint; `Adjust` loops back and appends nothing.
+`Accept and write the one-feature plan` exits to the approved single-feature
+write (Stage 9 cleans up any scratch), so it needs no forward Sizing checkpoint;
+`Adjust` loops back and appends nothing. `Park` retains the last passed checkpoint
+and the preview without claiming approval.
 
 ---
 
@@ -126,7 +195,8 @@ correctness gate. This is a
 **mechanical screen, not a prompt** (an extra gate here would defeat the purpose): if
 **all four** hold on the scored candidate set, the run enters the light tier —
 
-1. **≤ 3 candidate features** (the single-feature case already took the Sizing early-exit).
+1. **≤ 3 candidate features** (the single-feature case already took the
+   separately attested and approved Stage 4 minimal route).
 2. **No contested Boundary-Owner** — no cross-cutting or interface-foundation category is
    claimed by more than one candidate (the §7.5 uniqueness guard has nothing to reconcile).
 3. **No `sensitive` data-class in sight** — no candidate obviously writes a `sensitive`
@@ -141,27 +211,27 @@ If any condition fails — or the plan has more than 3 features — the run stay
 tier** and every gate fires as written (a 4-plus-feature plan is entirely unchanged by this
 section).
 
-**What the light tier folds (ceremony only).** Entering the light tier sets `plan_tier:
-light` (recorded in `plan.json` and §13 Notes at write time — Stage 9) and folds:
+**What the light tier folds (ceremony only).** Entering the light tier sets
+`plan_tier: light` (recorded in `plan.json` and §13 Notes at write time — Stage
+9) and folds only:
 
 - the standalone **Candidate Decision (§5.4)** does **not** fire — the candidate table and
   provisional order carry forward and are reviewed inside the **Final Plan Review (8.2/8.3)**,
-  whose decision then carries Proceed / Adjust. **§5.5 Coarsen is unavailable** — with ≤ 3
-  features a scope-preserving merge is moot;
-- the two material attestations **8.2.1 + 8.2.2** combine into **one** gate (§8.2.3), but
-  **only when both re-projections resolve negative** at 8.2 (No Security Surface **and** No
-  Cross-Feature Protocol).
+  whose decision then carries Write / Adjust. **§5.5 Coarsen is unavailable** — with ≤ 3
+  features a scope-preserving merge is moot.
 
 It does **not** fold the conditional Recommended Architecture Shaping Election
 (§5.4.1). A recommended route still needs an explicit human choice to shape the
 current candidate or defer that shaping with a visible coverage gap before
 Reachability begins.
 
-**What it never folds (the correctness floor).** Reachability / Consumability (§6, gate
-§6.6), the post-Reachability architecture re-screen, and Session-Fit (§7) run **in full** — they are correctness, not ceremony — using the
-collapsed-row rendering §6.6 already defines. The combined attestation still renders **each**
-attested-negative as its own labeled line with basis + cost-if-wrong (§8.2.3): nothing
-material is skipped, only co-located.
+**What it never folds (the correctness floor).** Reachability / Consumability
+(§6, gate §6.6), the post-Reachability architecture re-screen, Session-Fit (§7),
+Threat-Model Attestation (§8.2.1), and Interaction-Contract Attestation (§8.2.2)
+run **in full** — they are correctness, not ceremony. When both re-projections
+are negative, each attestation is only one compact three-option question, but
+the security and protocol judgments retain separate locators, answers, and
+checkpoints.
 
 **Auto-restore on any real surface.** The tier is contingent, re-evaluated after
 Reachability and at 8.2. If §6.3 or another later check makes architecture
@@ -170,18 +240,18 @@ evidence changes the Stage 1A capability/constraint/driver/evidence boundary,
 return to Stage 1A for a fresh selected direction and rerun Stage 2 before the
 standalone Candidate Review and Stage 5A shaping. Only when the selected
 direction remains fresh may the run go directly to Candidate Review followed by
-Stage 5A. Then re-run the affected correctness gates. If §6.3 later assigns a `sensitive` noun, or the threat-model / interaction-contract
-re-projection detects a real surface, the **separate** material gate (§8.2.1 / §8.2.2) fires
-automatically for that re-projection — a positive detection is never swept into a combined
-negative (Done-when: *a light plan whose threat-model detects a real surface gets the
-separate 8.2.1 gate back automatically*). The candidate-review fold (§5.4 → 8.3) is
-orthogonal to security and stays folded regardless.
+Stage 5A. Then re-run the affected correctness gates. If §6.3 later assigns a
+`sensitive` noun, or the threat-model / interaction-contract re-projection
+detects a real surface, the already-separate §8.2.1 / §8.2.2 gate expands from
+its compact negative question into independently answerable material rows. The
+candidate-review fold (§5.4 → 8.3) is orthogonal to security and stays folded
+regardless.
 
 **Consented, never silent.** The tier is **disclosed** the moment it is entered — print, in
 the conversation (not a dialog):
 
 > *Light-plan tier: ≤ 3 features, no contested ownership, no sensitive data, and no required architecture shaping in sight.
-> Candidate review folds into Final Approval; trivially-negative attestations combine.
+> Candidate review folds into Final Approval; security and interaction attestations remain separate.
 > Reachability and Session-Fit still run in full. Recorded as `plan_tier: light`; you can
 > expand back to the full separate gates at Final Approval.*
 
@@ -233,9 +303,20 @@ Do not freeze final IDs yet.
 
 ### 5.2 Present Candidate Plan
 
-Print the candidate plan to the conversation as Markdown.
+Print the candidate plan to the conversation as Markdown, but do not lead with
+the full dump. Use this order:
 
-Include:
+1. **Gate locator** — `Gate N of M — Candidate Review`.
+2. **What needs your decision** — only provisional rows that need a human call:
+   contested ownership/boundaries, high-risk or oversized cuts, an unresolved
+   scope/MVP choice, a non-default assumption, or the bounded no-dominant fork
+   described in §5.4. Give each row a short id, owner/authority, basis, and
+   plain-language cost-if-wrong.
+3. **Auto-resolved (count)** — collapse source-backed, uncontested feature rows
+   and dependency/order rows into a count with a `[details ↓]` pointer. These are
+   visible for review below but are not presented as decisions.
+4. **Full candidate reference** — then render the complete detail for audit and
+   context, including:
 
 - the Stage 1A architecture route and either the selected complete-solution
   direction (id, title, recommendation/override, binding hashes, and residual
@@ -251,7 +332,7 @@ Include:
 - Scope
 - Excluded
 - Dependencies
-- Unlocks
+- Unlocks.
 
 ---
 
@@ -266,33 +347,44 @@ Long tables, diagrams, and multi-paragraph context must not be placed inside com
 
 ---
 
-### 5.4 Candidate Decision
+### 5.4 Candidate Decision `[material]`
 
 > **Light-plan tier (§4.3):** this standalone gate **does not fire**. The candidate table
 > and provisional order carry forward to the **Final Plan Review (8.2/8.3)**, whose decision
-> carries Proceed / Adjust (Coarsen is unavailable — §5.5 is moot at ≤ 3 features). Run §5.4
+> carries Write / Adjust (Coarsen is unavailable — §5.5 is moot at ≤ 3 features). Run §5.4
 > **and** §5.5 as written **only in the standard tier**; in the light tier the resume anchor
 > is the §4.3 checkpoint, not this one.
 
-Print the gate locator, then ask. Label each option by what it does next — and note
-that **`Continue` is not final approval**, it advances to two more validation gates
-(HITL Gate Standard R1/R5):
+After the triage render above, ask. Label each option by what it does next — and
+note that **`Continue` is not final approval**, it advances to two more validation
+gates (HITL Gate Standard R1/R5):
 
 ```text
 Gate N of M — Candidate Review
-
-Continue, Coarsen, Adjust, Add context  (or Decide a fork)?
 ```
 
-Options:
+Render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the product/plan owner authorized to accept the displayed
+scope, exclusions, feature boundaries, and delivery-order trade-offs.
+
+Ask this four-option primary question:
 
 | Option | What happens next |
 |---|---|
 | Continue | **Not final approval** — when architecture is required, first run the read-only Architecture-Plan Convergence workflow; then validate the resulting candidate through Reachability and Session-Fit before Write. |
 | Coarsen | **Scope-preserving** — re-slice the *same* Scope into fewer, larger features (name a target count or "coarsest viable"). Trades session-fit headroom + per-diff review granularity for fewer spec→implement loops; records a consented session-fit relaxation, then re-runs Reachability + Session-Fit, which can still **reject** an over-coarse merge. **Not** an MVP cut (that drops scope — use Adjust) and **not** the single-feature collapse (that's the Sizing Gate). See §5.5. |
 | Adjust | Loop back to feature decomposition and re-cut. |
-| Add context | Capture more context, then loop back to feature decomposition. |
-| Decide a fork | *(offer only when the escalation note below applies)* Send one bounded no-dominant technical fork **within** the selected direction to `/core-engineering:ce-decide`; a fork that changes the complete solution direction returns to Stage 1A instead. |
+| **Open context / fork controls** | Open a same-locator follow-up; no candidate decision is recorded yet. |
+
+State that the split exists because the harness allows at most four options.
+Under the unchanged `Gate N of M — Candidate Review` locator, ask this follow-up:
+
+| Option | What happens next |
+|---|---|
+| **Add context and re-cut** | Capture the named context, then return to feature decomposition; no candidate is approved. |
+| **Decide the bounded fork** *(only when the escalation note applies)* | Send the one displayed no-dominant technical fork **within** the selected direction to `/core-engineering:ce-decide`; a fork that changes the complete solution direction returns to Stage 1A instead. Omit this row when no such fork exists. |
+| **Need evidence / route to owner / park** | Name the missing evidence or accountable owner and stop with the candidate/draft resumable; no candidate decision is recorded. |
+| **Return to the candidate question** | Re-open Continue / Coarsen / Adjust / controls under the same locator; no state advances. |
 
 > **Escalating an architectural fork to `/core-engineering:ce-decide` (optional, human-triggered).** If this
 > candidate decomposition hinges on an unresolved **bounded technical fork with no
@@ -305,9 +397,10 @@ Options:
 > boundaries, topology, data ownership, integration mode, trust/residency
 > posture, or load-bearing quality tactic returns to Stage 1A; a fork that is
 > really a *scope* change stays a `/core-engineering:ce-plan` matter (re-cut
-> here), not `/core-engineering:ce-decide`. **When this note applies, surface `Decide a fork`
-> as the labeled option above — decidable in the dialog — rather than leaving it as prose
-> the human must volunteer (R1).**
+> here), not `/core-engineering:ce-decide`. **When this note applies, surface the
+> labeled context/fork control and same-locator follow-up above — decidable in the
+> dialog without a fifth option — rather than leaving the fork as prose the human
+> must volunteer (R1/R5).**
 
 Do not write the artifact after this decision.
 
@@ -316,8 +409,10 @@ Do not write the artifact after this decision.
 `decision: Continue`, and a `state:` block holding the current candidate feature table +
 provisional order plus the Stage 1A route and exact selected-direction binding
 (when present) — per SKILL.md → *Gate Checkpoint & Resume*. The back-edge options
-(`Coarsen` / `Adjust` / `Add context` / `Decide a fork`) loop without advancing, so they
-overwrite the pending state rather than append a passed-gate block.
+(`Coarsen` / `Adjust` / `Add context` / `Decide the bounded fork` /
+`Need evidence / route to owner / park`) do not
+pass Candidate Review, so they overwrite or retain the pending state rather than
+append a passed-gate block.
 
 After `Continue`, route by the recorded applicability result:
 
@@ -337,7 +432,25 @@ candidate exists and before Stage 6, in both standard and light tiers. It is a
 candidate-shaping decision, not a second direction-selection gate. Render the
 current `candidate_revision`, recommendation triggers, the exact direction
 status/exploration/option binding, what Stage 5A can validate, and the residual
-risk of deferral. Print the current plan gate locator:
+risk of deferral. Render the **Material-Gate Decision Authority** block from
+`SKILL.md`; the decision owner is the architecture/plan owner authorized to
+accept the coverage gap created by deferral. Also render the decision support
+below before the dialog:
+
+```text
+Recommendation: <Shape / Defer / Revisit> — <trigger-and-evidence basis>
+Confidence: <high / medium / low> — <what makes that confidence warranted and
+what evidence could change it>
+Estimated model budget: up to <the configured spend/token/call ceiling for this
+shaping pass, or `unconfigured — unknown`, never zero-by-absence>
+Estimated elapsed time: <the configured or evidence-backed range, or `unknown`>
+Qualification: the ceiling and range are planning controls/estimates, not a
+promise of spend, latency, convergence, or architecture correctness; Stage 5A
+still parks at its bounded iteration cap.
+```
+
+Never invent a currency amount, token count, call count, or duration when the
+run/repository supplies none. Print the current plan gate locator:
 
 ```text
 Gate N of M — Recommended Architecture Shaping
@@ -350,13 +463,27 @@ When the direction is `direction-selected` or `adopted-existing`, offer:
 | **Shape this candidate** | Run the read-only Stage 5A pass against the exact selected direction before Reachability; any accepted structural delta increments `candidate_revision`. |
 | **Defer candidate shaping** | Keep the selected direction unchanged, record convergence `deferred`, `iteration_count: 0`, the human rationale, and a visible architecture coverage gap; continue to Reachability. |
 | **Revisit the direction** | Return to Stage 1A; Stage 2 cannot be reused if the direction changes. |
+| **Open evidence / owner / park controls** | Open the same-locator control question below; no shaping election is recorded yet. |
 
 When Stage 1A already recorded direction status `deferred`, do not pretend
 Stage 5A can shape against an absent selected option. Offer **Keep direction
-exploration and candidate shaping deferred** or **Return to Stage 1A and
-explore now**. The first preserves direction status `deferred` and separately
-records convergence `deferred`, `iteration_count: 0`; the second blocks the
-current candidate until a fresh human direction decision and re-decomposition.
+exploration and candidate shaping deferred**, **Return to Stage 1A and explore
+now**, or **Open evidence / owner / park controls**. The first preserves
+direction status `deferred` and separately records convergence `deferred`,
+`iteration_count: 0`; the second blocks the current candidate until a fresh
+human direction decision and re-decomposition.
+
+The control option opens a same-locator follow-up with at most four options:
+
+| Option | Consequence |
+|---|---|
+| **Need named evidence** | Record the exact evidence, check, and evidence owner; park until it is supplied, then rerender this gate with refreshed confidence/budget. |
+| **Route to the decision owner** | Name the person/role with authority and the bounded decision they must make; park without recording shape/defer. |
+| **Park unchanged** | Stop with the current candidate and direction state resumable; no shaping election is inferred. |
+| **Return to the shaping question** | Re-open the primary choices under the same locator; no state advances. |
+
+The follow-up is a harness-limit split, not another gate: keep the same locator
+and record neither a pass nor a defer until the primary decision resolves.
 
 On either defer choice, append `## Recommended Architecture Shaping — passed`
 to scratch with `decided_by: human`, the exact choice/rationale, the current
@@ -380,7 +507,8 @@ spec→implement loops, traded against session-fit headroom and review granulari
 is distinct from its two neighbors:
 
 - **Adjust** re-cuts and may **drop or change scope** (an MVP decision).
-- **Sizing-Gate Accept** collapses the whole plan to **one** feature.
+- **Single-Feature Final Plan Approval (§4.1.3)** authorizes the one-feature
+  minimal artifact after its separate security attestation.
 - **Coarsen** holds the **union of Scope invariant** — no Scope item is dropped — and
   merges cohesive candidates into a smaller feature set (a named target *N*, or
   "coarsest viable").
@@ -791,9 +919,11 @@ place, without scrollback and without attesting blind.
 
 1. **Gate locator** — `Gate N of M — Reachability` (per the SKILL.md locator discipline).
 2. **"What needs your decision"** — lead with ONLY the rows that need a human call,
-   each numbered `R1, R2, …` (so `Change a disposition` can target one) and each with
-   its **basis + plain-language cost-if-wrong** (evidence-first, R2). A row needs a
-   call when it is:
+   each numbered `R1, R2, …` and classified `[material]` or `[routine]`. Every row
+   prints its **owner / decision authority**, evidence **basis**, plain-language
+   **cost-if-wrong**, legal values with consequences, and recommendation. An
+   unassigned owner is itself blocking: the row may be delegated or parked, not
+   silently accepted. A row needs a call when it is:
    - **undispositioned** — a mandatory reciprocal or continuity with no `owned-by` /
      `bridge` / `deprecate` / `shim` yet, or one "satisfied" only by a
      select-to-continue surface (§6.3.2) or by the new surface merely existing (§6.4.2);
@@ -807,8 +937,14 @@ place, without scrollback and without attesting blind.
      reasons across nouns/surfaces. **Never collapse this into the auto-resolved count**
      (§6.3.3 / §6.4.3): "no retention/export/erase anywhere", or "break everything for
      `<reason>`", is a *posture* the human must consent to, not a per-item default.
+   Treat every undispositioned obligation, non-default data/break classification,
+   terminal `excluded` / `hard-break`, and ⚠ bulk posture as **material**. A
+   source-backed, non-terminal `owned-by` / `bridge` / `deprecate` / `shim` row
+   with an uncontested owner may be **routine**. Never downgrade a row to routine
+   merely because the model supplied a recommendation.
 3. **Auto-resolved (count)** — collapse every row already `owned-by:` a feature in this
-   plan into one count with a `[details ↓]` pointer; do not make the human read them.
+   plan and needing no human call into one count with a `[details ↓]` pointer; do
+   not make the human read them at the gate.
 4. **Legend** — print this legend alongside the rows. It is the **runtime home** of the
    shared consequence-glossary (the HITL Gate Standard doc mirrors it for contributors —
    keep the two in sync; do not re-derive glosses, a term must read the same at every gate):
@@ -830,30 +966,84 @@ place, without scrollback and without attesting blind.
 
 ### 6.6.2 The decision
 
-Ask (the locator is already printed), labeling each option by its consequence:
+Resolve this gate in two phases under the **same** printed locator. Phase A owns
+material rows one at a time; Phase B bulk-approves only routine rows. Never use
+Phase B to re-attest or sweep through a material decision.
+
+#### Phase A — isolated material rows
+
+Ask one `AskUserQuestion` question per material row. A tool call may carry at
+most four row-questions. When more remain, say, for example, `Material rows 1–4
+of 7 — split because the harness allows at most four questions`, then continue
+with rows 5–7 under the same `Gate N of M — Reachability` locator. Do not advance
+the gate counter between batches.
+
+Immediately before each row-question, print this complete decision card:
+
+```text
+R# [material] — <noun / reciprocal / surface / posture>
+Owner / authority: <named person, role, policy owner, or unassigned>
+Basis: <source-backed reason for the classification and proposed disposition>
+Cost if wrong: <concrete missing capability, governance duty, consumer break, or blast radius>
+Recommendation: <one legal value and why; decision support, not a default>
+```
+
+Build that row's primary options from its legal values, never from a generic
+Approve. Each option carries the exact consequence from the Legend:
+
+- reciprocal/governance row: `owned-by` / `bridge` / `excluded`;
+- continuity row: `deprecate` / `shim` / `hard-break`;
+- data-class row: `personal` / `sensitive` / `operational`;
+- break-class row: `contract-break` / `internal-only`; and
+- ⚠ bulk posture: **Confirm this exact displayed posture** / **Reject the bulk
+  posture and decide its member rows separately**.
+
+When a row has three legal values, use the fourth option **Open evidence /
+delegate / park controls**. When it has fewer, still include that control option.
+The same-row, same-locator follow-up has at most four options:
 
 | Option | What happens next |
 |---|---|
-| Approve trace | Accept every disposition shown — **including the ⚠ overrides and bulk runs above** — then re-screen architecture applicability before Session-Fit. |
-| Change a disposition | Pick a numbered row `R#`; you're offered **only that row's legal values** (a §6.3 reciprocal: `owned-by` / `bridge` / `excluded`; a §6.4 continuity: `deprecate` / `shim` / `hard-break`), each consequence-labeled from the legend. The pass then re-runs the §6.3.4 / §6.4.4 satisfaction check and re-prints "What needs your decision". |
+| **Need evidence** | Name the exact check and evidence owner; park this row until the evidence returns, then re-render its basis and cost. |
+| **Delegate to the named authority** | Record the bounded question and owner; park the gate until that authority answers. This is routing, not approval. |
+| **Park this plan with the draft resumable** | Stop before Reachability passes; retain every resolved row and the unresolved card. |
+| **Return to this row's legal values** | Re-open the primary row question under the same locator; no decision is recorded. |
+
+If the current respondent is not the displayed authority, do not offer a binding
+material disposition; offer only evidence/delegation/park/return controls. Record
+each resolved material row independently with its authority and non-empty human
+rationale. A later routine approval references those records but never replaces
+them.
+
+#### Phase B — routine rows and trace continuation
+
+Only after every material row is resolved, ask one four-option question. Label
+each option by its consequence:
+
+| Option | What happens next |
+|---|---|
+| **Approve routine rows and continue** | Accept only the displayed routine dispositions, preserve the separately recorded material decisions, then re-screen architecture applicability before Session-Fit. |
+| **Change a routine disposition** | Pick a routine `R#`, choose only one of that row's legal consequence-labelled values, rerun the satisfaction check, and reprint the triage view. Any newly material result moves back to Phase A. |
 | Reorder | Loop back to provisional ordering (a different ship order may auto-dispose a row). |
 | Adjust journeys | Loop back to journey / consumer-flow collection. |
 
-`Change a disposition` is the object-level edit — it **never widens a feature's scope
-itself** (escalate up, never expand, §6.3.4): choosing `excluded` / `hard-break`
-records a consented absence, while choosing `owned-by` routes to a re-cut or a new
-entity-management / deprecation feature.
+An object-level edit **never widens a feature's scope itself** (escalate up,
+never expand, §6.3.4): choosing `excluded` / `hard-break` is a material consented
+absence resolved only in Phase A, while choosing `owned-by` routes to a re-cut or
+a new entity-management / deprecation feature.
 
 ### 6.6.3 Checkpoint — Reachability Decision passed
 
-On `Approve trace`, append a `## Reachability Decision — passed` checkpoint to
-`docs/plans/.drafts/<slug>/scratch.md` — `decided_by: human`, `decision: Approve trace`,
-and a `state:` block holding the **resolved disposition rows** (the durable-noun use and
-governance reciprocals and the §6.4 surface-removal continuity rows, as dispositioned) plus
-the Journey / Consumability Map — per SKILL.md → *Gate Checkpoint & Resume*. This is the
-marathon gate the checkpoint most protects: a crash after `Approve` re-enters at the
-architecture re-screen, not directly at Session-Fit. `Change a disposition`, `Reorder`, and `Adjust
-journeys` loop without advancing and append nothing.
+On `Approve routine rows and continue`, append a `## Reachability Decision —
+passed` checkpoint to `docs/plans/.drafts/<slug>/scratch.md` — `decided_by:
+human`, `decision: Approve routine rows and continue`, the independent material
+row decisions with owner/authority/rationale, and a `state:` block holding every
+resolved disposition row plus the Journey / Consumability Map — per SKILL.md →
+*Gate Checkpoint & Resume*. This is the marathon gate the checkpoint most
+protects: a crash after approval re-enters at the architecture re-screen, not
+directly at Session-Fit. Evidence/delegation/park controls, `Change a routine
+disposition`, `Reorder`, and `Adjust journeys` do not advance and append no passed
+checkpoint.
 
 ### 6.6.4 Re-screen architecture applicability
 
@@ -892,7 +1082,7 @@ consequence (HITL Gate Standard R1) — both are lossy:
 | Option | What happens next |
 |---|---|
 | Defer journey | **Drop this journey from the MVP** — recorded under Notes, not built this plan. Use only when it is genuinely out of MVP. |
-| Abort plan | **Exit the workflow without writing** — all planning work this session is lost; revisit the decomposition input and restart. |
+| Abort plan | **Exit without writing a final plan** — retain the gate checkpoints and draft artifacts so the run remains resumable; revisit the decomposition input before continuing. |
 
 Deferred journeys must be explicitly recorded in the final artifact.
 
@@ -1053,17 +1243,55 @@ surface. `db` is already covered by `persistence`.*
 | 3 | **Provided.** Conventions / tokens / mockups / a contract spec supplied as project reference docs (Stage 1.5). | the doc paths |
 | 4 | **Consented exception.** The human explicitly accepts shipping that surface without a foundation (e.g. a throwaway internal tool). | the decision + reason under Notes — never a silent default |
 
-**On failure** (a plan exposing a foundationed surface with none of the above):
-loop back to feature decomposition (Stage 2) and add the foundation feature, **or**
-record a consented exception. Prefer adding the foundation — re-cutting one
-foundation feature is far cheaper than retrofitting conventions across every
-surface already shipped.
+**On failure** (a plan exposing a foundationed surface with none of the above),
+run one isolated material gate per failed primary modality. Add each gate that
+will fire to the computed manifest before prompting; if a newly discovered
+modality changes M, say so. Print the exact locator:
 
-The **consented exception** is a material attestation — present it evidence-first
-(HITL Gate Standard R2/R3), in its own prompt, never as a silent default:
-state the **cost if wrong** — every screen / response on this surface ships visually
-or structurally inconsistent, and the conventions must later be retrofitted across
-every surface already shipped — and require an explicit reason recorded under Notes.
+```text
+Gate N of M — Interface Foundation Exception (<modality>)
+```
+
+Render the evidence first, immediately before `AskUserQuestion`:
+
+```text
+What needs your decision:
+- modality / surface: <browser / http / cli / sdk / event / iac + concrete consumers>
+- checks performed: <features, Codebase Profile paths, and provided reference docs examined>
+- result: no owned, detected, or provided binding foundation was established
+- recommendation: add <foundation type + Boundary-Owner> before the consuming features
+- owner / authority: <named product/platform owner allowed to accept the exception;
+  `unassigned` cannot consent>
+- cost if wrong: every screen / response on this surface ships visually or
+  structurally inconsistent, its conformance cannot be checked, and the
+  conventions must later be retrofitted across every already-shipped consumer
+```
+
+Then ask one question with at most four consequence-labelled options:
+
+| Option | What happens next |
+|---|---|
+| **Add the interface-foundation feature** | Return to Stage 2, add the matching foundation owner and hard-dependency edges, then rerun the affected architecture, Reachability, and Session-Fit checks. No exception is recorded. |
+| **Supply existing/provided foundation evidence** | Name the repository artifact or reference document, rerun the detect/provide checks, and re-render this gate; no exception is inferred from an assertion alone. |
+| **Consent to this exception with authority and reason** | Only when the respondent is the displayed owner, record the non-empty reason and exact modality under Notes; ship without a binding foundation and carry the displayed retrofit/conformance risk. |
+| **Open route / park controls** | Open the same-locator control question; no foundation disposition is recorded yet. |
+
+The control follow-up remains under the exact same locator and has at most three
+options:
+
+| Option | What happens next |
+|---|---|
+| **Route to the named foundation owner** | Record the bounded exception question and authority, then park until that owner answers; routing is not consent. |
+| **Park with the draft resumable** | Stop before Session-Fit passes and retain the candidate, evidence card, and prior checkpoints. |
+| **Return to the foundation question** | Re-open the primary options under the same locator; no state advances. |
+
+Prefer adding the foundation — re-cutting one foundation feature is far cheaper
+than retrofitting conventions across every surface already shipped. An
+unauthorized or unassigned respondent can supply evidence, route, or park, but
+cannot choose the exception. On authorized consent, append the exact locator,
+modality, evidence, authority, reason, and cost-if-wrong to the Session-Fit
+checkpoint and Notes; never let the eventual Final Approval silently create or
+substitute for this attestation.
 
 **Multi-surface plans** need one foundation per primary modality (once more than
 one surface is live in the family). Whether they are separate `type: foundation`

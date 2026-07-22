@@ -129,11 +129,14 @@ attestations** (own prompt, never a buried bullet), **triage dense gates** (lead
 label** (`Gate N of M`). `/core-engineering:ce-spec`'s resolve-unknowns and `/core-engineering:ce-implement`'s manual-verdict
 gates are the exemplars; the densest application is `/core-engineering:ce-plan`'s Reachability gate (§6.6).
 
-Two rules are now machine-backed by `authoring_check.py`: A9 keeps the shared
+Three rules are now machine-backed by `authoring_check.py`: A9 keeps the shared
 consequence-glossary's two copies in sync (term parity + per-term anchor phrases in the
 contributor mirror *and* the runtime Legend), and A10 requires any skill with `[material`
 gates to state the R5 gate-locator discipline (a literal `Gate N of M` instruction).
-The remaining rules (R1–R4 substance) stay contributor discipline, and a standing
+A13 rejects decision tables with more than four options and prose that assigns more
+than four questions to one `AskUserQuestion` round. The remaining rules (R1–R4
+substance, including whether the named decision owner actually has enough evidence)
+stay contributor discipline, and a standing
 instruction to Claude: when you add or edit any gate that asks the human to choose,
 make it conform, and **reuse the shared consequence-glossary verbatim** so a term never
 gets two different glosses.

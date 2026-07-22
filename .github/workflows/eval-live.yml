@@ -41,9 +41,9 @@ env:
 jobs:
   live-evals:
     runs-on: ubuntu-latest
-    # The full profile's sequential scenario deadlines total 180 minutes.
+    # The full profile's sequential scenario deadlines total 195 minutes.
     # Leave setup/artifact headroom so the runner can write timeout receipts.
-    timeout-minutes: 210
+    timeout-minutes: 225
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 

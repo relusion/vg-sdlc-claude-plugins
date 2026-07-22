@@ -147,6 +147,10 @@ Gate 1 of M — Revision Delta   (M per the recomputed locator set, R.2)
    *"Held: Session-Fit (no feature re-cut), 8.2.2 interaction-contract (no cross-feature
    edge moved); preserved specs: `01`, `02`, `04`, `05`."*
 
+Render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the project/plan owner authorized to redefine the delta and
+the set of prior decisions that remain held.
+
 Architecture convergence may be held only when no feature, dependency, order,
 journey, boundary, trigger, NFR, or accepted decision changed and the prior
 disposition is present. A legacy-unassessed plan can never hold it.
@@ -157,14 +161,17 @@ Then attest with `AskUserQuestion`, each option labelled by its consequence (R1)
 |---|---|
 | **Confirm delta** | Accept the delta and the affected-gate set; proceed to re-run the triggered gates (R.4). The held gates stay held. |
 | **Amend the delta** | The delta is mis-stated (a feature is touched that shouldn't be, or a change was missed) — restate it and recompute the affected-gate set. Loops without advancing. |
-| **Abort** | Exit now, **writing nothing** — the frozen plan is untouched and the revision is dropped (the scratch, if any, stays so the revision stays resumable). |
+| **Need evidence / route to owner / park** | Name the missing evidence or accountable owner and stop with the revision scratch resumable; no delta is confirmed. |
+| **Abort** | Exit now, **writing nothing** — the frozen plan is untouched and this run ends; the scratch, if any, stays so the revision remains resumable. |
 
 **Checkpoint — Revision Delta passed.** On `Confirm delta`, append a `## Revision Delta —
 passed` checkpoint to `docs/plans/.drafts/<slug>/scratch.md` (creating `.drafts/<slug>/` on
 this first write) per SKILL.md → *Gate Checkpoint & Resume* — `decided_by: human`,
 `decision: Confirm delta`, and a `state:` block holding the R.1 delta table + the computed
 affected-gate set + the preserved/held lists. This is the first resumable point of the
-revision. `Amend the delta` loops without advancing and appends nothing.
+revision. `Amend the delta` loops without advancing; `Need evidence / route to
+owner / park` stops with the pending state resumable. Neither appends a passed
+checkpoint.
 
 ---
 
@@ -286,6 +293,10 @@ its revision/hash boundary stale or malformed and that
 the planning workflow does not silently refresh or remove that sibling-owned
 package. Label each option by consequence (R1/R5):
 
+Render the **Material-Gate Decision Authority** block from `SKILL.md`; the
+decision owner is the project/plan owner authorized to commit the exact touched
+file set, staleness consequences, and revision counter.
+
 If this revision changes an explored direction to `not-applicable` or
 `deferred`, the render must name deletion of the now-inapplicable
 `architecture-options.md` as a reviewed file-level consequence. It is removed
@@ -299,7 +310,8 @@ Render that consequence at this gate.
 |---|---|
 | **Write revision** | Write the touched files + bumped `plan.json`, preserving the untouched set. **The commit point.** |
 | **Adjust** | Loop back to R.1 / R.4 — nothing is written yet. |
-| **Abort** | Exit without writing — the frozen plan and its specs are untouched. |
+| **Need evidence / route to owner / park** | Name the missing evidence or accountable owner and stop with the frozen plan plus revision scratch intact; no write is authorized. |
+| **Abort** | Exit without writing — the frozen plan and its specs are untouched, and the revision scratch remains resumable until an explicit fresh start. |
 
 On **Write revision**, apply the Stage 9 write, scoped to the revision:
 

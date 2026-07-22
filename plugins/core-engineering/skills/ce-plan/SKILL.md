@@ -41,11 +41,11 @@ not load them all up front.
 
 Follow the workflow exactly. Do not skip stages, gates, or validation. In particular:
 
-0. **Proportionality Gate — before any profiling spend.** If the request is one bounded change (a single behavior in a known location, no new durable state, no cross-feature surface — the `/core-engineering:ce-patch` admission shape), stop *before* Stage 1's codebase profile and offer `/core-engineering:ce-patch` as the default route, stating the cost difference (the patch lane is one skill at ~$4 floor; the full plan → spec → implement spine is ≈$12+ of model calls and hours of attention). Proceeding with a full plan for a patch-shaped request is a legitimate, *consented* choice — record it; never route silently in either direction. A project or multi-feature request passes this gate without a prompt.
+0. **Proportionality Gate — before any profiling spend.** Run Stage 0's *Proportionality Routing* when the supplied request already matches `/core-engineering:ce-patch` admission. It renders the request-shape evidence, historically configured ceilings (never costs/floors/forecasts), attention difference, decision authority, and consequence-labelled patch/plan/route/abort choices. Record the consent; never route silently. A project or multi-feature request passes without a prompt.
 
-1. **Never write the final artifact before Final Plan Approval** (Stage 8.3 → `Write`) — this governs the **final artifact** only. Distinct from it is the **gate-checkpoint scratch** at `docs/plans/.drafts/<slug>/scratch.md`: a terse resume transcript appended after each passed gate so a crash or compaction mid-plan resumes from the last passed gate instead of losing the whole 9-stage run (see **Gate Checkpoint & Resume**). The scratch is never the final artifact — it is never registered in `plans.json`, never a `brief:` or spec input, and Stage 9 deletes it on a successful write; appending a checkpoint is **not** writing the artifact early.
+1. **Never write the final artifact before the applicable Final Plan Approval** — Stage 4.1.3 `Accept and write the one-feature plan` for the complete minimal-artifact preview, or Stage 8.3 `Write` for a multi-feature plan. These are the only commit points and each follows separate material attestations. Distinct from them is the **gate-checkpoint scratch** at `docs/plans/.drafts/<slug>/scratch.md`: a terse resume transcript appended after each passed gate so a crash or compaction mid-plan resumes from the last passed gate instead of losing the whole 9-stage run (see **Gate Checkpoint & Resume**). The scratch is never the final artifact — it is never registered in `plans.json`, never a `brief:` or spec input, and Stage 9 deletes it on a successful write; appending a checkpoint is **not** writing the artifact early.
 2. **Keep provisional IDs (`P01-…`) until write time**; freeze stable IDs only in Stage 9.
-3. **Ask grouped questions, not one-by-one** (Stage 1.4 — 4–6 targeted questions in a single round; up to 10–12 total across rounds).
+3. **Ask grouped questions, not one-by-one** (Stage 1.4 — 4–6 targeted decomposition questions in one logical, same-locator gate; split them into calls of **at most 4 questions each**, then collect references/pitfalls in later calls under that same locator; up to 10–12 decomposition questions total across rounds).
 4. **Use the Two-Surface Rendering Rule** (Stage 5.3): print long tables, diagrams, and per-feature blocks in the conversation as Markdown; reserve compact decision dialogs for the short question + options only.
 5. **Select architecture before detailed decomposition when it is load-bearing.** After Stage 1 has reconciled intent with repository evidence, load `${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`. Build a coarse `C01` capability map — never provisional features — and classify the stable architecture drivers as `required`, `recommended`, or `not-required`. A required route must pass the Evaluation Frame gate, persist and surface `docs/plans/.drafts/<slug>/architecture-options.md`, and return a fresh, human-owned `direction-selected` result from `/core-engineering:ce-architecture explore:<draft-slug>` before Stage 2. Recommended exploration may be explicitly deferred by the human; not-required records an explicit N/A. A material unknown takes the required path. Stage 3.9 re-screens the detailed candidate before Sizing can exit; a newly required or stale direction returns to Stage 1A and then reruns Stage 2. Required architecture can never collapse into the single-feature minimal shape or light-plan tier.
 6. **Converge the selected direction with the candidate before freezing decomposition.** After Candidate Review and before Reachability, a required route invokes `/core-engineering:ce-architecture shape:<draft-slug>` through the `Skill` tool and loads `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`. A recommended route, including the light tier, first runs the explicit human shaping election in stage-4-7-gates.md §5.4.1 and records either current convergence or a same-revision defer; absence never becomes implicit deferral. Architecture may propose a paste-ready delta but never edits the plan; this skill and the human alone apply a re-cut. Re-screen after Reachability and after the final TZ/IC attestations. A changed capability or selection binding returns to Stage 1A; a changed candidate revision, driver, decision, journey, dependency, durable-state row, TZ/IC row, or decomposition-shaping NFR invalidates shaping convergence or the recorded defer.
@@ -53,15 +53,16 @@ Follow the workflow exactly. Do not skip stages, gates, or validation. In partic
 8. **Honor both iteration caps:** Stage 6.6 allows at most 3 loops per journey, and architecture shaping allows at most 3 complete results per bounded sequence before it parks at a human cap gate. Only an explicit human-owned scope/evidence change starts another three-pass sequence; `architecture_iteration_count` remains cumulative.
 9. **Record user overrides, architecture waivers, deferred journeys, and high-risk justifications in Notes.**
 10. **Validate every item in the Validation Checklist Before Writing** (in `stage-8-9-write.md`) prior to writing.
-11. **Output:** write the final artifact as a plan **directory** at `docs/plans/[project-slug]/` — index `feature-plan.md`, `shared-context.md`, exact `architecture-selection.json`, the human-readable `architecture-options.md` when directions were explored, `threat-model.md` (trust boundaries + data-classes + per-feature security obligations, a read-only re-projection of §3 / §6.3 / §7.5), `interaction-contract.md` (cross-feature protocol invariants + architecture-determining NFRs, a read-only re-projection of §3 / §8 / §10 / §6.3 / cited NFRs), one `features/<id>.md` per feature, and `plan.json` with the hash-bound `architecture_disposition.direction` — and update `docs/plans/plans.json` (the repo's plan registry). `[project-slug]` is derived per Stage 0 (Project Name Slug). For single-feature plans accepted at the Sizing Gate, use the single-file Recommended Minimal Output instead.
+11. **Output:** write the final artifact as a plan **directory** at `docs/plans/[project-slug]/` — index `feature-plan.md`, `shared-context.md`, exact `architecture-selection.json`, the human-readable `architecture-options.md` when directions were explored, `threat-model.md` (trust boundaries + data-classes + per-feature security obligations, a read-only re-projection of §3 / §6.3 / §7.5), `interaction-contract.md` (cross-feature protocol invariants + architecture-determining NFRs, a read-only re-projection of §3 / §8 / §10 / §6.3 / cited NFRs), one `features/<id>.md` per feature, and `plan.json` with the hash-bound `architecture_disposition.direction` — and update `docs/plans/plans.json` (the repo's plan registry). `[project-slug]` is derived per Stage 0 (Project Name Slug). For single-feature plans approved after the separate Stage 4.1.1 security attestation and complete Stage 4.1.2 preview, use the single-file Recommended Minimal Output instead.
 12. **Prefer explicit assumptions over invented details** — when a fact is unknown, record a labeled assumption rather than fabricating specifics.
 13. **Keep structured Markdown stable enough for parsing** — downstream tooling reads the artifact; do not break its field structure.
 14. **Validate dependency direction programmatically when possible** — hard dependencies must point to an earlier feature in ship order.
 15. **Treat unknown build/test commands as planning risk** — surface them; do not assume them.
 16. **Do not let high-risk labels become a substitute for better slicing** — a high-risk tag is not a reason to skip re-cutting an oversized feature.
-17. **Print a gate locator at every interactive gate** (`Gate N of M — <name>`, per HITL Gate Standard R5). Compute **M from the gates that will actually fire this run** — including the conditional Stage 1A Evaluation Frame and Architecture Direction Selection gates, the conditional recommended-shaping election, each conditional Architecture-Plan Convergence or architecture iteration-cap gate, the Sizing Gate only on a single-feature recommendation, the Reachability iteration-cap escalation only on non-convergence, and the applicable 8.2 attestation gates. Pass the plan's current locator into composed explore/shape calls; a child workflow never starts a competing `Gate 1 of 1` sequence. Never hardcode M; if a conditional gate changes the count mid-run, say so. **In the light-plan tier (item 19 / stage-4-7-gates.md §4.3) M is smaller** — Candidate Decision folds into Final Approval and trivially negative 8.2 attestations combine, while the recommended-shaping election still fires and any late required architecture or positive TZ/IC detection restores the required separate gates and recomputes M.
+17. **Print a gate locator at every interactive gate** (`Gate N of M — <name>`, per HITL Gate Standard R5). Compute **M from the gates that will actually fire this run** — including conditional Stage 0 Proportionality Routing, Existing Plan Routing, Resume Planning, Sibling Plans, and Project Understanding gates; the conditional Stage 1A Evaluation Frame and Architecture Direction Selection gates; the conditional recommended-shaping election; each conditional Architecture-Plan Convergence or architecture iteration-cap gate; the Single-Feature Security Attestation and Single-Feature Final Plan Approval only on a minimal recommendation; the Reachability iteration-cap escalation only on non-convergence; and each applicable 8.2 attestation gate. Same-locator continuations or per-row questions do not increment N or M. Pass the plan's current locator into composed explore/shape calls; a child workflow never starts a competing `Gate 1 of 1` sequence. Never hardcode M; if a conditional gate changes the count mid-run, say so. **In the light-plan tier (item 19 / stage-4-7-gates.md §4.3) M is smaller** because Candidate Decision folds into Final Approval; security and interaction negatives remain separate material questions, while the recommended-shaping election still fires and any late required architecture or positive TZ/IC detection recomputes M.
 18. **Revise, don't re-plan, when a written plan already exists.** When Stage 0 detects an existing written plan for the slug — an explicit `revise:` argument, a `/core-engineering:ce-patch` text handoff that names the existing plan, a downstream structural Boundary Conflict, a legacy plan with no `architecture_disposition`, or a change request against a plan already at `docs/plans/<slug>/` — load `${CLAUDE_SKILL_DIR}/stage-R-revision.md` and run **Stage R** instead of Stages 1–9: diff the delta against the frozen shape, re-run **only** the gates the delta touches (untouched gates are *held from the prior revision*, never re-asked), preserve untouched features' `features/<id>.md` + `specs/<id>/` byte-for-byte, and bump `plan_revision` in `plan.json` (absent = 1). Stage R is the **receiving end** of every downstream "escalate to `/core-engineering:ce-plan` and stop" path. A genuinely new project that merely collides on slug is **not** a revision — disambiguate to a new slug; never silently overwrite a written plan.
-19. **Take the light-plan tier only when architecture is not required (stage-4-7-gates.md §4.3).** After Stage 3 confirms a **multi-feature** plan of **≤ 3 features** with **no contested Boundary-Owner**, **no `sensitive` data-class**, and architecture applicability other than `required`, run the **light-plan tier**: fold the standalone Candidate Decision into Final Approval and combine only trivially negative 8.2 attestations. This is a disclosed, recorded proportionality choice (`plan_tier: light`); the conditional recommended-shaping election, Reachability, Session-Fit, the late architecture re-screen, and every positive TZ/IC gate still bind. If later evidence makes architecture required, restore the standard tier, run Candidate Review and architecture shaping, and recompute the gate manifest.
+19. **Take the light-plan tier only when architecture is not required (stage-4-7-gates.md §4.3).** After Stage 3 confirms a **multi-feature** plan of **≤ 3 features** with **no contested Boundary-Owner**, **no `sensitive` data-class**, and architecture applicability other than `required`, run the **light-plan tier**: fold the standalone Candidate Decision into Final Approval, but keep the model-derived No Security Surface and No Cross-Feature Protocol judgments as separate evidence-first questions. This is a disclosed, recorded proportionality choice (`plan_tier: light`); the conditional recommended-shaping election, Reachability, Session-Fit, the late architecture re-screen, and every TZ/IC attestation still bind. If later evidence makes architecture required, restore the standard tier, run Candidate Review and architecture shaping, and recompute the gate manifest.
+20. **Name authority at every material gate.** Apply *Material-Gate Decision Authority* below before asking any `[material]` question. A missing decision owner, authority, or load-bearing evidence is a routable gap, never implied consent: keep the prompt within four options and offer the applicable **Need evidence / route to owner** and **Park** paths.
 
 ## How to Run This Workflow
 
@@ -84,6 +85,38 @@ Execute the stages in order. Load each stage file when you reach it — not befo
 Stage 0 branches: when a written plan already exists for the slug (Execution Contract item 17), it routes to **Stage R** (`${CLAUDE_SKILL_DIR}/stage-R-revision.md`) — the revision path — instead of the 1–9 from-scratch spine.
 
 To begin: load `${CLAUDE_SKILL_DIR}/stage-0-1-understand.md` and start Stage 0.
+
+---
+
+## Material-Gate Decision Authority
+
+Before every gate marked `[material]` (or described as material), render this
+short authority block with the evidence shown for that gate:
+
+```text
+Decision owner: <person or role accountable for this call, or unknown>
+Decision authority: <request, accepted policy/ADR, ownership record, or explicit human mandate>
+Authority/evidence gaps: <None, or the exact missing evidence/owner>
+```
+
+The current user may decide only when the rendered authority makes that role
+clear. Do not infer authority from participation, silence, repository access, or
+the ability to invoke the skill. If evidence or authority is incomplete, keep
+the current `Gate N of M — <name>` locator and provide an escape path within the
+four-option harness limit:
+
+- **Need evidence / route to owner — keep this gate open** — name the exact
+  artifact, check, or accountable owner required; gather or route only that
+  input, then re-render the same gate without recording a disposition.
+- **Park — stop without a final write** — preserve any existing draft scratch
+  and evidence so the gate remains resumable when the named input or owner is
+  available.
+
+These are controls, not extra approvals. When the primary question already uses
+four options, open a same-locator control follow-up (as Stage 1A does) rather
+than creating a fifth option. An `Abort` also exits without a final write and
+leaves any existing scratch/report in place; only an explicit **Start fresh**
+choice deletes draft state.
 
 ---
 
@@ -234,8 +267,8 @@ Only one feature per category may claim ownership in a single plan.
 | Architecture direction selection | Human selects or overrides one viable direction | Candidate Feature Decomposition constrained by that exact selected result |
 | Architecture direction selection | Human adjusts or parks | Stage 1A retry or exit; do not enter Stage 2 |
 | Candidate decomposition / Stage 3.9 | New evidence makes the selected direction absent, stale, or no longer applicable | Stage 1A, then rerun Stage 2 from the fresh direction |
-| Sizing Gate | User selects Adjust | Candidate Feature Decomposition |
-| Sizing Gate | User selects Override | Candidate Plan Review |
+| Single-Feature Final Plan Approval | User selects Adjust scope or decomposition | Candidate Feature Decomposition, then rerun Sizing and the applicable minimal gates |
+| Single-Feature Final Plan Approval | User selects Continue with the previewed multi-feature split | Candidate Plan Review and the full correctness gates |
 | Candidate Plan Review | User selects Coarsen | Candidate Feature Decomposition (scope-preserving merge under a consented session-fit lease — §5.5) |
 | Candidate Plan Review | User selects Adjust | Candidate Feature Decomposition |
 | Candidate Plan Review | User selects Add context | Project Understanding / Candidate Feature Decomposition |
@@ -255,7 +288,7 @@ Only one feature per category may claim ownership in a single plan.
 | Final Plan Review | User selects Adjust | Feature Decomposition or Provisional Ordering |
 | Final Plan Review | User selects Add context | Project Understanding / Revalidation |
 | Final Plan Review | User selects Expand to full gates (light tier — §4.3) | Candidate Decision (§5.4) + separate 8.2.1/8.2.2 attestations, then Write |
-| Final Plan Review | User selects Abort | Exit without writing |
+| Final Plan Review | User selects Abort | Exit without a final write; preserve resumable draft state |
 
 ---
 
@@ -263,17 +296,18 @@ Only one feature per category may claim ownership in a single plan.
 
 | Point | Trigger | Result |
 |---|---|---|
-| Sizing Gate | User accepts single-feature recommendation | Single-feature artifact is written |
-| Reachability Trace | User aborts after unresolved third loop | Workflow exits without writing |
-| Final Plan Review | User selects Abort | Workflow exits without writing |
+| Single-Feature Final Plan Approval | User accepts the separately attested, complete minimal preview | Single-feature artifact is written |
+| Reachability Trace | User aborts after unresolved third loop | Workflow exits without a final write and preserves resumable draft state |
+| Final Plan Review | User selects Abort | Workflow exits without a final write and preserves resumable draft state |
 | Closing | Normal completion | Artifact written and first feature identified |
 
 ---
 
 ## Gate Checkpoint & Resume
 
-`/core-engineering:ce-plan` writes no **final plan** before Stage 8.3 Write. Before
-then it keeps only bounded draft inputs, the pre-approval architecture-options
+`/core-engineering:ce-plan` writes no **final plan** before the applicable commit
+gate: Single-Feature Final Plan Approval (§4.1.3) or Stage 8.3 Write. Before then
+it keeps only bounded draft inputs, the pre-approval architecture-options
 report when exploration runs, selected-result JSON, and a **terse resume transcript**
 so a crash or context compaction does not lose the entire 9-stage run. The transcript lives at:
 
@@ -290,18 +324,20 @@ re-asking settled questions.
 `.drafts/<slug>/` on first write) immediately after the run passes each of these gates —
 Stage 1.4 (project-understanding answers), the Stage 1A Evaluation Frame and Architecture
 Direction Selection when they fire (or its explicit recommended-deferred / not-required
-N/A checkpoint), the Sizing Gate (Stage 4), the Light-Plan Tier screen
+N/A checkpoint), the Single-Feature Security Attestation when the minimal route
+fires, the Sizing Gate (Stage 4) when the run continues multi-feature, the Light-Plan Tier screen
 (Stage 4.3), the Candidate Decision (Stage 5.4 — **standard tier only**; the light tier's
 §4.3 checkpoint is its resume anchor), the Recommended Architecture Shaping election
 (§5.4.1 when it fires in either tier), Architecture-Plan Convergence (Stage 5A when it
 fires), the Reachability Decision (Stage 6.6), the Session-Fit
-Check (Stage 7, after 7.8), and the 8.2.1 / 8.2.2 attestations (**or the one combined 8.2.3
-attestation in the light tier**). Each block records only:
+Check (Stage 7, after 7.8), and the applicable 8.2.1 / 8.2.2 attestations. The
+light tier keeps their negative judgments as separate questions and checkpoints.
+Each block records only:
 
 ```text
 ## <gate name> — passed
 decided_by: human            # or "workflow (autonomous pass)" for a gate that fired no prompt
-decision: <the option taken, e.g. "Approve trace" / "Continue" / "Confirm">
+decision: <the option taken, e.g. "Approve routine rows and continue" / "Continue" / "Confirm this row">
 state: |
   <the candidate table / journey rows / disposition rows already rendered at the gate,
    verbatim — nothing re-derived>

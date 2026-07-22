@@ -178,6 +178,38 @@ class EvalCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("timeout_seconds must be a positive integer", res.stderr)
 
+    def test_scripted_turn_requires_context_anchor_and_scenario_scoped_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            data["scenarios"][0]["scripted_turns"] = [{
+                "event_id": "wrong-event",
+                "answer": "Proceed",
+                "required_previous_output": [],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("event_id must start with EVAL-001-", res.stderr)
+            self.assertIn("must contain at least one gate/context anchor", res.stderr)
+
+    def test_scripted_turn_rejects_unknown_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            data["scenarios"][0]["scripted_turns"] = [{
+                "event_id": "EVAL-001-D01",
+                "answer": "Proceed",
+                "required_previous_output": ["Gate 1 of"],
+                "invented": True,
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("scripted_turns.0 has unknown key(s): invented", res.stderr)
+
     def test_missing_expected_fixture_file_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_eval_repo(Path(tmp))
