@@ -72,7 +72,7 @@ the path back to a live label.
 | EVAL-004 | `/core-engineering:ce-plan` | full plan directory: registry, plan JSON, threat model, interaction contract, feature files | $3.00 | design-verified, not live-run |
 | EVAL-005 | `/core-engineering:ce-spec` | `ce-spec.md` + `tasks.json` that pass `spec-lint.py` with full traceability | $4.00 | design-verified, not live-run |
 | EVAL-006 | `/core-engineering:ce-implement` | test-first implementation: tasks done, tests green, `verification.md` | $3.00 | design-verified, not live-run |
-| EVAL-007 | `/core-engineering:ce-review` | finds the seeded high-severity IDOR, `blocking_high: 1`, machine summary | $2.00 | design-verified, not live-run |
+| EVAL-007 | `/core-engineering:ce-review` | finds the seeded high-severity IDOR, `blocking_high: 1`, validated `blocking_route`, machine summary | $2.00 | design-verified, not live-run |
 | EVAL-008 | `/core-engineering:ce-probe-infra` | dated infra report + summary JSON + evidence for Dockerfile/K8s/Terraform findings | $3.00 | design-verified, not live-run |
 | EVAL-009 | `/core-engineering:ce-patch` | admits a benign two-file fix, proves red→green, and stops at one diff/evidence gate | $4.00 | design-verified, not live-run |
 | EVAL-010 | `/core-engineering:ce-patch` | refuses schema/durable-state work before editing and routes to `/core-engineering:ce-plan` | $2.00 | design-verified, not live-run |

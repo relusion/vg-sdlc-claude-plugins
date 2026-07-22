@@ -103,6 +103,7 @@ downstream skill can load one feature without reading the whole plan:
 docs/plans/[project-slug]/
 ├── feature-plan.md       # index — orientation and human review
 ├── shared-context.md     # context every downstream feature spec needs
+├── architecture-selection.json  # reviewed pre-decomposition option set + human-selected direction
 ├── threat-model.md       # trust boundaries + data-classes + per-feature security obligations
 ├── interaction-contract.md  # cross-feature protocol invariants + architecture-determining NFRs (read-only re-projection)
 ├── features/
@@ -118,7 +119,8 @@ Place it per this map:
 | File | What it contains |
 |---|---|
 | `feature-plan.md` | 1 Overview · 2 Project Context · 4 Decomposition Q&A · 5 Why This Split · 8 Journey Map / Consumability Trace · 9 Journey Bridges by Feature · 10 Dependency Flow · Feature Table · 12 Execution Checklist · 13 Notes · 14 Tooling Mapping |
-| `shared-context.md` | 3 Codebase Profile · 6 Project Docs · 7 Known Pitfalls · Architecture Disposition · Resolved Project Decisions |
+| `shared-context.md` | 3 Codebase Profile · 6 Project Docs · 7 Known Pitfalls · Selected Architecture Direction · Architecture Disposition · Resolved Project Decisions |
+| `architecture-selection.json` | Exact capability-level evaluation frame, source/evidence fingerprints, eligible/eliminated solution directions, constraint verdicts, score vectors, sensitivity/confidence, recommendation, and human selection |
 | `threat-model.md` | Threat Model (Trust Boundaries · Secrets & Data-Classes · Exposure Surface · Per-Feature Security Obligations) — a read-only re-projection of §3 / §6.3 / §7.5; see *Threat Model* below |
 | `interaction-contract.md` | Interaction Contract (Behavioural-Protocol Invariants · Architecture-Determining NFRs · Per-Feature Interaction Obligations) — a read-only re-projection of §3 / §8 Journey Map / §10 Dependency Flow / §6.3 durable nouns (multi-toucher set derived via §8 / §10) / §2–§4 cited NFRs; see *Interaction Contract* below |
 | `features/<id>.md` | one copy of the 11 Features block, per feature |
@@ -128,6 +130,159 @@ Place it per this map:
 compact Feature Table and links to `features/<id>.md`. For a single-feature plan
 accepted at the Sizing Gate, use **Recommended Minimal Output** instead — one
 file, no directory.
+
+---
+
+## Architecture Selection (`architecture-selection.json`)
+
+This file is the durable, machine-validated record of the capability-level
+evaluation performed before feature decomposition. It preserves decision
+support and human authority; it is not a final architecture baseline or an ADR.
+Use this exact top-level shape:
+
+```json
+{
+  "schema_version": 1,
+  "project_slug": "customer-support-portal",
+  "exploration_id": "AEX-0123456789ab",
+  "source_capability_revision": 1,
+  "source_exploration_attempt": 1,
+  "source_input_sha256": "<64 lowercase hex>",
+  "evaluation_frame": {
+    "project_intent": "Enable customers to complete the support journey.",
+    "non_goals": ["Replace the existing identity platform."],
+    "architecture_applicability": "required",
+    "driver_screen": [
+      {"id": "explicit-architecture-deliverable", "verdict": "positive", "basis": "The brief requests a solution baseline.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "multi-runtime-or-deployment-boundary", "verdict": "negative", "basis": "No new deployable is required.", "evidence": ["README.md"]},
+      {"id": "cross-feature-durable-or-async-flow", "verdict": "negative", "basis": "No durable handoff is required.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "shared-data-ownership-or-migration", "verdict": "negative", "basis": "No shared-state migration is in scope.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "trust-residency-or-sensitive-boundary", "verdict": "negative", "basis": "No new trust or residency crossing is in scope.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "shared-protocol-or-schema", "verdict": "negative", "basis": "No shared protocol changes are required.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "platform-or-topology-choice", "verdict": "negative", "basis": "The current platform remains fixed.", "evidence": ["README.md"]},
+      {"id": "architecture-determining-nfr", "verdict": "negative", "basis": "No literal NFR changes the topology.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "contested-cross-feature-owner", "verdict": "negative", "basis": "No contested owner is known before decomposition.", "evidence": ["README.md"]},
+      {"id": "team-policy-recommendation", "verdict": "negative", "basis": "No separate team recommendation applies.", "evidence": ["README.md"]},
+      {"id": "planned-reuse-recommendation", "verdict": "negative", "basis": "No additional consumer is planned.", "evidence": ["docs/briefs/customer-support-portal.md"]},
+      {"id": "baseline-preference", "verdict": "negative", "basis": "The explicit deliverable already makes the route required.", "evidence": ["docs/briefs/customer-support-portal.md"]}
+    ],
+    "accepted_decisions": [],
+    "material_gaps": [],
+    "capabilities": [
+      {"id": "C01", "outcome": "A customer can complete a support request.", "actors": ["customer"], "data": ["support request"], "integrations": ["existing identity platform"], "observable": "The request is accepted and visible."}
+    ],
+    "journeys": [
+      {"id": "J01", "outcome": "A support request reaches an actionable state.", "actors": ["customer", "support agent"], "capability_refs": ["C01"], "steps": ["Submit and observe the request."], "observable": "The support agent can act on it."}
+    ],
+    "quality_attribute_scenarios": []
+  },
+  "blocking_decision": null,
+  "sources": [
+    {"path": "README.md", "sha256": "<64 lowercase hex>", "kind": "repository"},
+    {"path": "docs/briefs/customer-support-portal.md", "sha256": "<64 lowercase hex>", "kind": "brief"}
+  ],
+  "evidence_fingerprint": "<64 lowercase hex>",
+  "criteria": [
+    {"id": "requirements-fit", "weight": 0.25, "basis": "<source-backed basis>"},
+    {"id": "quality-attribute-fit", "weight": 0.20, "basis": "<source-backed basis>"},
+    {"id": "repository-fit", "weight": 0.15, "basis": "<source-backed basis>"},
+    {"id": "evolvability", "weight": 0.15, "basis": "<source-backed basis>"},
+    {"id": "operability", "weight": 0.15, "basis": "<source-backed basis>"},
+    {"id": "delivery-feasibility", "weight": 0.10, "basis": "<source-backed basis>"}
+  ],
+  "hard_constraints": [
+    {"id": "HC01", "statement": "<non-negotiable constraint>", "basis": "<why it is hard>", "authority": "<human, accepted ADR, or policy>"}
+  ],
+  "options": [
+    {
+      "option_id": "A01",
+      "title": "<direction title>",
+      "summary": "<complete solution direction>",
+      "responsibilities_and_boundaries": ["<responsibility or boundary>"],
+      "runtime_and_deployment": ["<runtime or placement>"],
+      "data_ownership": ["<source of truth and ownership>"],
+      "integrations_and_failure": ["<flow and failure behavior>"],
+      "trust_residency_and_security": ["<trust, residency, and security treatment>"],
+      "quality_tactics": ["<quality-scenario tactic>"],
+      "migration_and_evolution": ["<migration and evolution path>"],
+      "capability_implications": ["C01 — <realization implication>"],
+      "assumptions": ["<assumption or explicit none with basis>"],
+      "irreversible_commitments": ["<commitment or explicit none with basis>"],
+      "constraint_verdicts": [
+        {"constraint_id": "HC01", "verdict": "pass", "basis": "<specific basis>"}
+      ],
+      "scores": [
+        {"criterion_id": "requirements-fit", "score": 5, "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
+        {"criterion_id": "quality-attribute-fit", "score": 4, "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
+        {"criterion_id": "repository-fit", "score": 4, "evidence_state": "observed", "evidence": ["README.md"]},
+        {"criterion_id": "evolvability", "score": 3, "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
+        {"criterion_id": "operability", "score": 4, "evidence_state": "inferred", "evidence": ["README.md"]},
+        {"criterion_id": "delivery-feasibility", "score": 4, "evidence_state": "inferred", "evidence": ["README.md"]}
+      ],
+      "weighted_score": 4.1,
+      "confidence": "medium",
+      "option_sha256": "<64 lowercase hex>"
+    }
+  ],
+  "eliminated_options": [],
+  "option_set_sha256": "<64 lowercase hex>",
+  "recommendation": {
+    "option_id": "A01",
+    "confidence": "medium",
+    "sensitivity": "stable",
+    "sensitivity_witness": null,
+    "basis": "<fit, trade-off, and leader-changing condition>"
+  },
+  "selection": {
+    "status": "direction-selected",
+    "option_id": "A01",
+    "option_sha256": "<same option hash>",
+    "decided_by": "human",
+    "rationale": "<human rationale>"
+  },
+  "next_owner": "ce-plan"
+}
+```
+
+Every eligible option carries all six score rows in the canonical criterion
+order and one verdict per hard constraint. A failed or unknown constraint makes
+the option ineligible, with `scores: []`, `weighted_score: null`, and
+`confidence: not-applicable`; `eliminated_options` exactly lists failed options.
+A fresh `direction-selected` exploration retains two to four complete
+directions, even when constraint gating leaves one eligible; a one-option
+artifact is valid only for a separately approved `adopted-existing` migration.
+For a `stable` or `not-applicable` recommendation, set
+`sensitivity_witness: null`. An `unstable` recommendation instead records the
+first deterministic leader-changing scenario as exactly `{scenario,
+criterion_id, challenger_option_id, evidence_bounds, condition}`. `scenario`
+is one of `base-score`, `evidence-range`, `weight-minus-25`, or
+`weight-plus-25`; `criterion_id` is the affected canonical criterion for a
+weight scenario and `null` otherwise; and `challenger_option_id` identifies the
+competing retained option. `evidence_bounds` is exactly
+`{recommended: exact, challenger: exact}` when the weight change alone ties or
+flips, otherwise `{recommended: lower, challenger: upper}` to expose the
+combined evidence-range condition. `condition` uses the canonical sentence
+template defined by exploration mode. The validator recomputes and pins every
+field, so generic or false sensitivity prose cannot authorize a selection.
+For `not-applicable`, `deferred`, or `waived`, keep
+the same top-level keys, use null selected-option fields, empty option arrays
+when no exploration ran, and record `decided_by: human` plus a non-empty basis.
+Every durable status retains the exact `evaluation_frame` and all six confirmed
+criteria/weights; an explicit N/A or defer is not an incomplete frame. Only a transient
+`requires-decision` carries a non-null `blocking_decision`, with two to four
+supplied bounded options for `/core-engineering:ce-decide`; every durable status
+sets it to `null`.
+
+Hash canonicalization is UTF-8 JSON with sorted object keys, compact separators,
+Unicode preserved, and finite numbers. `evidence_fingerprint` hashes the
+path-sorted complete `sources` array. An option hash covers that option with
+`option_sha256` omitted. The option-set hash covers ordered option id/hash pairs
+plus the complete ordered eliminated ledger. For a selected exploration,
+`exploration_id` is `AEX-` plus the first 12 characters of the option-set hash.
+`source_input_sha256` hashes the canonical decision-relevant projection of the
+confirmed input: revisions, evaluation frame, hard constraints, criteria, and
+complete source inventory; only the caller's parent-gate locator is excluded.
+Run `architecture-selection-lint.py` before publishing the plan.
 
 ---
 
@@ -444,6 +599,23 @@ None supplied.
 If pitfalls were added to `patterns.md`, mention the path.
 
 ---
+
+### Selected Architecture Direction
+
+First summarize the pre-decomposition direction without replacing its
+machine-readable authority:
+
+```markdown
+## Selected Architecture Direction
+
+| Status | Exploration | Selected option | Recommendation | Confidence / sensitivity | Binding | Human rationale |
+|---|---|---|---|---|---|---|
+| direction-selected | AEX-customer-support-1 | A02 — modular API + worker | A02 | medium / stable | `architecture-selection.json` (`<sha256>`) | Best fit for migration isolation while preserving the latency target. |
+```
+
+For `not-applicable`, `deferred`, or `waived`, render the explicit status and
+basis with no invented selected option. This table is a projection;
+`architecture-selection.json` and its manifest hash are authoritative.
 
 ### Architecture Disposition
 
@@ -855,6 +1027,16 @@ parsing Markdown.
     "triggers": ["shared-data-ownership-or-migration"],
     "rationale": "The source-of-truth and migration boundary shape the feature cut.",
     "decided_by": "human",
+    "direction": {
+      "status": "direction-selected",
+      "artifact": "architecture-selection.json",
+      "artifact_sha256": "<64 lowercase hex over exact file bytes>",
+      "exploration_id": "AEX-0123456789ab",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "<64 lowercase hex>",
+      "decided_by": "human",
+      "summary": "The selected direction keeps one write owner and an explicit migration boundary."
+    },
     "convergence": {
       "status": "converged",
       "iteration_count": 1,
@@ -883,25 +1065,41 @@ directory and must point to an existing `features/<id>.md`.
 
 ### `architecture_disposition` — architecture admission and convergence
 
-Every newly written full plan carries this object. A missing object is a legacy
-governance gap: plan lint reports it as an advisory, while specification,
-implementation, and auto-build route the plan to Stage R for assessment instead
-of assuming architecture is optional.
+Every newly written full plan carries this object and its `direction` binding.
+A missing object or direction is a legacy governance gap: plan lint reports it
+as an advisory by default, while specification, implementation, auto-build, and
+baseline architecture invoke the consumer flag and route the plan to Stage R
+instead of assuming architecture is optional.
 
 Consistency rules:
 
-| `decision` | Required convergence | Other invariants |
-|---|---|---|
-| `required` | `converged` | at least one trigger; `iteration_count >= 1`; a current approved architecture package is required before spec |
-| `recommended` | `converged` or `deferred` | at least one recommendation trigger; `converged` has `iteration_count >= 1`, `deferred` has `iteration_count: 0`; package absence is a visible coverage gap |
-| `not-required` | `not-applicable` | no triggers; `iteration_count: 0`; human-confirmed basis |
-| `waived` | `waived` | at least one trigger; `iteration_count >= 1`; explicit human rationale/summary; residual risk remains visible |
+| `decision` | Direction status | Required convergence | Other invariants |
+|---|---|---|---|
+| `required` | `direction-selected` or migrated `adopted-existing` | `converged` | at least one trigger; `iteration_count >= 1`; a current approved architecture package is required before spec |
+| `recommended` | selected/adopted, or `deferred` | `converged` or `deferred` | at least one recommendation trigger; selected/adopted plus `converged` has `iteration_count >= 1`; `deferred` has `iteration_count: 0`; package absence is a visible coverage gap |
+| `not-required` | `not-applicable` | `not-applicable` | no triggers; `iteration_count: 0`; human-confirmed basis |
+| `waived` | prior `direction-selected`/`adopted-existing`, or `waived` when no direction was selected | `waived` | at least one trigger; `iteration_count >= 1`; explicit human rationale/summary; residual risk remains visible |
 
 `decided_by` is `human`. `decision_refs` contains repository-relative paths to
 accepted ADRs and may be empty. Shaping convergence is not final architecture
 approval: the architecture package is written afterward so it can bind stable
 feature ids, `plan_revision`, and source hashes without a circular manifest
 dependency.
+
+For `recommended`, direction status and shaping convergence are independent:
+direction `deferred` means Stage 1A exploration itself was deferred; a selected
+direction with convergence `deferred` means the human approved a direction but
+deferred the candidate-shaping pass. Either convergence defer is copied from
+the explicit §5.4.1 human election for the same candidate revision—write time
+never infers it from the absence of a Stage 5A result.
+
+`direction.artifact` is exactly `architecture-selection.json`; its SHA-256 is
+over the exact file bytes. The exploration id and selected option id/hash must
+equal the selection artifact, with null selected fields for
+an artifact whose direction status is `not-applicable`, `deferred`, or `waived`.
+A post-decomposition shaping waiver preserves a prior selected option id/hash.
+Both the disposition and direction record
+`decided_by: human`; prose summaries never override the bound artifact.
 
 `triggers` contains only Stage 3.9 stable ids. Required routes use the nine
 load-bearing driver ids; recommended routes use only
@@ -978,7 +1176,31 @@ keyed by that same id, for example
 ticks that existing row after acceptance; it never guesses which checkbox owns
 the feature or appends a replacement row.
 
-**No `threat-model.md` / `interaction-contract.md`.** The single-feature minimal output deliberately omits both read-only re-projections: a one-feature plan has no cross-feature edge, no durable noun touched by >1 feature, and no cross-boundary surface *by construction*, so the *No Security Surface* / *No Cross-Feature Protocol* attested-negatives are satisfied by the directory shape itself — not a silent omission. If the lone feature later grows a real security or cross-feature surface, that is a Sizing-Gate re-evaluation into a full multi-feature plan, which writes both files.
+Inside `## 4. Single Feature`, include `### Security Projection`. Copy the
+Sizing Gate's human-confirmed feature-local trust/exposure screen: entry points,
+untrusted input, auth/authz, external integrations, secrets, and
+personal/sensitive data. Assign `TZ-NNN` only for a detected boundary/security
+surface and preserve this machine-readable block even when the list is empty:
+
+```yaml
+security_obligations:
+  - feature: 01-health-check
+    threat_ids: [TZ-001]
+    surface_kinds: [authz, validation]
+```
+
+When no surface is found, write an explicit assessed negative with the checked
+conditions, evidence, human confirmation, and `threat_ids: []`. This is not a
+claim that one feature has no security surface by construction. A sensitive or
+personal noun without an owned boundary remains an advisory; an unresolved
+security surface blocks the minimal write until the Sizing Gate is revisited.
+
+**No separate `threat-model.md` / `interaction-contract.md`.** The minimal file
+embeds its feature-local security projection so `/core-engineering:ce-spec` can
+enforce any `TZ-NNN` obligations. It omits `interaction-contract.md` because one
+feature has no cross-feature edge or multi-toucher protocol. Discovery of a new
+security obligation routes to plan revision; discovery of a cross-feature
+surface re-runs Sizing and normally expands to the full directory shape.
 
 ---
 

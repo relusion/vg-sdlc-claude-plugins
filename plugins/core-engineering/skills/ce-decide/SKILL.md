@@ -2,7 +2,7 @@
 name: ce-decide
 description: |
   Weigh two or more TECHNICAL/architecture options for one decision and render an evidence-tagged Adopt/Adopt-with-mitigations/Spike-first/Reject recommendation plus a proposed ADR — situation-derived weights, knockout gates, a falsifiable DEAD-IF. Engineering-side verdict (unlike /product-discovery:ce-idea-score, which scores PRODUCT ideas).
-  Triggers: choose between, compare, or weigh technical/architecture/fix options for one decision. For a complete cross-feature solution baseline rather than one option set, use /core-engineering:ce-architecture.
+  Triggers: choose between, compare, or weigh supplied technical/architecture/fix options for one bounded decision. For generation and scoring of complete solution directions or a cross-feature baseline, use /core-engineering:ce-architecture.
 argument-hint: "[the decision + options, or a path to a /core-engineering:ce-debug diagnosis or problem statement] [--evidence measured|reasoned]"
 allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill
 ---
@@ -36,7 +36,7 @@ naming one option — then draft a **proposed ADR** the human promotes.
 > repo, writes a dated never-overwritten snapshot). It is **one caller among several**,
 > **human-triggered**: a `/core-engineering:ce-debug` fix-fork (after the cause is **confirmed** — a
 > planned bug-route approach, or a plan-free investigation's settled cause), a `/core-engineering:ce-plan-audit` decision-quality finding, a `/core-engineering:ce-review`
-> structural finding, a human's pre-plan architecture call, or — as a **rigorous upgrade of
+> structural finding, a nested fork surfaced by architecture exploration, or — as a **rigorous upgrade of
 > an inline recommendation** — an escalation from `/core-engineering:ce-spec`'s unknown-resolution or `/core-engineering:ce-plan`'s
 > Sizing-Gate / candidate review on a consequential fork with no dominant option. Its output — a
 > **proposed ADR** — is consumed downstream: the human promotes it into `docs/adr/` and
@@ -343,6 +343,8 @@ The weighting is an opinionated profile, not a fact; read the vector, not just t
   before weighing fixes.
 - The decision is really a decomposition / boundary question → not this tool's job; route
   to `/core-engineering:ce-plan`.
+- The request is to generate and compare complete solution directions → route to
+  `/core-engineering:ce-architecture`; this skill requires a supplied bounded option set.
 - The decision is architecturally significant + cross-feature → draft the proposed ADR;
   the human promotes it into `docs/adr/`.
 - The human disagrees with the recommendation → record the **override**; the tool yields.

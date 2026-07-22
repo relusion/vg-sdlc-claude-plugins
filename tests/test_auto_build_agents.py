@@ -60,11 +60,16 @@ class AutoBuildMvp(unittest.TestCase):
         self.assertIn("../ce-review/artifact-template.md", text)
         self.assertIn('${CLAUDE_SKILL_DIR}/scripts/review-gate.py', text)
         self.assertNotIn("../ce-review/scripts/review-gate.py", text)
-        self.assertIn("status` / `blocking_high` schema", text)
+        self.assertIn("status` / `blocking_high` / `blocking_route` schema", text)
+        self.assertIn("--require-blocking-route --json", text)
 
     def test_review_retry_returns_state_to_implementing(self):
         text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("read the validated\n  gate JSON's `blocking_route`", text)
+        self.assertIn("park the feature as\n  `plan-conflict`", text)
+        self.assertIn("do **not** call `retry`, advance to `implementing`", text)
         self.assertIn("run `run-state.py advance <id> implementing`", text)
+        self.assertIn("For `implement`, call `retry`", text)
 
     def test_removed_advanced_components_are_not_shipped(self):
         for rel in (

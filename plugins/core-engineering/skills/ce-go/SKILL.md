@@ -40,16 +40,24 @@ Route on evidence you gather, not on what the user already knows:
 - **What is the plan's architecture prerequisite?** Before routing a full-plan
   request to `/core-engineering:ce-spec`, `/core-engineering:ce-implement`, or
   `/core-engineering:ce-auto-build`,
-  read `plan.json`'s `architecture_disposition` and lstat-check the sibling
-  `architecture` namespace. A missing/malformed legacy disposition or unfinished
-  required convergence routes to plan revision; a required, converged
+  read `plan.json`'s `architecture_disposition`, verify its direction binding,
+  and lstat-check the sibling `architecture` namespace. A missing/malformed
+  legacy disposition/direction or unfinished required convergence routes to
+  plan revision; a required, converged
   disposition with an absent package routes to architecture publication first.
   Do not treat a merely present package as validated — the destination runs the
-  consumer lint. Reproduce the full plan H9 check here; a partial pairing check
+  consumer lint. Reproduce the full plan H9/H10 check here; a partial pairing check
   is not enough for routing:
   - the disposition has exactly `decision`, `triggers`, `rationale`,
-    `decided_by`, and `convergence`; convergence has exactly `status`,
+    `decided_by`, `direction`, and `convergence`; convergence has exactly `status`,
     `iteration_count`, `summary`, and `decision_refs`;
+  - direction has exactly `status`, `artifact`, `artifact_sha256`,
+    `exploration_id`, `selected_option_id`, `selected_option_sha256`,
+    `decided_by`, and `summary`; `artifact` is exactly
+    `architecture-selection.json`, its artifact hash is lowercase SHA-256,
+    `decided_by: human` and summary are non-empty, and its status/ids agree with
+    the artifact; selected/adopted statuses require a selected id plus lowercase
+    SHA-256 option hash, while every unselected status requires both fields null;
   - `decision` is `required | recommended | not-required | waived`,
     `rationale` and `summary` are non-empty strings, `decided_by: human` is
     exact, both list fields contain only non-empty strings, and a non-negative
@@ -69,8 +77,11 @@ Route on evidence you gather, not on what the user already knows:
     `converged` and at least one iteration, or `deferred` and zero iterations,
     and always has a trigger;
     `not-required` pairs with `not-applicable`, no triggers, and zero
-    iterations; `waived` pairs with `waived`, at least one trigger, and at
-    least one iteration; and
+    iterations; direction status is selected/adopted for `required`,
+    selected/adopted/deferred for `recommended`, and `not-applicable` for
+    `not-required`; `waived` convergence has at least one trigger and iteration
+    and preserves a prior `direction-selected`/`adopted-existing` binding, or
+    uses a human-reaffirmed legacy `waived` direction with null selected fields; and
   - `plan_tier`, when present, is exactly `standard` or `light`, and a `light`
     plan cannot have decision `required`.
 
@@ -103,7 +114,7 @@ outside the markers — the parity lint reads only what is between them.
 | "how big is this change / what does it touch" for a work item | `/core-engineering:ce-impact` | read-only blast-radius read with open questions |
 | "teach me the system that was built" and a plan exists | `/core-engineering:ce-onboard` | paced, evidence-grounded walkthrough of the as-built code |
 | "teach me the business domain this code serves" — actors, nouns, rules, vocabulary | `/core-engineering:ce-domain` | paced domain walkthrough with every claim typed; the unevidenced *why*s go to a known-unknowns register, never narrated |
-| "which of these technical options should we pick" | `/core-engineering:ce-decide` | evidence-tagged engineering recommendation + proposed ADR |
+| "which of these supplied options should we pick" for one bounded technical fork | `/core-engineering:ce-decide` | evidence-tagged engineering recommendation + proposed ADR |
 
 **Something is broken**
 
@@ -118,8 +129,9 @@ outside the markers — the parity lint reads only what is between them.
 |---|---|---|
 | a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/core-engineering:ce-patch` | one express-only gate; any failed or uncertain screen routes to `/core-engineering:ce-plan` |
 | a raw idea that needs shaping before planning | `/core-engineering:ce-brief` | persona-lens interview → a planning-ready brief |
-| a real project/feature to decompose | `/core-engineering:ce-plan` | ordered, dependency-aware feature plan with gates |
-| a written full plan has no valid `architecture_disposition`, or says architecture is `required` but convergence is not `converged` | `/core-engineering:ce-plan` | Stage R must establish or finish the human-owned architecture disposition before downstream work |
+| a real project/feature to architect and decompose | `/core-engineering:ce-plan` | repository-grounded capability frame → conditional scored solution directions + human selection → ordered feature plan |
+| complete solution-architecture alternatives must be generated from requirements before planning | `/core-engineering:ce-plan` | it prepares the pre-decomposition frame and composes `/core-engineering:ce-architecture explore:<slug>` safely |
+| a written full plan has no valid `architecture_disposition` or direction binding, or says architecture is `required` but convergence is not `converged` | `/core-engineering:ce-plan` | Stage R must establish or finish the human-owned direction/disposition before downstream work |
 | a request would specify or implement a planned feature, or auto-build a whole plan, and that plan says architecture is `required` + `converged` but its `architecture` namespace is absent | `/core-engineering:ce-architecture` | publish the required, governed, current solution baseline before specification or implementation starts |
 | a written multi-feature plan that needs system context, runtime/container, deployment, data/integration, and quality views | `/core-engineering:ce-architecture` | plan-backed cross-feature solution baseline with source hashes, traceability, gaps, and human approval |
 | ONE already-planned feature to detail | `/core-engineering:ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |

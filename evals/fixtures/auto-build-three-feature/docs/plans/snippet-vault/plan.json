@@ -11,6 +11,16 @@
       "iteration_count": 1,
       "summary": "The first shaping result was explicitly waived for the controlled fixture run.",
       "decision_refs": []
+    },
+    "direction": {
+      "status": "waived",
+      "artifact": "architecture-selection.json",
+      "artifact_sha256": "c3629995147ee77ffbdfd372722ae0440e1126f06c1550f6ff5003d2aa4002b6",
+      "exploration_id": "AEX-waived-r1",
+      "selected_option_id": null,
+      "selected_option_sha256": null,
+      "decided_by": "human",
+      "summary": "The human waived pre-decomposition direction selection for this controlled legacy fixture."
     }
   },
   "relates_to": [],

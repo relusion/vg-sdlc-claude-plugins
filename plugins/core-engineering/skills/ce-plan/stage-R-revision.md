@@ -43,7 +43,10 @@ memory:
 
 - `plan.json` (the manifest — ship order, deps, feature files, current
   `plan_revision`, and `architecture_disposition`; **absent revision ⇒ 1**,
-  absent disposition ⇒ legacy-unassessed and therefore a revision delta);
+  absent disposition or direction binding ⇒ legacy-unassessed and therefore a
+  revision delta);
+- `architecture-selection.json` when named by the disposition; verify its exact
+  file hash and selected-option hash before treating the direction as held;
 - every `features/<id>.md`;
 - `feature-plan.md` (Journey Map / Consumability Trace, Dependency Flow, Notes);
 - `shared-context.md` (Codebase Profile, Architecture Disposition, Resolved
@@ -81,7 +84,7 @@ features/rows in each:
 | **feature re-ordered** | ship order changed; no scope change | "`05` ships before `04`" |
 | **feature removed** | an existing feature dropped from the plan | "drop `06-legacy-import`" |
 | **boundary row touched** | a `threat-model.md` (`TZ-NNN`) or `interaction-contract.md` (`IC-NNN`) row added / changed / removed, or a §6.3 durable-noun closure row moved (a new persisted noun, a data-class change, a new cross-feature edge) | "checkout now writes `refund` (sensitive)" |
-| **architecture posture touched** | applicability triggers, disposition, convergence evidence, waiver, accepted ADR refs, or another decomposition-shaping architecture driver changed; this includes adding the first disposition to a legacy plan | "shared order writes now require a migration owner" |
+| **architecture posture touched** | applicability triggers, evaluation-frame capabilities/constraints/quality priorities, selected direction or hashes, disposition, convergence evidence, waiver, accepted ADR refs, or another decomposition-shaping architecture driver changed; this includes adding the first disposition/direction binding to a legacy plan | "shared order writes now require a migration owner" |
 
 A change that fits **no** bucket (a pure typo in a description, a Notes clarification) is not
 a revision that reopens a gate — apply it, bump `plan_revision`, and skip straight to R.6.
@@ -102,7 +105,8 @@ triggered by any bucket is **held from revision N-1**:
 | **Session-Fit (§7)** | any feature **added / re-cut / removed** | re-check 7.1 graph soundness, 7.2 MODIFY-reach, 7.5 Boundary-Owner uniqueness, 7.6 unknowns, 7.7 bridge integrity, 7.8 Interface Foundation — over the changed feature set (correctness; mostly autonomous, interactive only on a 7.8 consented exception) |
 | **8.2.1 Threat-model attestation** `[material]` | a **boundary row touched** that adds/changes a `TZ-NNN`, a trust boundary, or a §6.3 durable noun's data-class | attest **only** the changed `TZ-NNN` rows; unchanged threat rows are held |
 | **8.2.2 Interaction-contract attestation** `[material]` | a **boundary row touched** that adds/changes an `IC-NNN` (a cross-feature edge or a >1-touched durable noun moved) | attest **only** the changed `IC-NNN` rows; unchanged contract rows are held |
-| **Architecture applicability + convergence (Stage 3.9 / 5A)** `[material, conditional]` | any feature add/remove/re-cut/re-order, boundary-row change, architecture-posture change, accepted architecture decision, or missing legacy disposition | re-screen the whole affected system boundary; invoke `/core-engineering:ce-architecture shape:<slug>` when required, and accept only a result bound to the revised candidate |
+| **Architecture direction selection (Stage 1A)** `[material, conditional]` | capabilities, hard constraints, QA scenarios/priorities, accepted architecture decisions, evidence basis, or selected option changed; also a missing legacy direction binding | rerun the capability-level Evaluation Frame and `/core-engineering:ce-architecture explore:<slug>` before revising detailed decomposition; require a fresh human-selected option binding |
+| **Architecture applicability + convergence (Stage 3.9 / 5A)** `[material, conditional]` | any feature add/remove/re-cut/re-order, boundary-row change, architecture-posture change, accepted architecture decision, or missing legacy disposition/direction | re-screen the whole affected system boundary after direction selection; invoke `/core-engineering:ce-architecture shape:<slug>` when required, and accept only a result bound to the revised candidate and selected option |
 
 **Gate locators (R5) are recomputed for this reduced set.** Two gates always fire in a
 revision — **R.3 Revision Delta Confirmation** and **R.6 Final Revision Approval** — plus
@@ -167,7 +171,21 @@ Run **only** the gates R.2 marked as triggered, at the same rigor and in this
 fresh-plan order. Reuse the existing gate procedures, never a revision-only
 variant:
 
-1. **Pre-Reachability architecture applicability / convergence** → when R.2
+1. **Pre-decomposition architecture direction** → when R.2 reopened direction
+   selection, load `${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md` in
+   revision mode. Rebuild only affected capability, hard-constraint,
+   quality-scenario, priority, and evidence rows; hold the rest. Confirm the
+   Evaluation Frame and apply the same Stage 1A route as a fresh plan: a
+   required route invokes `/core-engineering:ce-architecture explore:<slug>` and
+   requires `direction-selected`; a recommended route may be human-deferred;
+   and an all-negative route may be human-confirmed `not-applicable`. Only then
+   may a detailed feature re-cut begin. A failed or unknown hard constraint
+   parks; a weighted score can never compensate for it. For a legacy plan with
+   a current human-approved baseline but no direction binding, offer a separate
+   migration gate: adopt one complete, source-backed existing direction as
+   `adopted-existing`, explore afresh, or park. Adoption still constructs and
+   hash-binds the complete option; it never treats package presence as consent.
+2. **Pre-Reachability architecture applicability / convergence** → when R.2
    reopened architecture, run Stage 3.9 and
    `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md` before any
    Reachability or Session-Fit work. Treat the frozen plan as candidate revision
@@ -177,31 +195,33 @@ variant:
    `Stable source (revision only)`; new features use the next free provisional
    id with `None (new)`. This is not a rename. Translate every returned delta
    through the alias map before showing it, and never let architecture alter a
-   stable id. Architecture proposes; Stage R and the human alone modify the
-   plan. Stage 5A's Stage R caller mapping returns here, never to a fresh-plan
-   stage.
-2. **Reachability** → re-render `stage-4-7-gates.md` §6.6 (the Reachability Decision, its
+   stable id or substitute a different selected architecture option.
+   Architecture proposes; Stage R and the human alone modify the plan. Stage
+   5A's Stage R caller mapping returns here, never to a fresh-plan stage.
+3. **Reachability** → re-render `stage-4-7-gates.md` §6.6 (the Reachability Decision, its
   full legend and consequence-glossary) for **only** the journeys whose step-owners
   changed. Untouched journeys are shown as *held from revision N-1* with their prior
   dispositions; do not re-ask them. The §6.6 checkpoint appends as usual.
-3. **Post-Reachability architecture re-screen** → whenever Reachability ran,
+4. **Post-Reachability architecture re-screen** → whenever Reachability ran,
    rerun Stage 3.9 against its accepted journey, durable-state, continuity,
    trust/data, media, and NFR evidence. If that changed the candidate revision,
    triggers, decisions, or evidence boundary, invoke Stage 5A again and do not
    enter Session-Fit until the result is current or human-waived.
-4. **Session-Fit** → run `stage-4-7-gates.md` §7 (7.1–7.8) over the changed feature set.
+5. **Session-Fit** → run `stage-4-7-gates.md` §7 (7.1–7.8) over the changed feature set.
   This is correctness, not ceremony — a re-cut that breaks graph soundness or
   Boundary-Owner uniqueness **fails and loops back** exactly as in a fresh run. It is
   interactive only when 7.8 needs a consented exception (which then gets its own locator).
-5. **8.2.1 / 8.2.2 attestations** → run `stage-8-9-write.md` §8.2.1 / §8.2.2 for **only** the
+6. **8.2.1 / 8.2.2 attestations** → run `stage-8-9-write.md` §8.2.1 / §8.2.2 for **only** the
   changed `TZ-NNN` / `IC-NNN` rows. Each changed row is attested evidence-first with its
   basis + cost-if-wrong from the shared glossary, exactly as in a fresh run; unchanged rows
   are held. Their checkpoints append as usual.
-6. **Post-attestation architecture convergence recheck** → run
+7. **Post-attestation architecture convergence recheck** → run
    `stage-8-9-write.md` §8.2.4 after the changed TZ/IC attestations and before
    R.6. Any changed threat, interaction, NFR, decision, trigger, or evidence row
-   invalidates the prior result and returns to Stage 5A. A current result may
-   pass autonomously; a new material outcome gets its own recomputed locator.
+   invalidates the prior result. If it changes the selected direction's frame or
+   viability, return to Stage 1A and reselect before Stage 5A; otherwise return
+   directly to Stage 5A. A current result may pass autonomously; a new material
+   outcome gets its own recomputed locator.
 
 Because Stage R reuses those procedures verbatim, the shared consequence-glossary lives in
 exactly one place (§6.6's runtime Legend); Stage R never re-defines a gloss.
@@ -229,10 +249,15 @@ Before writing:
 - **Removed features** — drop their `features/<id>.md` and manifest entry. If a
   `specs/<id>/` exists for a removed feature, **do not delete it silently**: name it in the
   R.6 render as an orphaned spec the human disposes of (keep for history / delete manually).
-- **Preserve architecture disposition and decision-ledger bytes only when the
-  architecture gate is legitimately held.** Otherwise update
-  `architecture_disposition` in `plan.json` and the matching Architecture
-  Disposition / Resolved Project Decisions sections in `shared-context.md`.
+- **Preserve or replace independent locks independently.** Preserve
+  `architecture-selection.json` byte-for-byte whenever the capability/evaluation
+  frame, evidence fingerprints, and direction choice are legitimately held,
+  even when shaping convergence must rerun. Replace it only after Stage 1A
+  returns a newly reviewed selected/deferred/N/A binding. Preserve convergence
+  only when its candidate/evidence binding is held. Then update the direction
+  file hash and `architecture_disposition` in `plan.json` plus only the matching
+  shared-context sections. A convergence waiver never erases the direction that
+  shaped decomposition.
 
 ---
 
@@ -273,9 +298,11 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
    journeys), and — **only if a boundary row moved** — re-project `threat-model.md` /
    `interaction-contract.md` from the changed rows (still a read-only re-projection, never a
    fresh set of decisions; unchanged rows copied verbatim). Untouched re-projections are not
-   rewritten. When architecture posture changed, also write the new
-   `architecture_disposition` in `plan.json` and only the Architecture
-   Disposition / Resolved Project Decisions sections in `shared-context.md`.
+   rewritten. When architecture posture changed, also write the exact reviewed
+   `architecture-selection.json`, the new `architecture_disposition` and file
+   hash in `plan.json`, and only the Architecture Disposition / Resolved Project
+   Decisions sections in `shared-context.md`. Never reconstruct options or
+   scores from a prose summary.
 3. **Append the revision rationale to Notes (§13)** in `feature-plan.md`: `plan-revision <N>`
    — what changed, why, which gates re-ran, and which were held from `N-1`. The Notes
    history is the on-disk audit trail of how the plan evolved.

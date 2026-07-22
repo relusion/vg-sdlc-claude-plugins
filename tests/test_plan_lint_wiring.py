@@ -24,11 +24,23 @@ ARCHITECTURE_COPY = "plugins/core-engineering/skills/ce-architecture/scripts/pla
 SPEC_COPY = "plugins/core-engineering/skills/ce-spec/scripts/plan-lint.py"
 IMPLEMENT_COPY = "plugins/core-engineering/skills/ce-implement/scripts/plan-lint.py"
 
+SELECTION_CANONICAL = (
+    "plugins/core-engineering/skills/ce-plan-audit/scripts/architecture-selection-lint.py"
+)
+SELECTION_COPIES = [
+    "plugins/core-engineering/skills/ce-architecture/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-plan/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-auto-build/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-spec/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-implement/scripts/architecture-selection-lint.py",
+]
+
 PLAN_STAGE = REPO / "plugins/core-engineering/skills/ce-plan/stage-8-9-write.md"
 PLAN_SKILL = REPO / "plugins/core-engineering/skills/ce-plan/SKILL.md"
 AUTOBUILD_STAGE0 = REPO / "plugins/core-engineering/skills/ce-auto-build/stage-0-kickoff.md"
 
-INVOCATION = 'scripts/plan-lint.py" docs/plans/<slug> --json'
+PLAN_LINT_COMMAND = 'scripts/plan-lint.py"'
+REQUIRED_DIRECTION_FLAG = "--require-architecture-direction"
 
 
 class PlanLintForkRegistration(unittest.TestCase):
@@ -70,10 +82,42 @@ class PlanLintForkRegistration(unittest.TestCase):
             "ce-implement plan-lint copy drifted from canonical",
         )
 
+    def test_selection_lint_registered_for_every_plan_lint_consumer(self):
+        data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        entry = next(
+            (
+                fork
+                for fork in data["forks"]
+                if fork.get("canonical") == SELECTION_CANONICAL
+            ),
+            None,
+        )
+        self.assertIsNotNone(
+            entry,
+            "architecture-selection-lint.py must be registered in fork-manifest.json",
+        )
+        self.assertEqual(entry["copies"], SELECTION_COPIES)
+
+    def test_selection_lint_copies_are_byte_identical(self):
+        canonical = (REPO / SELECTION_CANONICAL).read_bytes()
+        for copy in SELECTION_COPIES:
+            with self.subTest(copy=copy):
+                self.assertEqual((REPO / copy).read_bytes(), canonical)
+
+    def test_plan_lint_loads_only_its_colocated_selection_validator(self):
+        canonical = (REPO / CANONICAL).read_text(encoding="utf-8")
+        self.assertIn(
+            'Path(__file__).with_name("architecture-selection-lint.py")', canonical
+        )
+        self.assertNotIn("skills/ce-plan-audit", canonical)
+
 
 class PlanWriteTimeGateWiring(unittest.TestCase):
     def test_stage9_invokes_plan_lint_over_written_dir(self):
-        self.assertIn(INVOCATION, PLAN_STAGE.read_text(encoding="utf-8"))
+        text = PLAN_STAGE.read_text(encoding="utf-8")
+        lint = text.index(PLAN_LINT_COMMAND)
+        self.assertIn("docs/plans/<slug>", text[lint:])
+        self.assertIn(REQUIRED_DIRECTION_FLAG, text[lint:])
 
     def test_stage9_states_exit_code_disposition(self):
         text = PLAN_STAGE.read_text(encoding="utf-8")
@@ -100,7 +144,9 @@ class PlanWriteTimeGateWiring(unittest.TestCase):
 class AutoBuildKickoffWiring(unittest.TestCase):
     def test_stage0_plan_lints_before_spawn(self):
         text = AUTOBUILD_STAGE0.read_text(encoding="utf-8")
-        self.assertIn(INVOCATION, text)
+        lint = text.index(PLAN_LINT_COMMAND)
+        self.assertIn("docs/plans/<slug>", text[lint:])
+        self.assertIn(REQUIRED_DIRECTION_FLAG, text[lint:])
         self.assertIn("before any spawn", text)
 
     def test_stage0_states_exit_code_disposition(self):

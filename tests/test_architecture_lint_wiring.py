@@ -58,14 +58,16 @@ class ArchitectureLintWiring(unittest.TestCase):
     def test_spec_validates_present_package_and_routes_absence_by_disposition(self):
         stage = (SPEC / "stage-0-1-frame-resolve.md").read_text(encoding="utf-8")
         self.assertIn("scripts/plan-lint.py", stage)
+        self.assertIn("scripts/architecture-selection-lint.py", stage)
         self.assertIn("scripts/architecture-lint.py", stage)
+        self.assertIn("--require-architecture-direction --json", stage)
         self.assertIn("--consumer --json", stage)
         self.assertIn("architecture_disposition", stage)
         self.assertIn("`required` + convergence `converged`", stage)
         self.assertIn("coverage gap — recommended package absent", stage)
         self.assertIn("N/A — plan disposition not-required", stage)
         self.assertIn("Architecture: waived by human", stage)
-        self.assertIn("legacy advisory\n  `A12`", stage)
+        self.assertIn("legacy `A12`/`A13` gaps are defects", stage)
         self.assertIn("readable ADR recorded as accepted", stage)
         self.assertIn("repository evidence drift", stage)
         self.assertIn("data entities/lifecycle", stage)
@@ -73,6 +75,10 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("present package is never", stage)
         self.assertLess(
             stage.index("scripts/plan-lint.py"),
+            stage.index("scripts/architecture-selection-lint.py"),
+        )
+        self.assertLess(
+            stage.index("scripts/architecture-selection-lint.py"),
             stage.index("scripts/architecture-lint.py"),
         )
 
@@ -80,13 +86,23 @@ class ArchitectureLintWiring(unittest.TestCase):
         stage = (AUTO_BUILD / "stage-0-kickoff.md").read_text(encoding="utf-8")
         self.assertIn("### 1.1 Enforce the architecture disposition", stage)
         self.assertIn("scripts/plan-lint.py", stage)
+        self.assertIn("scripts/architecture-selection-lint.py", stage)
         self.assertIn("scripts/architecture-lint.py", stage)
+        self.assertIn("--require-architecture-direction --json", stage)
         self.assertIn("--consumer --json", stage)
         self.assertIn("recommended architecture package absent", stage)
         self.assertIn("N/A — plan disposition not-required", stage)
         self.assertIn("human waiver rationale", stage)
-        self.assertIn("legacy advisory\n  `A12`", stage)
+        self.assertIn("legacy `A12`/`A13` gaps are also blocking", stage)
         self.assertIn("both a fresh\nrun and `--resume`", stage)
+        self.assertLess(
+            stage.index("scripts/plan-lint.py"),
+            stage.index("scripts/architecture-selection-lint.py"),
+        )
+        self.assertLess(
+            stage.index("scripts/architecture-selection-lint.py"),
+            stage.index("scripts/architecture-lint.py"),
+        )
         self.assertLess(
             stage.index("### 1.1 Enforce the architecture disposition"),
             stage.index("## 2. Check the execution baseline"),
@@ -103,15 +119,17 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("/core-engineering:ce-plan` Stage R", skill)
         self.assertIn("Never claim presence means current", skill)
 
-    def test_go_applies_full_h9_before_every_downstream_build_route(self):
+    def test_go_applies_full_h9_h10_before_every_downstream_build_route(self):
         skill = GO.read_text(encoding="utf-8")
         self.assertIn(
             "`/core-engineering:ce-spec`, `/core-engineering:ce-implement`, or\n"
             "  `/core-engineering:ce-auto-build`",
             skill,
         )
-        self.assertIn("Reproduce the full plan H9 check here", skill)
+        self.assertIn("Reproduce the full plan H9/H10 check here", skill)
         self.assertIn("has exactly `decision`, `triggers`, `rationale`", skill)
+        self.assertIn("direction has exactly `status`, `artifact`, `artifact_sha256`", skill)
+        self.assertIn("`architecture-selection.json`", skill)
         self.assertIn("non-boolean integer >= 0", skill)
         self.assertIn("`explicit-architecture-deliverable`", skill)
         self.assertIn("`baseline-preference`", skill)
@@ -120,7 +138,7 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("`recommended` uses only the final three recommendation ids", skill)
         self.assertIn("and pairs with\n    `converged`", skill)
         self.assertIn("`deferred` and zero iterations", skill)
-        self.assertIn("`waived` pairs with `waived`", skill)
+        self.assertIn("preserves a prior `direction-selected`/`adopted-existing` binding", skill)
         self.assertIn("`plan_tier`, when present, is exactly `standard` or `light`", skill)
         self.assertIn("single-feature minimal plan records the prerequisite\n   `N/A by construction`", skill)
 
@@ -128,13 +146,19 @@ class ArchitectureLintWiring(unittest.TestCase):
         skill = IMPLEMENT.read_text(encoding="utf-8")
         preflight = skill.index("Complete the architecture preflight")
         lint = skill.index('scripts/plan-lint.py')
+        selection_lint = skill.index("scripts/architecture-selection-lint.py")
+        architecture_lint = skill.index("scripts/architecture-lint.py")
         trust = skill.index("After that preflight, load the spec")
         mutation = skill.index("Ensure `.test-guard/` is ignored")
         self.assertLess(preflight, lint)
-        self.assertLess(lint, trust)
+        self.assertLess(lint, selection_lint)
+        self.assertLess(selection_lint, architecture_lint)
+        self.assertLess(architecture_lint, trust)
         self.assertLess(trust, mutation)
-        self.assertIn("`A12` means the disposition is absent", skill)
-        self.assertIn("/core-engineering:ce-plan` Stage R", skill)
+        self.assertIn("legacy missing disposition/direction (`A12`/`A13`)", skill)
+        self.assertIn("Exit 1 or 2 routes to Stage R before the spec is trusted", skill)
+        self.assertIn("--require-architecture-direction --json", skill)
+        self.assertIn("scripts/architecture-selection-lint.py", skill)
         self.assertIn("scripts/architecture-lint.py", skill)
         self.assertIn("--consumer --json", skill)
         self.assertIn("`convergence.decision_refs` entry", skill)
@@ -168,15 +192,20 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("--expected-token <reviewed-64-lowercase-sha256>", stage)
         self.assertIn("`removed_paths`, do not claim rollback or completion", stage)
 
-    def test_baseline_architecture_routes_legacy_plan_to_revision_first(self):
+    def test_baseline_architecture_requires_selection_and_direction_before_synthesis(self):
         stage = (ARCH / "stage-0-2-evidence-model.md").read_text(encoding="utf-8")
-        lint = stage.index("### 0.4 Run the full-plan floor")
-        legacy = stage.index("legacy\n  advisory `A12`", lint)
-        synthesis = stage.index("uses the normal workflow below", legacy)
-        self.assertLess(lint, legacy)
-        self.assertLess(legacy, synthesis)
-        self.assertIn("route to `/core-engineering:ce-plan`\n  Stage R", stage[legacy:synthesis])
-        self.assertIn("Do\n  not publish a package", stage[legacy:synthesis])
+        floor = stage.index("### 0.4 Run the full-plan floor")
+        selection_lint = stage.index("scripts/architecture-selection-lint.py", floor)
+        plan_lint = stage.index("scripts/plan-lint.py", selection_lint)
+        synthesis = stage.index("uses the normal workflow below", plan_lint)
+        self.assertLess(floor, selection_lint)
+        self.assertLess(selection_lint, plan_lint)
+        self.assertLess(plan_lint, synthesis)
+        self.assertIn("--require-architecture-direction --json", stage[plan_lint:synthesis])
+        self.assertIn("either exit 1", stage[selection_lint:synthesis])
+        self.assertIn("either exit 2", stage[selection_lint:synthesis])
+        self.assertIn("route to `/core-engineering:ce-plan` Stage R", stage[selection_lint:synthesis])
+        self.assertIn("absent legacy posture or direction routes to Stage R", stage[selection_lint:synthesis])
 
     def test_all_absence_routes_park_on_publish_transaction_state(self):
         architecture = (ARCH / "stage-0-2-evidence-model.md").read_text(
@@ -204,6 +233,7 @@ class ArchitectureLintWiring(unittest.TestCase):
         plan = (plan_dir / "feature-plan.md").read_text(encoding="utf-8")
 
         self.assertFalse((plan_dir / "plan.json").exists())
+        self.assertFalse((plan_dir / "architecture-selection.json").exists())
         self.assertFalse((plan_dir / "shared-context.md").exists())
         self.assertFalse((plan_dir / "features").exists())
         self.assertEqual(len(re.findall(r"^## 4\. Single Feature\s*$", plan, re.M)), 1)
@@ -217,6 +247,14 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertEqual(runs, [(slug, ids[0])])
         checkboxes = re.findall(r"^- \[ \] (\S+) — implemented and verified\s*$", plan, re.M)
         self.assertEqual(checkboxes, ids)
+        self.assertIn("### Security Projection", plan)
+        self.assertRegex(
+            plan,
+            r"security_obligations:\s*\n\s*- feature: 01-health-check\s*\n"
+            r"\s*threat_ids: \[\]",
+        )
+        self.assertIn("assessment: assessed-negative", plan)
+        self.assertIn("confirmed_by: human", plan)
 
     def test_minimal_plan_routes_before_full_plan_floor(self):
         architecture = (ARCH / "stage-0-2-evidence-model.md").read_text(
@@ -235,6 +273,7 @@ class ArchitectureLintWiring(unittest.TestCase):
         write = (SPEC / "stage-4-5-tasks-write.md").read_text(encoding="utf-8")
         for text in (stage, skill):
             self.assertIn("plan_mode: single-feature-minimal", text)
+            self.assertIn("architecture-selection.json", text)
             self.assertIn("Feature ID: <id>", text)
             self.assertIn("Run: /core-engineering:ce-spec <slug>/<id>", text)
             self.assertIn("sole plan authority", text)
@@ -262,11 +301,28 @@ class ArchitectureLintWiring(unittest.TestCase):
             self.assertIn("N/A by construction", text)
             self.assertIn("/core-engineering:ce-plan", text)
         self.assertIn("sole plan context", implement)
-        self.assertIn("ordinary\n  Security and Correctness lenses still run", review)
+        self.assertIn("the ordinary Security and Correctness lenses still run", review)
+
+    def test_review_consumes_minimal_inline_security_projection(self):
+        review = REVIEW.read_text(encoding="utf-8")
+        self.assertIn("including its inline\n  `### Security Projection`", review)
+        self.assertIn("matching `security_obligations` row", review)
+        self.assertIn("An explicit `threat_ids: []` is an\n   assessed negative", review)
+        self.assertIn(
+            "Record only the\n   interaction contract and cross-feature obligations `N/A by construction`",
+            review,
+        )
+        self.assertIn("minimal plan's inline Security Projection", review)
+        self.assertIn("previously undocumented untrusted entry reaches the sink", review)
+        self.assertIn("name the projection contradiction as `plan_conflict`", review)
+        self.assertIn("set `suggested_escalation` to `/core-engineering:ce-plan`", review)
+        self.assertIn("defect is also `confirmed`", review)
+        self.assertNotIn("record both plan-owned projections `N/A by\n   construction`", review)
 
     def test_implement_reuses_minimal_plan_authority(self):
         implement = IMPLEMENT.read_text(encoding="utf-8")
         self.assertIn("plan_mode: single-feature-minimal", implement)
+        self.assertIn("architecture-selection.json", implement)
         self.assertIn("feature-plan.md` as the\n  sole plan context", implement)
         self.assertIn("ce-spec.md` + `tasks.json` remain the implementation authority", implement)
         self.assertIn("mixed shape", implement)
@@ -282,6 +338,10 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("ce-auto-build/scripts/architecture-lint.py", manifest)
         self.assertIn("ce-implement/scripts/architecture-lint.py", manifest)
         self.assertIn("ce-implement/scripts/plan-lint.py", manifest)
+        self.assertIn("ce-architecture/scripts/architecture-selection-lint.py", manifest)
+        self.assertIn("ce-spec/scripts/architecture-selection-lint.py", manifest)
+        self.assertIn("ce-auto-build/scripts/architecture-selection-lint.py", manifest)
+        self.assertIn("ce-implement/scripts/architecture-selection-lint.py", manifest)
         self.assertEqual(
             (ARCH / "scripts/architecture-lint.py").read_bytes(),
             (SPEC / "scripts/architecture-lint.py").read_bytes(),
@@ -293,6 +353,18 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertEqual(
             (ARCH / "scripts/architecture-lint.py").read_bytes(),
             (REPO / "plugins/core-engineering/skills/ce-implement/scripts/architecture-lint.py").read_bytes(),
+        )
+        self.assertEqual(
+            (ARCH / "scripts/architecture-selection-lint.py").read_bytes(),
+            (SPEC / "scripts/architecture-selection-lint.py").read_bytes(),
+        )
+        self.assertEqual(
+            (ARCH / "scripts/architecture-selection-lint.py").read_bytes(),
+            (AUTO_BUILD / "scripts/architecture-selection-lint.py").read_bytes(),
+        )
+        self.assertEqual(
+            (ARCH / "scripts/architecture-selection-lint.py").read_bytes(),
+            (REPO / "plugins/core-engineering/skills/ce-implement/scripts/architecture-selection-lint.py").read_bytes(),
         )
 
 

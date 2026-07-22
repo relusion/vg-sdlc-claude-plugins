@@ -17,19 +17,26 @@ other relevant ADRs.
 Run the structural gate before any spawn:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --require-architecture-direction --json
 ```
 
-- `exit 0`: inspect both the manifest and advisory output. If the
-  `architecture_disposition` field is absent, plan-lint reports legacy advisory
-  `A12`; stop and route that unassessed plan to `/core-engineering:ce-plan`
-  Stage R. The lint compatibility pass is not permission to keep the former
-  optional behavior. Otherwise continue.
+- `exit 0`: continue with the lint-validated manifest and human-bound direction.
 - `exit 1`: stop and route the reported hard planning defects to
   `/core-engineering:ce-plan`. A malformed *present* disposition is one such
-  defect; a missing legacy disposition follows the exit-0 `A12` route above.
+  defect; legacy `A12`/`A13` gaps are also blocking in this consumer mode.
 - `exit 2`: stop because auto-build cannot establish a trustworthy plan. A human
   may choose an interactive workflow instead.
+
+Before resolving the run baseline, run:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+  docs/plans/<slug>/architecture-selection.json --json
+```
+
+Exit 1 or 2 stops at `/core-engineering:ce-plan` Stage R. Never spawn from a
+missing, malformed, hash-mismatched, hard-constraint-invalid, or unselected
+direction artifact.
 
 ### 1.1 Enforce the architecture disposition
 

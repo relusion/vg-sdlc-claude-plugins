@@ -36,8 +36,8 @@ before the plan is frozen. It returns analysis to planning and writes nothing.
 6. **Return exactly one result status:** `converged`,
    `requires-plan-delta`, `requires-decision`, or `blocked`. Do not emit
    `approved`, `proposed`, `approved-with-gaps`, `pass`, or another status. A
-   result is valid only for the echoed `source_candidate_revision` and
-   `source_shaping_attempt`.
+   result is valid only for the echoed `source_candidate_revision`,
+   `source_shaping_attempt`, and complete `source_shaping_input_sha256`.
 7. **No authority transfer.** Never approve or publish architecture, accept
    security/compliance risk, promote an ADR, commit, push, deploy, provision, or
    claim implementation or production readiness.
@@ -52,6 +52,7 @@ Read the **last complete** block delimited by these headings in
 draft_slug: <slug>
 candidate_revision: <positive integer>
 shaping_attempt: <positive integer, increasing for every handoff>
+shaping_input_sha256: <64 lowercase hex binding the complete block body>
 parent_gate_index: <positive integer>
 parent_gate_total: <positive integer >= parent_gate_index>
 project_intent: <one bounded statement>
@@ -59,6 +60,12 @@ non_goals: <explicit list or `none`>
 architecture_triggers: <semicolon-separated trigger-id => evidence basis, or `none`>
 evidence_paths: <repository-relative paths, or `none`>
 accepted_decisions: <accepted ADR paths / plan-ledger decisions, or `none`>
+architecture_selection_path: <docs/plans/.drafts/<slug>/architecture-selection.json>
+architecture_selection_sha256: <64 lowercase hex over that exact file>
+architecture_direction_status: <direction-selected | adopted-existing | not-applicable | deferred | waived>
+exploration_id: <selection exploration id>
+selected_option_id: <A01-A04 / accepted-existing id, or `None`>
+selected_option_sha256: <64 lowercase hex, or `None`>
 
 ### Provisional Features
 <Pnn ids, revision-only stable source when applicable, titles, type, scope,
@@ -89,6 +96,32 @@ are non-decreasing. A later attempt may retain the same candidate revision when
 only its evidence boundary changed. Duplicate/decreasing attempts or a
 decreasing candidate revision are ambiguous and therefore `blocked`.
 
+Recompute `shaping_input_sha256` over the exact UTF-8 bytes between the
+delimiter headings after removing exactly the one
+`shaping_input_sha256:` line and performing no other whitespace normalization.
+Reject a missing, malformed, or mismatched hash before repository analysis.
+Re-read and re-hash the same latest block immediately before returning a result;
+any change returns `blocked` for `shaping-input-changed`.
+
+Require all six direction fields. The selection path is always the exact
+draft-relative path, the selection hash is 64 lowercase hexadecimal characters,
+the exploration id is non-empty, and the direction status uses the declared
+vocabulary. Resolve the selection path beneath the matching draft
+directory without traversal or symlinks, require a regular file, recompute its
+SHA-256, parse its canonical result, and require its exploration id, selected
+status, option id, and option hash to match this handoff exactly. The selected
+option id/hash are an atomic pair: both are populated for
+`direction-selected`/`adopted-existing`, and both are `None` for
+`not-applicable`/`deferred`/`waived`. Any mixed state is invalid. A required
+architecture driver with no fresh selected binding returns
+`blocked` to `/core-engineering:ce-plan` Stage 1A; it never treats shape mode as
+a substitute for direction selection.
+
+Run the bundled `architecture-selection-lint.py` over the draft artifact with
+`--repo-root . --json` before rendering the gate. Exit 1 returns `blocked` to
+Stage 1A with the exact integrity failure; exit 2 or no result parks. Read-only
+shape mode never substitutes a model-only hash check for this floor.
+
 Every required section must be present. An explicit `none` is evidence of an
 intentional negative; `unknown` is a coverage gap. Never silently turn a
 missing section into either. Resolve each `evidence_paths` value beneath the
@@ -110,8 +143,10 @@ On the shared evidence scale, `candidate`, `recorded`, and `observed` map to
 `read`; `inferred` maps to `inferred`; `unknown` remains a coverage gap. Do not
 describe the shaping input as approved or deterministically validated.
 
-Render the draft slug, candidate revision, project-intent lock, candidate feature
-and dependency summary, evidence paths, and accepted decisions. Lead with
+Render the draft slug, candidate revision, project-intent lock, selection-file
+hash, direction status, exploration/option/hash, and the exact disposition loaded
+from that file, plus the candidate feature and dependency summary, evidence
+paths, and accepted decisions. Lead with
 **What needs your decision**: every trigger, inference, or material gap requiring
 human attention, including its concrete basis and cost-if-wrong. Collapse only
 routine source-backed rows to a count; never collapse an unknown. Then print
@@ -136,14 +171,20 @@ before this gate because there is no safe evidence set to confirm.
 
 After the human selects `Proceed`, re-read the last complete input block and
 require its candidate revision, shaping attempt, and bytes to be unchanged from
-the rendered scope. Repeat this freshness check immediately before returning
-the result. A changed or replaced input returns `blocked` with reason
-`candidate-changed-during-shaping`; never combine evidence from two attempts.
+the rendered scope. When the selection is occupied, also re-read its exact bytes
+and require its file hash, exploration id, option id, and option hash to remain
+unchanged. Repeat this freshness check immediately before returning the result.
+A changed or replaced input returns `blocked` with reason
+`candidate-changed-during-shaping`; a changed selection returns `blocked` with
+reason `selected-direction-changed-during-shaping`. Never combine evidence from
+two attempts or selections.
 
 ## Build the Provisional Structural Model
 
 After `Proceed with read-only shaping`, model only enough detail to test the
-candidate cut:
+candidate cut. When a selected-direction binding exists, treat it as fixed
+human-owned input: project the candidate against it and do not generate,
+substitute, rescore, or silently refine another complete direction.
 
 1. Extract actors/external systems, platform and residency constraints,
    accepted decisions, numeric architecture drivers, trust/data obligations,
@@ -163,7 +204,28 @@ candidate cut:
 6. Check coherence: all endpoints/dependencies resolve; every feature maps;
    shared data has one source of truth; cross-boundary failure behavior is
    visible; deployment placement does not contradict trust/residency evidence;
-   and accepted decisions are honored.
+   accepted decisions are honored; and the candidate faithfully realizes the
+   selected direction without changing its load-bearing assumptions,
+   boundaries, or irreversible commitments.
+
+### Selected-Direction Invalidation — mandatory first check
+
+Before choosing an ordinary shape result, test whether new evidence or the
+candidate invalidates the selected direction itself. It is invalid when the
+selected option id/hash cannot be bound to the current exploration result,
+source evidence used by the selection has drifted, a selected hard constraint
+is now false or unknown, a load-bearing selected assumption is contradicted, or
+the candidate can converge only by changing the selected option's system,
+runtime/deployment, data, integration/failure, trust/residency, quality, or
+migration direction.
+
+Return `blocked` immediately with reason `selected-direction-invalid`, the
+exact evidence and cost-if-wrong, and next owner `/core-engineering:ce-plan`
+Stage 1A. Do not disguise direction invalidation as `requires-plan-delta`, route
+it directly to `/core-engineering:ce-decide`, waive it inside shaping, or
+silently mutate the direction. Stage 1A must refresh the capability frame,
+rerun explore mode as needed, and obtain a new human selection before detailed
+decomposition resumes.
 
 Use provisional labels such as `PC-NNN`, `PN-NNN`, `PIF-NNN`, and `PQA-NNN` so
 no row can be mistaken for a published package id. Mermaid is optional; compact
@@ -180,7 +242,9 @@ issues as pending without giving them a second status.
 Use when unsafe/invalid input, missing material evidence, or missing human
 authority prevents a defensible model, delta, or decision frame. Name the exact
 gap, why it can change decomposition, the owning workflow/person, and the
-cheapest next discriminating check. A blocked result never claims convergence.
+cheapest next discriminating check. Selected-direction invalidation is the
+highest-priority blocked case and always returns to `/core-engineering:ce-plan`
+Stage 1A as specified above. A blocked result never claims convergence.
 
 ### `requires-decision`
 
@@ -218,13 +282,18 @@ Return one compact Markdown block and nothing that resembles a final package:
 draft_slug: <slug>
 source_candidate_revision: <positive integer>
 source_shaping_attempt: <positive integer>
+source_shaping_input_sha256: <exact complete-handoff hash>
 status: converged | requires-plan-delta | requires-decision | blocked
+source_architecture_selection_sha256: <exact handoff hash>
+source_architecture_direction_status: <exact handoff status>
+source_selected_option_sha256: <exact selected option hash or `None`>
 
 ### Evidence Boundary
 <paths and evidence labels actually used; gaps explicit>
 
 ### Architecture Drivers
-<driver, source, shaping consequence>
+<driver, source, shaping consequence; echo selected exploration id, option id,
+option hash, and selected-direction basis, or the explicit non-selected basis>
 
 ### Provisional System Shape
 <responsibilities/relationships, deployment boundaries, flows, quality tactics,
@@ -242,10 +311,12 @@ and feature mappings; concise when the status is blocked early>
 
 Status-to-owner mapping is fixed: `requires-plan-delta` → `ce-plan`;
 `requires-decision` → `ce-decide`; `blocked` → the named evidence/authority
-owner (or `ce-plan` for invalid draft input); `converged` → `ce-plan convergence
-check`. Do not append a spec command, publication command, approval request, or
-write claim. A later candidate revision or shaping attempt invalidates the
-result and requires a fresh `shape:<draft-slug>` run.
+owner (or `ce-plan Stage 1A` for an invalid selected direction and `ce-plan` for
+invalid draft input); `converged` → `ce-plan convergence check`. Do not append a
+spec command, publication command, approval request, or write claim. A later
+candidate revision, shaping attempt, shaping-input hash, selection-file hash,
+direction status, or selected option id/hash invalidates the result and requires a fresh
+`shape:<draft-slug>` run.
 
 ## Honest Limitations
 
@@ -257,3 +328,6 @@ result and requires a fresh `shape:<draft-slug>` run.
 - `converged` is a planning-coherence judgment for one candidate revision. It is
   not architecture approval, security acceptance, compliance attestation,
   implementation verification, release approval, or deployment authority.
+- Shape mode checks fidelity to the exact selected direction bytes but does not
+  re-open their comparison. A missing, stale, or contradictory binding is
+  blocked back to Stage 1A rather than guessed.

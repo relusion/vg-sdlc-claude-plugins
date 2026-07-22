@@ -13,6 +13,16 @@
       "iteration_count": 0,
       "summary": "Architecture shaping is not applicable to the bounded feature-local fixture.",
       "decision_refs": []
+    },
+    "direction": {
+      "status": "not-applicable",
+      "artifact": "architecture-selection.json",
+      "artifact_sha256": "bb0a4867a1d9056979d2dd97ea181f4d1333e378cde4d0980b7d30a78ed20fb4",
+      "exploration_id": "AEX-not-applicable-r1",
+      "selected_option_id": null,
+      "selected_option_sha256": null,
+      "decided_by": "human",
+      "summary": "The human confirmed no solution-direction selection is needed for this bounded feature-local plan."
     }
   },
   "relates_to": [],

@@ -2,7 +2,7 @@
 name: ce-brief
 description: |
   Interview a user about a raw idea via library-selected persona lenses and synthesize a structured brief whose lead section is a self-sufficient Project Description for /core-engineering:ce-plan. Elicits and records intent only — never profiles code, decides, or decomposes.
-  Triggers: shape a raw idea or thin feature request into planning input. Feeds /core-engineering:ce-plan, which does the codebase-grounded decomposition.
+  Triggers: shape a raw idea or thin feature request into planning input. Feeds /core-engineering:ce-plan, which grounds the request, conditionally selects a solution direction through /core-engineering:ce-architecture, then decomposes it.
 argument-hint: "[raw idea or feature request]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -11,11 +11,10 @@ allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 
 **Invocation input:** Raw idea: $ARGUMENTS
 
-
 Turn a raw idea into a structured brief that the `plan` stage can consume
 without re-discovering intent. This skill **elicits and records** — it does not
 decide product questions, profile the codebase, design a solution, validate the
-idea, or decompose work.
+idea, select an architecture, or decompose work.
 
 This skill is a **thin orchestrator**. `SKILL.md` (this file) holds the Execution
 Contract, the invariant, and the stage map. The persona **lenses** that shape the
@@ -256,7 +255,7 @@ restate a lens's hypothesis as an asserted fact in any other section.
      not written yet** — the draft keeps absorbing each further round.
    - **Approve, write & plan now** → write the brief, **delete the draft**, then
      **immediately launch the full
-     `/core-engineering:ce-plan` decomposition interview** (the heavier, multi-gate workflow) — invoking the
+     `/core-engineering:ce-plan` architecture-direction and decomposition workflow** (the heavier, multi-gate workflow) — invoking the
      `ce-plan` skill, passing **two distinct inputs**:
      1. the **Project Description** as plan's required free-text input, and
      2. the brief as a **dedicated, named brief input** — `brief: docs/briefs/<slug>.md`
@@ -271,16 +270,15 @@ restate a lens's hypothesis as an asserted fact in any other section.
      written.** (No final brief is produced — but because every round was
      checkpointed, the destructive scope is just the draft file, not an
      unrecoverable 20-question interview.)
-3. **On any write approval, emit the sidecar and lint the pair.** After writing
-   `docs/briefs/<slug>.md`, also write `docs/briefs/<slug>.json` —
-   `{"schema_version": 1, "sections": {"<section-slug>": "answered"|"open"|"disputed"}, "lenses": [<applied lenses>], "open_questions": <N>}`
-   — one entry per Brief-Template section (unresolved → `open`; a claim the code
-   may contradict → `disputed`). This sidecar arms `/core-engineering:ce-plan` Stage 1.4's skip
-   **from data** rather than prose (see **The Brief → Plan Seam**), so run
-   `python3 "${CLAUDE_SKILL_DIR}/scripts/brief-lint.py" docs/briefs/<slug>.md`
-   and render its verdict in this gate: **PASS** → hand off; **hard FAIL (exit
-   1)** → return to Stage 2 and fix the named sections; **exit 2** → the lint
-   could not run — degrade loudly to the manual approval self-attestation.
+3. **On write approval, emit and lint the bound pair.** Hash the exact written
+   markdown bytes, then write `docs/briefs/<slug>.json` as
+   `{"schema_version":2,"brief_sha256":"<hash>","sections":{"<every section-slug>":"answered"|"open"|"disputed"},"lenses":[...],"open_questions":<N>}`.
+   Use `answered` only for non-placeholder content; unresolved → `open`, and a
+   claim the code may contradict → `disputed`. Run
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/brief-lint.py" docs/briefs/<slug>.md`.
+   **PASS** arms plan's data-derived skip; **exit 1** returns to Stage 2 to fix
+   the named defect. **Exit 2 never arms skipping**: offer a tooling retry or a
+   plan handoff that explicitly runs the full Stage 1.4 interview.
 4. On a write-only approval, print the exact next skills and note the brief path,
    so the brief is handed off through the dedicated channel rather than as a loose
    reference:
@@ -342,15 +340,17 @@ stack preferences, integrations-as-intent, constraints, risks, pitfalls,
 references. It does **not** carry codebase-grounded answers.
 
 `/core-engineering:ce-plan` owns the **codebase-grounded residue**: the nine-dimension profile,
-brownfield friction, existing-surface extend-vs-isolate, foundations forced by
-current code, ordering forced by hot files, migration against real data surfaces.
+brownfield friction, a capability-level evaluation frame, architecture-driver
+screening, and—only after any required human-selected solution direction—the
+detailed feature decomposition and ordering against real repository surfaces.
 
 **The offered contract.** When a brief is supplied through the dedicated `brief:`
-input, `/core-engineering:ce-plan` Stage 1.4 is **expected to**: map the brief's sections onto its
-decomposition question list, **skip the questions the brief already answered**, ask
-only the codebase-grounded residue plus the brief's Open Questions that affect
-decomposition, and **state which questions it skipped because the brief answered
-them**. The brief therefore *reduces* the `/core-engineering:ce-plan` interview without *replacing* it.
+input, `/core-engineering:ce-plan` Stage 1.4 re-lints the hash-bound pair, maps
+its sections onto the framing list, **skips only validated `answered` rows**, asks
+only the codebase-grounded residue plus material Open Questions, and **states
+which questions it skipped because the brief answered them**. The resulting
+frame can feed architecture exploration before detailed decomposition. The
+brief therefore *reduces* the `/core-engineering:ce-plan` interview without replacing it.
 
 **This half supplies the inputs that make that skip possible** — a self-sufficient
 Project Description, sectioned intent that maps cleanly onto the plan's
@@ -373,8 +373,9 @@ Decision Log entry rather than deciding it here.
 
 - **No codebase profiling** — plan Stage 1.2 does that; the repo glance
   here only tailors questions and lens selection.
-- **No deciding, designing, validating, or decomposing** — it surfaces options and
-  records the human's choice; plan and the spec stages own the rest.
+- **No deciding, designing, validating, or decomposing** — it records intent;
+  `/core-engineering:ce-architecture` explores solution directions and `/core-engineering:ce-plan`
+  owns the capability frame and detailed work decomposition.
 - **Persona coverage is bounded by the library** under
   `${CLAUDE_SKILL_DIR}/personas/`, which is **small and growing** (today it ships a
   limited set of lenses, not exhaustive domain coverage). Lenses are selected,

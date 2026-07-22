@@ -127,6 +127,7 @@
           "feature-plan.md",
           "threat-model.md",
           "interaction-contract.md",
+          "architecture-selection.json",
           "plan.json",
           "01-roles-authz-foundation",
           "02-team-invitations"
@@ -160,6 +161,9 @@
             "architecture_disposition.decided_by": "human",
             "architecture_disposition.convergence.status": "converged",
             "architecture_disposition.convergence.iteration_count": 1,
+            "architecture_disposition.direction.status": "adopted-existing",
+            "architecture_disposition.direction.selected_option_id": "A01",
+            "architecture_disposition.direction.decided_by": "human",
             "features.0.id": "01-roles-authz-foundation",
             "features.0.type": "foundation",
             "features.1.id": "02-team-invitations",
@@ -168,6 +172,26 @@
           },
           "min_lengths": {
             "features": 2
+          }
+        },
+        {
+          "type": "json_fields",
+          "path": "docs/plans/team-invitations-rbac/architecture-selection.json",
+          "equals": {
+            "schema_version": 1,
+            "project_slug": "team-invitations-rbac",
+            "evaluation_frame.architecture_applicability": "required",
+            "blocking_decision": null,
+            "selection.status": "adopted-existing",
+            "selection.option_id": "A01",
+            "selection.decided_by": "human",
+            "next_owner": "ce-plan"
+          },
+          "min_lengths": {
+            "evaluation_frame.driver_screen": 12,
+            "criteria": 6,
+            "hard_constraints": 1,
+            "options": 1
           }
         },
         {
@@ -398,6 +422,7 @@
             "status": "blocked",
             "findings_total": 1,
             "blocking_high": 1,
+            "blocking_route": "implement",
             "suppressed": 0,
             "by_severity.high.confirmed": 1,
             "by_lens.security": 1,
@@ -447,6 +472,7 @@
             "status": "blocked",
             "findings_total": 1,
             "blocking_high": 1,
+            "blocking_route": "implement",
             "by_severity.high.confirmed": 1,
             "by_lens.security": 1,
             "findings.0.id": "CR-1",
@@ -1139,7 +1165,8 @@
           "equals": {
             "status": "pass",
             "feature_id": "01-create-snippet",
-            "blocking_high": 0
+            "blocking_high": 0,
+            "blocking_route": null
           }
         }
       ],
@@ -1229,6 +1256,7 @@
         "docs/briefs/team-invitations-rbac.md",
         "docs/plans/plans.json",
         "docs/plans/team-invitations-rbac/plan.json",
+        "docs/plans/team-invitations-rbac/architecture-selection.json",
         "docs/plans/team-invitations-rbac/feature-plan.md",
         "docs/plans/team-invitations-rbac/shared-context.md",
         "docs/plans/team-invitations-rbac/threat-model.md",
@@ -1248,6 +1276,7 @@
           "Gate 1 of",
           "Scope Confirmation",
           "team-invitations-rbac",
+          "architecture-selection.json",
           "Proceed with this evidence set",
           "Add or correct evidence",
           "Revise the plan first",

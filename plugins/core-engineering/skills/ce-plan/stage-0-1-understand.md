@@ -2,7 +2,10 @@
 
 Stage file for the `plan` skill. The orchestrator is `SKILL.md` — read it first for the Execution Contract and Core Concepts. Load this file when you begin Stage 0.
 
-**Next:** when Stage 1 is complete, load `${CLAUDE_SKILL_DIR}/stage-2-3-decompose-score.md`.
+**Next:** when Stage 1 is complete, load
+`${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`. Detailed feature
+decomposition must not start before Stage 1A records a fresh selected direction,
+an explicit human defer, or an explicit not-required result.
 
 ---
 
@@ -104,16 +107,30 @@ labelled by its consequence (HITL Gate Standard R1):
 
 | Option | Result |
 |---|---|
-| **Resume at \<last passed gate\>** | Re-render the last checkpoint's `state` and continue at the **next** gate. Settled gates are **not** re-asked; nothing already decided is thrown away. |
+| **Resume at \<last passed gate\>** | Re-render the last checkpoint's `state` and continue at the **next workflow stage or gate**. Settled gates are **not** re-asked; autonomous derivations are rebuilt only when their recorded input changed. |
 | **Start fresh** | **Deletes the scratch** and restarts from Stage 1 — every prior decision for this slug is discarded. Use when the earlier run took a wrong turn. |
 | **Abort** | Exit now, writing nothing and **leaving the scratch untouched** — the interrupted run stays resumable on the next invocation. |
 
-On **Resume**: load the stage file that owns the next gate, print the recovered `state` as
-Markdown (the *Two-Surface Rendering Rule*, Stage 5.3), and proceed — do **not** replay the
-codebase profile (1.2) or re-ask the Stage 1.4 questions the scratch already answered. On
-**Start fresh**: delete `docs/plans/.drafts/<slug>/`, then run this stage normally. The
-scratch is a resume transcript, never planning input — it is never registered in
-`plans.json` and never fed to `/core-engineering:ce-spec`.
+On **Resume**: load the stage file that owns the next workflow step, print the
+recovered `state` as Markdown (the *Two-Surface Rendering Rule*, Stage 5.3), and
+proceed — do **not** replay the codebase profile (1.2) or re-ask the Stage 1.4
+questions the scratch already answered. Route the early checkpoints explicitly:
+
+- after `Stage 1.4 answers`, load
+  `${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`; never jump to Sizing;
+- after a passed `Architecture Direction Selection`, `Architecture Exploration
+  Deferred`, or `Architecture Exploration N/A` checkpoint, revalidate the bound
+  `architecture-exploration.json` / `architecture-selection.json` state as Stage
+  1A directs, then load `${CLAUDE_SKILL_DIR}/stage-2-3-decompose-score.md` and
+  rebuild the candidate before Sizing; and
+- an older scratch that has a Stage-1 checkpoint but no Stage-1A state resumes at
+  Stage 1A. It is not grandfathered past architecture selection merely because it
+  predates that checkpoint.
+
+On **Start fresh**: delete `docs/plans/.drafts/<slug>/`, then run this stage
+normally. The scratch and its two Stage-1A JSON companions are resume state,
+never planning input for another workflow — they are not registered in
+`plans.json` and are never fed to `/core-engineering:ce-spec`.
 
 ---
 
@@ -414,18 +431,28 @@ A brief carries **intent** — problem, users, journeys, scope, success criteria
 stack preferences, integrations-as-intent, constraints, risks, pitfalls, and
 references. Stage 1.4 carries the **codebase-grounded residue** — what only the
 Codebase Profile (1.2) and Brownfield friction (1.3) can settle. When a brief
-exists, do not re-ask what it already answered; ask only the residue. The brief
-**reduces** the interview; it does not replace your codebase reading.
+has a valid skip sidecar, do not re-ask its `answered` rows; ask only the
+residue. The brief **reduces** the interview only after deterministic
+revalidation; it does not replace your codebase reading.
 
-**Sidecar-first skip mapping.** When a `docs/briefs/<slug>.json` sidecar sits
-beside the markdown brief (ce-brief writes it, `brief-lint`-validated), compute
-the skip map from its `sections` data — a section marked `answered` skips its
-mapped 1.4 question; `open`/`disputed` (or absent) keeps it. This makes the skip
-**computed, not model-mapped from prose**. When the sidecar is absent (an older
-brief), fall back to the prose mapping below — old briefs stay consumable, and
-`disputed`/`open` reconcile exactly as the Assumption-vs-Profile rules require.
+**Validated sidecar skip mapping.** Require both inputs to be regular,
+non-symlink files, then re-run the bundled consumer copy before computing any
+skip:
 
-**Read the brief once, then map its sections onto the 1.4 question list:**
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/brief-lint.py" \
+  docs/briefs/<slug>.md --skip-persona-check --json
+```
+
+Only exit 0 authorizes the skip map: a section marked `answered` skips its
+mapped 1.4 question; `open`/`disputed` keeps it. The v2 sidecar's exact markdown
+hash, complete section coverage, and non-placeholder content are hard checks.
+On exit 1 or 2, or when the sidecar is absent, keep the brief as untrusted
+context but authorize **no skips**: surface the validation gap and ask the full
+grouped Stage 1.4 set. Offer `/core-engineering:ce-brief` refresh as a recovery,
+but do not park ordinary planning or model-map skip authority from prose.
+
+**After exit 0, map the validated sections onto the 1.4 question list:**
 
 | Brief section | Covers this 1.4 question | When the brief settles it |
 |---|---|---|
@@ -639,11 +666,19 @@ If there are no pitfalls (the user chooses `None` and the brief lists none), do 
 Once the grouped Stage 1.4 round resolves (the decomposition answers, plus the batched 1.5
 / 1.6 project-context capture), append the **first** gate checkpoint to
 `docs/plans/.drafts/<slug>/scratch.md` — creating `.drafts/<slug>/` on this first write —
-per SKILL.md → *Gate Checkpoint & Resume*. Record `decided_by: human`, the `decision:` (the
-decomposition Q/A pairs just captured, terse and verbatim), and a `state:` block holding the
-project-understanding summary (analyzed capabilities, the codebase-profile headline, the
-Brownfield-friction tier) so a resume re-enters at the Sizing Gate **without** replaying the
-1.2 profile or re-asking the 1.4 questions. This is the first resumable point — a crash
-after here re-enters at Stage 4, not Stage 1.
+per SKILL.md → *Gate Checkpoint & Resume*. Record `decided_by: human`, the
+`decision:` (the project-understanding Q/A pairs just captured, terse and
+verbatim), and a `state:` block holding everything Stage 1A needs without
+replaying the interview: the analyzed coarse capabilities and journeys, stated
+scope/non-goals, the codebase-profile headline, Brownfield-friction tier,
+integrations and durable-data signals, hard constraints, stated quality/NFR
+targets, accepted decisions, reference paths, and unresolved material gaps.
+
+This checkpoint resumes at **Stage 1A**, not Sizing. Stage 2 has not produced a
+candidate yet, so jumping to Stage 4 would ask the user to size a feature set
+that does not exist. A crash after here reloads
+`${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`; after Stage 1A has a
+fresh selected/deferred/N/A state, Stage 2 autonomously derives the candidate
+before the Sizing Gate.
 
 ---

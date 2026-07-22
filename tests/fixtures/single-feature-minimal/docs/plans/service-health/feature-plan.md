@@ -38,6 +38,26 @@ Validation Target: an automated request receives the documented healthy response
 
 Run: /core-engineering:ce-spec service-health/01-health-check
 
+### Security Projection
+
+Assessed negative, confirmed by the human at the Sizing Gate:
+
+- Entry point: the existing local-operator-only health listener; the feature adds no public listener.
+- Untrusted input: none; the fixed read-only request carries no user-controlled value.
+- Auth/authz and secrets: none introduced or changed by this feature.
+- External integrations: none.
+- Personal or sensitive data: none read, written, or returned.
+- Evidence: Scope, Excluded, and the existing-process Codebase Profile above.
+
+```yaml
+security_obligations:
+  - feature: 01-health-check
+    threat_ids: []
+    surface_kinds: []
+    assessment: assessed-negative
+    confirmed_by: human
+```
+
 ## 5. Validation Target
 
 The endpoint response is covered by an automated test.

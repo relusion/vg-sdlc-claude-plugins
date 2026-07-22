@@ -17,6 +17,16 @@
       "iteration_count": 1,
       "summary": "The provisional cut converged on one runtime with explicit authorization and invitation components.",
       "decision_refs": ["docs/adr/0001-single-service-runtime.md"]
+    },
+    "direction": {
+      "status": "direction-selected",
+      "artifact": "architecture-selection.json",
+      "artifact_sha256": "b42a05aa3127f1ce26f368a040628a7e43c864481d51d14c5eed109530b1d80b",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "decided_by": "human",
+      "summary": "Selected one application runtime with explicit authorization, invitation, and persistence boundaries."
     }
   },
   "relates_to": [],

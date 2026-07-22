@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "project_slug": "team-invitations-rbac",
+  "exploration_id": "AEX-daee7bdc72fb",
+  "source_capability_revision": 1,
+  "source_exploration_attempt": 1,
+  "source_input_sha256": "c1e7fd1ddf75931b668a4dfc9eb1d6fa17569436fc30bb5f05a8ae6171a7c40d",
+  "evaluation_frame": {
+    "project_intent": "Add team invitations and role-based authorization without splitting the existing application runtime.",
+    "non_goals": ["Email delivery and production deployment topology"],
+    "architecture_applicability": "required",
+    "driver_screen": [
+      {"id": "explicit-architecture-deliverable", "verdict": "positive", "basis": "The workflow requires a reviewed cross-feature solution baseline.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "multi-runtime-or-deployment-boundary", "verdict": "negative", "basis": "The accepted scope retains one application runtime.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "cross-feature-durable-or-async-flow", "verdict": "negative", "basis": "The bounded fixture has no asynchronous flow.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "shared-data-ownership-or-migration", "verdict": "positive", "basis": "Invitation acceptance and membership writes share transactional ownership concerns.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "trust-residency-or-sensitive-boundary", "verdict": "positive", "basis": "Authorization must precede protected membership and invitation writes.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "shared-protocol-or-schema", "verdict": "negative", "basis": "No new cross-runtime protocol is required.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "platform-or-topology-choice", "verdict": "negative", "basis": "The repository topology is retained.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "architecture-determining-nfr", "verdict": "negative", "basis": "The recorded quality targets do not force another topology.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "contested-cross-feature-owner", "verdict": "negative", "basis": "Feature ownership is explicit in the plan evidence.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "team-policy-recommendation", "verdict": "negative", "basis": "No separate team policy recommendation is needed.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "planned-reuse-recommendation", "verdict": "negative", "basis": "The capability is bounded to this plan.", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+      {"id": "baseline-preference", "verdict": "negative", "basis": "Required drivers already determine applicability.", "evidence": ["docs/briefs/team-invitations-rbac.md"]}
+    ],
+    "accepted_decisions": [],
+    "material_gaps": [],
+    "capabilities": [
+      {"id": "C01", "outcome": "Authorized administrators invite users who become team members.", "actors": ["administrator", "invitee"], "data": ["invitation", "membership"], "integrations": ["existing application and PostgreSQL"], "observable": "An accepted invitation creates one authorized membership."}
+    ],
+    "journeys": [
+      {"id": "J01", "outcome": "A valid invitation is accepted safely.", "actors": ["administrator", "invitee"], "capability_refs": ["C01"], "steps": ["Authorize invitation creation", "Persist invitation", "Accept invitation transactionally"], "observable": "Repeated acceptance never duplicates membership."}
+    ],
+    "quality_attribute_scenarios": [
+      {"id": "QA01", "attribute": "security", "stimulus": "An unauthorized caller attempts an invitation write.", "environment": "Normal service operation", "response": "The write is rejected before persistence.", "target": "No unauthorized invitation or membership record is created.", "priority": "must", "evidence": ["docs/briefs/team-invitations-rbac.md"]}
+    ]
+  },
+  "blocking_decision": null,
+  "sources": [
+    {"path": "docs/briefs/team-invitations-rbac.md", "sha256": "6c48d52ac4c4713cb27fbda8c4094077d64c760f4ea11ee14177796368267387", "kind": "brief"}
+  ],
+  "evidence_fingerprint": "c935622ebd51b09d06ac75366785604b00aedb03c63ad42b7f19f90e868f86bc",
+  "criteria": [
+    {"id": "requirements-fit", "weight": 0.25, "basis": "Preserve the invitation and RBAC outcomes."},
+    {"id": "quality-attribute-fit", "weight": 0.2, "basis": "Make authorization and idempotency explicit."},
+    {"id": "repository-fit", "weight": 0.15, "basis": "Prefer the established single-runtime repository shape."},
+    {"id": "evolvability", "weight": 0.15, "basis": "Keep logical boundaries independently evolvable."},
+    {"id": "operability", "weight": 0.1, "basis": "Retain one application operational boundary."},
+    {"id": "delivery-feasibility", "weight": 0.15, "basis": "Minimize migration and delivery risk."}
+  ],
+  "hard_constraints": [
+    {"id": "HC01", "statement": "Authorization must execute before invitation or membership persistence.", "basis": "The protected-write requirement cannot be traded against delivery convenience.", "authority": "human-confirmed requirement"}
+  ],
+  "options": [
+    {
+      "option_id": "A01",
+      "title": "Single runtime with explicit authorization and invitation boundaries",
+      "summary": "Keep one deployable application and separate authorization, invitation, and persistence responsibilities logically.",
+      "responsibilities_and_boundaries": ["Authorization owns capability checks; invitations owns invitation lifecycle."],
+      "runtime_and_deployment": ["One application runtime with the existing PostgreSQL data store."],
+      "data_ownership": ["Invitation and membership writes remain explicit and transactionally coordinated."],
+      "integrations_and_failure": ["In-process authorization failure stops before persistence."],
+      "trust_residency_and_security": ["Every protected write crosses the authorization boundary first."],
+      "quality_tactics": ["Transactional acceptance provides idempotent membership creation."],
+      "migration_and_evolution": ["No runtime migration; logical boundaries can later be extracted if evidence requires it."],
+      "capability_implications": ["C01 decomposes into authorization foundation followed by invitation delivery."],
+      "assumptions": ["The existing runtime and database remain adequate for the recorded load."],
+      "irreversible_commitments": ["No irreversible infrastructure commitment is introduced."],
+      "constraint_verdicts": [
+        {"constraint_id": "HC01", "verdict": "pass", "basis": "The authorization component is invoked before all protected persistence."}
+      ],
+      "scores": [
+        {"criterion_id": "requirements-fit", "score": 5, "evidence_state": "recorded", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+        {"criterion_id": "quality-attribute-fit", "score": 5, "evidence_state": "inferred", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+        {"criterion_id": "repository-fit", "score": 5, "evidence_state": "recorded", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+        {"criterion_id": "evolvability", "score": 4, "evidence_state": "inferred", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+        {"criterion_id": "operability", "score": 4, "evidence_state": "inferred", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
+        {"criterion_id": "delivery-feasibility", "score": 4, "evidence_state": "inferred", "evidence": ["docs/briefs/team-invitations-rbac.md"]}
+      ],
+      "weighted_score": 4.6,
+      "confidence": "medium",
+      "option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983"
+    },
+    {
+      "option_id": "A02",
+      "title": "Separate invitation runtime with eventual authorization",
+      "summary": "Deploy invitation handling separately and persist pending invitations before centralized authorization reconciliation.",
+      "responsibilities_and_boundaries": ["An invitation service owns invitation intake while the application retains authorization and membership."],
+      "runtime_and_deployment": ["A separately deployed invitation runtime communicates with the existing application and PostgreSQL."],
+      "data_ownership": ["The invitation runtime persists pending invitation state before membership authorization is reconciled."],
+      "integrations_and_failure": ["Authorization unavailability permits pending invitation persistence for later reconciliation."],
+      "trust_residency_and_security": ["The new runtime introduces a service trust boundary around invitation intake."],
+      "quality_tactics": ["Asynchronous reconciliation isolates invitation intake from application availability."],
+      "migration_and_evolution": ["Invitation ownership must migrate behind a new service contract and deployment."],
+      "capability_implications": ["C01 gains an asynchronous intake and reconciliation boundary."],
+      "assumptions": ["Pending invitation persistence before authorization would be acceptable."],
+      "irreversible_commitments": ["A new runtime and service contract become operational commitments."],
+      "constraint_verdicts": [
+        {"constraint_id": "HC01", "verdict": "fail", "basis": "Pending invitations are persisted before the required authorization decision."}
+      ],
+      "scores": [],
+      "weighted_score": null,
+      "confidence": "not-applicable",
+      "option_sha256": "05893aa77f7e93ecbd9203fd0ce88669376addb21291ed00dd4734fcb8b15af4"
+    }
+  ],
+  "eliminated_options": [
+    {"option_id": "A02", "constraint_ids": ["HC01"], "reason": "This direction persists invitation state before satisfying the authorization-before-persistence constraint."}
+  ],
+  "option_set_sha256": "daee7bdc72fbb5434a932ee7c3215c50c6dcf710a912893aa0751655baabad5c",
+  "recommendation": {"option_id": "A01", "confidence": "medium", "sensitivity": "not-applicable", "sensitivity_witness": null, "basis": "A02 fails the authorization-before-persistence constraint, leaving A01 as the sole eligible direction."},
+  "selection": {"status": "direction-selected", "option_id": "A01", "option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983", "decided_by": "human", "rationale": "Selected as the lowest-risk direction that satisfies the protected-write constraint."},
+  "next_owner": "ce-plan"
+}

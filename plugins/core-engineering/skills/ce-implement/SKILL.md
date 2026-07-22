@@ -34,7 +34,7 @@ re-run it to continue. A large feature need not finish in one pass.
   (codebase profile, pitfalls, the Resolved Project Decisions ledger),
   `features/<id>.md`, and its normal plan inputs. A registry-backed
   single-feature minimal plan intentionally has no `plan.json`,
-  `shared-context.md`, `threat-model.md`, `interaction-contract.md`, or
+  `architecture-selection.json`, `shared-context.md`, `threat-model.md`, `interaction-contract.md`, or
   `features/` directory: load its regular, non-symlink `feature-plan.md` as the
   sole plan context, record those full-plan inputs `N/A by construction`, and
   set `plan_mode: single-feature-minimal`. Its exactly one
@@ -110,12 +110,18 @@ For minimal mode, `feature-plan.md` is context while `ce-spec.md` + `tasks.json`
 For a full plan, run the bundled structural gate before interpreting any feature or spec design:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --require-architecture-direction --json
 ```
 
-- **exit 0:** inspect advisories; `A12` means the disposition is absent, so stop at `/core-engineering:ce-plan` Stage R. Compatibility PASS is not implementation authority.
+- **exit 0:** continue with the lint-validated disposition and direction binding.
 - **exit 1:** route every hard or malformed-plan defect to Stage R; never repair the plan here.
 - **exit 2:** route to Stage R because no trustworthy contract was established; never infer it from prose.
+
+Then validate `docs/plans/<slug>/architecture-selection.json` with
+`python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" <path> --json`.
+Exit 1 or 2 routes to Stage R before the spec is trusted. In consumer mode a
+legacy missing disposition/direction (`A12`/`A13`) is a hard stop, not a
+compatibility pass.
 
 From the lint-validated disposition, load every `convergence.decision_refs` entry. It must be repository-relative, remain inside the repository, and resolve to a readable, regular ADR recorded as
 **accepted**. Route any missing, unreadable, escaping, non-ADR, or non-accepted reference to Stage R; only a human can accept or rewrite it.

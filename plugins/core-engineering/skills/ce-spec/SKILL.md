@@ -45,7 +45,7 @@ detailed procedure loads on demand — see *How to Run This Workflow* below.
 - **Plan shape (auto-detected):** a full plan loads `features/<id>.md`,
   `shared-context.md`, `feature-plan.md`, and `plan.json`. A registry-backed
   single-feature minimal plan intentionally has no `plan.json`,
-  `shared-context.md`, or `features/` directory: its regular, non-symlink
+  `architecture-selection.json`, `shared-context.md`, or `features/` directory: its regular, non-symlink
   `feature-plan.md` is the sole plan authority. Minimal mode is valid only when
   its `## 4. Single Feature` block has exactly one explicit
   `Feature ID: <id>` and exactly one qualified
@@ -80,9 +80,11 @@ detailed procedure loads on demand — see *How to Run This Workflow* below.
   `relates_to` (their ledger entries become readable defaults — see Stage 1.2).
   In minimal mode these full-plan, dependency, cross-feature, and architecture
   inputs are `N/A by construction`; use the Scope, Excluded, Open Unknowns,
-  Validation Target, Project Context, Codebase Profile, and Notes recorded in
-  the sole `feature-plan.md`. Discovery of any dependency or cross-feature
-  obligation disproves the minimal shape and routes to planning before design.
+  Validation Target, Project Context, Codebase Profile, Notes, and inline
+  **Security Projection** recorded in the sole `feature-plan.md`. Its assigned
+  `TZ-NNN` ids are plan-owned obligations even without a separate threat-model.
+  Discovery of any dependency, cross-feature obligation, or security surface
+  absent from that projection routes to planning before design.
 
 ## Execution Contract
 
@@ -229,10 +231,18 @@ threat-model nor infer the feature id from the path — give it both explicitly.
 auto-build orchestrator needs neither flag — it lints the real `specs/<id>/`, where
 both are auto-discovered.)
 
-For a single-feature minimal plan, omit both `--threat-model` and `--feature`:
-the absent threat model is an intentional `N/A`, while H1–H4 still validate the
-normal `ce-spec.md` + `tasks.json` output. Do not manufacture full-plan files to
-enable H5.
+For a single-feature minimal plan whose inline Security Projection assigns
+`TZ-NNN` ids, pass its sole authority file and feature id:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/spec-lint.py" <scratch-dir> \
+  --threat-model docs/plans/<slug>/feature-plan.md --feature <id>
+```
+
+The block uses the same `security_obligations` shape as a full threat model, so
+H5 remains armed without manufacturing a full-plan file. When the confirmed
+inline projection has `threat_ids: []`, omit the flags and record H5 N/A from
+that explicit assessed negative—not from feature count or file absence.
 
 It checks (H1–H4, and **H5** when `--threat-model` is passed): every `tasks.json`
 `verifies` resolves to a real TC; every TC carries a `modality:` and a

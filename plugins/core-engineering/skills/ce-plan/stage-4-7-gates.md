@@ -1,6 +1,10 @@
 # Feature-Plan Workflow — Stages 4–7: Gates
 
-Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers the Sizing Gate, Candidate Plan Review, Reachability / Consumability Trace, and Session-Fit Check. Load this file after Stage 3, including the Architecture Applicability Screen, is complete.
+Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers the Sizing
+Gate, Candidate Plan Review, Reachability / Consumability Trace, and Session-Fit
+Check. Load this file after Stage 3's post-decomposition Architecture
+Applicability Re-screen has confirmed that the Stage 1A architecture-direction
+binding is current.
 
 **Next:** when Stage 7 passes, load `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`. If the Sizing Gate accepts a single-feature plan at Stage 4, go straight to `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`.
 
@@ -8,7 +12,14 @@ Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers the Sizing Ga
 
 ## Stage 4 — Sizing Gate
 
-Before presenting a multi-feature plan, evaluate whether the project actually warrants decomposition. A Stage 3.9 `architecture_applicability: required` result **cannot** take the single-feature minimal early exit: architecture-significant boundaries must be represented honestly in a full plan before shaping. If the current candidate still appears inseparable, return to Stage 2 or park the architecture request; never manufacture a split.
+Before presenting a multi-feature plan, evaluate whether the project actually
+warrants decomposition. A Stage 3.9 `architecture_applicability: required`
+result **cannot** take the single-feature minimal early exit: it must already
+carry a fresh Stage 1A `direction-selected` binding, and
+architecture-significant boundaries must be represented honestly in a full plan
+before shaping. If the current candidate still appears inseparable, return to
+Stage 2 only while that direction remains current; otherwise return to Stage 1A
+first, or park. Never manufacture a split.
 
 Only when architecture applicability is not `required`, recommend a single-feature plan if any of the following hold:
 
@@ -23,6 +34,15 @@ Only when architecture applicability is not `required`, recommend a single-featu
 
 4. **No meaningful dependency chain exists**  
    The work can be implemented as one cohesive change without losing reviewability.
+
+Before presenting that recommendation, run the feature-local security screen
+used by the Threat Model contract: public/untrusted entry points, auth/authz,
+external API/payment/object-store boundaries, security or secrets ownership,
+and personal/sensitive durable nouns. Render detected surfaces and proposed
+`TZ-NNN` obligations, or an evidence-backed negative across every condition.
+A material unknown blocks `Accept` until resolved; feature count is never
+evidence that security is absent. The human's Sizing `Accept` confirms this
+inline projection, which is copied into the minimal artifact.
 
 ---
 
@@ -45,6 +65,9 @@ Reason:
 - [specific reason 1]
 - [specific reason 2]
 
+Security projection:
+- [surface + TZ-NNN obligation, advisory, or explicit evidence-backed negative]
+
 If you Override, this is the multi-feature split you'd get instead:
 - P01-<slug> · P02-<slug> · P03-<slug>   (<one-line shape of the split>)
 
@@ -60,7 +83,7 @@ If the user selects:
 
 | User Choice | Result |
 |---|---|
-| Accept | Write a single-feature artifact and exit — **skips Stages 5–8** |
+| Accept | Confirm the displayed security projection, write a single-feature artifact, and exit — **skips Stages 5–8** |
 | Override | Continue with the multi-feature plan previewed above |
 | Adjust | Loop back to candidate feature decomposition |
 
@@ -78,6 +101,11 @@ SKILL.md → *Gate Checkpoint & Resume* when the run continues into the multi-fe
 - If the project passed the gate **without** a prompt (a plain multi-feature request),
   record `decided_by: workflow (autonomous pass)` and the candidate feature set — resume
   still needs a Stage-4 anchor.
+
+In both cases, include the Stage 1A route and, when selected, the exact
+`exploration_id`, input SHA-256, selected option id, and selected-option SHA-256
+in `state:`. A resume must not detach the candidate from the direction under
+which it was derived.
 
 `Accept` exits to a single-feature write (Stage 9 cleans up any scratch), so it needs no
 forward checkpoint; `Adjust` loops back and appends nothing.
@@ -118,6 +146,11 @@ light` (recorded in `plan.json` and §13 Notes at write time — Stage 9) and fo
   **only when both re-projections resolve negative** at 8.2 (No Security Surface **and** No
   Cross-Feature Protocol).
 
+It does **not** fold the conditional Recommended Architecture Shaping Election
+(§5.4.1). A recommended route still needs an explicit human choice to shape the
+current candidate or defer that shaping with a visible coverage gap before
+Reachability begins.
+
 **What it never folds (the correctness floor).** Reachability / Consumability (§6, gate
 §6.6), the post-Reachability architecture re-screen, and Session-Fit (§7) run **in full** — they are correctness, not ceremony — using the
 collapsed-row rendering §6.6 already defines. The combined attestation still renders **each**
@@ -126,9 +159,12 @@ material is skipped, only co-located.
 
 **Auto-restore on any real surface.** The tier is contingent, re-evaluated after
 Reachability and at 8.2. If §6.3 or another later check makes architecture
-`required`, leave the light tier, record `plan_tier: standard`, run the standalone
-Candidate Review followed by Stage 5A architecture shaping, then re-run the affected
-correctness gates. If §6.3 later assigns a `sensitive` noun, or the threat-model / interaction-contract
+`required`, leave the light tier and record `plan_tier: standard`. When that
+evidence changes the Stage 1A capability/constraint/driver/evidence boundary,
+return to Stage 1A for a fresh selected direction and rerun Stage 2 before the
+standalone Candidate Review and Stage 5A shaping. Only when the selected
+direction remains fresh may the run go directly to Candidate Review followed by
+Stage 5A. Then re-run the affected correctness gates. If §6.3 later assigns a `sensitive` noun, or the threat-model / interaction-contract
 re-projection detects a real surface, the **separate** material gate (§8.2.1 / §8.2.2) fires
 automatically for that re-projection — a positive detection is never swept into a combined
 negative (Done-when: *a light plan whose threat-model detects a real surface gets the
@@ -195,6 +231,10 @@ Print the candidate plan to the conversation as Markdown.
 
 Include:
 
+- the Stage 1A architecture route and either the selected complete-solution
+  direction (id, title, recommendation/override, binding hashes, and residual
+  assumptions), the explicit recommended-deferred gap, or the explicit
+  not-required N/A;
 - dependency-flow diagram
 - feature summary table
 - per-feature blocks
@@ -246,18 +286,20 @@ Options:
 | Coarsen | **Scope-preserving** — re-slice the *same* Scope into fewer, larger features (name a target count or "coarsest viable"). Trades session-fit headroom + per-diff review granularity for fewer spec→implement loops; records a consented session-fit relaxation, then re-runs Reachability + Session-Fit, which can still **reject** an over-coarse merge. **Not** an MVP cut (that drops scope — use Adjust) and **not** the single-feature collapse (that's the Sizing Gate). See §5.5. |
 | Adjust | Loop back to feature decomposition and re-cut. |
 | Add context | Capture more context, then loop back to feature decomposition. |
-| Decide a fork | *(offer only when the escalation note below applies)* Send one no-dominant-option architecture fork to `/core-engineering:ce-decide` before committing the cut. |
+| Decide a fork | *(offer only when the escalation note below applies)* Send one bounded no-dominant technical fork **within** the selected direction to `/core-engineering:ce-decide`; a fork that changes the complete solution direction returns to Stage 1A instead. |
 
 > **Escalating an architectural fork to `/core-engineering:ce-decide` (optional, human-triggered).** If this
-> candidate decomposition hinges on an unresolved **technical/architecture fork with no
-> dominant option** — a choice that changes *how* features are cut (event-sourced vs CRUD,
-> extract-a-service vs in-monolith, a shared persistence model) — the human may escalate it
+> candidate decomposition hinges on an unresolved **bounded technical fork with no
+> dominant option inside the selected solution direction** — the human may escalate it
 > to `/core-engineering:ce-decide` for a situation-weighted scorecard before committing the
 > cut; its **proposed ADR** feeds back as a Resolved Project Decision the plan and
 > downstream specs honor. This review and the Sizing Gate already *detect* forks, so
 > `/core-engineering:ce-decide` adds **rigor on the rare hard one, not a second detector** — reserve it for a
-> genuine no-dominant-option fork. A fork that is really a *scope* change stays a `/core-engineering:ce-plan`
-> matter (re-cut here), not a `/core-engineering:ce-decide`. **When this note applies, surface `Decide a fork`
+> genuine no-dominant-option fork. A fork that changes the selected option's
+> boundaries, topology, data ownership, integration mode, trust/residency
+> posture, or load-bearing quality tactic returns to Stage 1A; a fork that is
+> really a *scope* change stays a `/core-engineering:ce-plan` matter (re-cut
+> here), not `/core-engineering:ce-decide`. **When this note applies, surface `Decide a fork`
 > as the labeled option above — decidable in the dialog — rather than leaving it as prose
 > the human must volunteer (R1).**
 
@@ -266,20 +308,58 @@ Do not write the artifact after this decision.
 **Checkpoint — Candidate Decision passed.** On `Continue`, append a `## Candidate Decision
 — passed` checkpoint to `docs/plans/.drafts/<slug>/scratch.md` — `decided_by: human`,
 `decision: Continue`, and a `state:` block holding the current candidate feature table +
-provisional order — per SKILL.md → *Gate Checkpoint & Resume*. The back-edge options
+provisional order plus the Stage 1A route and exact selected-direction binding
+(when present) — per SKILL.md → *Gate Checkpoint & Resume*. The back-edge options
 (`Coarsen` / `Adjust` / `Add context` / `Decide a fork`) loop without advancing, so they
 overwrite the pending state rather than append a passed-gate block.
 
 After `Continue`, route by the recorded applicability result:
 
-- `required` — load `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`
-  and run Stage 5A before Stage 6;
-- `recommended` — continue to Stage 6 unless the human explicitly requests the
-  shaping pass, in which case load Stage 5A; or
+- `required` — first require the fresh Stage 1A `direction-selected` binding,
+  then load `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md` and run Stage 5A before Stage 6;
+- `recommended` — run the explicit §5.4.1 shaping election before Stage 6; or
 - `not-required` — continue to Stage 6.
 
-The light tier can reach Stage 6 without this branch only because `required`
-was excluded at §4.3. A later positive re-screen restores the standard branch.
+The light tier skips this Candidate Decision branch, but a recommended light
+plan still runs §5.4.1 from its §4.3 checkpoint. A later positive re-screen
+restores the standard required branch.
+
+### 5.4.1 Recommended Architecture Shaping Election `[material]`
+
+Fire this gate for every Stage 3.9 `recommended` result after the current
+candidate exists and before Stage 6, in both standard and light tiers. It is a
+candidate-shaping decision, not a second direction-selection gate. Render the
+current `candidate_revision`, recommendation triggers, the exact direction
+status/exploration/option binding, what Stage 5A can validate, and the residual
+risk of deferral. Print the current plan gate locator:
+
+```text
+Gate N of M — Recommended Architecture Shaping
+```
+
+When the direction is `direction-selected` or `adopted-existing`, offer:
+
+| Option | Consequence |
+|---|---|
+| **Shape this candidate** | Run the read-only Stage 5A pass against the exact selected direction before Reachability; any accepted structural delta increments `candidate_revision`. |
+| **Defer candidate shaping** | Keep the selected direction unchanged, record convergence `deferred`, `iteration_count: 0`, the human rationale, and a visible architecture coverage gap; continue to Reachability. |
+| **Revisit the direction** | Return to Stage 1A; Stage 2 cannot be reused if the direction changes. |
+
+When Stage 1A already recorded direction status `deferred`, do not pretend
+Stage 5A can shape against an absent selected option. Offer **Keep direction
+exploration and candidate shaping deferred** or **Return to Stage 1A and
+explore now**. The first preserves direction status `deferred` and separately
+records convergence `deferred`, `iteration_count: 0`; the second blocks the
+current candidate until a fresh human direction decision and re-decomposition.
+
+On either defer choice, append `## Recommended Architecture Shaping — passed`
+to scratch with `decided_by: human`, the exact choice/rationale, the current
+candidate revision, direction binding, triggers, and this provisional
+convergence record. On **Shape this candidate**, append the election checkpoint
+and load `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`; its result
+owns the convergence record. A candidate revision change invalidates the
+election. Re-run this gate rather than silently turning a previous defer into a
+shaping pass or carrying it across changed evidence.
 
 ---
 
@@ -774,10 +854,19 @@ journeys` loop without advancing and append nothing.
 Re-run Stage 3.9 against the accepted journeys, durable-state closure,
 continuity rows, cross-feature media, trust/data classes, and NFRs. Then:
 
-- if a prior `not-required` or `recommended` result becomes `required`, leave
-  the light tier when applicable, run the standalone Candidate Review if it was
-  folded, load `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, and
-  do not enter Stage 7 until it converges or is explicitly waived;
+- if this evidence changes the Stage 1A capability model, hard constraints,
+  quality scenarios, stable driver evidence, accepted decisions, source hashes,
+  criteria, or selected-option assumptions, the direction binding is stale:
+  leave the light tier when applicable, return to Stage 1A, obtain a fresh
+  selected/deferred result, rerun Stage 2, and then rerun the affected gates;
+- if a prior `not-required` or `recommended` result becomes `required` while no
+  fresh selected direction exists, take the same Stage 1A back-edge — never run
+  shaping over a candidate derived without its load-bearing direction;
+- if the Stage 1A direction remains fresh but the candidate-only evidence makes
+  architecture `required`, leave the light tier when applicable, run the
+  standalone Candidate Review if it was folded, load
+  `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, and do not enter
+  Stage 7 until it converges or is explicitly waived;
 - if a prior shaping result's candidate revision, triggers, decisions, or
   evidence changed, load Stage 5A again; or
 - if the result and candidate revision remain current, continue to Stage 7.
@@ -805,10 +894,14 @@ Deferred journeys must be explicitly recorded in the final artifact.
 
 ## Stage 7 — Session-Fit Check
 
-The Session-Fit Check is mandatory. It may start only when architecture is
-`not-required`, is `recommended` with an explicit deferred/converged result, or
-has a current Stage 5A `converged`/human-waived result for this exact
-`candidate_revision`. A stale or missing required result routes to Stage 5A.
+The Session-Fit Check is mandatory. It may start only when the Stage 1A
+direction state is current and this exact candidate revision has one of four
+explicit states: `not-required`/`not-applicable`; `recommended` with a human
+shaping-election `deferred` result; `recommended` or `required` with Stage 5A
+`converged`; or a human-owned `waived` disposition. A stale or missing required
+**direction** routes to Stage 1A; a current direction with only stale/missing
+required **shaping** routes to Stage 5A. A stale/missing recommended election
+returns to §5.4.1, not directly to shaping.
 
 It validates dependency graph shape, implementation reach, reviewer pressure, risk distribution, and boundary ownership.
 
@@ -1002,8 +1095,13 @@ checkpoint to `docs/plans/.drafts/<slug>/scratch.md` before loading the write st
 SKILL.md → *Gate Checkpoint & Resume*. Record `decided_by: human` when the Interface
 Foundation Gate (7.8) required a consented exception or a foundation choice, else
 `decided_by: workflow (autonomous pass)`; the `state:` block holds the final feature set
-and ship order. If any Session-Fit repair changes the candidate revision or an
-architecture driver, rerun Stage 5A before appending this checkpoint. A crash after Session-Fit re-enters at Stage 8's Final Plan Review with the
+and ship order plus the selected-direction binding or explicit defer/N/A. If a
+Session-Fit repair changes the architecture direction's capability/evidence
+input, return to Stage 1A and rerun Stage 2. If it changes only the candidate
+revision while the direction remains current, re-run Stage 3.9 and then Stage
+5A only for a required route or an explored recommended direction that elected
+shaping. An explicit N/A/deferred route remains outside shape mode unless the
+re-screen changes its applicability. A crash after Session-Fit re-enters at Stage 8's Final Plan Review with the
 validated shape intact.
 
 ---

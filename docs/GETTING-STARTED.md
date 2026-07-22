@@ -130,9 +130,12 @@ nothing itself.
    ```
 
    Expected output: `docs/briefs/<slug>.md`, then `docs/plans/<slug>/`. Planning
-   screens architecture applicability before sizing or early exit, invokes a
-   read-only shaping pass when architecture is load-bearing, and records the
-   human-owned result in `plan.json` as `architecture_disposition`. A required
+   first builds a capability-level evaluation frame. When architecture is
+   load-bearing, it generates and scores complete solution directions and
+   requires a human selection before detailed feature decomposition; the exact
+   reviewed binding is written as `architecture-selection.json`. A later
+   read-only shaping pass checks that the feature cut realizes that direction,
+   and `plan.json` records the human-owned `architecture_disposition`. A required
    disposition blocks specification until the normal architecture command
    writes an approved five-file package under
    `docs/plans/<slug>/architecture/`; a recommended baseline may be deferred as
@@ -158,7 +161,7 @@ nothing itself.
 | I am using this plugin in a repo for the first time | `/core-engineering:ce-init --write` | Repo profile, starter SDLC policy artifacts, and the write-scope baseline |
 | I need to understand code | `/core-engineering:ce-ask` | Cited answer, no writes |
 | I need to refine a work item | `/core-engineering:ce-impact` | Blast-radius read and open questions |
-| I have a raw feature idea | `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` | Brief, plan, feature decomposition |
+| I have a raw feature idea | `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` | Brief, conditional scored architecture directions + human selection, then feature plan |
 | I have a written plan whose disposition requires or recommends a shared solution design | `/core-engineering:ce-architecture <plan-slug>` | Human-approved system, deployment, data/integration, quality, and traceability views |
 | I have an approved plan feature whose architecture prerequisite is satisfied | `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` | `ce-spec.md`, `tasks.json`, code, tests, verification |
 | I need confidence before handoff | `/core-engineering:ce-review` + `/core-engineering:ce-verify` | Review findings and behavior-verification evidence |

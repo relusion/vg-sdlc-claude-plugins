@@ -16,6 +16,16 @@
       "iteration_count": 1,
       "summary": "The shaping pass confirmed one authorization foundation before invitation writes.",
       "decision_refs": []
+    },
+    "direction": {
+      "status": "adopted-existing",
+      "artifact": "architecture-selection.json",
+      "artifact_sha256": "8a3173dac4b5e538e2800786bd9b547496c2d8ba6e1de50bab805a7006d3ed2d",
+      "exploration_id": "AEX-d2b4e7550fad",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "5c41b7af183374a9fe180f3054a4ca597bb8081fe3babc9f42498d8bacb93afe",
+      "decided_by": "human",
+      "summary": "Adopted the existing application runtime with authorization before invitation and membership persistence."
     }
   },
   "relates_to": [],

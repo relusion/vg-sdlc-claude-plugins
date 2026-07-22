@@ -48,7 +48,7 @@ Provenance: historical live `EVAL-007`, 2026-06-27, $2.00 cap,
 >
 > **Findings:** 1 (1 high [1 confirmed, 0 suspected], 0 medium, 0 low)
 > **Suppressed:** 0 · **Calibration:** `review-policy.md` absent — uncalibrated
-> **Report:** `code-review.md` · **Machine summary:** `review-summary.json` (`status: blocked`, `blocking_high: 1`)
+> **Report:** `code-review.md` · **Machine summary:** `review-summary.json` (`status: blocked`, `blocking_high: 1`, `blocking_route: implement`)
 >
 > **CR-1 — Any actor can cancel any order** · `service.py:8-10`
 > (`diff.patch:3-5`) · **High · Security (IDOR / broken access control) ·
@@ -105,9 +105,9 @@ free. Each is a minimized real skill output kept in-repo under `evals/golden/`:
 
 | Gate | Golden artifact | Replayed through | Asserts |
 |---|---|---|---|
-| EVAL-004 | `evals/golden/EVAL-004/` (plan dir) | `plan-lint.py --json` | the frozen plan is structurally well-formed (H1–H8 pass) |
+| EVAL-004 | `evals/golden/EVAL-004/` (plan dir) | `plan-lint.py --json` | the frozen plan is structurally well-formed (H1–H10 pass) |
 | EVAL-005 | `evals/golden/EVAL-005/specs/01-invite-user/` | `spec-lint.py --json` | the frozen spec passes referential-integrity + traceability |
-| EVAL-007 | `evals/golden/EVAL-007/review-summary.json` | `json_fields` schema check | `status: blocked`, integer `blocking_high: 1`, the `CR-1` IDOR finding shape auto-build gates on |
+| EVAL-007 | `evals/golden/EVAL-007/review-summary.json` | `json_fields` schema check | `status: blocked`, integer `blocking_high: 1`, `blocking_route: implement`, and the `CR-1` IDOR finding shape auto-build gates on |
 | EVAL-008 | `evals/golden/EVAL-008/infra-summary.json` | `json_fields` schema check | `status: pass`, `blocking_hard: 0`, all three formats detected, secrets redacted |
 | EVAL-009 | `evals/golden/EVAL-009/express.json` | `json_fields` schema check | the admitted two-file scope and requested label fix stay frozen for the express-only lane |
 | EVAL-020 | `evals/golden/EVAL-020/docs/plans/team-invitations-rbac/architecture/` | `architecture-lint.py --json` | the architecture package is source-current, structurally coherent, and feature/flow/quality references resolve |

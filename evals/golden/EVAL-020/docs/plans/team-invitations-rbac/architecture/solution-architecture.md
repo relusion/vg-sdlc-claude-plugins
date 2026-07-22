@@ -32,6 +32,12 @@ deployment execution remain outside this architecture baseline.
 | Invitation creation is p95 under 500 ms | recorded | `docs/briefs/team-invitations-rbac.md` | Keep the request path synchronous and bounded; verify after implementation. |
 | Application and database run as separate containers | observed | `deploy/compose.yaml` | Preserve an application node and PostgreSQL node in the deployment view. |
 
+## Selected Direction Realization
+
+| Exploration | Option | Selection binding | Realization summary | Evidence state | Evidence |
+|---|---|---|---|---|---|
+| AEX-daee7bdc72fb | A01 | direction-selected / `9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983` | Realizes the human-selected single-runtime direction with explicit authorization and PostgreSQL ownership boundaries. | recorded | `docs/plans/team-invitations-rbac/architecture-selection.json` |
+
 ## Architecture Overview
 
 `C-001` is the client-facing UI/API consumer, `C-002` owns the invitation request

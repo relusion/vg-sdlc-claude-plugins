@@ -57,7 +57,7 @@ everything else routes through [`docs/USAGE-MATRIX.md`](./docs/USAGE-MATRIX.md).
 | `/core-engineering:ce-ask` | Grounded, `file:line`-cited answer to a codebase question |
 | `/core-engineering:ce-impact` | Blast-radius read of a proposed change or work item before building |
 | `/core-engineering:ce-patch` | One low-risk change of at most two files through a single approval gate |
-| `/core-engineering:ce-plan` | Decompose a project into an ordered, dependency-aware feature plan |
+| `/core-engineering:ce-plan` | Frame capabilities, select a solution direction when needed, then decompose an ordered feature plan |
 | `/core-engineering:ce-spec` | Detail one planned feature into EARS criteria + `tasks.json` |
 | `/core-engineering:ce-implement` | Build one specified feature test-first, task by task |
 | `/core-engineering:ce-review` | Independently code-review a built feature across six lenses |
@@ -95,8 +95,9 @@ The [documentation index](./docs/README.md) routes by audience. Start with
 The production spine — each skill escalates conflicts *up* a layer, never expands its own scope:
 
 ```
-brief → plan ⇄ architecture shape → [baseline when required/chosen] → spec → implement
-                                                                    gated by verify · review · debug
+brief → plan [architecture explore + human direction] → decompose ⇄ architecture shape
+      → [baseline when required/chosen] → spec → implement
+                                             gated by verify · review · debug
        auto-build  runs the bounded loop after kickoff approval
        patch       handles one low-risk change of at most two files
        ux-audit    walks the plan's journeys against the running app (or, plan-free, adversarially probes it)
@@ -129,7 +130,7 @@ Plugin skills are invoked directly with plugin-qualified names, e.g. `/core-engi
 ### Practical starting paths
 
 - First run in an existing repo: `/core-engineering:ce-init --write`, then `/core-engineering:ce-ask` or `/core-engineering:ce-impact`.
-- New product or feature: `/core-engineering:ce-brief` → `/core-engineering:ce-plan` (conditionally invokes read-only architecture shaping) → `/core-engineering:ce-architecture` when the recorded disposition requires a baseline, or when a recommended baseline is chosen → `/core-engineering:ce-spec` → `/core-engineering:ce-implement`.
+- New product or feature: `/core-engineering:ce-brief` → `/core-engineering:ce-plan` (conditionally generates/scores solution directions and requires a human selection before detailed decomposition, then checks the cut through read-only shaping) → `/core-engineering:ce-architecture` when the recorded disposition requires a baseline, or when a recommended baseline is chosen → `/core-engineering:ce-spec` → `/core-engineering:ce-implement`.
 - Small bounded fix: `/core-engineering:ce-patch`; it graduates to `/core-engineering:ce-plan` if the change proves structural.
 - Existing code question: `/core-engineering:ce-ask` for one answer, `/core-engineering:ce-onboard` when a maintainer needs a paced walkthrough, or `/core-engineering:ce-domain` to learn the business domain the code encodes.
 - Work-item refinement: `/core-engineering:ce-impact` for a grounded, file-cited blast-radius read before planning or estimating.

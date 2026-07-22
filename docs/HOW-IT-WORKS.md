@@ -19,7 +19,9 @@ The main workflow is a spine where each stage produces a durable input for the
 next:
 
 ```text
-/core-engineering:ce-brief -> /core-engineering:ce-plan (conditional architecture shaping)
+/core-engineering:ce-brief -> /core-engineering:ce-plan
+    (capability frame -> conditional architecture options + human direction selection
+     -> detailed decomposition -> architecture/plan shaping)
     -> [/core-engineering:ce-architecture baseline, required by plan disposition when load-bearing]
     -> /core-engineering:ce-spec -> /core-engineering:ce-implement
                                       |-> /core-engineering:ce-verify   behavior and acceptance proof
@@ -33,14 +35,19 @@ next:
 release tail: /core-engineering:ce-ship-release -> /core-engineering:ce-ship-document
 ```
 
-The artifacts, rather than a chat transcript, are the handoff contract. A plan
-defines feature boundaries and order, but it does not freeze them before
-load-bearing architecture has challenged the cut. Stage 3 screens architecture
-applicability; when required, planning invokes
-`/core-engineering:ce-architecture shape:<draft-slug>` over provisional features,
-then alone applies any human-approved delta. The written plan records
-`architecture_disposition`. A required disposition blocks specification and
-direct implementation until
+The artifacts, rather than a chat transcript, are the handoff contract. Planning
+first reconciles intent with repository evidence and builds a coarse capability
+map—never feature IDs or tasks. When architecture can determine the delivery
+shape, it invokes `/core-engineering:ce-architecture explore:<draft-slug>` to
+generate complete solution directions, eliminate hard-constraint failures, and
+score the viable options against human-confirmed requirements and quality
+priorities. A human selects the direction before detailed feature decomposition.
+The exact option set and selection survive in `architecture-selection.json`.
+
+After decomposition, `/core-engineering:ce-architecture shape:<draft-slug>` checks
+that provisional features realize the selected direction; planning alone applies
+any human-approved delta. The written plan records `architecture_disposition` and
+the selection-file hash. A required disposition blocks specification and direct implementation until
 the normal architecture mode projects the stable plan into approved system,
 deployment, data/integration, and quality views. Recommended, not-required, and
 human-waived routes remain explicit rather than treating absence as silently
@@ -55,7 +62,9 @@ Every write-capable stage has a **Scope Lock**:
 
 - `/core-engineering:ce-architecture` shape mode may propose an evidence-backed
   delta to a provisional candidate but may not apply it; `/core-engineering:ce-plan`
-  and the human retain decomposition authority. Baseline mode may synthesize
+  and the human retain decomposition authority. Explore mode may generate,
+  eliminate, score, and recommend complete solution directions, but only the
+  human selects one and only planning persists the binding. Baseline mode may synthesize
   cross-feature views from a written plan, but it may not re-cut features, add
   obligations, or make feature-level design decisions.
 - `/core-engineering:ce-spec` may refine one planned feature, but it may not expand the plan.
@@ -98,8 +107,8 @@ can invoke it directly.
 | Skill | Responsibility |
 |---|---|
 | `/core-engineering:ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
-| `/core-engineering:ce-plan` | Decompose work into ordered features, decisions, risks, and cross-feature obligations; conditionally compose architecture shaping before the cut freezes. |
-| `/core-engineering:ce-architecture` | In `shape:<draft-slug>` mode, assess a provisional candidate read-only and return planning impact; in normal mode, turn one written multi-feature plan into a human-approved, repository-grounded baseline. It never applies a re-cut or replaces feature specifications. |
+| `/core-engineering:ce-plan` | Reconcile intent and repository evidence, conditionally obtain a human-selected solution direction, then decompose work into ordered features and verify architecture/plan convergence before the cut freezes. |
+| `/core-engineering:ce-architecture` | In `explore:<draft-slug>` mode, generate and score complete solution directions before decomposition; in `shape:<draft-slug>` mode, assess whether provisional features realize the selected direction; in normal mode, turn one written multi-feature plan into a human-approved repository-grounded baseline. It never applies a re-cut or replaces feature specifications. |
 | `/core-engineering:ce-plan-audit` | Lint and review an existing plan without rewriting it. |
 | `/core-engineering:ce-spec` | Validate the plan's architecture disposition and any occupied package, then convert one eligible planned feature into EARS acceptance criteria, tests, and `tasks.json`; required missing or stale architecture blocks. |
 | `/core-engineering:ce-implement` | Revalidate the plan's architecture prerequisite before trusting an existing spec, then execute its approved task list test-first and record verification evidence. |
@@ -124,7 +133,7 @@ can invoke it directly.
 
 | Skill | Responsibility |
 |---|---|
-| `/core-engineering:ce-decide` | Compare technical options and draft an evidence-tagged proposed ADR; a human promotes it. |
+| `/core-engineering:ce-decide` | Compare supplied options for one bounded technical fork and draft an evidence-tagged proposed ADR; complete solution-direction generation belongs to architecture exploration. |
 | `/core-engineering:ce-ship-backlog` | Emit one-way ADO, Jira, or GitHub work-item files from a spec; it does not call tracker APIs. |
 | `/core-engineering:ce-ship-release` | Prepare a GO/NO-GO decision package, evidence inventory, and optional changelog; it never deploys. |
 | `/core-engineering:ce-ship-document` | Generate user-facing documentation from verified behavior and runnable examples. |
@@ -158,6 +167,7 @@ docs/
     ├── patterns.md                  # known repository hazards
     ├── express-log.jsonl            # accepted /core-engineering:ce-patch ledger
     └── <slug>/
+        ├── architecture-selection.json    # reviewed option set + human-selected pre-decomposition direction
         ├── feature-plan.md
         ├── shared-context.md
         ├── threat-model.md
@@ -189,7 +199,11 @@ docs/
         └── evidence-pack/<date>/
 ```
 
-Not every plan contains every file. The `architecture/` package is conditional:
+Every newly written full plan carries `architecture-selection.json`: either the
+exact reviewed option set and selected direction, an adopted existing direction,
+or an explicit not-applicable/deferred/waived record. Legacy absence routes to
+plan revision before a write-capable downstream workflow proceeds. The
+`architecture/` package remains conditional:
 it is mandatory before spec, direct implementation, or auto-build when
 `plan.json` records `required`, a
 visible coverage gap when `recommended`, N/A when `not-required`, and an
@@ -248,6 +262,12 @@ Material decisions are rendered with evidence, consequences, and a visible
 `Gate N of M` locator. Dense gates lead with the rows that actually need a
 decision. A human should not be asked to confirm a model-derived classification
 without seeing its basis and the cost of being wrong.
+
+Architecture scores are decision support, never automatic selection. Hard
+constraints gate before weighting; a failed or materially unknown residency,
+security, contractual, platform, or accepted-decision constraint cannot be
+averaged away. Even a single viable direction requires affirmative human
+selection before detailed decomposition.
 
 The normative contributor rules live in the
 [HITL Gate Standard](contributing/HITL-GATE-STANDARD.md). The installed skills
@@ -314,7 +334,9 @@ The scripts use a consistent exit shape: pass, finding/failure, or could-not-run
 Degraded execution is reported instead of being presented as a clean result.
 The review-evidence gate requires a non-negative `blocking_high` count and rejects
 a contradictory `status` before trusting it; malformed review evidence is a
-could-not-run result, never a pass.
+could-not-run result, never a pass. Auto-build also requires a validated
+`blocking_route`: implementation defects may retry implementation, while a
+`plan-conflict` parks for human-owned planning instead of looping on code.
 
 ### Two separate merge questions
 
@@ -401,7 +423,8 @@ evidence, options and consequences, and an exact resume input). The caller's
 answer resumes from the named checkpoint; silence is never approval.
 
 `/core-engineering:ce-auto-build` is different: it is the in-plugin orchestrator for a complete
-plan. Stage 0 validates `architecture_disposition` and any present package,
+plan. Stage 0 validates the architecture-selection binding,
+`architecture_disposition`, and any present package,
 blocking a missing/stale required baseline before a worker spawns; it then fixes
 the feature range, failure-attempt cap, park cap, and budget. Features
 then move in ship order, one at a time, through specification, deterministic

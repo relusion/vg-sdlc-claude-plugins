@@ -7,13 +7,13 @@ validated it before this lint. These pin the 0/1/2 exit contract:
   0 PASS  — sidecar well-formed, the Brief -> Plan skip map is computable;
   1 FAIL  — a hard well-formedness failure (H1 heading / H2 stub description /
             H3 unshipped lens / H4 sidecar shape);
-  2 ERROR — inputs missing/unparseable -> Stage 3 falls back to the manual
-            approval self-attestation, loudly (never a silent pass).
+  2 ERROR — inputs missing/unparseable -> the sidecar cannot authorize a skip.
 
-Advisory checks (A1 range-exception reason, A2 durable-noun loop, A3 open-question
-count, A4 sidecar section coverage) warn but never change the exit code.
+Advisory checks (A1 range-exception reason, A2 durable-noun loop, and A3
+open-question count) warn but never change the exit code.
 """
 
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -69,6 +69,12 @@ auth first
 ## Known Risks & Pitfalls
 approval race
 
+## Delivery Target
+internal pilot by the end of the quarter
+
+## Reference Documents
+- docs/product/fleet-maintenance.md
+
 ## Assumptions
 single tenant
 
@@ -86,11 +92,14 @@ _SECTIONS = {
     "users-roles": "answered", "primary-journeys": "answered",
     "scope": "answered", "success-criteria": "answered",
     "technical-context": "answered", "constraints-ordering": "open",
-    "known-risks-pitfalls": "open", "assumptions": "answered",
+    "known-risks-pitfalls": "open", "delivery-target": "answered",
+    "reference-documents": "answered", "assumptions": "answered",
     "open-questions": "open", "decision-log": "answered",
 }
 GOOD_SIDECAR = {
-    "schema_version": 1, "sections": dict(_SECTIONS),
+    "schema_version": 2,
+    "brief_sha256": hashlib.sha256(GOOD_MD.encode("utf-8")).hexdigest(),
+    "sections": dict(_SECTIONS),
     "lenses": ["solutions-architect", "business-analyst"], "open_questions": 2,
 }
 
@@ -110,11 +119,17 @@ def _write_case(d: Path, md=GOOD_MD, sidecar=GOOD_SIDECAR, lenses=("solutions-ar
     return brief, personas
 
 
-def run_json(brief: Path, personas: Path, sidecar: Path | None = None):
+def run_json(
+    brief: Path,
+    personas: Path,
+    sidecar: Path | None = None,
+    extra: tuple[str, ...] = (),
+):
     argv = [sys.executable, str(SCRIPT), str(brief),
             "--personas-dir", str(personas), "--json"]
     if sidecar is not None:
         argv += ["--sidecar", str(sidecar)]
+    argv += list(extra)
     proc = subprocess.run(argv, capture_output=True, text=True, timeout=30)
     try:
         payload = json.loads(proc.stdout)
@@ -152,6 +167,16 @@ class BriefLintGreen(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             brief, personas = _write_case(Path(td), sidecar=sc)
             payload, rc = run_json(brief, personas)
+            self.assertEqual(rc, 0, payload)
+
+    def test_plan_consumer_can_revalidate_without_the_persona_library(self):
+        with tempfile.TemporaryDirectory() as td:
+            brief, personas = _write_case(Path(td))
+            for persona in personas.iterdir():
+                persona.unlink()
+            payload, rc = run_json(
+                brief, personas, extra=("--skip-persona-check",)
+            )
             self.assertEqual(rc, 0, payload)
 
 
@@ -200,7 +225,7 @@ class BriefLintRed(unittest.TestCase):
 
     def test_wrong_schema_version_fails(self):
         sc = dict(GOOD_SIDECAR)
-        sc["schema_version"] = 2
+        sc["schema_version"] = 1
         with tempfile.TemporaryDirectory() as td:
             brief, personas = _write_case(Path(td), sidecar=sc)
             payload, rc = run_json(brief, personas)
@@ -224,6 +249,58 @@ class BriefLintRed(unittest.TestCase):
             payload, rc = run_json(brief, personas)
             self.assertEqual(rc, 1)
             self.assertTrue(any("sections" in f for f in payload["hard_failures"]))
+
+    def test_stale_markdown_hash_fails(self):
+        sc = dict(GOOD_SIDECAR)
+        sc["brief_sha256"] = "0" * 64
+        with tempfile.TemporaryDirectory() as td:
+            brief, personas = _write_case(Path(td), sidecar=sc)
+            payload, rc = run_json(brief, personas)
+            self.assertEqual(rc, 1)
+            self.assertTrue(any(f.startswith("H5 brief_sha256")
+                                for f in payload["hard_failures"]))
+
+    def test_answered_empty_section_cannot_authorize_a_skip(self):
+        md = GOOD_MD.replace(
+            "## Users & Roles\nops user, approver\n", "## Users & Roles\n"
+        )
+        sc = dict(GOOD_SIDECAR)
+        sc["brief_sha256"] = hashlib.sha256(md.encode("utf-8")).hexdigest()
+        with tempfile.TemporaryDirectory() as td:
+            brief, personas = _write_case(Path(td), md=md, sidecar=sc)
+            payload, rc = run_json(brief, personas)
+            self.assertEqual(rc, 1)
+            self.assertTrue(any("sections[users-roles]" in f
+                                for f in payload["hard_failures"]))
+
+    def test_missing_delivery_target_cannot_pass_when_claimed_answered(self):
+        md = GOOD_MD.replace(
+            "## Delivery Target\ninternal pilot by the end of the quarter\n\n",
+            "",
+        )
+        sc = dict(GOOD_SIDECAR)
+        sc["brief_sha256"] = hashlib.sha256(md.encode("utf-8")).hexdigest()
+        self.assertEqual(sc["sections"]["delivery-target"], "answered")
+
+        with tempfile.TemporaryDirectory() as td:
+            brief, personas = _write_case(Path(td), md=md, sidecar=sc)
+            payload, rc = run_json(brief, personas)
+
+        self.assertEqual(rc, 1)
+        joined = " ".join(payload["hard_failures"])
+        self.assertIn("Delivery Target", joined)
+        self.assertIn("sections[delivery-target]", joined)
+
+    def test_missing_section_status_is_hard_failure(self):
+        sc = dict(GOOD_SIDECAR)
+        sc["sections"] = dict(_SECTIONS)
+        del sc["sections"]["primary-journeys"]
+        with tempfile.TemporaryDirectory() as td:
+            brief, personas = _write_case(Path(td), sidecar=sc)
+            payload, rc = run_json(brief, personas)
+            self.assertEqual(rc, 1)
+            self.assertTrue(any("missing required slug" in f
+                                for f in payload["hard_failures"]))
 
 
 class BriefLintDegrade(unittest.TestCase):

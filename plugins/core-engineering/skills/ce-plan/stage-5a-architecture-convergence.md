@@ -20,11 +20,14 @@ the next ordered check. The revision caller owns preservation and write routing.
 
 `/core-engineering:ce-architecture` supplies read-only architecture judgment;
 it does not own the feature cut. Freeze project intent, exclusions, recorded
-requirements, and human authority for this pass. Keep feature IDs, boundaries,
-dependencies, and order provisional.
+requirements, the human-selected architecture direction, and human authority
+for this pass. Keep feature IDs, boundaries, dependencies, and order provisional.
 
 - Architecture may identify a component, deployment, flow, data, quality, or
   decision consequence and propose a paste-ready delta.
+- Architecture must evaluate the candidate against the exact selected option
+  and hashes in `architecture-selection.json`; it may not silently substitute
+  another direction because that would bypass the pre-decomposition human gate.
 - Only `/core-engineering:ce-plan` may apply that delta to the candidate.
 - Only the human may approve the revised cut, a material technical decision,
   or a waiver.
@@ -42,6 +45,7 @@ below so shaping mode never reconstructs the candidate from chat:
 draft_slug: <validated slug>
 candidate_revision: <positive integer>
 shaping_attempt: <positive integer; increment before every shape invocation>
+shaping_input_sha256: <64 lowercase hex over this complete block body, excluding this line and both delimiter headings>
 parent_gate_index: <next positive index in this ce-plan run>
 parent_gate_total: <current computed M for this ce-plan run>
 project_intent: <one bounded sentence>
@@ -49,6 +53,12 @@ non_goals: <semicolon-separated list or None>
 architecture_triggers: <semicolon-separated Stage 3.9 driver-id => evidence basis>
 evidence_paths: <comma-separated repository-relative files already read, or None>
 accepted_decisions: <comma-separated accepted ADR paths / recorded decisions, or None>
+architecture_selection_path: docs/plans/.drafts/<slug>/architecture-selection.json
+architecture_selection_sha256: <64 lowercase hex over the exact file bytes>
+architecture_direction_status: <direction-selected | adopted-existing | not-applicable | deferred | waived>
+exploration_id: <selection exploration_id>
+selected_option_id: <A01-A04 / accepted-existing id, or None>
+selected_option_sha256: <64 lowercase hex, or None>
 
 ### Provisional Features
 | Provisional ID | Stable source (revision only) | Title | Type | Scope | Excluded | Hard dependencies | Soft dependencies | Order | Boundary-Owner | Open unknowns | Validation target |
@@ -75,6 +85,22 @@ invent paths, decisions, topology, or NFRs to make the block look complete. A
 material unknown stays explicit and normally produces `blocked` or
 `requires-decision`, not guessed convergence.
 
+Compute `shaping_input_sha256` after rendering the complete block: hash the
+exact UTF-8 bytes between the two delimiter headings after removing exactly the
+single `shaping_input_sha256:` line, with no other whitespace normalization.
+Write the value, then re-read and recompute before invocation. This binds every
+feature, journey, state, obligation, evidence, decision, direction, and parent
+gate field—not only the revision counters.
+
+Always bind the exact selection path, file hash, direction status, and
+exploration id. For `required`, refuse to invoke shaping when the artifact is
+absent, unselected, stale for the current capability revision, or its hashes do
+not match this handoff. Return to Stage 1A before decomposition instead. A
+human-confirmed `not-applicable`/`not-required`, human-deferred `recommended`,
+or human-waived route keeps the artifact binding and uses `None` only for the
+two selected-option fields. Never drop the disposition artifact merely because
+it has no selected option.
+
 ## 5A.3 Invoke the composable shaping mode
 
 Invoke `/core-engineering:ce-architecture shape:<slug>` through the `Skill`
@@ -82,7 +108,11 @@ tool. Do not locate or read a sibling skill directory directly; plugin-qualified
 invocation is the portable composition seam.
 
 The returned `Architecture Shaping Result` must echo this block's exact
-`source_candidate_revision`, exact `source_shaping_attempt`, and exactly one status:
+`source_candidate_revision`, exact `source_shaping_attempt`, exact
+`source_shaping_input_sha256`, exact
+`source_architecture_selection_sha256`, exact
+`source_architecture_direction_status`, exact `source_selected_option_sha256`
+when occupied, and exactly one status:
 
 - `converged`
 - `requires-plan-delta`
@@ -93,7 +123,10 @@ It must also render `Evidence Boundary`, `Architecture Drivers`, `Provisional
 System Shape`, `Decisions and Gaps`, `Plan Delta`, and `Next Owner`. Reject an
 unrecognized/missing status, a stale candidate revision or shaping attempt, an
 omitted material gap, or a result that claims to have written the plan or architecture package.
-Treat that as `blocked`; do not reinterpret malformed output into a pass.
+Treat that as `blocked`; do not reinterpret malformed output into a pass. A
+result that says the selected direction itself is no longer viable returns to
+Stage 1A for a new Evaluation Frame and human selection; it cannot be repaired
+by silently re-cutting the plan under a different option.
 
 Increment `architecture_iteration_count` for every complete shaping result.
 The maximum is three results in one bounded sequence. A candidate re-cut
@@ -158,7 +191,9 @@ features, and cost-if-wrong. Ask:
 
 `ce-decide` recommends and drafts; it does not accept an ADR or mutate this
 candidate. Record accepted decision paths in the final disposition and the
-plan's Resolved Project Decisions ledger.
+plan's Resolved Project Decisions ledger. This branch is for one bounded fork
+inside the selected direction. If resolving it changes the complete solution
+direction, return to Stage 1A and rerun exploration instead.
 
 ### `blocked` — Architecture Coverage Gap `[material]`
 

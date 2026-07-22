@@ -67,6 +67,7 @@ The current-state, machine-readable gate input — **per feature**, at `docs/pla
   "reviewed_at": "YYYY-MM-DD",
   "findings_total": 7,
   "blocking_high": 1,
+  "blocking_route": "implement",
   "suppressed": 2,
   "by_severity": {
     "high":   { "total": 2, "confirmed": 1, "suspected": 1 },
@@ -98,8 +99,20 @@ The current-state, machine-readable gate input — **per feature**, at `docs/pla
   machine gate state. Optional **`mode`** is provenance only; the deterministic
   gate intentionally acts only on `status` and `blocking_high`.
 - **`blocking_high`** is the single precomputed gate count: the number of findings where `severity == "high" AND confidence == "confirmed" AND lens ∈ {correctness, security}`. The deterministic gate reads that count, requires a non-negative integer, and checks that `status` agrees with zero/non-zero. It never re-derives the predicate from the finding list. (Performance is excluded for free — it can never be High.)
+- **`blocking_route`** is `null` when `blocking_high == 0`, `implement` for
+  implementation-repairable blocking findings, or `plan-conflict` when any
+  blocking finding requires human-owned plan revision. Mixed blockers use
+  `plan-conflict` first. Auto-build requires and validates this precomputed key;
+  it never turns a plan conflict into an implementation retry.
 - **`by_severity.high`** carries the `confirmed` / `suspected` split (the only severity that is confidence-tagged); `medium` / `low` carry just `total` (untagged — so `total` need not equal a confidence sum). **`reproduced`** is `true|false` for a behavioral High, `null` for a judgment High. Field names are `snake_case`; severity keys are loudest-first; the six `by_lens` keys are the fixed set.
 - **`suppressed`** is the count of findings the lens walk re-surfaced this run but a prior dismissal (a `review-learnings.md` rule) suppressed — recorded under "Previously dismissed", excluded from `findings_total` and `blocking_high`. It is here so the end-review and `/core-engineering:ce-retro` see suppression volume mechanically (a climbing number is a promote-to-`review-policy.md` signal).
+- **Plan-conflict route:** when a confirmed Security High is reachable only
+  through a code-observed boundary missing from the plan's security projection,
+  keep it blocking, set `reproduced: true`, include `plan_conflict` in
+  `observation`, and set `suggested_escalation` to
+  `/core-engineering:ce-plan`; set top-level `blocking_route: plan-conflict`.
+  The projection is human-owned; do not send that finding through an
+  implementation-only repair loop.
 
 ---
 

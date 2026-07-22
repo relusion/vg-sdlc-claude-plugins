@@ -42,6 +42,8 @@ HARD checks (a FAIL -> exit 1; facts derivable from plan.json + the filesystem):
       (A single-feature minimal plan has no plan.json and never reaches the lint.)
   H9  A present `architecture_disposition` records a structurally valid applicability
       decision and internally consistent architecture-plan convergence evidence.
+  H10 A present architecture-direction summary is human-bound, status-consistent,
+      and matches a fresh, fully valid plan-root `architecture-selection.json`.
 
 ADVISORY checks (warnings only; never change the exit code — completeness or
 markdown-derived, best-effort):
@@ -61,11 +63,14 @@ markdown-derived, best-effort):
       dispositioned `deprecate:…` / `shim:…` / `hard-break:…`, never blank.
   A12 `architecture_disposition` is absent on a legacy plan. Compatibility mode
       remains non-blocking until the next explicit plan revision records the posture.
+  A13 `architecture_disposition.direction` is absent on a legacy plan. Compatibility
+      mode remains non-blocking unless `--require-architecture-direction` is set.
 
 Usage:
     plan-lint.py <plan-dir>                 # dir holding plan.json + features/
     plan-lint.py --plan-json path/plan.json # explicit manifest
     plan-lint.py <plan-dir> --json          # machine-readable result
+    plan-lint.py <plan-dir> --require-architecture-direction
 
 Exit codes:
     0  PASS  — no hard failures (advisory warnings may still be printed)
@@ -77,6 +82,8 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -92,9 +99,10 @@ ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required", "waived"}
 ARCHITECTURE_CONVERGENCE_STATES = {
     "converged", "deferred", "not-applicable", "waived",
 }
-ARCHITECTURE_DISPOSITION_KEYS = {
+ARCHITECTURE_DISPOSITION_REQUIRED_KEYS = {
     "decision", "triggers", "rationale", "decided_by", "convergence",
 }
+ARCHITECTURE_DISPOSITION_OPTIONAL_KEYS = {"direction"}
 ARCHITECTURE_CONVERGENCE_KEYS = {
     "status", "iteration_count", "summary", "decision_refs",
 }
@@ -117,6 +125,31 @@ ARCHITECTURE_RECOMMENDED_TRIGGERS = {
 ARCHITECTURE_ALL_TRIGGERS = (
     ARCHITECTURE_REQUIRED_TRIGGERS | ARCHITECTURE_RECOMMENDED_TRIGGERS
 )
+ARCHITECTURE_DIRECTION_KEYS = {
+    "status",
+    "artifact",
+    "artifact_sha256",
+    "exploration_id",
+    "selected_option_id",
+    "selected_option_sha256",
+    "decided_by",
+    "summary",
+}
+ARCHITECTURE_DIRECTION_SELECTED = {"direction-selected", "adopted-existing"}
+ARCHITECTURE_DIRECTION_UNSELECTED = {"not-applicable", "deferred", "waived"}
+ARCHITECTURE_DIRECTION_STATUSES = (
+    ARCHITECTURE_DIRECTION_SELECTED | ARCHITECTURE_DIRECTION_UNSELECTED
+)
+ARCHITECTURE_DIRECTION_BY_DECISION = {
+    "required": ARCHITECTURE_DIRECTION_SELECTED,
+    "recommended": ARCHITECTURE_DIRECTION_SELECTED | {"deferred"},
+    "not-required": {"not-applicable"},
+    # A post-decomposition shaping/baseline waiver does not erase an immutable
+    # direction that already shaped decomposition. `waived` is also valid when
+    # the human waived direction selection itself.
+    "waived": ARCHITECTURE_DIRECTION_SELECTED | {"waived"},
+}
+SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # Placeholder / empty values that must not count as a real boundary-owner category.
 EMPTY_VALUES = {"", "-", "none", "null", "n/a", "na", "tbd", "~"}
@@ -324,10 +357,193 @@ def _check_surface_cell(advisory: list, surface: str, cell: str) -> None:
         )
 
 
-def validate_architecture_disposition(
+_SELECTION_LINT_MODULE = None
+
+
+def _load_selection_lint_module():
+    """Load the colocated fork without relying on a non-portable sibling skill."""
+    global _SELECTION_LINT_MODULE
+    if _SELECTION_LINT_MODULE is not None:
+        return _SELECTION_LINT_MODULE
+    script = Path(__file__).with_name("architecture-selection-lint.py")
+    if not script.is_file():
+        raise PlanLintError(f"colocated architecture-selection-lint.py is missing: {script}")
+    spec = importlib.util.spec_from_file_location(
+        f"architecture_selection_lint_{abs(hash(str(script)))}", script
+    )
+    if spec is None or spec.loader is None:
+        raise PlanLintError(f"could not load architecture-selection-lint.py: {script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _SELECTION_LINT_MODULE = module
+    return module
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_architecture_direction(
     manifest: dict,
+    posture: dict | None,
+    plan_dir: Path,
     hard: list,
     advisory: list,
+    *,
+    require_direction: bool,
+) -> None:
+    """Validate the plan summary and its exact selection-artifact binding."""
+    direction = posture.get("direction") if isinstance(posture, dict) else None
+    if direction is None:
+        if require_direction:
+            hard.append(
+                "H10: `architecture_disposition.direction` is required by "
+                "--require-architecture-direction"
+            )
+        else:
+            advisory.append(
+                "A13: `architecture_disposition.direction` is absent — legacy plan; "
+                "compatibility mode applies until direction selection is required"
+            )
+        return
+    if not isinstance(direction, dict):
+        hard.append("H10: `architecture_disposition.direction` must be an object")
+        return
+
+    missing = sorted(ARCHITECTURE_DIRECTION_KEYS - set(direction))
+    extra = sorted(set(direction) - ARCHITECTURE_DIRECTION_KEYS)
+    if missing:
+        hard.append(
+            "H10: `architecture_disposition.direction` is missing key(s): "
+            + ", ".join(missing)
+        )
+    if extra:
+        hard.append(
+            "H10: `architecture_disposition.direction` has unknown key(s): "
+            + ", ".join(extra)
+        )
+
+    status = direction.get("status")
+    if status not in ARCHITECTURE_DIRECTION_STATUSES:
+        hard.append(
+            "H10: `architecture_disposition.direction.status` must be one of "
+            f"{sorted(ARCHITECTURE_DIRECTION_STATUSES)}"
+        )
+    decision = posture.get("decision") if isinstance(posture, dict) else None
+    allowed = ARCHITECTURE_DIRECTION_BY_DECISION.get(decision)
+    if allowed is not None and status not in allowed:
+        hard.append(
+            f"H10: architecture decision `{decision}` requires direction status "
+            f"in {sorted(allowed)}"
+        )
+
+    if direction.get("artifact") != "architecture-selection.json":
+        hard.append(
+            "H10: `architecture_disposition.direction.artifact` must equal "
+            "`architecture-selection.json`"
+        )
+    artifact_hash = direction.get("artifact_sha256")
+    if not isinstance(artifact_hash, str) or SHA_RE.fullmatch(artifact_hash) is None:
+        hard.append(
+            "H10: `architecture_disposition.direction.artifact_sha256` must be "
+            "64 lowercase hex characters"
+        )
+    if not isinstance(direction.get("exploration_id"), str) or not direction["exploration_id"].strip():
+        hard.append("H10: `architecture_disposition.direction.exploration_id` must be non-empty")
+    if direction.get("decided_by") != "human":
+        hard.append("H10: `architecture_disposition.direction.decided_by` must be 'human'")
+    if not isinstance(direction.get("summary"), str) or not direction["summary"].strip():
+        hard.append("H10: `architecture_disposition.direction.summary` must be non-empty")
+
+    selected = status in ARCHITECTURE_DIRECTION_SELECTED
+    selected_id = direction.get("selected_option_id")
+    selected_hash = direction.get("selected_option_sha256")
+    if selected:
+        if not isinstance(selected_id, str) or not selected_id.strip():
+            hard.append(
+                "H10: selected direction requires a non-empty `selected_option_id`"
+            )
+        if not isinstance(selected_hash, str) or SHA_RE.fullmatch(selected_hash) is None:
+            hard.append(
+                "H10: selected direction requires `selected_option_sha256` as "
+                "64 lowercase hex characters"
+            )
+    elif selected_id is not None or selected_hash is not None:
+        hard.append(
+            "H10: an unselected direction status requires null "
+            "`selected_option_id` and `selected_option_sha256`"
+        )
+
+    artifact = plan_dir / "architecture-selection.json"
+    if artifact.is_symlink() or not artifact.is_file():
+        hard.append(
+            "H10: plan-root `architecture-selection.json` must be a regular "
+            "non-symlink file"
+        )
+        return
+    if isinstance(artifact_hash, str) and SHA_RE.fullmatch(artifact_hash):
+        actual_hash = _file_sha256(artifact)
+        if artifact_hash != actual_hash:
+            hard.append(
+                "H10: `architecture_disposition.direction.artifact_sha256` "
+                f"does not match architecture-selection.json (actual {actual_hash})"
+            )
+
+    selection_lint = _load_selection_lint_module()
+    try:
+        repo_root = selection_lint.infer_repo_root(artifact)
+        artifact_data, failures = selection_lint.validate_file(
+            artifact,
+            repo_root=repo_root,
+            allow_incomplete=False,
+            expected_project_slug=(
+                manifest.get("project_slug")
+                if isinstance(manifest.get("project_slug"), str)
+                else None
+            ),
+        )
+    except selection_lint.SelectionLintError as exc:
+        hard.append(
+            "H10: could not validate architecture-selection.json: "
+            f"{exc}"
+        )
+        return
+    for failure in failures:
+        hard.append(f"H10 architecture-selection.json: {failure}")
+
+    artifact_selection = artifact_data.get("selection")
+    if not isinstance(artifact_selection, dict):
+        return  # the standalone linter already emitted the precise failure
+    cross_checks = (
+        ("status", status, artifact_selection.get("status")),
+        ("selected_option_id", selected_id, artifact_selection.get("option_id")),
+        (
+            "selected_option_sha256",
+            selected_hash,
+            artifact_selection.get("option_sha256"),
+        ),
+        ("decided_by", direction.get("decided_by"), artifact_selection.get("decided_by")),
+        ("exploration_id", direction.get("exploration_id"), artifact_data.get("exploration_id")),
+    )
+    for field, summary_value, artifact_value in cross_checks:
+        if summary_value != artifact_value:
+            hard.append(
+                f"H10: direction `{field}` does not match architecture-selection.json "
+                f"({summary_value!r} != {artifact_value!r})"
+            )
+
+
+def validate_architecture_disposition(
+    manifest: dict,
+    plan_dir: Path,
+    hard: list,
+    advisory: list,
+    *,
+    require_direction: bool = False,
 ) -> None:
     """Validate the plan's architecture applicability and convergence posture.
 
@@ -345,15 +561,34 @@ def validate_architecture_disposition(
             "A12: `architecture_disposition` is absent — legacy plan; "
             "compatibility mode applies until the next Stage R revision"
         )
+        validate_architecture_direction(
+            manifest,
+            None,
+            plan_dir,
+            hard,
+            advisory,
+            require_direction=require_direction,
+        )
         return
 
     posture = manifest.get("architecture_disposition")
     if not isinstance(posture, dict):
         hard.append("H9: `architecture_disposition` must be an object")
+        validate_architecture_direction(
+            manifest,
+            None,
+            plan_dir,
+            hard,
+            advisory,
+            require_direction=require_direction,
+        )
         return
 
-    missing = sorted(ARCHITECTURE_DISPOSITION_KEYS - set(posture))
-    extra = sorted(set(posture) - ARCHITECTURE_DISPOSITION_KEYS)
+    missing = sorted(ARCHITECTURE_DISPOSITION_REQUIRED_KEYS - set(posture))
+    allowed_posture_keys = (
+        ARCHITECTURE_DISPOSITION_REQUIRED_KEYS | ARCHITECTURE_DISPOSITION_OPTIONAL_KEYS
+    )
+    extra = sorted(set(posture) - allowed_posture_keys)
     if missing:
         hard.append(
             "H9: `architecture_disposition` is missing key(s): " + ", ".join(missing)
@@ -400,6 +635,15 @@ def validate_architecture_disposition(
         hard.append("H9: `architecture_disposition.rationale` must be non-empty")
     if posture.get("decided_by") != "human":
         hard.append("H9: `architecture_disposition.decided_by` must be 'human'")
+
+    validate_architecture_direction(
+        manifest,
+        posture,
+        plan_dir,
+        hard,
+        advisory,
+        require_direction=require_direction,
+    )
 
     convergence = posture.get("convergence")
     if not isinstance(convergence, dict):
@@ -555,7 +799,13 @@ def find_cycle(adj: dict[str, list[str]]) -> list[str] | None:
     return None
 
 
-def run_checks(manifest: dict, plan_dir: Path, registry: set[str] | None) -> tuple[list, list]:
+def run_checks(
+    manifest: dict,
+    plan_dir: Path,
+    registry: set[str] | None,
+    *,
+    require_architecture_direction: bool = False,
+) -> tuple[list, list]:
     hard, advisory = [], []
     features = manifest["features"]
 
@@ -727,7 +977,13 @@ def run_checks(manifest: dict, plan_dir: Path, registry: set[str] | None) -> tup
     # H9 architecture posture — structural only. The presence and freshness of a
     # required published baseline is enforced by downstream architecture consumers,
     # after the written plan exists and can be hash-bound without a circular manifest.
-    validate_architecture_disposition(manifest, hard, advisory)
+    validate_architecture_disposition(
+        manifest,
+        plan_dir,
+        hard,
+        advisory,
+        require_direction=require_architecture_direction,
+    )
 
     # --- advisory: per-feature completeness + enum sanity ---
     for _idx, f in norm:
@@ -817,13 +1073,23 @@ def main(argv=None) -> int:
     p.add_argument("plan_dir", nargs="?", help="directory containing plan.json + features/")
     p.add_argument("--plan-json", help="explicit path to plan.json")
     p.add_argument("--json", action="store_true", help="emit a machine-readable JSON result")
+    p.add_argument(
+        "--require-architecture-direction",
+        action="store_true",
+        help="hard-fail legacy plans without architecture_disposition.direction",
+    )
     args = p.parse_args(argv)
 
     try:
         plan_json_path = resolve_inputs(args)
         manifest, plan_dir = load(plan_json_path)
         registry = load_registry(plan_dir)
-        hard, advisory = run_checks(manifest, plan_dir, registry)
+        hard, advisory = run_checks(
+            manifest,
+            plan_dir,
+            registry,
+            require_architecture_direction=args.require_architecture_direction,
+        )
     except PlanLintError as e:
         if args.json:
             print(json.dumps({"status": "error", "message": str(e)}))
@@ -861,7 +1127,7 @@ def main(argv=None) -> int:
         for f in hard:
             print(f"    x {f}")
     else:
-        print("\n  PASS — hard structural-integrity checks (H1-H9) hold.")
+        print("\n  PASS — hard structural-integrity checks (H1-H10) hold.")
         print("         (checks STRUCTURE, not soundness — well-formed, not necessarily good.)")
     if advisory:
         print(f"\n  advisory ({len(advisory)} — review, non-blocking):")

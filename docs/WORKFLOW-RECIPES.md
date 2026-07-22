@@ -141,13 +141,15 @@ from its output. Grooming an epic:
 ```text
 /core-engineering:ce-impact <paste the epic description>   # seams, blast radius, open questions
 /core-engineering:ce-brief  <the epic, now with the open questions answered>
-/core-engineering:ce-plan                                  # the gated decomposition into features
+/core-engineering:ce-plan                                  # capability frame, architecture direction, then decomposition
 /core-engineering:ce-ship-backlog <feature-id>             # one Story + Tasks per feature, paste-ready
 ```
 
 The seams `/core-engineering:ce-impact` names (components, durable state, contracts) are the candidate
-feature boundaries; `/core-engineering:ce-plan` is what actually cuts them, because it owns the
-sizing, dependency, reachability, and session-fit gates a hand-split skips. Answer
+capabilities and architecture drivers. `/core-engineering:ce-plan` frames those capabilities,
+composes architecture exploration when warranted, records the human-selected direction, and
+only then cuts feature boundaries. It also owns the sizing, dependency, reachability, and
+session-fit gates a hand-split skips. Answer
 `/core-engineering:ce-impact`'s open questions **before** `/core-engineering:ce-brief` — a PM's answer is exactly what
 that stage exists to elicit, and a plan built on a guessed answer inherits the guess.
 
@@ -164,34 +166,41 @@ all, it is not a work item yet — it is an idea, and `/core-engineering:ce-brie
 ```text
 /core-engineering:ce-brief Add team invitations with role-based access.
 /core-engineering:ce-plan <brief-or-project-description>
-/core-engineering:ce-architecture <plan-slug>  # run when the plan disposition requires it; recommended may be deferred
+/core-engineering:ce-architecture <plan-slug>  # publish the post-plan baseline when required or accepted
 ```
 
 **Expected artifacts:** `docs/briefs/<slug>.md`, then `docs/plans/<slug>/` with
-`feature-plan.md`, `plan.json`, `threat-model.md`, `interaction-contract.md`,
-and feature files. `plan.json` records an `architecture_disposition` after the
-planner screens applicability and, when required, converges a provisional cut
-through read-only architecture shaping. Normal architecture mode writes the
-human-approved five-file package under `docs/plans/<slug>/architecture/` when
+`architecture-selection.json`, `feature-plan.md`, `plan.json`, `threat-model.md`,
+`interaction-contract.md`, and feature files. Before feature decomposition, the
+planner screens architecture drivers, composes `/core-engineering:ce-architecture` exploration,
+and presents one to four genuine whole-solution directions. Hard constraints are
+checked before the remaining criteria are scored; the human selects, revises, or
+rejects the direction. The exact option set and selection are hash-bound into
+`architecture-selection.json`. After decomposition, read-only shaping verifies
+that the plan realizes the selected direction. Normal architecture mode writes
+the human-approved five-file package under `docs/plans/<slug>/architecture/` when
 the disposition requires it or the team accepts a recommendation.
 
 **Done when:** the plan has bounded features, ship order, journey trace,
 durable-state closure, security obligations, interaction contracts, and a
-current human-owned architecture disposition. A required shaping pass has
-converged before the plan freezes, and the required architecture package traces
+current human-owned architecture direction and disposition. Architecture drivers
+were evaluated before feature boundaries were frozen, and a required shaping pass
+has converged before the plan freezes. The required architecture package traces
 system, deployment, data/integration, and quality views to the stable plan and
 repository evidence before feature specification begins.
 
-**Measure:** first-pass `architecture-lint` pass rate and downstream spec
-rework caused by missing cross-feature design. Invocation count alone is not an
-outcome.
+**Measure:** architecture-direction selection/revision rate, first-pass
+`architecture-lint` pass rate, and plan or spec rework caused by missed
+cross-feature design. Invocation count alone is not an outcome.
 
 **Stop or escalate when:** a material product, scope, or security decision is
-unknown. The human decides; the skill records. Architecture shaping may expose
-a missing plan boundary or one consequential technical fork, but only
-`/core-engineering:ce-plan` applies a human-approved re-cut. Consequential
-technical choices may route through `/core-engineering:ce-decide`; architecture
-never silently changes the plan.
+unknown. The human owns hard constraints, criterion weights, and direction
+selection; the skill records them. A hard-constraint failure or material evidence
+gap blocks a required direction decision. Architecture shaping may expose a missing
+plan boundary or one consequential nested technical fork, but only
+`/core-engineering:ce-plan` applies a human-approved re-cut. Bounded, supplied
+option sets may route through `/core-engineering:ce-decide`; architecture never
+silently selects a direction or changes the plan.
 
 ## Recipe 4: Build One Planned Feature
 
@@ -424,9 +433,11 @@ the idea in discovery; do not feed unsupported claims into planning.
 ## Recipe 13: Make A Technical Decision
 
 **Use when:** a plan, architecture run, review, debug run, or human discussion
-exposes one real engineering fork with multiple viable options. Use
-`/core-engineering:ce-architecture` when the job is to establish the whole
-cross-feature solution baseline rather than score one option set.
+exposes one bounded engineering fork with a supplied option set. Whole-solution
+alternatives discovered from requirements belong to `/core-engineering:ce-plan`, which
+composes `/core-engineering:ce-architecture` exploration before decomposition. Use normal
+`/core-engineering:ce-architecture` mode after planning to establish the approved
+cross-feature baseline.
 
 ```text
 /core-engineering:ce-decide <situation, options, constraints>
@@ -652,22 +663,23 @@ Conflict, or a `/core-engineering:ce-patch` that graduated.
 a fresh decomposition. It diffs the requested delta against the frozen shape, then
 re-runs **only** the gates the delta touches (Reachability if a journey's step-owners
 moved, Session-Fit if a feature is re-cut, the threat / interaction attestations if a
-boundary row moved, and architecture applicability/convergence when a structural
-driver changed or the legacy plan was never assessed). Untouched gates are *held
+boundary row moved, and architecture direction re-exploration plus convergence when
+the evaluation frame changed or the legacy plan was never assessed). Untouched gates are *held
 from the prior revision* and never re-asked; untouched features' specs are
 preserved byte-for-byte. When the revised source hashes invalidate a required
 architecture package, regenerate and approve that package before re-specifying
 any touched feature.
 
-**Expected artifacts:** the touched `features/<id>.md` (each stamped `revised_by:
+**Expected artifacts:** an updated `architecture-selection.json` when direction
+evidence or selection changed; the touched `features/<id>.md` (each stamped `revised_by:
 plan-revision <N>`), an updated `feature-plan.md` (with a `plan-revision <N>` Notes
 entry), re-projected `threat-model.md` / `interaction-contract.md` only if a boundary
 row moved, and `plan.json` with `plan_revision` bumped (absent ⇒ was 1 ⇒ becomes 2).
 
 **Done when:** the revised plan is written with the delta applied, untouched work
-preserved, its architecture disposition is current, any required invalidated
-package has been republished, and each touched feature whose spec is now stale
-is pointed back at `/core-engineering:ce-spec`.
+preserved, its architecture direction and disposition are current, any required
+invalidated package has been republished, and each touched feature whose spec is
+now stale is pointed back at `/core-engineering:ce-spec`.
 
 **Stop or escalate when:** the "revision" is actually a new project that only collides
 on slug — take the new-slug branch, never overwrite the existing plan. If a re-run gate

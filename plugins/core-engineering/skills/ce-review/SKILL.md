@@ -58,12 +58,16 @@ Outbound runs over two **scopes**:
   `docs/plans/<slug>/interaction-contract.md` (its cross-feature behavioral
   invariants and architecture-determining NFRs). A valid registry-backed
   `single-feature-minimal` plan instead loads its regular, non-symlink
-  `feature-plan.md` as sole plan context; the absent full-plan files and
-  cross-feature obligations are `N/A by construction`, while the ordinary
-  Security and Correctness lenses still run against the spec, code, repository
-  entry points, and reviewer triggers. A mixed/malformed minimal shape or
-  identity mismatch routes to `/core-engineering:ce-plan` before findings are
-  generated. Also load the accepted ADRs the spec cites (including the
+  `feature-plan.md` as sole plan context, including its inline
+  `### Security Projection` and matching `security_obligations` row. Assigned
+  `TZ-NNN` ids—or an explicit assessed-negative empty list—are plan-owned
+  Security-lens input even though no separate `threat-model.md` exists. Only
+  the interaction contract and cross-feature obligations are `N/A by
+  construction`; the ordinary Security and Correctness lenses still run
+  against the projection, spec, code, repository entry points, and reviewer
+  triggers. A missing/malformed projection, feature-id mismatch, mixed minimal
+  shape, or identity mismatch routes to `/core-engineering:ce-plan` before
+  findings are generated. Also load the accepted ADRs the spec cites (including the
   **interface-foundation ADR**), `docs/plans/vc-policy.md`, and the **review
   calibration & memory**: `docs/plans/review-policy.md` (repo-level,
   human-owned — what counts as High here, nit caps, skip-paths, re-review
@@ -161,7 +165,7 @@ appears inside a diff or a code comment and must not be mistaken for a review ro
 When invoked by `/core-engineering:ce-auto-build`, run without interactive gates:
 
 - Run the **Stage 1.5 adversarial verification pass** on every High finding (as its own in-context second pass — *not* a nested spawn), tagging each `confirmed` or `suspected`.
-- Emit each finding with lens, severity, **confidence** (High only), `file:line`, evidence, and a suggested escalation, and write **both** `specs/<id>/code-review.md` (prose) **and** `specs/<id>/review-summary.json` (the machine-readable per-feature gate state — overwrite each run; schema in `${CLAUDE_SKILL_DIR}/artifact-template.md`).
+- Emit each finding with lens, severity, **confidence** (High only), `file:line`, evidence, and a suggested escalation, and write **both** `specs/<id>/code-review.md` (prose) **and** `specs/<id>/review-summary.json` (the machine-readable per-feature gate state — overwrite each run; exact `status` / `blocking_high` / `blocking_route` contract in `${CLAUDE_SKILL_DIR}/artifact-template.md`).
 - **Only a `confirmed` High in a behavioral lens (correctness / security) blocks** — return those to the orchestrator (it loops to a fresh implement subagent while below the failure-attempt cap, or parks the feature; a fix that needs a spec change is a `spec_conflict` → park). A **`suspected` High** is recorded in `review-summary.json` and surfaced at the end-review — it never blocks or enters the repair loop. Performance never blocks (it cannot be High).
 - Medium / low findings are recorded for the end-review.
 - **Apply the calibration & memory read-only:** honor `review-policy.md` (skip-paths bound the walk, nit caps and re-review convergence shape reporting) and match each finding against `review-learnings.md` — a match is **recorded under "Previously dismissed", not raised** (record-with-note; counted as `suppressed` in `review-summary.json`), never silently dropped. **Do not append learnings mid-run** — autonomous review records and gates findings but does not perform human disposition; `Dismiss` (and its learnings append) happens only at auto-build's **end-review**.
@@ -247,9 +251,13 @@ For each in-scope feature:
    nouns, and security obligations: where the Security lens should look
    hardest) and `docs/plans/<slug>/interaction-contract.md` if present (the
    `IC-NNN` rows used by the Correctness and Conformance passes). In
-   `single-feature-minimal` mode, record both plan-owned projections `N/A by
-   construction`; do not weaken the ordinary code-entry-point security trace
-   or manufacture missing plan files.
+   `single-feature-minimal` mode, load the inline `### Security Projection`,
+   require exactly one `security_obligations` row whose `feature` equals the
+   stable Feature ID, and carry its entry-point assessment, `surface_kinds`, and
+   `threat_ids` into the Security lens. An explicit `threat_ids: []` is an
+   assessed negative, not N/A inferred from feature count. Record only the
+   interaction contract and cross-feature obligations `N/A by construction`;
+   do not manufacture their absent full-plan files.
 2. Run the **six lenses** over the feature's diff / files plus one hop to direct call sites.
 3. Capture each finding with `file:line`, a short code snippet, and the lens. Where useful, write a snippet to `docs/plans/<slug>/evidence/CR-N.txt`.
 
@@ -261,7 +269,7 @@ A first-pass High finding is a *candidate*, not a verdict. Before it can block, 
 
 For each **High** finding, attempt to substantiate it against the actual code — read-only, the review never runs or mutates code:
 
-- **Behavioral lens (Correctness / Security)** — *reproduce by tracing*: follow the data / control flow from an entry point to the cited `file:line` and confirm the defect is actually **reachable and triggerable** (the bad input reaches the sink; the unhandled path is real; the race is possible). For a Security finding, **start the trace from a `threat-model.md` trust boundary** — a finding traced from a documented untrusted entry point to the sink is `confirmed`; one with no path from any documented boundary stays `suspected` (and may signal a *missing* boundary worth noting). For a **correctness finding on a cross-feature edge**, trace it against the `interaction-contract.md` row — a broken declared invariant (a missing dedupe where the contract declares at-least-once delivery, an out-of-order assumption where it declares per-key ordering, a concurrent write where it declares single-writer) is `confirmed` when the trace shows the guarantee unmet. Survives the trace → **`confirmed`**. Cannot establish reachability → **`suspected`**.
+- **Behavioral lens (Correctness / Security)** — *reproduce by tracing*: follow the data / control flow from an entry point to the cited `file:line` and confirm the defect is actually **reachable and triggerable** (the bad input reaches the sink; the unhandled path is real; the race is possible). For a Security finding, start from a full plan's `threat-model.md` boundary or a minimal plan's inline Security Projection. A documented untrusted entry reaching the sink makes the defect `confirmed`. If the code instead proves a previously undocumented untrusted entry reaches the sink, the defect is also `confirmed`; record `reproduced: true`, name the projection contradiction as `plan_conflict` in the observation, and set `suggested_escalation` to `/core-engineering:ce-plan` so it parks for human-owned plan revision rather than entering an implementation-only repair loop. Only when neither a documented nor observed untrusted path can be established does the finding stay `suspected`. For a **correctness finding on a cross-feature edge**, trace it against the `interaction-contract.md` row — a broken declared invariant (a missing dedupe where the contract declares at-least-once delivery, an out-of-order assumption where it declares per-key ordering, a concurrent write where it declares single-writer) is `confirmed` when the trace shows the guarantee unmet. Survives the trace → **`confirmed`**. Cannot establish reachability → **`suspected`**.
 - **Judgment lens (Maintainability / Conformance)** — *refute the citation*: re-check that the cited `file:line` and the ADR / spec clause genuinely substantiate the claim. For a **conformance finding on a cross-feature edge**, the clause to re-check is the `interaction-contract.md` row — the built protocol behavior must match its declared invariant (delivery / ordering / idempotency / concurrency). Citation holds → **`confirmed`**. Citation is thin or the clause doesn't say what was claimed → **`suspected`**.
 
 Record the confidence on each High finding (Medium / Low get none). A **`suspected`** finding is **kept, not deleted** — it goes to the human at triage / end-review; it just loses its power to *block*. Be honest about the pass's reach: it **raises the floor, not the ceiling** — a fresh trace shares the model's blind spots, so it can confirm reachability but cannot prove the absence of a bug.

@@ -23,15 +23,19 @@ Classify the selected registered directory as exactly one shape:
   the project docs listed in `shared-context.md`. Read `relates_to` from
   `plan.json`; for every related sibling plan, also load its
   `shared-context.md` ledger for Stage 1.2.
-- **Single-feature minimal plan:** `plan.json`, `shared-context.md`,
+- **Single-feature minimal plan:** `plan.json`, `architecture-selection.json`, `shared-context.md`,
   `threat-model.md`, `interaction-contract.md`, and `features/` are absent, and
   a regular, non-symlink `feature-plan.md` is the sole plan authority. Require
   exactly one `## 4. Single Feature` block, one `Feature ID: <id>` field, and
   one `Run: /core-engineering:ce-spec <slug>/<id>` line. The two ids must match
   each other, the registered slug, and any invocation id. Set
   `plan_mode: single-feature-minimal` and load Scope, Excluded, Open Unknowns,
-  Validation Target, Project Context, Codebase Profile, and Notes from that
-  file. It has no sibling ledgers or `relates_to` inputs.
+  Validation Target, Project Context, Codebase Profile, Notes, and the required
+  inline `### Security Projection` from that file. Require exactly one
+  `security_obligations` entry for the same feature id and preserve its
+  `TZ-NNN` ids/surface kinds or explicit empty assessed negative. A missing,
+  malformed, mismatched, or materially stale projection routes to planning.
+  It has no sibling ledgers or `relates_to` inputs.
 
 A missing or non-regular authority file, a mixed shape, duplicate identity
 fields, or any slug/id mismatch is not a minimal-plan shortcut. Stop and route
@@ -43,20 +47,28 @@ disposition or loading any feature design context:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --json
+  docs/plans/<slug> --require-architecture-direction --json
 ```
 
-- **exit 0:** inspect both the manifest and advisory output. If the
-  `architecture_disposition` field is absent, plan-lint reports legacy advisory
-  `A12`; stop and route that unassessed plan to `/core-engineering:ce-plan`
-  Stage R. The lint compatibility pass is not downstream permission to skip
-  architecture. Otherwise continue with the lint-validated manifest.
+- **exit 0:** continue with the lint-validated manifest and its human-bound
+  architecture direction.
 - **exit 1:** stop and route the exact hard defect to
   `/core-engineering:ce-plan` Stage R. A malformed *present* disposition is one
-  such defect; a missing legacy disposition follows the exit-0 `A12` route
-  above.
+  such defect; under the consumer flag, legacy `A12`/`A13` gaps are defects too.
 - **exit 2:** stop and route to Stage R because the full plan cannot be trusted.
   Never replace the deterministic result with an inferred disposition.
+
+Validate the exact selected-direction artifact before loading feature design
+context:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+  docs/plans/<slug>/architecture-selection.json --json
+```
+
+Exit 1 or 2 routes to `/core-engineering:ce-plan` Stage R. A scorecard, option
+hash, hard-constraint verdict, file hash, or human-selection mismatch is never
+reconstructed from prose and never treated as an architecture pass.
 
 Read the validated `architecture_disposition` before checking the package. It
 has `decision: required | recommended | not-required | waived`, a `triggers`

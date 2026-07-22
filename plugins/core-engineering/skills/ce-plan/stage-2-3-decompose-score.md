@@ -1,6 +1,9 @@
 # Feature-Plan Workflow — Stages 2–3: Decompose and Score
 
-Stage file for the `plan` skill (orchestrator: `SKILL.md`). Load this file after Stage 1 is complete.
+Stage file for the `plan` skill (orchestrator: `SKILL.md`). Load this file only
+after Stage 1A has recorded a fresh selected architecture direction, an explicit
+human defer on a recommended route, or a human-confirmed not-applicable result
+for a not-required screen.
 
 **Next:** when Stage 3 is complete, load `${CLAUDE_SKILL_DIR}/stage-4-7-gates.md`.
 
@@ -11,6 +14,50 @@ Stage file for the `plan` skill (orchestrator: `SKILL.md`). Load this file after
 Stage 2 creates a candidate feature plan.
 
 The candidate plan is not final and must not be written yet.
+
+### Stage 2 Entry — Bind the architecture direction
+
+Before deriving any `Pnn` feature, read the Stage 1A state under
+`docs/plans/.drafts/<slug>/` and reapply its freshness checks:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+  docs/plans/.drafts/<slug>/architecture-selection.json --repo-root . --json
+```
+
+Require exit 0. Exit 1 returns to Stage 1A for the reported repair; exit 2 or a
+missing command parks. This is a second entry-time freshness check, not a manual
+substitute for the pre-handoff lint.
+
+- **`selection.status: direction-selected`** — require the exact plan-owned
+  `architecture-exploration.json` and verbatim
+  `architecture-selection.json`; re-check the source input hash, capability and
+  attempt revisions, evidence fingerprint, option-set hash, selected option id
+  and selected-option hash. Treat the selected option's responsibilities,
+  boundaries, topology, data ownership, integrations/failure posture, trust and
+  residency posture, quality tactics, migration direction, assumptions, and
+  irreversible commitments as decomposition constraints.
+- **`deferred`** — proceed only when the early route was `recommended`, the
+  defer record is bound to the current capability revision, and
+  `decided_by: human`. Carry the missing exploration as a visible coverage gap;
+  any required driver blocks and returns to Stage 1A.
+- **`not-applicable`** — proceed only when the all-negative early driver screen
+  is still current, the plan route is `not-required`, and the human-confirmed
+  N/A disposition is recorded. Treat it as explicit N/A, never silent absence.
+
+Missing, malformed, stale, or contradictory state returns to
+`${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`. A required route
+without a fresh `direction-selected` result cannot enter Stage 2.
+
+**Direction lock.** Stage 2 owns the work breakdown, not architecture selection.
+It may map several capabilities or architecture responsibilities into one
+feature, or one capability into several independently valuable/verifiable
+features. It must not silently change the selected option's system boundaries,
+runtime/deployment direction, data ownership, cross-boundary interaction mode,
+trust/residency posture, or load-bearing quality tactic. If a coherent feature
+cut appears to require such a change, state the new evidence, invalidate the
+selection per Stage 1A.8, return to Stage 1A, then rerun Stage 2 from the newly
+selected direction.
 
 ---
 
@@ -34,7 +81,12 @@ Then validate the candidate features against the other methods to detect missing
 
 ### 2.2 Extract Candidate Features
 
-Draft candidate features from the project model.
+Draft candidate features from the project model **under the Stage 2 direction
+lock**. Map every in-scope `Cnn` capability to at least one candidate, and show
+how the selected architecture direction shaped each foundation, integration,
+migration, and operational boundary. No capability may disappear merely because
+it is awkward for the selected direction, and no architecture component becomes
+a feature by default.
 
 A candidate feature may come from:
 
@@ -361,11 +413,15 @@ Bad examples:
 
 ---
 
-### 3.9 Architecture Applicability Screen
+### 3.9 Architecture Applicability Screen — Post-Decomposition Re-screen
 
-Run this screen over the codebase profile and the provisional candidate set
-**before Stage 4 can collapse the work into a minimal plan**. This is an
-evidence classification, not architecture design and not a human approval.
+Re-run the **Stage 1A.2 stable-driver screen** over the codebase profile, the
+fresh selected/deferred/N/A binding, and the completed provisional candidate set
+**before Stage 4 can collapse the work into a minimal plan**. This is a
+post-decomposition evidence classification, not architecture design and not a
+human approval. Stage 1A is the initial screen and direction-selection owner;
+this re-screen catches concrete feature/dependency/ownership evidence that the
+coarse capability model could not expose.
 
 Set `candidate_revision: 1` for the first complete candidate. Increment it
 whenever a later step adds, removes, re-cuts, reorders, or changes a feature's
@@ -373,8 +429,9 @@ dependencies, journeys, durable-state ownership, TZ/IC obligations,
 architecture-determining NFRs, or accepted technical decisions. Never reuse a
 prior architecture result across candidate revisions.
 
-Evaluate these stable driver ids and render the exact evidence for every
-positive or unknown row:
+Evaluate the same stable driver ids and render the exact evidence for every
+positive or unknown row. The meanings remain identical to Stage 1A.2, with the
+candidate-specific evidence below added to each test:
 
 | Driver id | Positive when… |
 |---|---|
@@ -397,7 +454,8 @@ these stable recommendation ids:
 | `planned-reuse-recommendation` | more than one later consumer is expected, while the current cut has no load-bearing cross-feature driver |
 | `baseline-preference` | the human explicitly prefers a baseline but did not request it as a required deliverable |
 
-Classify the candidate:
+Classify the candidate using the same required/recommended/not-required rules as
+Stage 1A:
 
 - **`required`** — any driver other than
   `explicit-architecture-deliverable` is positive; the explicit deliverable is
@@ -414,10 +472,33 @@ evidence-backed rationale in the in-flight candidate and the next scratch
 checkpoint. A `not-required` result has no triggers. Never invent a trigger id
 or use prose in its place; the rationale carries the evidence. Do not record
 `waived` here: only a human choice at the architecture gate may create a waiver.
+
+Then compare the re-screen to Stage 1A:
+
+- **Current selection remains fresh and covers the same evidence** — continue;
+  the required route still runs Stage 5A after Candidate Review.
+- **A required/recommended driver, accepted decision, hard constraint, quality
+  scenario, source hash, criterion, or selected-option assumption is new or
+  changed** — the selection is stale. Update the coarse Stage 1A model,
+  increment `capability_revision` and `exploration_attempt`, discard this derived
+  candidate, return to Stage 1A **before Stage 2**, and rerun decomposition only
+  after a fresh selected/deferred result.
+- **The early result was deferred or not-required but the candidate is now
+  `required`** — return to Stage 1A; no minimal/light path and no Sizing gate may
+  fire first.
+- **The early result was `direction-selected` and every load-bearing driver is
+  now negative** — do not discard the decision or invent a human preference.
+  Return to a parent-manifest material gate and show the changed evidence:
+  **Retain selected direction** records a human `baseline-preference` and keeps
+  the bound option; **Withdraw to not applicable** returns to Stage 1A for a
+  human-confirmed N/A artifact and then reruns Stage 2; **Adjust** corrects the
+  screen. Only the human's first choice may create `baseline-preference`.
+
 A `required` result disqualifies the single-feature minimal output and
-light-plan tier; return to Stage 2 if the candidate does not yet expose honest
-foundation, migration, integration, or operational boundaries. Never invent
-extra features merely to satisfy the architecture workflow.
+light-plan tier. If the candidate does not expose honest foundation, migration,
+integration, or operational boundaries, return to Stage 2 only when the
+selected direction remains current; otherwise return to Stage 1A first. Never
+invent extra features merely to satisfy the architecture workflow.
 
 Re-run this same screen after Reachability and after final TZ/IC attestation.
 Any change invalidates the prior disposition and architecture result.

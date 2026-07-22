@@ -1,7 +1,7 @@
 ---
 name: ce-plan-audit
 description: |
-  Independently audit a WRITTEN plan on disk — referential integrity + dependency-DAG soundness (a hard lint) plus model-judged decision quality, codebase-fit, decomposition, reachability, post-write scope drift, and re-projection closure of the read-only artifacts (threat-model / interaction-contract). Findings, not verdicts; never re-plans.
+  Independently audit a WRITTEN plan on disk — architecture-selection integrity, referential integrity, and dependency-DAG soundness (hard linters) plus model-judged decision quality, codebase-fit, decomposition, reachability, post-write scope drift, and re-projection closure. Findings, not verdicts; never re-plans.
   Triggers: audit/validate/sanity-check a written plan before /core-engineering:ce-spec or /core-engineering:ce-auto-build. Plan-layer sibling of /core-engineering:ce-review.
 argument-hint: "[plan-slug]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
@@ -48,7 +48,11 @@ It runs in two modes:
 
 - **Plan slug (optional):** e.g. `customer-portal`. Without one, resolve via `docs/plans/plans.json`; if multiple plans exist, ask which to audit.
 - **The plan directory:** `docs/plans/<slug>/`.
-- **Loaded (read-only):** `plan.json` (the manifest the lint checks — **multi-feature plans only**), `feature-plan.md` (index + Feature Table + Execution Checklist), `shared-context.md` (the **codebase profile** + the **Resolved Project Decisions ledger**), every `features/<id>.md`, the read-only re-projections `threat-model.md` and `interaction-contract.md` (audited for presence + re-projection closure, never re-assigned here — the §6.3 closure and §8/§10 edges own their data), and the `docs/plans/plans.json` registry (for cross-plan dependency resolution). For a **single-feature minimal-output** plan the inputs collapse to the lone `feature-plan.md` — it carries the codebase profile, decisions, and the single feature block inline; there is no `plan.json`, `shared-context.md`, or `features/` directory.
+- **Loaded (read-only):** `plan.json` and its bound `architecture-selection.json`
+  (multi-feature plans), `feature-plan.md`, `shared-context.md`, every
+  `features/<id>.md`, `threat-model.md`, `interaction-contract.md`, and the plan
+  registry. For a single-feature minimal plan the inputs collapse to the lone
+  `feature-plan.md`; there is no selection or manifest by construction.
 
 ## Preconditions
 
@@ -67,12 +71,16 @@ It runs in two modes:
 4. **Findings, not verdicts.** Report observations; the human triages. The audit never declares the plan good / bad, sound / unsound, or go / no-go. *(The structural lint is the one exception — a referential break is a fact, not an opinion, and it may assert FAIL.)*
 5. **Judge the plan, not the product.** Audit plan internals against the brief / codebase profile *as the contract*. A disagreement with a settled **product** decision is out of scope — do not re-litigate why the product was chosen.
 6. **Bounded — do not re-plan.** Audit the plan directory and the codebase profile it cites; one hop to confirm a cited surface exists. **Never** run a fresh decomposition — that is `/core-engineering:ce-plan`'s job, and a finding never expands scope.
-7. **Two layers.** Machine-provable structural invariants run as a **hard lint** (`plan-lint.py`); soft judgments are **advisory findings**. Only the lint may block. *(The same `plan-lint.py` is `/core-engineering:ce-plan`'s **write-time twin** — `/core-engineering:ce-plan` Stage 9 runs it over the just-written plan directory before closing, so this audit is re-proving on disk what the plan already gated at write time, and additionally catching post-write hand-edits and drift.)*
+7. **Two layers.** Machine-provable selection and plan invariants run as hard
+   linters (`architecture-selection-lint.py`, then `plan-lint.py`); soft
+   judgments are advisory. Only hard lint may block. Missing direction on a
+   legacy plan remains the default `A13` advisory unless a consuming workflow
+   explicitly requires it; a present binding must validate.
 8. **Never commit, push, or deploy.**
 
 ## Validation Dimensions
 
-### Machine-provable — the hard lint (`plan-lint.py` over `plan.json` + the plan dir)
+### Machine-provable — the hard selection and plan linters
 
 | Dimension | Checks (HARD — a FAIL is a fact) |
 |---|---|
@@ -81,6 +89,7 @@ It runs in two modes:
 | **Dependency resolution** (H4) | every hard/soft dep resolves — an unqualified id to an in-plan feature, a qualified `<slug>/<id>` to a plan registered in `plans.json` |
 | **Bridge resolution** (H7) | every plan.json `bridges[].replaced_by` resolves to an in-plan feature with a strictly-**later** `ship_order` — a bridge is scaffolding retired by a valid FUTURE feature (`/core-engineering:ce-plan`'s "every bridge references a valid future feature", now proven, not self-attested) |
 | **Re-projection presence** (H8) | a multi-feature plan carries **both** `threat-model.md` **and** `interaction-contract.md` on disk, each present and non-empty (a real projection **or** its attested negative — *No Security Surface* / *No Cross-Feature Protocol*); a missing/empty file is the silent omission the re-projection discipline forbids |
+| **Architecture direction** (H10) | a present direction summary binds the exact selection artifact bytes, exploration id, status, selected option id/hash, and human authority; the selection linter proves source freshness, evaluation frame, constraint/score vectors, and canonical option hashes |
 
 The lint also emits **advisories** (non-blocking): field completeness, ship-order gaps, orphan feature files, manifest↔feature-file `id` mismatch, boundary-owner category uniqueness, the ≤5-unknowns cap, Feature-Table coverage, and **closure-row disposition** (A10/A11) — each `feature-plan.md` §8 Durable-State reciprocal (revisit / amend / retire / retain / export / erase) and each Surface-Removal `continuity` cell dispositioned `owned-by:` / `bridge:` / `excluded:` (respectively `deprecate:` / `shim:` / `hard-break:`), never blank. The markdown-derived advisories (boundary-owner, unknowns, closure rows) are **best-effort** — the lint reads them from the feature files' YAML blocks and the `feature-plan.md` tables; the authoritative pass on those is the model-judged lens below.
 
@@ -150,7 +159,13 @@ Resolve the plan via `docs/plans/plans.json`. With no argument and multiple plan
 
 ## Stage 1 — Lint and Review
 
-1. **Run the hard lint first** (multi-feature plans): `python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug>` (add `--json` to fold results programmatically). Map each **hard failure** to a High finding (dimension = its check: referential / sequencing / resolution / bridge-resolution / re-projection-presence); record each **advisory** as a Low finding (or fold into the matching model-judged lens). An **exit 2** means the lint could not run — fall back to the manual structural checks **loudly**, and record the degradation. For a **single-feature minimal-output** plan there is no `plan.json` to lint: record the lint line as **`N/A — single-feature minimal plan`** (by design, *not* a could-not-run degradation) and proceed to the lenses.
+1. **Run the hard linters first** (multi-feature plans). Run
+   `plan-lint.py docs/plans/<slug> --json` in its audit-compatible default. When
+   a direction is present, run `architecture-selection-lint.py
+   docs/plans/<slug>/architecture-selection.json --json` too; a legacy `A13`
+   with no direction is advisory and does not manufacture an artifact. Map hard
+   failures to High findings and advisories to Low. Exit 2 degrades loudly to
+   manual checks. For a single-feature minimal plan both are N/A by design.
 2. **Run the model-judged lenses** over `shared-context.md` (ledger + profile), the `features/*.md`, and the journey trace in `feature-plan.md`. Walk **every** lens regardless of findings — the human wants the complete picture.
 3. Capture each finding with `file:line`, a short quoted snippet, and its dimension. Where useful, write a snippet to `docs/plan-audits/evidence/<date>-<slug>/F-N.txt`.
 
@@ -174,7 +189,7 @@ Group findings by dimension, assign severity, suggest an escalation per finding,
 ## Lint Summary (machine-provable)
 
 ```
-<paste the plan-lint.py output — the H1–H8 result + advisories>
+<paste architecture-selection-lint output when applicable, then plan-lint H1–H10 + advisories>
 ```
 
 ## Summary by Dimension

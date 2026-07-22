@@ -6,6 +6,7 @@
   "reviewed_at": "2026-06-27",
   "findings_total": 1,
   "blocking_high": 1,
+  "blocking_route": "implement",
   "suppressed": 0,
   "by_severity": {
     "high":   { "total": 1, "confirmed": 1, "suspected": 0 },

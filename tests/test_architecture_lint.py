@@ -17,10 +17,20 @@ SCRIPT = (
     REPO
     / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-lint.py"
 )
+SELECTION_SCRIPT = (
+    REPO
+    / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-selection-lint.py"
+)
 
 _spec = importlib.util.spec_from_file_location("architecture_lint_mod", SCRIPT)
 al = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(al)
+
+_selection_spec = importlib.util.spec_from_file_location(
+    "architecture_selection_lint_mod", SELECTION_SCRIPT
+)
+sl = importlib.util.module_from_spec(_selection_spec)
+_selection_spec.loader.exec_module(sl)
 
 
 OVERVIEW = """# Solution Architecture: team-invitations
@@ -38,6 +48,10 @@ Plan scope only.
 | Driver | Evidence state | Source | Architecture consequence |
 |---|---|---|---|
 | Reuse the existing runtime | recorded | `docs/adr/0001-existing-runtime.md` | Keep one application boundary. |
+## Selected Direction Realization
+| Exploration | Option | Selection binding | Realization summary | Evidence state | Evidence |
+|---|---|---|---|---|---|
+| AEX-test | A01 | direction-selected / SELECTED-OPTION-HASH | Preserve the selected single-runtime direction. | recorded | `docs/plans/team-invitations/architecture-selection.json` |
 ## Architecture Overview
 C-001 calls C-002.
 ## Decisions and Rationale
@@ -138,6 +152,196 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _selection_option(
+    option_id: str,
+    hard_constraints: list[dict],
+    score: int,
+) -> dict:
+    option = {
+        "option_id": option_id,
+        "title": f"Direction {option_id}",
+        "summary": f"Complete invitation-system direction {option_id}.",
+        "responsibilities_and_boundaries": [
+            "The application owns invitation orchestration and the membership store owns membership state."
+        ],
+        "runtime_and_deployment": [
+            "Reuse the existing regional application runtime and managed store."
+        ],
+        "data_ownership": [
+            "The application owns invitations and the membership store owns memberships."
+        ],
+        "integrations_and_failure": [
+            "The in-process membership write fails explicitly and is idempotent."
+        ],
+        "trust_residency_and_security": [
+            "Invitation and membership data remain inside the existing trust boundary."
+        ],
+        "quality_tactics": [
+            "Bound the synchronous acceptance path and retain existing telemetry."
+        ],
+        "migration_and_evolution": [
+            "Introduce invitation state additively before enabling acceptance."
+        ],
+        "capability_implications": [
+            "Supports invitation creation, delivery, and acceptance."
+        ],
+        "assumptions": ["The existing runtime remains available."],
+        "irreversible_commitments": [
+            "No irreversible commitment is made before the additive cutover."
+        ],
+        "constraint_verdicts": [
+            {
+                "constraint_id": constraint["id"],
+                "verdict": "pass",
+                "basis": f"{option_id} preserves {constraint['statement']}",
+            }
+            for constraint in hard_constraints
+        ],
+        "scores": [
+            {
+                "criterion_id": criterion,
+                "score": score,
+                "evidence_state": "recorded",
+                "evidence": ["docs/briefs/team-invitations.md"],
+            }
+            for criterion in sl.CRITERIA
+        ],
+        "weighted_score": score,
+        "confidence": "high",
+        "option_sha256": "",
+    }
+    option["option_sha256"] = sl.option_hash(option)
+    return option
+
+
+def _write_selection(root: Path, plan_dir: Path) -> dict:
+    brief = root / "docs/briefs/team-invitations.md"
+    sources = [
+        {
+            "path": "docs/adr/0001-existing-runtime.md",
+            "sha256": _sha(root / "docs/adr/0001-existing-runtime.md"),
+            "kind": "adr",
+        },
+        {
+            "path": "docs/briefs/team-invitations.md",
+            "sha256": _sha(brief),
+            "kind": "brief",
+        }
+    ]
+    evaluation_frame = {
+        "project_intent": "Add team invitations while preserving existing membership boundaries.",
+        "non_goals": ["Replace the application runtime."],
+        "architecture_applicability": "required",
+        "driver_screen": [
+            {
+                "id": driver_id,
+                "verdict": "positive" if driver_id == "shared-data-ownership-or-migration" else "negative",
+                "basis": f"Recorded applicability basis for {driver_id}.",
+                "evidence": ["docs/briefs/team-invitations.md"],
+            }
+            for driver_id in sl.DRIVER_IDS
+        ],
+        "accepted_decisions": [
+            {
+                "ref": "docs/adr/0001-existing-runtime.md",
+                "summary": "Reuse the existing application runtime.",
+            }
+        ],
+        "material_gaps": [],
+        "capabilities": [
+            {
+                "id": "C01",
+                "outcome": "An administrator can invite a teammate.",
+                "actors": ["administrator"],
+                "data": ["invitation", "membership"],
+                "integrations": ["membership store"],
+                "observable": "The invitation can be accepted exactly once.",
+            }
+        ],
+        "journeys": [
+            {
+                "id": "J01",
+                "outcome": "An invitee joins a team.",
+                "actors": ["administrator", "invitee"],
+                "capability_refs": ["C01"],
+                "steps": ["Create, deliver, and accept an invitation."],
+                "observable": "The invitee becomes a team member.",
+            }
+        ],
+        "quality_attribute_scenarios": [
+            {
+                "id": "QA01",
+                "attribute": "latency",
+                "stimulus": "An invitee accepts a valid invitation.",
+                "environment": "normal load",
+                "response": "Return the acceptance result.",
+                "target": "p95 under 500 ms",
+                "priority": "must",
+                "evidence": ["docs/briefs/team-invitations.md"],
+            }
+        ],
+    }
+    criteria = [
+        {"id": criterion, "weight": weight, "basis": f"Priority for {criterion}."}
+        for criterion, weight in zip(
+            sl.CRITERIA,
+            (0.25, 0.20, 0.15, 0.15, 0.15, 0.10),
+        )
+    ]
+    hard_constraints = [
+        {
+            "id": "HC01",
+            "statement": "Reuse the accepted existing application runtime.",
+            "basis": "Accepted ADR and human-confirmed evaluation frame.",
+            "authority": "Architecture owner.",
+        }
+    ]
+    options = [
+        _selection_option("A01", hard_constraints, 5),
+        _selection_option("A02", hard_constraints, 4),
+    ]
+    option_set_sha256 = sl.option_set_hash(options, [])
+    selected = options[0]
+    selection = {
+        "schema_version": 1,
+        "project_slug": "team-invitations",
+        "exploration_id": f"AEX-{option_set_sha256[:12]}",
+        "source_capability_revision": 1,
+        "source_exploration_attempt": 1,
+        "source_input_sha256": "0" * 64,
+        "evaluation_frame": evaluation_frame,
+        "blocking_decision": None,
+        "sources": sources,
+        "evidence_fingerprint": sl.canonical_sha256(sources),
+        "criteria": criteria,
+        "hard_constraints": hard_constraints,
+        "options": options,
+        "eliminated_options": [],
+        "option_set_sha256": option_set_sha256,
+        "recommendation": {
+            "option_id": selected["option_id"],
+            "confidence": "high",
+            "sensitivity": "stable",
+            "sensitivity_witness": None,
+            "basis": "Best evidence-backed fit across the confirmed frame.",
+        },
+        "selection": {
+            "status": "direction-selected",
+            "option_id": selected["option_id"],
+            "option_sha256": selected["option_sha256"],
+            "decided_by": "human",
+            "rationale": "Preserve the accepted runtime and strongest requirement fit.",
+        },
+        "next_owner": "ce-plan",
+    }
+    selection["source_input_sha256"] = sl.source_input_hash(selection)
+    _write(
+        plan_dir / "architecture-selection.json",
+        json.dumps(selection, indent=2) + "\n",
+    )
+    return selection
+
+
 def _make_repo(root: Path) -> tuple[Path, dict]:
     plan_dir = root / "docs/plans/team-invitations"
     plan = {
@@ -170,7 +374,6 @@ def _make_repo(root: Path) -> tuple[Path, dict]:
             },
         ],
     }
-    _write(plan_dir / "plan.json", json.dumps(plan, indent=2))
     _write(
         plan_dir / "feature-plan.md",
         "# Plan\n\n## Journey Map\nInvite and accept.\n\n"
@@ -208,14 +411,34 @@ def _make_repo(root: Path) -> tuple[Path, dict]:
     )
     _write(root / "src/application.py", "RUNTIME = 'existing'\n")
 
+    selection = _write_selection(root, plan_dir)
+    selected = selection["options"][0]
+    plan["architecture_disposition"]["direction"] = {
+        "status": selection["selection"]["status"],
+        "artifact": "architecture-selection.json",
+        "artifact_sha256": _sha(plan_dir / "architecture-selection.json"),
+        "exploration_id": selection["exploration_id"],
+        "selected_option_id": selected["option_id"],
+        "selected_option_sha256": selected["option_sha256"],
+        "decided_by": "human",
+        "summary": "Reuse the existing runtime with explicit invitation ownership.",
+    }
+    _write(plan_dir / "plan.json", json.dumps(plan, indent=2) + "\n")
+
     arch_dir = plan_dir / "architecture"
-    _write(arch_dir / "solution-architecture.md", OVERVIEW)
+    _write(
+        arch_dir / "solution-architecture.md",
+        OVERVIEW.replace("AEX-test", selection["exploration_id"]).replace(
+            "SELECTED-OPTION-HASH", selected["option_sha256"]
+        ),
+    )
     _write(arch_dir / "views.md", VIEWS)
     _write(arch_dir / "data-and-integrations.md", DATA)
     _write(arch_dir / "quality-attributes.md", QUALITY)
 
     source_paths = [
         "docs/plans/team-invitations/plan.json",
+        "docs/plans/team-invitations/architecture-selection.json",
         "docs/plans/team-invitations/feature-plan.md",
         "docs/plans/team-invitations/shared-context.md",
         "docs/plans/team-invitations/threat-model.md",
@@ -469,7 +692,39 @@ class ArchitectureLintGreen(unittest.TestCase):
             self.assertEqual(hard, [])
             self.assertEqual(advisory, [])
 
-    def test_legacy_source_plan_posture_is_advisory_only(self):
+    def test_valid_package_is_bound_to_exact_human_selected_direction(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            plan_dir = root / "docs/plans/team-invitations"
+            plan = json.loads((plan_dir / "plan.json").read_text(encoding="utf-8"))
+            selection = json.loads(
+                (plan_dir / "architecture-selection.json").read_text(encoding="utf-8")
+            )
+            direction = plan["architecture_disposition"]["direction"]
+
+            self.assertEqual(direction["decided_by"], "human")
+            self.assertEqual(direction["exploration_id"], selection["exploration_id"])
+            self.assertEqual(
+                direction["selected_option_id"], selection["selection"]["option_id"]
+            )
+            self.assertEqual(
+                direction["selected_option_sha256"],
+                selection["selection"]["option_sha256"],
+            )
+            self.assertEqual(
+                direction["artifact_sha256"],
+                _sha(plan_dir / "architecture-selection.json"),
+            )
+            self.assertIn(
+                "docs/plans/team-invitations/architecture-selection.json",
+                {row["path"] for row in manifest["sources"]},
+            )
+            hard, advisory = al.check_package(arch_dir, root, manifest)
+            self.assertEqual(hard, [])
+            self.assertEqual(advisory, [])
+
+    def test_legacy_source_plan_is_advisory_but_cannot_seed_new_baseline(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
@@ -483,7 +738,14 @@ class ArchitectureLintGreen(unittest.TestCase):
             )
             source["sha256"] = _sha(plan_path)
             hard, advisory = al.check_package(arch_dir, root, manifest)
-            self.assertEqual(hard, [])
+            self.assertTrue(
+                any(
+                    item.startswith("source plan H10")
+                    and "--require-architecture-direction" in item
+                    for item in hard
+                ),
+                hard,
+            )
             self.assertTrue(any(item.startswith("A12") for item in advisory), advisory)
 
     def test_proposed_scratch_requires_explicit_flag(self):
@@ -539,7 +801,7 @@ class ArchitectureLintGreen(unittest.TestCase):
             )
             _write(
                 arch_dir / "solution-architecture.md",
-                OVERVIEW.replace(
+                (arch_dir / "solution-architecture.md").read_text(encoding="utf-8").replace(
                     "| D-001 | Reuse existing runtime | recorded | accepted | `docs/adr/0001-existing-runtime.md` | 01-roles-authz-foundation, 02-team-invitations | `docs/adr/0001-existing-runtime.md` |\n",
                     "",
                 ).replace(
@@ -591,6 +853,60 @@ class ArchitectureLintRed(unittest.TestCase):
             self.assertIn("status `converged`", joined)
             self.assertIn("iteration_count >= 1", joined)
             self.assertIn("at least one trigger", joined)
+
+    def test_direction_summary_mismatch_with_selection_is_h10_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            plan_path = root / "docs/plans/team-invitations/plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            plan["architecture_disposition"]["direction"]["selected_option_id"] = "A02"
+            _write(plan_path, json.dumps(plan, indent=2) + "\n")
+            source = next(
+                row
+                for row in manifest["sources"]
+                if row["path"] == "docs/plans/team-invitations/plan.json"
+            )
+            source["sha256"] = _sha(plan_path)
+
+            hard, _ = al.check_package(arch_dir, root, manifest)
+            self.assertTrue(
+                any(
+                    item.startswith("source plan H10")
+                    and "selected_option_id" in item
+                    and "does not match architecture-selection.json" in item
+                    for item in hard
+                ),
+                hard,
+            )
+
+    def test_selected_direction_markdown_projection_is_exact(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            plan = json.loads(
+                (root / "docs/plans/team-invitations/plan.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            selected_hash = plan["architecture_disposition"]["direction"][
+                "selected_option_sha256"
+            ]
+            overview_path = arch_dir / "solution-architecture.md"
+            overview = overview_path.read_text(encoding="utf-8").replace(
+                selected_hash, "0" * 64
+            )
+            _write(overview_path, overview)
+
+            hard, _ = al.check_package(arch_dir, root, manifest)
+            self.assertTrue(
+                any(
+                    item.startswith("H8 selected-direction projection")
+                    and "selection binding" in item
+                    for item in hard
+                ),
+                hard,
+            )
 
     def test_source_plan_rejects_unknown_duplicate_and_cross_category_triggers(self):
         def invalid_required(plan):
@@ -1424,7 +1740,8 @@ class ArchitectureLintRed(unittest.TestCase):
             arch_dir, manifest = _make_repo(root)
             _write(
                 arch_dir / "solution-architecture.md",
-                OVERVIEW + "\nThis is not a compliance attestation and is not production ready.\n",
+                (arch_dir / "solution-architecture.md").read_text(encoding="utf-8")
+                + "\nThis is not a compliance attestation and is not production ready.\n",
             )
             hard, _ = al.check_package(arch_dir, root, manifest)
             self.assertEqual(hard, [])

@@ -42,7 +42,7 @@ malformed path, never as absence. If no entry named `plan.json` exists, accept
 only a registry-backed single-feature minimal plan with all of these properties:
 
 - a regular, non-symlink `feature-plan.md` is the sole plan authority;
-- `plan.json`, `shared-context.md`, `threat-model.md`,
+- `plan.json`, `architecture-selection.json`, `shared-context.md`, `threat-model.md`,
   `interaction-contract.md`, and `features/` are absent;
 - exactly one `## 4. Single Feature` block contains exactly one
   `Feature ID: <id>` and one
@@ -67,26 +67,27 @@ a plan repair, not a minimal-plan fallback.
 
 ### 0.4 Run the full-plan floor
 
-Run:
+Run both deterministic floors:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+  docs/plans/<slug>/architecture-selection.json --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
+  docs/plans/<slug> --require-architecture-direction --json
 ```
 
-- exit 0: retain its output as preflight evidence. If it contains legacy
-  advisory `A12`, restore the baseline, route to `/core-engineering:ce-plan`
-  Stage R to record and converge the architecture disposition, and stop. Do
-  not publish a package that the required revision would immediately stale;
-- exit 1: show the hard failures, route to `/core-engineering:ce-plan` Stage R,
+- both exit 0: retain their output as preflight evidence;
+- either exit 1: show the hard failures, route to `/core-engineering:ce-plan` Stage R,
   restore the baseline, and stop;
-- exit 2: show the input/load error, route to `/core-engineering:ce-plan` Stage
+- either exit 2: show the input/load error, route to `/core-engineering:ce-plan` Stage
   R, restore the baseline, and stop;
 - command unavailable / no result: name the degradation and manually check
   required files, feature ids, feature paths, dependency references, and both
   re-projections. Also require a complete, internally consistent
-  `architecture_disposition`; an absent legacy posture routes to Stage R even
-  under degradation. The scope gate must say that the deterministic plan floor
-  did not run and require explicit acceptance of this degraded preflight. A
+  `architecture_disposition`, current selection artifact, and exact direction
+  summary/hash binding; an absent legacy posture or direction routes to Stage R
+  even under degradation. The scope gate must say which deterministic floor did
+  not run and require explicit acceptance of this degraded preflight. A
   single-feature plan with an occupied architecture namespace cannot enter the
   destructive retirement branch under this degradation; park until the
   deterministic plan floor runs.
@@ -164,8 +165,8 @@ delete paths by hand.
 
 Load:
 
-1. `plan.json`, `feature-plan.md`, `shared-context.md`, `threat-model.md`, and
-   `interaction-contract.md`;
+1. `plan.json`, `architecture-selection.json`, `feature-plan.md`,
+   `shared-context.md`, `threat-model.md`, and `interaction-contract.md`;
 2. every feature file named by `plan.json`;
 3. valid project documents listed by `shared-context.md`, including the brief
    when present;
@@ -244,7 +245,7 @@ Then print the computed locator and ask:
 For each consumed file record a repository-relative path, SHA-256 digest, and
 kind (`plan`, `brief`, `adr`, `repository`, or `reference`). The manifest's
 source list is the complete stale-detection boundary; do not claim unlisted
-evidence was checked. The five required plan files and every plan feature file
+evidence was checked. The six required plan files and every plan feature file
 always use `plan`; `docs/briefs/**` uses `brief`; and `docs/adr/**` uses `adr`.
 Never relabel a plan/brief/ADR input as `repository` to downgrade consumer drift.
 
@@ -274,6 +275,22 @@ Other gaps remain candidates for `approved-with-gaps` only after human review.
 ## Stage 2 — Build the Structural Model
 
 Use the schema in `${CLAUDE_SKILL_DIR}/artifact-template.md`.
+
+### 2.0 Realize the selected direction
+
+Load the exact option or explicit direction disposition bound by
+`architecture_disposition.direction`. For a selected/adopted direction, map its
+responsibilities, runtime/deployment, data ownership, integration/failure,
+trust/residency, quality, and migration commitments into the structural model.
+Do not rescore, replace, or reinterpret it into a materially different whole
+solution. If repository evidence or the stable plan contradicts it, return to
+`/core-engineering:ce-plan` Stage R/Stage 1A; baseline mode cannot repair the
+direction after decomposition.
+
+Project that binding into exactly one `Selected Direction Realization` row:
+the exploration id, selected option id or `None`, exact
+`<direction-status> / <selected-option-sha256-or-None>`, a non-empty realization
+summary, `recorded`, and the canonical plan-root selection-artifact path.
 
 ### 2.1 Components and relationships
 

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -43,6 +44,7 @@ ARTIFACTS = {
 }
 REQUIRED_PLAN_FILES = {
     "plan.json",
+    "architecture-selection.json",
     "feature-plan.md",
     "shared-context.md",
     "threat-model.md",
@@ -74,7 +76,7 @@ ARCHITECTURE_CONVERGENCE_STATES = {
     "converged", "deferred", "not-applicable", "waived",
 }
 ARCHITECTURE_DISPOSITION_KEYS = {
-    "decision", "triggers", "rationale", "decided_by", "convergence",
+    "decision", "triggers", "rationale", "decided_by", "direction", "convergence",
 }
 ARCHITECTURE_CONVERGENCE_KEYS = {
     "status", "iteration_count", "summary", "decision_refs",
@@ -120,6 +122,7 @@ ID_PATTERNS = {
 HEADINGS = {
     "solution-architecture.md": [
         "Executive Summary", "Scope and Non-Goals", "Architecture Drivers",
+        "Selected Direction Realization",
         "Architecture Overview", "Decisions and Rationale",
         "Feature Traceability", "Assumptions and Coverage Gaps",
         "Risks and Mitigations", "Validation Strategy", "Evidence Boundary",
@@ -142,6 +145,10 @@ HEADINGS = {
 REQUIRED_TABLES = {
     "solution-architecture.md": [
         {"driver", "evidence state", "source", "architecture consequence"},
+        {
+            "exploration", "option", "selection binding",
+            "realization summary", "evidence state", "evidence",
+        },
         {
             "decision", "summary", "evidence state", "status", "adr",
             "affected features", "evidence",
@@ -257,10 +264,37 @@ def _string_list(value: object) -> list[str]:
 
 def _validate_source_architecture_disposition(
     plan: dict,
+    plan_dir: Path,
     hard: list[str],
     advisory: list[str],
 ) -> None:
-    """Validate a source plan's architecture posture without breaking legacy plans."""
+    """Validate posture and delegate direction binding to canonical plan-lint."""
+    sibling = Path(__file__).with_name("plan-lint.py")
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "ce_architecture_source_plan_lint", sibling
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"could not load {sibling}")
+        plan_lint = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plan_lint)
+        direction_hard: list[str] = []
+        direction_advisory: list[str] = []
+        plan_lint.validate_architecture_disposition(
+            plan,
+            plan_dir,
+            direction_hard,
+            direction_advisory,
+            require_direction=True,
+        )
+        hard.extend(f"source plan {item}" for item in direction_hard)
+        advisory.extend(f"source plan {item}" for item in direction_advisory)
+    except Exception as exc:  # a missing canonical validator is never a pass
+        hard.append(
+            "H10 source plan direction validation could not run: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
     if "architecture_disposition" not in plan:
         advisory.append(
             "A12: source plan `architecture_disposition` is absent — legacy plan; "
@@ -1207,7 +1241,7 @@ def check_package(
     plan_slug = plan.get("project_slug", plan.get("slug"))
     if slug and plan_slug != slug:
         hard.append(f"H3 project_slug {slug!r} does not match source plan {plan_slug!r}")
-    _validate_source_architecture_disposition(plan, hard, advisory)
+    _validate_source_architecture_disposition(plan, plan_dir, hard, advisory)
     plan_revision = plan.get("plan_revision", 1)
     if data.get("source_plan_revision") != plan_revision:
         hard.append(
@@ -2038,6 +2072,55 @@ def check_package(
 
     # H8 — authoritative Markdown tables project the JSON graph row-by-row.
     # Prose and Mermaid may repeat ids, but cannot satisfy this contract.
+    direction_table = _projection_table(
+        markdown, "solution-architecture.md", "Selected Direction Realization",
+        {
+            "exploration", "option", "selection binding",
+            "realization summary", "evidence state", "evidence",
+        },
+        hard,
+        require_rows=True,
+    )
+    direction = (
+        plan.get("architecture_disposition", {}).get("direction", {})
+        if isinstance(plan.get("architecture_disposition"), dict)
+        else {}
+    )
+    direction_rows = direction_table["rows"] if direction_table is not None else []
+    if len(direction_rows) != 1:
+        hard.append(
+            "H8 solution-architecture.md ## Selected Direction Realization "
+            "must contain exactly one authoritative row"
+        )
+    elif isinstance(direction, dict):
+        row = direction_rows[0]
+        expected_option = direction.get("selected_option_id") or "None"
+        expected_binding = [
+            _plain_cell(str(direction.get("status", ""))),
+            _plain_cell(str(direction.get("selected_option_sha256") or "None")),
+        ]
+        exact_cells = (
+            ("exploration", direction.get("exploration_id")),
+            ("option", expected_option),
+            ("evidence state", "recorded"),
+            ("evidence", f"docs/plans/{slug}/architecture-selection.json"),
+        )
+        for column, expected in exact_cells:
+            if _plain_cell(row.get(column, "")) != _plain_cell(str(expected or "")):
+                hard.append(
+                    "H8 selected-direction projection "
+                    f"{column!r} must equal {expected!r}"
+                )
+        actual_binding = _projection_values(row.get("selection binding", ""), "/")
+        if actual_binding != expected_binding:
+            hard.append(
+                "H8 selected-direction projection 'selection binding' must equal "
+                "`<status> / <selected-option-sha256-or-None>`"
+            )
+        if not _plain_cell(row.get("realization summary", "")):
+            hard.append(
+                "H8 selected-direction projection 'realization summary' must be non-empty"
+            )
     driver_table = _projection_table(
         markdown, "solution-architecture.md", "Architecture Drivers",
         {"driver", "evidence state", "source", "architecture consequence"}, hard,
@@ -2137,7 +2220,7 @@ def check_package(
 
     # Required narrative tables must carry a real row too, even where their rows
     # do not have a one-to-one manifest collection.
-    _ = driver_table, context_table
+    _ = direction_table, driver_table, context_table
 
     _projection_markdown_status(markdown, status, gap_count, hard)
     _projection_overview_identity(markdown, data, hard)

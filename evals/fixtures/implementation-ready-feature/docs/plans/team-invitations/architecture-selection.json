@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "project_slug": "team-invitations",
+  "exploration_id": "AEX-not-applicable-r1",
+  "source_capability_revision": 1,
+  "source_exploration_attempt": 1,
+  "source_input_sha256": "f2b786a1a0b2c6d310d19994ce17b20968294f5fada541cbbcd11382ba5b116b",
+  "evaluation_frame": {
+    "project_intent": "Deliver one bounded team-invitation feature in the existing application.",
+    "non_goals": ["New platform, runtime, protocol, or cross-feature data ownership"],
+    "architecture_applicability": "not-required",
+    "driver_screen": [
+      {"id": "explicit-architecture-deliverable", "verdict": "negative", "basis": "No architecture deliverable is requested.", "evidence": ["README.md"]},
+      {"id": "multi-runtime-or-deployment-boundary", "verdict": "negative", "basis": "The feature remains inside the existing runtime.", "evidence": ["README.md"]},
+      {"id": "cross-feature-durable-or-async-flow", "verdict": "negative", "basis": "The plan contains one bounded feature and no asynchronous flow.", "evidence": ["README.md"]},
+      {"id": "shared-data-ownership-or-migration", "verdict": "negative", "basis": "There is no cross-feature owner or migration.", "evidence": ["README.md"]},
+      {"id": "trust-residency-or-sensitive-boundary", "verdict": "negative", "basis": "No new trust or residency boundary is introduced.", "evidence": ["README.md"]},
+      {"id": "shared-protocol-or-schema", "verdict": "negative", "basis": "No shared cross-runtime protocol is introduced.", "evidence": ["README.md"]},
+      {"id": "platform-or-topology-choice", "verdict": "negative", "basis": "No platform or topology choice is needed.", "evidence": ["README.md"]},
+      {"id": "architecture-determining-nfr", "verdict": "negative", "basis": "No quality target determines a new architecture.", "evidence": ["README.md"]},
+      {"id": "contested-cross-feature-owner", "verdict": "negative", "basis": "There is no cross-feature ownership contest.", "evidence": ["README.md"]},
+      {"id": "team-policy-recommendation", "verdict": "negative", "basis": "No team-policy recommendation applies.", "evidence": ["README.md"]},
+      {"id": "planned-reuse-recommendation", "verdict": "negative", "basis": "The feature is not a reuse baseline.", "evidence": ["README.md"]},
+      {"id": "baseline-preference", "verdict": "negative", "basis": "No baseline preference has been recorded.", "evidence": ["README.md"]}
+    ],
+    "accepted_decisions": [],
+    "material_gaps": [],
+    "capabilities": [
+      {"id": "C01", "outcome": "A user invites one teammate.", "actors": ["team member", "invitee"], "data": ["invitation"], "integrations": ["existing application"], "observable": "One invitation can be created and accepted."}
+    ],
+    "journeys": [
+      {"id": "J01", "outcome": "A teammate joins by invitation.", "actors": ["team member", "invitee"], "capability_refs": ["C01"], "steps": ["Create invitation", "Accept invitation"], "observable": "The invitee joins the team."}
+    ],
+    "quality_attribute_scenarios": []
+  },
+  "blocking_decision": null,
+  "sources": [
+    {"path": "README.md", "sha256": "8bd0fcc21e0ea0c6f732b6d03bca09b2df58e2c839982d98b07d6ce1855deab2", "kind": "repository"}
+  ],
+  "evidence_fingerprint": "df9f2455e680865b8dae3c8a8fced19a4032b840b41de48c361bdbf6f4d65fc8",
+  "criteria": [
+    {"id": "requirements-fit", "weight": 0.25, "basis": "Preserve the bounded invitation outcome if architecture applicability changes."},
+    {"id": "quality-attribute-fit", "weight": 0.2, "basis": "Evaluate any later direction against recorded feature quality needs."},
+    {"id": "repository-fit", "weight": 0.15, "basis": "Prefer the established application conventions."},
+    {"id": "evolvability", "weight": 0.15, "basis": "Keep the feature-local boundary easy to extend."},
+    {"id": "operability", "weight": 0.1, "basis": "Avoid new operational boundaries without a driver."},
+    {"id": "delivery-feasibility", "weight": 0.15, "basis": "Keep delivery effort proportionate to one bounded feature."}
+  ],
+  "hard_constraints": [],
+  "options": [],
+  "eliminated_options": [],
+  "option_set_sha256": "3b2eeb937512071b67d5d4d8bf1bffa6c4f1946ebd979c5ab9ad0abf94db437c",
+  "recommendation": {"option_id": null, "confidence": "high", "sensitivity": "not-applicable", "sensitivity_witness": null, "basis": "Every canonical architecture driver is negative for this bounded feature-local plan."},
+  "selection": {"status": "not-applicable", "option_id": null, "option_sha256": null, "decided_by": "human", "rationale": "The human confirmed that feature-local planning is sufficient."},
+  "next_owner": "ce-plan"
+}

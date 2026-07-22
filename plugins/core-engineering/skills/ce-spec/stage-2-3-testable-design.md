@@ -62,13 +62,13 @@ state-driven criteria with real numbers.
 
 #### Security Criteria
 
-For `plan_mode: single-feature-minimal`, plan-owned `TZ-NNN`, `IC-NNN`,
-governance-reciprocal, and cross-feature Journey obligations are `N/A by
-construction`; do not manufacture their absent full-plan files or ids. Ordinary
-reviewer-trigger and surface criteria still apply. If the real scope crosses a
-trust boundary, introduces shared durable state, or otherwise needs one of
-those plan-owned obligations, the minimal-plan sizing premise is false: route
-to `/core-engineering:ce-plan` and stop before drafting criteria.
+For `plan_mode: single-feature-minimal`, `IC-NNN`, governance-reciprocal, and
+cross-feature Journey obligations are `N/A by construction`; do not manufacture
+their absent full-plan files or ids. `TZ-NNN` is different: read it from the
+minimal plan's inline Security Projection and apply the same security-criterion
+rules below. If the real scope crosses a trust boundary not represented there,
+introduces shared durable state, or otherwise needs a new plan-owned obligation,
+route to `/core-engineering:ce-plan` and stop before drafting criteria.
 
 When the plan's `threat-model.md` assigns this feature one or more `TZ-NNN`
 threat-ids (its **Per-Feature Security Obligations** block — a feature that crosses
@@ -275,16 +275,19 @@ Test cases describe **what** to verify, not harness mechanics (that is Stage 3).
 - Every acceptance criterion → ≥ 1 test case.
 - Every **journey step this feature owns** (the plan's Journey Map `Owned By` column = this feature's id) → ≥ 1 test case that asserts the step's expected observable and carries the step's modality.
 - Every **governance reciprocal** the plan's Stage 6.3 closure dispositions `owned-by:` this feature (`retain` / `export` / `erase`) → ≥ 1 acceptance criterion and ≥ 1 test case (§2.1 Governance Reciprocal Criteria).
-- Every **`TZ-NNN` threat-id** the plan's `threat-model.md` assigns this feature → ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` (the **spec-lint H5** gate — H5 checks the *marker's presence*, auto-build **auto-discovers** the threat-model on the canonical spec dir while the interactive gate passes `--threat-model` on its scratch dir) **and** ≥ 1 test case proving it (the per-AC test-case rule above; H5 does not itself check the test case — A2 advisorily flags an unproven AC). A genuinely-N/A obligation is **consent-excluded in the plan** (and under autonomous auto-build the spawned agent **parks** it instead — it cannot edit the read-only threat-model), never silently dropped.
+- Every **`TZ-NNN` threat-id** the applicable plan security source assigns this feature—the full plan's `threat-model.md` or the minimal plan's inline Security Projection—→ ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` (the **spec-lint H5** gate — H5 checks the marker's presence; auto-build auto-discovers the full threat model on the canonical spec dir, while the interactive gate passes `--threat-model` using `threat-model.md` in full mode or `feature-plan.md` in minimal mode) **and** ≥ 1 test case proving it (the per-AC test-case rule above; H5 does not itself check the test case — A2 advisorily flags an unproven AC). A genuinely-N/A obligation is consent-excluded or explicitly assessed negative in the plan (and under autonomous auto-build the spawned agent parks it instead — it cannot edit plan-owned security input), never silently dropped.
 - Every **Scope item that renders a user-facing surface composing >1 element** (a screen / list / board / map / `canvas`) → ≥ 1 Surface-Quality criterion marked `[SURFACE]` (non-overlap / in-bounds / readability, §2.1 Surface-Quality Criteria) with an `auto` geometric or `manual:harness-gap` test case. This is **human/agent-attested**, like the §3.5 SHARED reconciliation — spec-lint **A4** *advisorily* flags a declared `browser` surface carrying no `[SURFACE]` AC, but cannot prove the criterion is right or complete (no "surface renders multiple elements" signal exists to hard-gate; readability is un-lintable from markdown).
 - Every **`IC-NNN` obligation** the plan's `interaction-contract.md` assigns this feature → ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** ≥ 1 test case proving it. This is **human/agent-attested** (like the §3.5 SHARED reconciliation and the `[SURFACE]`/A4 advisory) — no machine signal can prove an AC captures a behavioural invariant or a numeric NFR, so there is **no H5-style hard gate**; an assigned `IC-NNN` with no `[CONTRACT:]` AC is a gap to surface or consent-exclude in the plan, never silently dropped.
 - No criterion or test case touches an Excluded item or unplanned scope.
 
-In `single-feature-minimal` mode, record the Journey Map, governance reciprocal,
-`TZ-NNN`, and `IC-NNN` rows above as `N/A by construction`; the Scope chain and
-all applicable reviewer-trigger/surface checks still run. Any evidence that one
-of those cross-feature rows is applicable is a planning escalation, not an
-implicit waiver.
+In `single-feature-minimal` mode, record only the Journey Map, governance
+reciprocal, and `IC-NNN` rows above as `N/A by construction`; the Scope chain and
+all applicable reviewer-trigger/surface checks still run. For `TZ-NNN`, consume
+the inline Security Projection: every assigned id must have the criterion/test
+coverage above, while an explicit empty `threat_ids` list is an assessed
+negative rather than N/A inferred from feature count. A newly observed boundary
+or obligation contradicts that plan input and routes to `/core-engineering:ce-plan`
+before the spec is approved; it is never an implicit waiver.
 
 Report the check result.
 

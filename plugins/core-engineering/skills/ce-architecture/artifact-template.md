@@ -38,6 +38,11 @@ the rest of the source plan.
       "kind": "plan"
     },
     {
+      "path": "docs/plans/customer-portal/architecture-selection.json",
+      "sha256": "<64 lowercase hex>",
+      "kind": "plan"
+    },
+    {
       "path": "docs/plans/customer-portal/feature-plan.md",
       "sha256": "<64 lowercase hex>",
       "kind": "plan"
@@ -303,8 +308,8 @@ package whose prior revision is still readable. Publication additionally
 requires the publisher's explicit reset flag.
 
 All repository paths are root-relative. `sources` contains every file whose
-change should make the package stale. Include at minimum the five plan-level
-files and every feature file. Include consumed briefs, ADRs, references, and
+change should make the package stale. Include at minimum the six plan-level
+files, including `architecture-selection.json`, and every feature file. Include consumed briefs, ADRs, references, and
 repository evidence as additional rows.
 
 `data_entities` is the structural re-projection of the plan's Durable-State
@@ -329,6 +334,16 @@ and feature mappings use `data_ids` so those references remain checkable.
 ## Architecture Drivers
 | Driver | Evidence state | Source | Architecture consequence |
 |---|---|---|---|
+
+## Selected Direction Realization
+| Exploration | Option | Selection binding | Realization summary | Evidence state | Evidence |
+|---|---|---|---|---|---|
+
+Emit exactly one row. Copy `Exploration` and `Option` from the validated plan
+direction, render `Selection binding` exactly as
+`<direction-status> / <selected-option-sha256-or-None>`, use `recorded`, and
+cite exactly `docs/plans/<slug>/architecture-selection.json`. The realization
+summary explains how the structural model implements that bound direction.
 
 ## Architecture Overview
 ## Decisions and Rationale

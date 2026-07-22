@@ -151,12 +151,12 @@ docs/plans/<slug>/specs/<id>/review-summary.json
 Direct the worker to the existing review contract at
 `${CLAUDE_SKILL_DIR}/../ce-review/SKILL.md` and require it to load
 `${CLAUDE_SKILL_DIR}/../ce-review/artifact-template.md` before writing. The machine
-summary must use that exact `status` / `blocking_high` schema; do not reconstruct a
-new verdict format from memory. Then validate it externally:
+summary must use that exact `status` / `blocking_high` / `blocking_route` schema;
+do not reconstruct a new verdict format from memory. Then validate it externally:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/review-gate.py" \
-  "docs/plans/<slug>/specs/<id>" --json
+  "docs/plans/<slug>/specs/<id>" --require-blocking-route --json
 ```
 
 Every high-severity correctness or security finding receives an adversarial
@@ -164,10 +164,15 @@ confirmation pass and is labeled `confirmed` or `suspected`.
 
 - Missing, unreadable, or schema-invalid review artifacts (gate exit `2`): park as
   `tooling-gap`.
-- Confirmed high correctness/security finding (gate exit `1`): call `retry`; below
-  the cap, run `run-state.py advance <id> implementing`, then return to a fresh
-  implementation worker with that evidence, re-run every implementation gate, and
-  review again. At the cap, mark failed and halt.
+- Confirmed high correctness/security finding (gate exit `1`): read the validated
+  gate JSON's `blocking_route`. For `plan-conflict`, park the feature as
+  `plan-conflict` with the exact finding and `/core-engineering:ce-plan` as the
+  human-owned next action; do **not** call `retry`, advance to `implementing`, or
+  send it to an implementation worker. For `implement`, call `retry`; below the
+  cap, run `run-state.py advance <id> implementing`, then return to a fresh
+  implementation worker with that evidence, re-run every implementation gate,
+  and review again. At the cap, mark failed and halt. Any absent/unknown route is
+  schema-invalid gate exit `2`, never an implementation default.
 - Suspected high, medium, and low findings: record for the final human review. They
   do not silently disappear and do not block the batch.
 - No blocking finding (gate exit `0`): `run-state.py advance <id> reviewed`, then

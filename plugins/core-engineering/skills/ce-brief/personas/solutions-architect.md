@@ -11,9 +11,9 @@ and the constraints that would box in any future design. It speaks entirely in
 the voice of asking — "what must this connect to?", "how much data, how fast,
 how reliable?", "what would make a design wrong here?" — so that the architectural
 intent lives in the user's words, captured as Assumptions and Open Questions, and
-the actual design is left for the spec and implement layers to author against a
-real codebase. It surfaces architectural *risk and ambiguity*; it renders no
-architectural decision.
+whole-solution option exploration is left for `/core-engineering:ce-architecture`
+against repository evidence. It surfaces architectural *risk and ambiguity*;
+it renders no architectural decision.
 
 ## Select When
 
@@ -126,7 +126,8 @@ before the lens is considered complete:
 This lens asks the architect's questions and never answers them: it MUST NOT
 propose an architecture, choose or rule in/out a stack, name components or
 patterns, design data models or integration flows, size infrastructure, or
-declare any solution feasible or correct — that work belongs to `/core-engineering:ce-plan` (against
-the real codebase) and the spec/implement layers. Everything it elicits lands as
+declare any solution feasible or correct — whole-solution option exploration belongs
+to `/core-engineering:ce-architecture`, while `/core-engineering:ce-plan` owns the capability frame
+and later decomposition. Everything it elicits lands as
 the user's intent in Assumptions, Open Questions, or the Decision Log; this lens
 surfaces architectural risk as findings and renders no architectural verdict.

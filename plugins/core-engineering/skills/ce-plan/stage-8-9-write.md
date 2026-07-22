@@ -28,9 +28,16 @@ Before presenting the final plan:
   reference the current `candidate_revision`
 
 If a final ordering, dependency, bridge, feature, driver, or accepted-decision
-change alters the candidate revision, do not call the shape frozen. Return to
-`${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, then re-run every
-affected Reachability and Session-Fit check before presenting the final plan.
+change alters the candidate revision, do not call the shape frozen. Re-run
+Stage 3.9. Return to
+`${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md` only when the current
+route is required or an explored recommended direction has a current human
+election to shape this revision. When the route remains recommended but the
+prior shaping election was deferred or is stale, return to §5.4.1 for a fresh
+human election; do not silently force Stage 5A. An explicit direction deferral,
+candidate-shaping deferral, and not-applicable disposition remain distinct.
+Then re-run every affected Reachability and Session-Fit check before presenting
+the final plan.
 
 ---
 
@@ -47,6 +54,11 @@ Print:
 - risk summary
 - **threat-model summary** — the trust boundaries, the `sensitive`/`personal` nouns (re-projected from §6.3), and the per-feature security obligations (`TZ-NNN` threat-ids, *surface-don't-force*); or an explicit **No Security Surface** if none detected. *(Its model-derived assignment is attested separately in 8.2.1 — never by silence in this summary.)*
 - **interaction-contract summary** — the cross-feature producer→consumer edges and the §6.3 durable nouns touched by >1 feature (the `IC-NNN` behavioural-protocol invariants: medium / idempotency / delivery / ordering / retry / concurrency), and the architecture-determining numeric NFRs re-projected with their source and shaping consequence; or an explicit **No Cross-Feature Protocol** if none detected. *(Its model-derived assignment is attested separately in 8.2.2 — never by silence in this summary.)*
+- **selected architecture direction** — exploration id, selected option id/title
+  and binding hashes, confidence/sensitivity, human rationale, and how the
+  candidate realizes it; or the explicit human-confirmed
+  `not-applicable`/`deferred`/`waived` direction status. Never substitute a new
+  recommendation at Final Review.
 - **architecture disposition** — `required`, `recommended`, `not-required`, or
   `waived`; its Stage 3.9 trigger evidence, current candidate revision,
   convergence/deferral summary, accepted ADR refs, and downstream consequence.
@@ -234,6 +246,8 @@ After the applicable TZ/IC attestation gates resolve and before Final Plan
 Approval, re-run the Stage 3.9 applicability screen and compare the accepted
 architecture result with the exact candidate:
 
+- same `exploration_id`, capability revision, exploration attempt, source/input
+  fingerprint, option-set hash, selected option id, and selected-option hash;
 - same `candidate_revision`;
 - same features, dependencies, order, journeys, durable nouns, and owners;
 - same architecture trigger ids and evidence boundary;
@@ -241,9 +255,15 @@ architecture result with the exact candidate:
 - no new material decision, coverage gap, or unrecorded accepted ADR.
 
 An `Add/Remove threat`, `Add/Remove invariant`, or corrected negative that
-changes one of these rows increments `candidate_revision`. A mismatch
-invalidates convergence: update the latest Architecture Shaping Input, load
-`${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, and rerun shaping.
+changes one of these rows increments `candidate_revision`. A mismatch that
+changes capabilities, hard constraints, quality priorities, source evidence,
+or the selected direction returns to Stage 1A and requires a new human
+selection before decomposition. Any other mismatch invalidates convergence:
+for a required route or a recommended route already elected for shaping, update
+the latest Architecture Shaping Input, load
+`${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, and rerun shaping;
+for a recommended route whose shaping was deferred, return to §5.4.1 with the
+updated candidate and let the human shape or defer again.
 If shaping changes the cut, rerun the touched Reachability and Session-Fit
 checks plus the affected attestations. Never convert a stale result into a
 waiver by silence.
@@ -304,7 +324,8 @@ When the user selects `Write`, freeze final IDs — replace every provisional `P
 ```text
 docs/plans/[project-slug]/
 ├── feature-plan.md       # index: overview, dependency flow, feature table, checklist
-├── shared-context.md     # codebase profile, project docs, known pitfalls
+├── shared-context.md     # codebase profile, selected direction, decisions, known pitfalls
+├── architecture-selection.json  # exact pre-decomposition evaluation + human direction disposition
 ├── threat-model.md       # trust boundaries + data-classes + per-feature security obligations
 ├── interaction-contract.md  # cross-feature protocol invariants + architecture-determining NFRs
 ├── features/
@@ -352,9 +373,26 @@ Also: write the `relates_to` captured in Stage 0's Sibling Plans subsection into
 `architecture_disposition` object from Stage 5A / the final applicability
 recheck. For `not-required`, write `triggers: []`, `convergence.status:
 not-applicable`, `iteration_count: 0`, and the human-confirmed basis from Final
-Plan Approval. For `recommended` without shaping, write `deferred` and explain
-the visible coverage gap. Never omit the object from a newly written full plan;
+Plan Approval. For `recommended` without shaping, copy the exact human
+election's `deferred`, `iteration_count: 0`, rationale, and visible coverage
+gap; Stage 9 never invents that state during serialization. Never omit the
+object from a newly written full plan;
 single-feature minimal output has no `plan.json` and remains N/A by construction.
+
+**Publish the selected direction.** Copy the exact reviewed draft
+`docs/plans/.drafts/<slug>/architecture-selection.json` to
+`docs/plans/<slug>/architecture-selection.json`; never regenerate options,
+scores, evidence, sensitivity, or the human selection from prose. Compute the
+SHA-256 of the final bytes and write the `architecture_disposition.direction`
+summary from the same artifact: status, exploration id, artifact path/hash,
+selected option id/hash (or explicit null when the direction status itself is
+`not-applicable`, `deferred`, or `waived`),
+`decided_by: human`, and summary. The summary and artifact must agree exactly.
+For a new full plan, either a human-selected/adopted direction or the explicit
+not-applicable/deferred disposition exists—absence is never the cheap path. A
+later shaping waiver preserves the selected direction that actually shaped the
+cut; only a human-reaffirmed legacy no-direction waiver uses direction status
+`waived`.
 
 **Record the plan tier.** Write `"plan_tier": "light"` into `plan.json` (top-level, beside
 `plan_revision` — see `${CLAUDE_SKILL_DIR}/artifact-template.md` → *Plan Manifest*) whenever
@@ -369,14 +407,20 @@ proportionality choice**, the same discipline as the Sizing Gate's, not a silent
 **Lint the written plan (write-time gate).** Immediately after the plan directory, `plan.json`, and `plans.json` are written — and **before** deleting the gate-checkpoint scratch — run the structural-integrity lint over the *persisted* artifact, so nothing closes on a plan that fails a mechanical invariant the ~40-item Validation Checklist below only self-attests. This is the on-disk twin of `/core-engineering:ce-plan-audit`'s hard lint, run here at the moment of writing:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+  docs/plans/<slug>/architecture-selection.json --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
+  docs/plans/<slug> --require-architecture-direction --json
 ```
 
 Dispose by exit code (the same contract `/core-engineering:ce-spec`'s `spec-lint` follows — the lint **supplements** the checklist, never replaces it):
 
-- **PASS (exit 0)** → the H1–H8 invariants hold on disk. Annotate the checklist items the lint covers — dependency direction + cycle-freedom (H5/H6), referential integrity (H1/H3/H4), bridge resolution (H7), re-projection presence (H8) — as **`[machine-verified]`**; they **stay** in the checklist. Proceed to delete the scratch.
-- **FAIL (exit 1)** → do **not** close on the failing artifact and do **not** delete the scratch (the run stays resumable). Present each hard failure and **return to the stage that owns it**: `H5`/`H6` → Stage 6 ordering; `H1`/`H3`/`H4`/`H7`/`H8` → re-write the offending file. Re-run the lint after the fix.
-- **Could-not-run (exit 2)** → the lint could not parse its inputs: fall back to the manual Validation Checklist **loudly** ("plan-lint did not run — checklist verified by hand"), recorded as a degradation. Never silently skip.
+- **PASS (both exit 0)** → the selected-direction binding and H1–H10 plan invariants hold on disk. Annotate the checklist items the linters cover — frame/option/constraint/score/hash/selection integrity, dependency direction + cycle-freedom (H5/H6), referential integrity (H1/H3/H4), bridge resolution (H7), re-projection presence (H8), architecture posture (H9), and direction binding (H10) — as **`[machine-verified]`**; they **stay** in the checklist. Proceed to delete the scratch.
+- **FAIL (exit 1)** → do **not** close on the failing artifact and do **not** delete the scratch (the run stays resumable). Present each hard failure and **return to the stage that owns it**: frame/selection/score/hash/hard-constraint or H10 direction-summary failures → Stage 1A; `H5`/`H6` → Stage 6 ordering; `H1`/`H3`/`H4`/`H7`/`H8` → re-write the offending file. Re-run both linters after the fix.
+- **Could-not-run (either exit 2 or no result)** → do not close or delete the
+  scratch. Show the parse/runtime failure and park until the bundled validators
+  run. The manual checklist may diagnose the artifact but cannot replace the
+  frame/hash/direction binding floor.
 - **Single-feature minimal plan (no `plan.json`)** → record the lint line as **`N/A — single-feature minimal plan`** (mirroring `/core-engineering:ce-plan-audit`) and proceed; by construction there is no manifest to lint.
 
 **Delete the gate-checkpoint scratch on success.** After the plan directory, `plan.json`, and `plans.json` are all written, delete `docs/plans/.drafts/<slug>/` (SKILL.md → *Gate Checkpoint & Resume*) — the final artifact now exists, so the resume transcript has served its purpose. Delete it **only** on a successful write; an abort or crash before this point leaves the scratch so the run stays resumable. Removing an emptied `.drafts/` parent when no other drafts remain is optional cleanup, never required.
@@ -397,6 +441,9 @@ Re-verify, against the frozen plan, every property Stage 8.1 could have mutated 
 - [ ] Candidate plan was reviewed.
 - [ ] Architecture applicability was screened before Sizing; a required route
       did not take the single-feature or light-plan shortcut.
+- [ ] `architecture-selection.json` is current for the confirmed capability
+      frame, passes its deterministic lint, and records human authority; its
+      selected option or explicit N/A/defer/waiver matches the final plan.
 - [ ] `architecture_disposition` is complete and internally consistent; any
       required shaping result is `converged`, human-decided, within the
       three-pass cap, and current for the final candidate revision.
@@ -462,6 +509,7 @@ After writing the plan, confirm what was created:
 Created: docs/plans/[project-slug]/
   feature-plan.md
   shared-context.md
+  architecture-selection.json
   threat-model.md
   interaction-contract.md
   plan.json

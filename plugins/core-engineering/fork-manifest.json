@@ -106,7 +106,25 @@
         "plugins/core-engineering/skills/ce-spec/scripts/plan-lint.py",
         "plugins/core-engineering/skills/ce-implement/scripts/plan-lint.py"
       ],
-      "why": "plan structural-integrity lint (H1-H9 + advisories): /core-engineering:ce-plan-audit runs it as its hard-lint floor; /core-engineering:ce-plan runs it as a Stage-9 write-time gate; /core-engineering:ce-spec and /core-engineering:ce-implement validate the resolved plan before consuming its architecture posture; and /core-engineering:ce-auto-build plan-lints at Stage-0 kickoff before any spawn. Each consumer bundles its own copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls. Also the merge-bar's plan-lint advisory gate."
+      "why": "plan structural-integrity lint (H1-H10 + advisories), including the plan-root architecture-direction artifact binding: /core-engineering:ce-plan-audit runs it as its hard-lint floor; /core-engineering:ce-plan runs it as a Stage-9 write-time gate; /core-engineering:ce-spec and /core-engineering:ce-implement validate the resolved plan before consuming its architecture posture; and /core-engineering:ce-auto-build plan-lints at Stage-0 kickoff before any spawn. Each consumer bundles its own copy plus the colocated architecture-selection-lint.py dependency because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls. Also the merge-bar's plan-lint advisory gate."
+    },
+    {
+      "canonical": "plugins/core-engineering/skills/ce-plan-audit/scripts/architecture-selection-lint.py",
+      "copies": [
+        "plugins/core-engineering/skills/ce-architecture/scripts/architecture-selection-lint.py",
+        "plugins/core-engineering/skills/ce-plan/scripts/architecture-selection-lint.py",
+        "plugins/core-engineering/skills/ce-auto-build/scripts/architecture-selection-lint.py",
+        "plugins/core-engineering/skills/ce-spec/scripts/architecture-selection-lint.py",
+        "plugins/core-engineering/skills/ce-implement/scripts/architecture-selection-lint.py"
+      ],
+      "why": "architecture-direction selection integrity and freshness gate: /core-engineering:ce-plan validates transient exploration results and the final plan-root architecture-selection.json; plan-lint dynamically loads the colocated validator in /core-engineering:ce-plan-audit, /core-engineering:ce-architecture, /core-engineering:ce-spec, /core-engineering:ce-implement, and /core-engineering:ce-auto-build. Each consumer bundles a byte-identical copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls."
+    },
+    {
+      "canonical": "plugins/core-engineering/skills/ce-brief/scripts/brief-lint.py",
+      "copies": [
+        "plugins/core-engineering/skills/ce-plan/scripts/brief-lint.py"
+      ],
+      "why": "Brief-to-plan skip authority is hash- and content-bound: /core-engineering:ce-brief validates before handoff, and /core-engineering:ce-plan revalidates the exact pair before skipping any Stage 1.4 question. The plan consumer uses --skip-persona-check because persona-library resolution is producer validation; hash, schema, complete section coverage, and answered-content checks remain hard."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-probe-infra/scripts/merge_disposition.py",
