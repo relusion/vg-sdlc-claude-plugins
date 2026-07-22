@@ -3,7 +3,7 @@
 Behaviour of plan-lint.py itself is covered by test_plan_lint.py; this suite locks
 the *wiring* so a future edit cannot silently unhook the gate or let a fork drift:
 
-  * the fork entry is registered with the canonical + both copies, byte-identical;
+  * the fork entry is registered with every consumer copy, byte-identical;
   * ce-plan Stage 9 invokes plan-lint over the written dir with exit-code disposition,
     and runs it BEFORE the resume scratch is deleted (a FAIL must stay resumable);
   * ce-auto-build Stage 0 plan-lints the resolved plan before any spawn;
@@ -20,6 +20,9 @@ MANIFEST = REPO / "plugins/core-engineering/fork-manifest.json"
 CANONICAL = "plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py"
 PLAN_COPY = "plugins/core-engineering/skills/ce-plan/scripts/plan-lint.py"
 AUTOBUILD_COPY = "plugins/core-engineering/skills/ce-auto-build/scripts/plan-lint.py"
+ARCHITECTURE_COPY = "plugins/core-engineering/skills/ce-architecture/scripts/plan-lint.py"
+SPEC_COPY = "plugins/core-engineering/skills/ce-spec/scripts/plan-lint.py"
+IMPLEMENT_COPY = "plugins/core-engineering/skills/ce-implement/scripts/plan-lint.py"
 
 PLAN_STAGE = REPO / "plugins/core-engineering/skills/ce-plan/stage-8-9-write.md"
 PLAN_SKILL = REPO / "plugins/core-engineering/skills/ce-plan/SKILL.md"
@@ -33,13 +36,16 @@ class PlanLintForkRegistration(unittest.TestCase):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         return next((f for f in data["forks"] if f.get("canonical") == CANONICAL), None)
 
-    def test_fork_entry_registered_with_both_copies(self):
+    def test_fork_entry_registered_with_all_consumers(self):
         entry = self._entry()
         self.assertIsNotNone(
             entry, "plan-lint.py fork must be registered in fork-manifest.json"
         )
         self.assertIn(PLAN_COPY, entry["copies"])
         self.assertIn(AUTOBUILD_COPY, entry["copies"])
+        self.assertIn(ARCHITECTURE_COPY, entry["copies"])
+        self.assertIn(SPEC_COPY, entry["copies"])
+        self.assertIn(IMPLEMENT_COPY, entry["copies"])
 
     def test_copies_are_byte_identical_to_canonical(self):
         canon = (REPO / CANONICAL).read_bytes()
@@ -50,6 +56,18 @@ class PlanLintForkRegistration(unittest.TestCase):
         self.assertEqual(
             (REPO / AUTOBUILD_COPY).read_bytes(), canon,
             "ce-auto-build plan-lint copy drifted from canonical",
+        )
+        self.assertEqual(
+            (REPO / ARCHITECTURE_COPY).read_bytes(), canon,
+            "ce-architecture plan-lint copy drifted from canonical",
+        )
+        self.assertEqual(
+            (REPO / SPEC_COPY).read_bytes(), canon,
+            "ce-spec plan-lint copy drifted from canonical",
+        )
+        self.assertEqual(
+            (REPO / IMPLEMENT_COPY).read_bytes(), canon,
+            "ce-implement plan-lint copy drifted from canonical",
         )
 
 

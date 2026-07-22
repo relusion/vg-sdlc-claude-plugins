@@ -1,6 +1,6 @@
 # Feature-Plan Workflow — Stages 4–7: Gates
 
-Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers the Sizing Gate, Candidate Plan Review, Reachability / Consumability Trace, and Session-Fit Check. Load this file after Stage 3 is complete.
+Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers the Sizing Gate, Candidate Plan Review, Reachability / Consumability Trace, and Session-Fit Check. Load this file after Stage 3, including the Architecture Applicability Screen, is complete.
 
 **Next:** when Stage 7 passes, load `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`. If the Sizing Gate accepts a single-feature plan at Stage 4, go straight to `${CLAUDE_SKILL_DIR}/stage-8-9-write.md`.
 
@@ -8,9 +8,9 @@ Stage file for the `plan` skill (orchestrator: `SKILL.md`). Covers the Sizing Ga
 
 ## Stage 4 — Sizing Gate
 
-Before presenting a multi-feature plan, evaluate whether the project actually warrants decomposition.
+Before presenting a multi-feature plan, evaluate whether the project actually warrants decomposition. A Stage 3.9 `architecture_applicability: required` result **cannot** take the single-feature minimal early exit: architecture-significant boundaries must be represented honestly in a full plan before shaping. If the current candidate still appears inseparable, return to Stage 2 or park the architecture request; never manufacture a split.
 
-Recommend a single-feature plan if any of the following hold:
+Only when architecture applicability is not `required`, recommend a single-feature plan if any of the following hold:
 
 1. **Single-Simple fits**  
    Total scope scores Simple on every Complexity dimension and Brownfield friction is not High.
@@ -30,7 +30,8 @@ Recommend a single-feature plan if any of the following hold:
 
 If the project fails the Sizing Gate, present this block. Print the **gate locator**
 and label each option by its consequence — `Accept` is a *terminal early-exit* that
-skips every later gate, so that cost must be in the option text
+   skips every later gate, so that cost must be in the option text. Include the
+   architecture screen result and why it permits this early exit
 (HITL Gate Standard R1/R5):
 
 ```markdown
@@ -49,7 +50,7 @@ If you Override, this is the multi-feature split you'd get instead:
 
 Options:
 1. Accept — write ONE single-feature artifact and EXIT now. This skips the Candidate
-   Review, Reachability, Session-Fit, and Final-Approval gates entirely.
+   Review, architecture shaping, Reachability, Session-Fit, and Final-Approval gates entirely.
 2. Override — build the multi-feature plan previewed above instead: more specs to
    review and a longer pipeline, but each feature ships and is reviewed independently.
 3. Adjust — revise the project scope or decomposition approach, then re-size.
@@ -87,9 +88,9 @@ forward checkpoint; `Adjust` loops back and appends nothing.
 
 Once the Sizing Gate has confirmed a **multi-feature** plan, screen it for the
 **light-plan tier** — a proportionality mode that folds ceremony without dropping any
-correctness gate, taking a small plan's ~8 interactive stops down to ~4. This is a
+correctness gate. This is a
 **mechanical screen, not a prompt** (an extra gate here would defeat the purpose): if
-**all three** hold on the scored candidate set, the run enters the light tier —
+**all four** hold on the scored candidate set, the run enters the light tier —
 
 1. **≤ 3 candidate features** (the single-feature case already took the Sizing early-exit).
 2. **No contested Boundary-Owner** — no cross-cutting or interface-foundation category is
@@ -98,6 +99,9 @@ correctness gate, taking a small plan's ~8 interactive stops down to ~4. This is
    noun (credentials, financial, health, biometric, precise location) per the Stage 1–3
    profile. This is a **preliminary** screen; the definitive data-class is assigned in §6.3
    and the security surface is re-checked at 8.2 (see the auto-restore below).
+4. **Architecture not required** — the Stage 3.9 applicability result is
+   `recommended` or `not-required`. A `required` result always uses the standard
+   Candidate Review and pre-Reachability shaping loop.
 
 If any condition fails — or the plan has more than 3 features — the run stays **standard
 tier** and every gate fires as written (a 4-plus-feature plan is entirely unchanged by this
@@ -115,13 +119,16 @@ light` (recorded in `plan.json` and §13 Notes at write time — Stage 9) and fo
   Cross-Feature Protocol).
 
 **What it never folds (the correctness floor).** Reachability / Consumability (§6, gate
-§6.6) and Session-Fit (§7) run **in full** — they are correctness, not ceremony — using the
+§6.6), the post-Reachability architecture re-screen, and Session-Fit (§7) run **in full** — they are correctness, not ceremony — using the
 collapsed-row rendering §6.6 already defines. The combined attestation still renders **each**
 attested-negative as its own labeled line with basis + cost-if-wrong (§8.2.3): nothing
 material is skipped, only co-located.
 
-**Auto-restore on any real surface.** The attestation combine is contingent, re-evaluated at
-8.2. If §6.3 later assigns a `sensitive` noun, or the threat-model / interaction-contract
+**Auto-restore on any real surface.** The tier is contingent, re-evaluated after
+Reachability and at 8.2. If §6.3 or another later check makes architecture
+`required`, leave the light tier, record `plan_tier: standard`, run the standalone
+Candidate Review followed by Stage 5A architecture shaping, then re-run the affected
+correctness gates. If §6.3 later assigns a `sensitive` noun, or the threat-model / interaction-contract
 re-projection detects a real surface, the **separate** material gate (§8.2.1 / §8.2.2) fires
 automatically for that re-projection — a positive detection is never swept into a combined
 negative (Done-when: *a light plan whose threat-model detects a real surface gets the
@@ -131,7 +138,7 @@ orthogonal to security and stays folded regardless.
 **Consented, never silent.** The tier is **disclosed** the moment it is entered — print, in
 the conversation (not a dialog):
 
-> *Light-plan tier: ≤ 3 features, no contested ownership, no sensitive data in sight.
+> *Light-plan tier: ≤ 3 features, no contested ownership, no sensitive data, and no required architecture shaping in sight.
 > Candidate review folds into Final Approval; trivially-negative attestations combine.
 > Reachability and Session-Fit still run in full. Recorded as `plan_tier: light`; you can
 > expand back to the full separate gates at Final Approval.*
@@ -235,7 +242,7 @@ Options:
 
 | Option | What happens next |
 |---|---|
-| Continue | **Not final approval** — validates this candidate through the Reachability and Session-Fit gates (two more gates before you can Write). |
+| Continue | **Not final approval** — when architecture is required, first run the read-only Architecture-Plan Convergence workflow; then validate the resulting candidate through Reachability and Session-Fit before Write. |
 | Coarsen | **Scope-preserving** — re-slice the *same* Scope into fewer, larger features (name a target count or "coarsest viable"). Trades session-fit headroom + per-diff review granularity for fewer spec→implement loops; records a consented session-fit relaxation, then re-runs Reachability + Session-Fit, which can still **reject** an over-coarse merge. **Not** an MVP cut (that drops scope — use Adjust) and **not** the single-feature collapse (that's the Sizing Gate). See §5.5. |
 | Adjust | Loop back to feature decomposition and re-cut. |
 | Add context | Capture more context, then loop back to feature decomposition. |
@@ -262,6 +269,17 @@ Do not write the artifact after this decision.
 provisional order — per SKILL.md → *Gate Checkpoint & Resume*. The back-edge options
 (`Coarsen` / `Adjust` / `Add context` / `Decide a fork`) loop without advancing, so they
 overwrite the pending state rather than append a passed-gate block.
+
+After `Continue`, route by the recorded applicability result:
+
+- `required` — load `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`
+  and run Stage 5A before Stage 6;
+- `recommended` — continue to Stage 6 unless the human explicitly requests the
+  shaping pass, in which case load Stage 5A; or
+- `not-required` — continue to Stage 6.
+
+The light tier can reach Stage 6 without this branch only because `required`
+was excluded at §4.3. A later positive re-screen restores the standard branch.
 
 ---
 
@@ -319,6 +337,12 @@ its own cut).
 A feature can be technically complete but unusable because surrounding surfaces have not shipped yet.
 
 This stage validates whether the planned ship order is practically usable.
+
+Every accepted change to a feature, dependency, order, journey, durable-state
+row, continuity row, architecture driver, or accepted decision increments
+`candidate_revision` and invalidates a Stage 5A result whose
+`source_candidate_revision` no longer matches. Do not carry convergence across
+a changed candidate.
 
 Use one of two modes:
 
@@ -724,7 +748,7 @@ Ask (the locator is already printed), labeling each option by its consequence:
 
 | Option | What happens next |
 |---|---|
-| Approve trace | Accept every disposition shown — **including the ⚠ overrides and bulk runs above** — and continue to the Session-Fit Check. |
+| Approve trace | Accept every disposition shown — **including the ⚠ overrides and bulk runs above** — then re-screen architecture applicability before Session-Fit. |
 | Change a disposition | Pick a numbered row `R#`; you're offered **only that row's legal values** (a §6.3 reciprocal: `owned-by` / `bridge` / `excluded`; a §6.4 continuity: `deprecate` / `shim` / `hard-break`), each consequence-labeled from the legend. The pass then re-runs the §6.3.4 / §6.4.4 satisfaction check and re-prints "What needs your decision". |
 | Reorder | Loop back to provisional ordering (a different ship order may auto-dispose a row). |
 | Adjust journeys | Loop back to journey / consumer-flow collection. |
@@ -742,8 +766,24 @@ and a `state:` block holding the **resolved disposition rows** (the durable-noun
 governance reciprocals and the §6.4 surface-removal continuity rows, as dispositioned) plus
 the Journey / Consumability Map — per SKILL.md → *Gate Checkpoint & Resume*. This is the
 marathon gate the checkpoint most protects: a crash after `Approve` re-enters at the
-Session-Fit Check, not back at the trace. `Change a disposition`, `Reorder`, and `Adjust
+architecture re-screen, not directly at Session-Fit. `Change a disposition`, `Reorder`, and `Adjust
 journeys` loop without advancing and append nothing.
+
+### 6.6.4 Re-screen architecture applicability
+
+Re-run Stage 3.9 against the accepted journeys, durable-state closure,
+continuity rows, cross-feature media, trust/data classes, and NFRs. Then:
+
+- if a prior `not-required` or `recommended` result becomes `required`, leave
+  the light tier when applicable, run the standalone Candidate Review if it was
+  folded, load `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, and
+  do not enter Stage 7 until it converges or is explicitly waived;
+- if a prior shaping result's candidate revision, triggers, decisions, or
+  evidence changed, load Stage 5A again; or
+- if the result and candidate revision remain current, continue to Stage 7.
+
+Record the re-screen in scratch even when unchanged so resume never guesses
+whether Stage 6 evidence was considered.
 
 ---
 
@@ -765,7 +805,10 @@ Deferred journeys must be explicitly recorded in the final artifact.
 
 ## Stage 7 — Session-Fit Check
 
-The Session-Fit Check is mandatory.
+The Session-Fit Check is mandatory. It may start only when architecture is
+`not-required`, is `recommended` with an explicit deferred/converged result, or
+has a current Stage 5A `converged`/human-waived result for this exact
+`candidate_revision`. A stale or missing required result routes to Stage 5A.
 
 It validates dependency graph shape, implementation reach, reviewer pressure, risk distribution, and boundary ownership.
 
@@ -959,7 +1002,8 @@ checkpoint to `docs/plans/.drafts/<slug>/scratch.md` before loading the write st
 SKILL.md → *Gate Checkpoint & Resume*. Record `decided_by: human` when the Interface
 Foundation Gate (7.8) required a consented exception or a foundation choice, else
 `decided_by: workflow (autonomous pass)`; the `state:` block holds the final feature set
-and ship order. A crash after Session-Fit re-enters at Stage 8's Final Plan Review with the
+and ship order. If any Session-Fit repair changes the candidate revision or an
+architecture driver, rerun Stage 5A before appending this checkpoint. A crash after Session-Fit re-enters at Stage 8's Final Plan Review with the
 validated shape intact.
 
 ---

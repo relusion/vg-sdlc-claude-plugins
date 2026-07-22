@@ -18,8 +18,12 @@ independent review before moving on. The workflow is deliberately sequential and
 has one operating profile.
 
 Use this skill when a plan is already approved and the human wants a bounded batch
-run. Use `/core-engineering:ce-plan` when the scope or architecture is still unsettled. Use
-`/core-engineering:ce-spec` or `/core-engineering:ce-implement` when the human wants to drive one feature directly.
+run. Stage 0 enforces the plan's human-owned architecture disposition before any
+worker starts. Use `/core-engineering:ce-plan` when the scope or architecture
+convergence is still unsettled, `/core-engineering:ce-architecture` when a
+required governed baseline is missing or stale, and `/core-engineering:ce-spec`
+or `/core-engineering:ce-implement` when the human wants to drive one feature
+directly.
 
 ## Execution Contract
 
@@ -33,6 +37,11 @@ Auto-build provides supervised autonomy, not release authority.
 - A fresh spec worker and implementation worker preserve the spec-to-code boundary.
   An independent review worker examines the result.
 - On-disk artifacts and deterministic scripts gate progress; worker claims do not.
+- A full plan must pass `plan-lint.py` and carry a valid
+  `architecture_disposition`. Every present architecture package is consumer-linted.
+  A `required` + `converged` disposition needs a current approved package before
+  kickoff; recommended absence and a human waiver are explicit kickoff coverage,
+  never silent defaults.
 - Product, security-acceptance, destructive, architectural, and scope decisions are
   parked for the human. They are never guessed to keep the batch moving.
 - The run never creates branches or commits, pushes, opens or merges pull requests,
@@ -44,7 +53,8 @@ Auto-build provides supervised autonomy, not release authority.
 
 ```text
 Stage 0 — kickoff
-  resolve and lint plan → confirm clean tree and capabilities
+  resolve and lint plan → enforce architecture disposition/package
+  → confirm clean tree and capabilities
   → human approves scope + budget + failure-attempt/park caps
 
 Stage 1+2 — sequential feature loop
@@ -78,10 +88,13 @@ stop and route the work to the relevant interactive skill.
 - **Park cap:** a required positive consecutive-park cap. Default recommendation:
   `3`.
 
-The plan must exist, pass `plan-lint.py`, and name discoverable build/test/lint
-commands. The working tree must be clean at kickoff so each feature's diff and
-dependency changes have an unambiguous baseline. A dirty tree is a stop condition,
-not an alternate mode.
+The plan must exist, pass `plan-lint.py`, carry a valid human-recorded
+`architecture_disposition`, satisfy its blocking architecture prerequisite, and
+name discoverable build/test/lint commands. A missing legacy disposition routes
+to `/core-engineering:ce-plan` Stage R rather than silently inheriting the old
+optional behavior. The working tree must be clean at kickoff so each feature's
+diff and dependency changes have an unambiguous baseline. A dirty tree is a stop
+condition, not an alternate mode.
 
 ## Escalation
 

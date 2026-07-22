@@ -361,3 +361,65 @@ Bad examples:
 
 ---
 
+### 3.9 Architecture Applicability Screen
+
+Run this screen over the codebase profile and the provisional candidate set
+**before Stage 4 can collapse the work into a minimal plan**. This is an
+evidence classification, not architecture design and not a human approval.
+
+Set `candidate_revision: 1` for the first complete candidate. Increment it
+whenever a later step adds, removes, re-cuts, reorders, or changes a feature's
+dependencies, journeys, durable-state ownership, TZ/IC obligations,
+architecture-determining NFRs, or accepted technical decisions. Never reuse a
+prior architecture result across candidate revisions.
+
+Evaluate these stable driver ids and render the exact evidence for every
+positive or unknown row:
+
+| Driver id | Positive when… |
+|---|---|
+| `explicit-architecture-deliverable` | the user explicitly requested a solution-architecture baseline or repository policy requires one |
+| `multi-runtime-or-deployment-boundary` | the change creates, extracts, replaces, or materially changes more than one runtime, service, worker, network zone, region, or deployable |
+| `cross-feature-durable-or-async-flow` | a feature boundary carries an event, queue, file, external API exchange, or other durable/asynchronous handoff |
+| `shared-data-ownership-or-migration` | more than one feature touches durable state whose source of truth, migration, compatibility window, or write ownership must be settled |
+| `trust-residency-or-sensitive-boundary` | a trust, tenancy, residency, credential, personal, or sensitive-data boundary spans features |
+| `shared-protocol-or-schema` | multiple features depend on one API, event, file, command, or schema contract |
+| `platform-or-topology-choice` | a platform, vendor, build-vs-reuse, extraction, storage, or topology choice changes at least two feature boundaries or their order |
+| `architecture-determining-nfr` | a numeric latency, throughput, concurrency, availability, recovery, scale, or residency target shapes decomposition |
+| `contested-cross-feature-owner` | a Boundary-Owner, MODIFY chokepoint, integration wrapper, or foundation has no single viable owner in the current cut |
+
+Only when all load-bearing drivers above are explicitly negative, evaluate
+these stable recommendation ids:
+
+| Recommendation id | Positive when… |
+|---|---|
+| `team-policy-recommendation` | team guidance prefers a shared baseline but does not mandate one |
+| `planned-reuse-recommendation` | more than one later consumer is expected, while the current cut has no load-bearing cross-feature driver |
+| `baseline-preference` | the human explicitly prefers a baseline but did not request it as a required deliverable |
+
+Classify the candidate:
+
+- **`required`** — any driver other than
+  `explicit-architecture-deliverable` is positive; the explicit deliverable is
+  positive; or evidence needed to decide a material driver is unknown. Unknown
+  does not earn the cheap path.
+- **`recommended`** — no decomposition-shaping driver is positive or unknown,
+  and at least one stable recommendation id is positive.
+- **`not-required`** — every driver is explicitly negative and no material
+  architecture uncertainty remains.
+
+Record `architecture_applicability`, the positive stable driver or
+recommendation ids as `architecture_triggers`, and a one-sentence
+evidence-backed rationale in the in-flight candidate and the next scratch
+checkpoint. A `not-required` result has no triggers. Never invent a trigger id
+or use prose in its place; the rationale carries the evidence. Do not record
+`waived` here: only a human choice at the architecture gate may create a waiver.
+A `required` result disqualifies the single-feature minimal output and
+light-plan tier; return to Stage 2 if the candidate does not yet expose honest
+foundation, migration, integration, or operational boundaries. Never invent
+extra features merely to satisfy the architecture workflow.
+
+Re-run this same screen after Reachability and after final TZ/IC attestation.
+Any change invalidates the prior disposition and architecture result.
+
+---

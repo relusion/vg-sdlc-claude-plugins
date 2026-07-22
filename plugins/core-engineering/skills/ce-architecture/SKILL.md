@@ -1,34 +1,48 @@
 ---
 name: ce-architecture
 description: |
-  Turn one WRITTEN multi-feature plan into a repository-grounded, human-approved solution-architecture baseline: system context, runtime/container and deployment views, data/integration flows, quality scenarios, feature traceability, and explicit coverage gaps. Read-only on code and plan; the Scope Lock forbids re-cutting features or reassigning plan-owned TZ/IC obligations. Triggers: design/document/revise the cross-feature solution architecture for an existing plan. For decomposition use /core-engineering:ce-plan, for one technical option set use /core-engineering:ce-decide, and for feature-level design use /core-engineering:ce-spec.
-argument-hint: "[plan-slug]"
+  Shape a provisional candidate plan read-only when invoked as shape:<draft-slug>, or turn one WRITTEN multi-feature plan into a repository-grounded, human-approved solution-architecture baseline with system, deployment, data/integration, quality, traceability, and gap views. Shape mode returns planning impact but never edits the draft; baseline mode is read-only on code and plan and never re-cuts plan-owned boundaries or TZ/IC obligations. Triggers: shape architecture during planning, or design/document/revise the cross-feature solution architecture for an existing plan. For decomposition use /core-engineering:ce-plan, for one technical option set use /core-engineering:ce-decide, and for feature-level design use /core-engineering:ce-spec.
+argument-hint: "[plan-slug | shape:<draft-slug>]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
 
 # Architecture
 
-**Invocation input:** Plan to architect: $ARGUMENTS
+**Invocation input:** Plan or draft to architect: $ARGUMENTS
 
-Turn a written multi-feature plan into a reviewable solution-architecture
-baseline under `docs/plans/<slug>/architecture/`. The package explains the
-cross-feature system shape and traces it back to the plan and repository. It
-never edits the plan, accepted ADRs, specifications, source, tests, or
-deployment configuration, and it never represents an architecture package as
+In default **baseline mode**, turn a written multi-feature plan into a
+reviewable solution-architecture baseline under
+`docs/plans/<slug>/architecture/`. In **shape mode**
+(`shape:<draft-slug>`), inspect one provisional plan candidate and return its
+architecture impact to `/core-engineering:ce-plan` without writing anything.
+Neither mode edits the plan, accepted ADRs, specifications, source, tests, or
+deployment configuration, and neither represents architecture work as
 security, compliance, release, or production approval.
 
-This is an optional seam between planning and feature specification:
+The skill supports both the pre-freeze shaping seam and the post-write baseline
+seam between planning and feature specification:
 
 ```text
-/core-engineering:ce-brief -> /core-engineering:ce-plan -> [/core-engineering:ce-plan-audit]
-    -> /core-engineering:ce-architecture -> /core-engineering:ce-spec
+/core-engineering:ce-plan -- candidate -> /core-engineering:ce-architecture shape:<draft-slug>
+    -> /core-engineering:ce-plan -- written plan -> /core-engineering:ce-architecture <plan-slug>
+    -> /core-engineering:ce-spec
 ```
 
 ## Runtime Inputs
 
-- **Plan slug (required):** a plan registered in `docs/plans/plans.json`. When
+- **Mode selector (optional):** an exact `shape:<draft-slug>` input selects
+  read-only shape mode. Any invocation without the `shape:` prefix stays in
+  default baseline mode; never infer shape mode merely because a draft exists.
+- **Shaping draft (required in shape mode):** the regular, non-symlink file
+  `docs/plans/.drafts/<draft-slug>/scratch.md`, containing a complete
+  `Architecture Shaping Input` block with a positive provisional
+  `candidate_revision` and monotonically increasing `shaping_attempt`. Shape
+  mode is a bounded planning subroutine, not a
+  published architecture run; its contract lives in `shaping-mode.md`.
+- **Plan slug (required in baseline mode):** a plan registered in
+  `docs/plans/plans.json`. When
   omitted, select the sole plan or ask when several exist.
-- **Written multi-feature plan (required):** `plan.json`, `feature-plan.md`,
+- **Written multi-feature plan (required in baseline mode):** `plan.json`, `feature-plan.md`,
   `shared-context.md`, `threat-model.md`, `interaction-contract.md`, and every
   `features/<id>.md`. A raw request routes to `/core-engineering:ce-brief`; work
   not yet decomposed routes to `/core-engineering:ce-plan`. A single-feature
@@ -56,7 +70,18 @@ This is an optional seam between planning and feature specification:
 
 Follow the workflow and companion templates exactly.
 
-*Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive
+**Mode dispatch — first action, before path mutation or any write lease.** Read
+the invocation as data. If it begins with `shape:`, require the whole input to
+match `shape:[a-z0-9]+(?:-[a-z0-9]+)*`; otherwise stop without treating it as a
+baseline slug. For a match, load
+`${CLAUDE_SKILL_DIR}/shaping-mode.md`, and execute only that contract. Do not run
+`write-lease.py`, restore a lease, inspect publication transactions, load the
+baseline stage files, assemble the five-file package, or continue below. A
+missing or malformed shape suffix stops without guessing. An input with no
+`shape:` prefix uses baseline mode and continues with the contract below. This
+dispatch itself must not write `.claude/ce-write-scope.json` or any other path.
+
+*Baseline-mode gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive
 gate. Before Scope Confirmation, compute `M` from a named gate manifest: Scope
 Confirmation, Final Architecture Approval, one entry for each already visible
 material decision candidate, and Invalid Architecture Package Recovery when it
@@ -152,6 +177,9 @@ obsolete-package branch uses its own one-entry `Gate 1 of 1` manifest.
 
 ## Scope Lock — the written plan boundary
 
+This section applies to baseline mode. Shape mode uses the provisional-candidate
+lock in `shaping-mode.md`: it may propose a planning delta but cannot apply one.
+
 The plan is the architecture run's frozen boundary. Architecture may explain
 how planned features collaborate and may expose a missing decision, but it may
 not add planned behavior or silently make the plan fit a preferred design.
@@ -166,6 +194,10 @@ not add planned behavior or silently make the plan fit a preferred design.
   exact delta to `/core-engineering:ce-plan` Stage R.
 
 ## Human-in-the-Loop — tiered
+
+This section describes baseline mode. Shape mode has one read-only shaping-scope
+gate and returns unresolved material calls to their owning workflow; it never
+offers architecture approval or publication.
 
 The human owns the architecture baseline and every material technical call.
 The workflow gathers evidence, proposes a coherent model, and runs structural
@@ -207,23 +239,29 @@ The schema and workflow version with the `core-engineering` plugin.
 
 ## How to Run This Workflow
 
-Load companion files only when their stages run:
+After the mode dispatch, load companion files only for the selected mode:
 
-| Stages | Load this file | Purpose |
+| Mode / stages | Load this file | Purpose |
 |---|---|---|
+| shape | `${CLAUDE_SKILL_DIR}/shaping-mode.md` | Read one provisional candidate and return architecture impact without writes |
 | 0–2 | `${CLAUDE_SKILL_DIR}/stage-0-2-evidence-model.md` | Resolve and lint the plan; inventory evidence and build the structural model |
 | 3–5 | `${CLAUDE_SKILL_DIR}/stage-3-5-review-write.md` | Reconcile scope, disposition material calls, lint, approve, and publish |
 
-At assembly time load `${CLAUDE_SKILL_DIR}/artifact-template.md`; do not
-reconstruct the package schema from memory.
+In baseline mode, at assembly time load
+`${CLAUDE_SKILL_DIR}/artifact-template.md`; do not reconstruct the package
+schema from memory. Shape mode never loads or emits that final-package schema.
 
-To begin, load `${CLAUDE_SKILL_DIR}/stage-0-2-evidence-model.md` and start Stage
-0.
+In baseline mode, load `${CLAUDE_SKILL_DIR}/stage-0-2-evidence-model.md` and
+start Stage 0. In shape mode, the first-action dispatch loads
+`${CLAUDE_SKILL_DIR}/shaping-mode.md` instead.
 
 ## Back-Edge Summary
 
 | From | Trigger | To |
 |---|---|---|
+| Shape mode | Candidate requires a feature/dependency/order/obligation change | Return `requires-plan-delta` to the active `/core-engineering:ce-plan` run |
+| Shape mode | One no-dominant consequential fork determines the candidate shape | Return `requires-decision` for `/core-engineering:ce-decide` |
+| Shape mode | Material evidence or authority is missing | Return `blocked`; planning parks or obtains the named input |
 | Evidence inventory | Raw intent or missing product boundary | `/core-engineering:ce-brief`, then `/core-engineering:ce-plan` |
 | Model reconciliation | New feature/dependency/journey/flow or changed TZ/IC/NFR ownership | `/core-engineering:ce-plan` Stage R; stop |
 | Material decision gate | Consequential option set with no dominant option | `/core-engineering:ce-decide`; resume from the human decision |
@@ -231,6 +269,10 @@ To begin, load `${CLAUDE_SKILL_DIR}/stage-0-2-evidence-model.md` and start Stage
 | Any stage | Abort or material evidence unavailable | Restore baseline and stop |
 
 ## Escalation
+
+Shape mode returns one of its four bounded statuses to the active planning run;
+it does not invoke or mutate the owning workflow. In baseline mode, malformed or
+structurally conflicted plans route as follows.
 
 Malformed or structurally conflicted plans route to
 `/core-engineering:ce-plan-audit` for findings and `/core-engineering:ce-plan`
@@ -268,3 +310,7 @@ inputs to `/core-engineering:ce-spec`; this skill does not answer them early.
 - Human approval records review of this architecture baseline only. It is not
   security acceptance, compliance attestation, release approval, or deployment
   authority.
+- Shape mode is provisional model review, not an approved architecture
+  baseline. It has no final-package lint or source-plan hash because no written
+  plan exists yet; changing `candidate_revision` or issuing a later
+  `shaping_attempt` makes its prior result stale.

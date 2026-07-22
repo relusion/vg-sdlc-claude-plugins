@@ -1,6 +1,23 @@
 {
   "project_slug": "team-invitations-rbac",
   "status": "planned",
+  "plan_revision": 1,
+  "plan_tier": "standard",
+  "architecture_disposition": {
+    "decision": "required",
+    "triggers": [
+      "trust-residency-or-sensitive-boundary",
+      "shared-data-ownership-or-migration"
+    ],
+    "rationale": "Authorization and membership writes span both planned features and shape their order.",
+    "decided_by": "human",
+    "convergence": {
+      "status": "converged",
+      "iteration_count": 1,
+      "summary": "The shaping pass confirmed one authorization foundation before invitation writes.",
+      "decision_refs": []
+    }
+  },
   "relates_to": [],
   "features": [
     {

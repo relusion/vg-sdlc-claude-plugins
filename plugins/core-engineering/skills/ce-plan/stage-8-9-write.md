@@ -24,6 +24,13 @@ Before presenting the final plan:
 - ensure high-risk justifications are recorded
 - ensure deferred journeys are recorded
 - ensure no provisional dependency errors remain
+- verify the architecture disposition and accepted architecture result still
+  reference the current `candidate_revision`
+
+If a final ordering, dependency, bridge, feature, driver, or accepted-decision
+change alters the candidate revision, do not call the shape frozen. Return to
+`${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, then re-run every
+affected Reachability and Session-Fit check before presenting the final plan.
 
 ---
 
@@ -40,6 +47,11 @@ Print:
 - risk summary
 - **threat-model summary** — the trust boundaries, the `sensitive`/`personal` nouns (re-projected from §6.3), and the per-feature security obligations (`TZ-NNN` threat-ids, *surface-don't-force*); or an explicit **No Security Surface** if none detected. *(Its model-derived assignment is attested separately in 8.2.1 — never by silence in this summary.)*
 - **interaction-contract summary** — the cross-feature producer→consumer edges and the §6.3 durable nouns touched by >1 feature (the `IC-NNN` behavioural-protocol invariants: medium / idempotency / delivery / ordering / retry / concurrency), and the architecture-determining numeric NFRs re-projected with their source and shaping consequence; or an explicit **No Cross-Feature Protocol** if none detected. *(Its model-derived assignment is attested separately in 8.2.2 — never by silence in this summary.)*
+- **architecture disposition** — `required`, `recommended`, `not-required`, or
+  `waived`; its Stage 3.9 trigger evidence, current candidate revision,
+  convergence/deferral summary, accepted ADR refs, and downstream consequence.
+  For `required`, state plainly that specification remains blocked until the
+  post-write architecture package is current and approved.
 - notes and deferred scope
 - output directory path and file list
 
@@ -197,7 +209,7 @@ obligation*; an `IC-NNN` is a *cross-feature behavioural-protocol obligation* or
 
 Then attest with `AskUserQuestion` — print the gate locator first (`Gate N of M — Combined
 Attestation (No Security Surface + No Cross-Feature Protocol)`; M per the light-tier locator
-set, SKILL.md item 16):
+set, SKILL.md item 17):
 
 | Option | Result |
 |---|---|
@@ -216,6 +228,32 @@ there is …" routes to the separate gate, whose own checkpoint then appends.
 
 ---
 
+### 8.2.4 Architecture–Plan Convergence recheck
+
+After the applicable TZ/IC attestation gates resolve and before Final Plan
+Approval, re-run the Stage 3.9 applicability screen and compare the accepted
+architecture result with the exact candidate:
+
+- same `candidate_revision`;
+- same features, dependencies, order, journeys, durable nouns, and owners;
+- same architecture trigger ids and evidence boundary;
+- same attested TZ/IC rows and architecture-determining NFRs; and
+- no new material decision, coverage gap, or unrecorded accepted ADR.
+
+An `Add/Remove threat`, `Add/Remove invariant`, or corrected negative that
+changes one of these rows increments `candidate_revision`. A mismatch
+invalidates convergence: update the latest Architecture Shaping Input, load
+`${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`, and rerun shaping.
+If shaping changes the cut, rerun the touched Reachability and Session-Fit
+checks plus the affected attestations. Never convert a stale result into a
+waiver by silence.
+
+When no mismatch exists, record the recheck in scratch as an autonomous pass.
+Final Plan Approval is the human confirmation of the displayed disposition;
+do not add a duplicate rubber-stamp prompt.
+
+---
+
 ### 8.3 Final Decision
 
 This is the **first true final-approval gate** — the only point that creates the
@@ -230,12 +268,23 @@ Gate N of M — Final Plan Approval
 
 | Option | What happens next |
 |---|---|
-| Write | **Freeze stable IDs and write the whole plan directory** to `docs/plans/<slug>/` (+ update the registry). This is the commit point. |
+| Write | **Freeze stable IDs and write the whole plan directory** to `docs/plans/<slug>/` (+ update the registry). This is the commit point. For `recommended`, `not-required`, or `waived`, use the conditional closing below. |
 | Adjust | Loop back to feature decomposition or ordering — nothing is written yet. |
 | Add context | Capture additional context, then revalidate — nothing is written yet. |
 | Abort | **Exit without writing — all planning work this session is lost.** |
 
 Only `Write` creates the final artifact.
+
+When `architecture_disposition.decision` is `required`, replace the generic
+table with this four-option gate so architecture publication is an explicit
+human-owned continuation, not a silent auto-run:
+
+| Option | What happens next |
+|---|---|
+| **Write plan & continue to architecture** | Freeze/write the plan, then invoke `/core-engineering:ce-architecture <slug>`; the architecture workflow stops at its own human gates and no spec may start until publication succeeds. |
+| **Write plan & park architecture** | Freeze/write a valid plan and stop; the missing required package remains a visible blocker for spec and auto-build. |
+| **Adjust plan or context** | Return to the owning planning stage, invalidate convergence when needed, and write nothing yet. |
+| **Abort** | Exit without a final plan; keep the resumable draft unless a later fresh-start decision removes it. |
 
 **Light-plan tier (§4.3): this gate also carries the folded Candidate Review.** The feature
 table and dependency flow presented at 8.2 are the decomposition, so `Write` accepts it and
@@ -299,6 +348,14 @@ For a single-feature plan accepted at the Sizing Gate, write the single-file **R
 
 Also: write the `relates_to` captured in Stage 0's Sibling Plans subsection into `plan.json`. Then **update `docs/plans/plans.json`** (the repo's plan registry) — create it if missing, append this plan's entry (slug, description, `relates_to`). The registry is what `/core-engineering:ce-spec` and `/core-engineering:ce-implement` consult to resolve feature ids across plans.
 
+**Record architecture disposition.** Every new full plan writes the exact
+`architecture_disposition` object from Stage 5A / the final applicability
+recheck. For `not-required`, write `triggers: []`, `convergence.status:
+not-applicable`, `iteration_count: 0`, and the human-confirmed basis from Final
+Plan Approval. For `recommended` without shaping, write `deferred` and explain
+the visible coverage gap. Never omit the object from a newly written full plan;
+single-feature minimal output has no `plan.json` and remains N/A by construction.
+
 **Record the plan tier.** Write `"plan_tier": "light"` into `plan.json` (top-level, beside
 `plan_revision` — see `${CLAUDE_SKILL_DIR}/artifact-template.md` → *Plan Manifest*) whenever
 the run entered the **light-plan tier** (§4.3) and did **not** expand back at 8.3; write
@@ -324,7 +381,7 @@ Dispose by exit code (the same contract `/core-engineering:ce-spec`'s `spec-lint
 
 **Delete the gate-checkpoint scratch on success.** After the plan directory, `plan.json`, and `plans.json` are all written, delete `docs/plans/.drafts/<slug>/` (SKILL.md → *Gate Checkpoint & Resume*) — the final artifact now exists, so the resume transcript has served its purpose. Delete it **only** on a successful write; an abort or crash before this point leaves the scratch so the run stays resumable. Removing an emptied `.drafts/` parent when no other drafts remain is optional cleanup, never required.
 
-**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "plan"`, `feature: null`) to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema — derive from data already produced, label any token figure an estimate, and **never** let this block or fail the write. It powers `/core-engineering:ce-retro`.
+**Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "plan"`, `feature: null`) to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema — include the already-known architecture decision, shaping iteration count, and whether convergence parked/was waived; label any token figure an estimate, and **never** let this block or fail the write. It powers `/core-engineering:ce-retro`.
 
 ---
 
@@ -338,6 +395,13 @@ Re-verify, against the frozen plan, every property Stage 8.1 could have mutated 
 
 - [ ] Sizing Gate result is recorded.
 - [ ] Candidate plan was reviewed.
+- [ ] Architecture applicability was screened before Sizing; a required route
+      did not take the single-feature or light-plan shortcut.
+- [ ] `architecture_disposition` is complete and internally consistent; any
+      required shaping result is `converged`, human-decided, within the
+      three-pass cap, and current for the final candidate revision.
+- [ ] Every accepted architecture decision is recorded in the Resolved Project
+      Decisions ledger and cited by repository-relative ADR path when ADR-worthy.
 - [ ] Reachability or consumability was traced.
 - [ ] Every non-deferred journey carries a primary modality, and every step has an expected observable and a modality (its own or inherited from the journey).
 - [ ] Deferred journeys are recorded in Notes with a reason.
@@ -362,12 +426,16 @@ Re-verify, against the frozen plan, every property Stage 8.1 could have mutated 
 
 ### B. Write-completeness manifest
 
-Settled in Stages 0–3 and unchangeable since — this block does **not** re-litigate them; it confirms each one is **present in the written files**:
+Settled through planning and reconfirmed by the post-attestation convergence
+recheck — this block does **not** re-litigate them; it confirms each one is
+**present in the written files**:
 
 - [ ] Project description is recorded.
 - [ ] Codebase profile is recorded.
 - [ ] `threat-model.md` is written: every feature that crosses a trust boundary or is the security/secrets Boundary-Owner carries ≥ 1 `TZ-NNN`, every `sensitive`/`personal` noun is re-projected (data-class unchanged from §6.3), and a feature owning a `sensitive` noun with no boundary carries an advisory — **or** the plan records an attested **No Security Surface** (never a silent omission).
 - [ ] `interaction-contract.md` is written: every already-traced cross-feature edge on an async/durable medium and every §6.3 durable noun touched by >1 feature carries ≥ 1 `IC-NNN` behavioural-protocol invariant, and every architecture-determining numeric NFR is re-projected with its `Source` + shaping consequence — **or** the plan records an attested **No Cross-Feature Protocol** (never a silent omission).
+- [ ] The post-attestation Architecture–Plan Convergence recheck passed; no
+      stale candidate revision, trigger, decision, TZ/IC row, or NFR remains.
 - [ ] Brownfield friction tier is recorded with reason.
 - [ ] Decomposition Q&A is recorded.
 - [ ] Project docs are recorded or explicitly set to `None`.
@@ -401,23 +469,33 @@ Created: docs/plans/[project-slug]/
 Updated: docs/plans/plans.json
 ```
 
-Then point to the optional architecture seam and the first feature to specify:
+Then route from the recorded disposition:
 
 ```text
 Next feature:
 01-feature-slug
 
-Optional cross-feature architecture baseline (for a multi-feature system that
-needs formal context, runtime/container, deployment, data/integration, and
-quality views):
- /core-engineering:ce-architecture [project-slug]
-
-Otherwise run:
- /core-engineering:ce-spec [project-slug]/01-feature-slug
+Architecture disposition: <required | recommended | not-required | waived>
+Reason: <recorded basis>
 ```
 
-Do not start architecture or downstream specification automatically unless the
-user explicitly asks. Architecture is optional; when present, specification
-validates and consumes it.
+- **Required + `Write plan & continue to architecture`:** invoke
+  `/core-engineering:ce-architecture [project-slug]` now. Do not print a direct
+  spec command; specification remains blocked until the current package is
+  approved and published.
+- **Required + `Write plan & park architecture`:** print the architecture
+  command as the only immediate next action and state that spec, direct
+  implementation, and auto-build will stop until it succeeds.
+- **Recommended:** offer the architecture command first and identify absence as
+  a coverage gap; also print the first spec command because publication is not
+  mandatory.
+- **Not-required:** print the first spec command and the attested N/A basis.
+- **Waived:** print the first spec command together with the human waiver and
+  residual architecture-rework risk; never describe the waiver as security,
+  compliance, release, or production acceptance.
+
+Do not automatically start specification. Start architecture only when the
+human explicitly selected `Write plan & continue to architecture` at Final Plan
+Approval.
 
 ---

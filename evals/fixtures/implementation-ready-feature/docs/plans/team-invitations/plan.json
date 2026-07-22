@@ -1,12 +1,31 @@
 {
-  "slug": "team-invitations",
+  "project_slug": "team-invitations",
+  "status": "planned",
+  "plan_revision": 1,
+  "plan_tier": "standard",
+  "architecture_disposition": {
+    "decision": "not-required",
+    "triggers": [],
+    "rationale": "This one-feature fixture has no cross-feature architecture driver.",
+    "decided_by": "human",
+    "convergence": {
+      "status": "not-applicable",
+      "iteration_count": 0,
+      "summary": "Architecture shaping is not applicable to the bounded feature-local fixture.",
+      "decision_refs": []
+    }
+  },
+  "relates_to": [],
   "features": [
     {
       "id": "01-invite-user",
       "title": "Invite a user to a team",
+      "type": "user-facing",
+      "final_complexity": "Simple",
+      "risk_profile": "medium",
       "ship_order": 1,
-      "depends_on": []
+      "file": "features/01-invite-user.md",
+      "dependencies": {"hard": [], "soft": []}
     }
   ]
 }
-

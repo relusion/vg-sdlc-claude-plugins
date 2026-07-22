@@ -1,8 +1,8 @@
 ---
 name: ce-plan
 description: |
-  Decompose a project into an ordered, dependency-aware feature plan with sizing, risk, reachability, and session-fit gates — the spec-driven decomposition downstream stages consume.
-  Triggers: plan/decompose/break a project into features. For a consolidated cross-feature solution baseline after planning use /core-engineering:ce-architecture; /core-engineering:ce-spec details one planned feature at a time.
+  Decompose a project into an ordered, dependency-aware feature plan with sizing, risk, reachability, architecture-convergence, and session-fit gates — the spec-driven decomposition downstream stages consume.
+  Triggers: plan/decompose/break a project into features. It invokes /core-engineering:ce-architecture in read-only shaping mode when architecture can change the cut; use that skill directly for the governed post-plan baseline. /core-engineering:ce-spec details one planned feature at a time.
 argument-hint: "[project description]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -13,8 +13,8 @@ allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 
 
 Decompose a project description into an ordered, dependency-aware list of
-implementation features — validated for sizing, risk, reachability, and session
-fit — and write it to a single planning artifact.
+implementation features — validated for sizing, risk, reachability,
+architecture fit, and session fit — and write it to a single planning artifact.
 
 This skill is **staged**. `SKILL.md` (this file) is the orchestrator: it holds the
 Execution Contract, Core Concepts, and the stage map. Each stage's detailed
@@ -46,20 +46,21 @@ Follow the workflow exactly. Do not skip stages, gates, or validation. In partic
 2. **Keep provisional IDs (`P01-…`) until write time**; freeze stable IDs only in Stage 9.
 3. **Ask grouped questions, not one-by-one** (Stage 1.4 — 4–6 targeted questions in a single round; up to 10–12 total across rounds).
 4. **Use the Two-Surface Rendering Rule** (Stage 5.3): print long tables, diagrams, and per-feature blocks in the conversation as Markdown; reserve compact decision dialogs for the short question + options only.
-5. **Apply the Sizing Gate** (Stage 4) before presenting any multi-feature plan. If the project warrants a single-feature plan, present the Sizing Result block and honor the user's choice.
-6. **Run the Reachability / Consumability Trace** (Stage 6) and the **Session-Fit Check** (Stage 7) before final approval. Re-cut features when checks fail — prefer re-slicing over accumulating bridges. The user may also request a **scope-preserving Coarsen** at Candidate Review (Stage 5.5) to reduce feature count without dropping scope — a consented session-fit trade-off recorded as a lease, with the Session-Fit correctness guards still binding. The Session-Fit Check includes the **Interface Foundation Gate** (Stage 7.8): any plan with user-facing features must own a design foundation, detect an existing one, or record a consented exception — never ship UI with no visual contract.
-7. **Honor the iteration cap** (Stage 6.6 — at most 3 loops per journey before escalating).
-8. **Record user overrides, deferred journeys, and high-risk justifications in Notes.**
-9. **Validate every item in the Validation Checklist Before Writing** (in `stage-8-9-write.md`) prior to writing.
-10. **Output:** write the final artifact as a plan **directory** at `docs/plans/[project-slug]/` — index `feature-plan.md`, `shared-context.md`, `threat-model.md` (trust boundaries + data-classes + per-feature security obligations, a read-only re-projection of §3 / §6.3 / §7.5), `interaction-contract.md` (cross-feature protocol invariants + architecture-determining NFRs, a read-only re-projection of §3 / §8 / §10 / §6.3 / cited NFRs), one `features/<id>.md` per feature, and `plan.json` — and update `docs/plans/plans.json` (the repo's plan registry). `[project-slug]` is derived per Stage 0 (Project Name Slug). For single-feature plans accepted at the Sizing Gate, use the single-file Recommended Minimal Output instead.
-11. **Prefer explicit assumptions over invented details** — when a fact is unknown, record a labeled assumption rather than fabricating specifics.
-12. **Keep structured Markdown stable enough for parsing** — downstream tooling reads the artifact; do not break its field structure.
-13. **Validate dependency direction programmatically when possible** — hard dependencies must point to an earlier feature in ship order.
-14. **Treat unknown build/test commands as planning risk** — surface them; do not assume them.
-15. **Do not let high-risk labels become a substitute for better slicing** — a high-risk tag is not a reason to skip re-cutting an oversized feature.
-16. **Print a gate locator at every interactive gate** (`Gate N of M — <name>`, per HITL Gate Standard R5). Compute **M from the gates that will actually fire this run** — the Sizing Gate only on a single-feature recommendation, the Iteration-Cap escalation only on non-convergence, the 8.2.1 threat-model attestation as its own gate — so M is computed, never a hardcoded constant; if a conditional gate changes the count mid-run, say so (no silent cap). **In the light-plan tier (item 18 / stage-4-7-gates.md §4.3) M is smaller** — the Candidate Decision folds into Final Approval and, when both re-projections resolve negative, the 8.2.1 + 8.2.2 attestations combine into one (§8.2.3); a positive detection restores a separate gate mid-run, so recompute and say so.
-17. **Revise, don't re-plan, when a written plan already exists.** When Stage 0 detects an existing written plan for the slug — an explicit `revise:` argument, a `/core-engineering:ce-patch` text handoff that names the existing plan, a `/core-engineering:ce-spec` structural Boundary Conflict, or a change request against a plan already at `docs/plans/<slug>/` — load `${CLAUDE_SKILL_DIR}/stage-R-revision.md` and run **Stage R** instead of Stages 1–9: diff the delta against the frozen shape, re-run **only** the gates the delta touches (untouched gates are *held from the prior revision*, never re-asked), preserve untouched features' `features/<id>.md` + `specs/<id>/` byte-for-byte, and bump `plan_revision` in `plan.json` (absent = 1). Stage R is the **receiving end** of every downstream "escalate to `/core-engineering:ce-plan` and stop" path. A genuinely new project that merely collides on slug is **not** a revision — disambiguate to a new slug; never silently overwrite a written plan.
-18. **Take the light-plan tier for small plans (stage-4-7-gates.md §4.3).** After Stage 3 confirms a **multi-feature** plan of **≤ 3 features** with **no contested Boundary-Owner** and **no `sensitive` data-class** in sight, run the **light-plan tier**: fold the standalone Candidate Decision (5.4) into Final Approval (§5.5 Coarsen becomes moot) and — **when both read-only re-projections resolve negative** — combine the 8.2.1 + 8.2.2 attestations into one (§8.2.3), taking ~8 interactive stops to ~4. This is a **mechanical, disclosed, recorded** proportionality choice (`plan_tier: light` in `plan.json` + §13 Notes), rejectable at 8.3 (*Expand to full gates*) — never a silent skip. The **correctness guards still bind**: Reachability (Stage 6) and Session-Fit (Stage 7) run in full, and **any** positive threat-model / interaction-contract detection restores that re-projection's separate material gate automatically. A plan over 3 features, or one that fails the screen, is **standard tier — unchanged**.
+5. **Apply architecture applicability before Sizing can exit.** Stage 3.9 classifies the provisional cut as `required`, `recommended`, or `not-required` from explicit, evidence-backed drivers. A material unknown defaults to `required`. A required architecture route cannot collapse into the single-feature minimal shape or the light-plan tier.
+6. **Converge architecture before freezing decomposition.** After Candidate Review and before Reachability, a required route invokes `/core-engineering:ce-architecture shape:<draft-slug>` through the `Skill` tool and loads `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`. Architecture may propose a paste-ready delta but never edits the plan; this skill and the human alone apply a re-cut. Re-screen after Reachability and after the final TZ/IC attestations. A changed candidate revision, driver, decision, journey, dependency, durable-state row, TZ/IC row, or decomposition-shaping NFR invalidates prior convergence.
+7. **Run the Reachability / Consumability Trace** (Stage 6) and the **Session-Fit Check** (Stage 7) before final approval. Re-cut features when checks fail — prefer re-slicing over accumulating bridges. The user may also request a **scope-preserving Coarsen** at Candidate Review (Stage 5.5) to reduce feature count without dropping scope — a consented session-fit trade-off recorded as a lease, with the Session-Fit correctness guards still binding. The Session-Fit Check includes the **Interface Foundation Gate** (Stage 7.8): any plan with user-facing features must own a design foundation, detect an existing one, or record a consented exception — never ship UI with no visual contract.
+8. **Honor both iteration caps:** Stage 6.6 allows at most 3 loops per journey, and architecture shaping allows at most 3 complete results per bounded sequence before it parks at a human cap gate. Only an explicit human-owned scope/evidence change starts another three-pass sequence; `architecture_iteration_count` remains cumulative.
+9. **Record user overrides, architecture waivers, deferred journeys, and high-risk justifications in Notes.**
+10. **Validate every item in the Validation Checklist Before Writing** (in `stage-8-9-write.md`) prior to writing.
+11. **Output:** write the final artifact as a plan **directory** at `docs/plans/[project-slug]/` — index `feature-plan.md`, `shared-context.md`, `threat-model.md` (trust boundaries + data-classes + per-feature security obligations, a read-only re-projection of §3 / §6.3 / §7.5), `interaction-contract.md` (cross-feature protocol invariants + architecture-determining NFRs, a read-only re-projection of §3 / §8 / §10 / §6.3 / cited NFRs), one `features/<id>.md` per feature, and `plan.json` with `architecture_disposition` — and update `docs/plans/plans.json` (the repo's plan registry). `[project-slug]` is derived per Stage 0 (Project Name Slug). For single-feature plans accepted at the Sizing Gate, use the single-file Recommended Minimal Output instead.
+12. **Prefer explicit assumptions over invented details** — when a fact is unknown, record a labeled assumption rather than fabricating specifics.
+13. **Keep structured Markdown stable enough for parsing** — downstream tooling reads the artifact; do not break its field structure.
+14. **Validate dependency direction programmatically when possible** — hard dependencies must point to an earlier feature in ship order.
+15. **Treat unknown build/test commands as planning risk** — surface them; do not assume them.
+16. **Do not let high-risk labels become a substitute for better slicing** — a high-risk tag is not a reason to skip re-cutting an oversized feature.
+17. **Print a gate locator at every interactive gate** (`Gate N of M — <name>`, per HITL Gate Standard R5). Compute **M from the gates that will actually fire this run** — including each conditional Architecture-Plan Convergence or architecture iteration-cap gate, the Sizing Gate only on a single-feature recommendation, the Reachability iteration-cap escalation only on non-convergence, and the applicable 8.2 attestation gates. Never hardcode M; if a conditional gate changes the count mid-run, say so. **In the light-plan tier (item 19 / stage-4-7-gates.md §4.3) M is smaller** — Candidate Decision folds into Final Approval and trivially negative 8.2 attestations combine, while any late architecture or positive TZ/IC detection restores the required separate gates and recomputes M.
+18. **Revise, don't re-plan, when a written plan already exists.** When Stage 0 detects an existing written plan for the slug — an explicit `revise:` argument, a `/core-engineering:ce-patch` text handoff that names the existing plan, a downstream structural Boundary Conflict, a legacy plan with no `architecture_disposition`, or a change request against a plan already at `docs/plans/<slug>/` — load `${CLAUDE_SKILL_DIR}/stage-R-revision.md` and run **Stage R** instead of Stages 1–9: diff the delta against the frozen shape, re-run **only** the gates the delta touches (untouched gates are *held from the prior revision*, never re-asked), preserve untouched features' `features/<id>.md` + `specs/<id>/` byte-for-byte, and bump `plan_revision` in `plan.json` (absent = 1). Stage R is the **receiving end** of every downstream "escalate to `/core-engineering:ce-plan` and stop" path. A genuinely new project that merely collides on slug is **not** a revision — disambiguate to a new slug; never silently overwrite a written plan.
+19. **Take the light-plan tier only when architecture is not required (stage-4-7-gates.md §4.3).** After Stage 3 confirms a **multi-feature** plan of **≤ 3 features** with **no contested Boundary-Owner**, **no `sensitive` data-class**, and architecture applicability other than `required`, run the **light-plan tier**: fold the standalone Candidate Decision into Final Approval and combine only trivially negative 8.2 attestations. This is a disclosed, recorded proportionality choice (`plan_tier: light`); Reachability, Session-Fit, the late architecture re-screen, and every positive TZ/IC gate still bind. If later evidence makes architecture required, restore the standard tier, run Candidate Review and architecture shaping, and recompute the gate manifest.
 
 ## How to Run This Workflow
 
@@ -72,6 +73,7 @@ Execute the stages in order. Load each stage file when you reach it — not befo
 | 0–1 | `${CLAUDE_SKILL_DIR}/stage-0-1-understand.md` | Inputs, codebase profile, brownfield friction, decomposition questions |
 | 2–3 | `${CLAUDE_SKILL_DIR}/stage-2-3-decompose-score.md` | Draft candidate features; score complexity, risk, boundary ownership |
 | 4–7 | `${CLAUDE_SKILL_DIR}/stage-4-7-gates.md` | Sizing Gate, Light-Plan Tier screen (§4.3), Candidate Review, Reachability Trace, Session-Fit Check |
+| 5A | `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md` | **Conditional:** invoke architecture shaping over provisional candidates; route deltas/decisions and record convergence |
 | 8–9 | `${CLAUDE_SKILL_DIR}/stage-8-9-write.md` | Final Plan Review, Validation Checklist, write the artifact, closing |
 | R | `${CLAUDE_SKILL_DIR}/stage-R-revision.md` | **Revision path** (only when Stage 0 routes here — a written plan already exists): diff the delta, re-run only the affected gates, preserve untouched specs, bump `plan_revision` |
 
@@ -230,6 +232,10 @@ Only one feature per category may claim ownership in a single plan.
 | Candidate Plan Review | User selects Coarsen | Candidate Feature Decomposition (scope-preserving merge under a consented session-fit lease — §5.5) |
 | Candidate Plan Review | User selects Adjust | Candidate Feature Decomposition |
 | Candidate Plan Review | User selects Add context | Project Understanding / Candidate Feature Decomposition |
+| Architecture shaping | `requires-plan-delta` and human accepts | Candidate Feature Decomposition, then re-run affected gates |
+| Architecture shaping | `requires-decision` | `/core-engineering:ce-decide`, then re-run shaping from the accepted human decision |
+| Architecture shaping | `blocked` or third non-convergent loop | Park for evidence, authority, scope adjustment, or an independently verifiable discovery feature |
+| Architecture convergence | Candidate revision or architecture driver changes | Architecture shaping with the new candidate revision |
 | Reachability Trace | Bridge cost exceeds ceiling | Provisional Ordering or Feature Decomposition |
 | Reachability Trace | User selects Reorder | Provisional Ordering |
 | Reachability Trace | User selects Adjust journeys | Journey / Consumability Collection |
@@ -274,7 +280,8 @@ re-asking settled questions.
 `.drafts/<slug>/` on first write) immediately after the run passes each of these gates —
 Stage 1.4 (decomposition answers), the Sizing Gate (Stage 4), the Light-Plan Tier screen
 (Stage 4.3), the Candidate Decision (Stage 5.4 — **standard tier only**; the light tier's
-§4.3 checkpoint is its resume anchor), the Reachability Decision (Stage 6.6), the Session-Fit
+§4.3 checkpoint is its resume anchor), Architecture-Plan Convergence (Stage 5A when it
+fires), the Reachability Decision (Stage 6.6), the Session-Fit
 Check (Stage 7, after 7.8), and the 8.2.1 / 8.2.2 attestations (**or the one combined 8.2.3
 attestation in the light tier**). Each block records only:
 
@@ -306,8 +313,10 @@ that is the entire point: the interrupted run is exactly what resume recovers.
 
 ## Escalation
 
-Consequential technical forks with no dominant option can route to `/core-engineering:ce-decide`
-before the plan is frozen. Downstream Boundary Conflicts return here from `/core-engineering:ce-spec`,
+Architecture shaping is delegated read-only to `/core-engineering:ce-architecture shape:<draft-slug>`;
+this skill retains sole write authority over decomposition. Consequential technical forks with no
+dominant option can route to `/core-engineering:ce-decide` before the plan is frozen. Downstream
+Boundary Conflicts return here from `/core-engineering:ce-spec`,
 `/core-engineering:ce-implement`, `/core-engineering:ce-review`, `/core-engineering:ce-verify`, or `/core-engineering:ce-debug`; this skill owns scope,
 journey reachability, ship order, bridges, and cross-feature migration.
 
@@ -318,4 +327,5 @@ journey reachability, ship order, bridges, and cross-feature migration.
 - **Whether a declared dependency is the *real* one is not machine-proven.** Dependency *direction* and *cycle-freedom* now **are** — Stage 9 runs `plan-lint.py` over the just-written plan directory as a write-time gate (H5 direction, H6 acyclicity, plus referential integrity and bridge/re-projection presence), so a Back-Edge or a cycle can no longer ship silently. What the lint cannot judge is whether a dependency the plan *declares* is the one the code actually needs — that still rests on the model's reading plus your review.
 - **The codebase profile is a scan, not a study.** For brownfield work it samples structure and conventions cheaply; it can miss a hidden coupling or an undocumented constraint that only the spec / implement stages, working against real code, will hit.
 - **Reachability is only as complete as the journeys given.** The Reachability / Consumability Trace checks the journeys you provide; an unstated journey can still ship into a dead end.
+- **Pre-freeze architecture convergence is a reasoned shaping check, not an approved architecture package.** Stable feature IDs, plan hashes, final diagrams, and the governed architecture approval exist only after the written plan is passed to `/core-engineering:ce-architecture`; a hidden coupling can still force Stage R.
 - **A plan is a map, not a contract with reality.** It is honored by the downstream stages, which escalate up (`spec → plan`) when map and territory disagree — the plan does not self-correct.

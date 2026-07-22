@@ -13,6 +13,9 @@ happy path still passes) and, in depth, the three checks WS6-T3 adds:
   A10 Durable-State Closure reciprocals and A11 Surface-Removal Closure continuity
       are dispositioned — advisory (markdown-derived), never touching the exit code.
 
+It also covers H9 architecture-disposition/convergence structure and the A12
+legacy-compatibility advisory.
+
 The suite also pins the exit-0/1/2 contract end-to-end via the CLI.
 """
 
@@ -33,11 +36,25 @@ pl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pl)
 
 
-# --- Golden-shaped three-feature plan (all H1–H8 green, no advisories) ---------
+# --- Golden-shaped three-feature plan (all H1–H9 green, no advisories) ---------
+
+ARCHITECTURE_DISPOSITION = {
+    "decision": "required",
+    "triggers": ["cross-feature-durable-or-async-flow"],
+    "rationale": "Cross-feature durable state shapes the delivery cut.",
+    "decided_by": "human",
+    "convergence": {
+        "status": "converged",
+        "iteration_count": 1,
+        "summary": "The architecture shaping pass confirmed the candidate cut.",
+        "decision_refs": [],
+    },
+}
 
 GOLDEN_MANIFEST = {
     "project_slug": "smoke",
     "status": "planned",
+    "architecture_disposition": ARCHITECTURE_DISPOSITION,
     "features": [
         {
             "id": "01-auth", "title": "Auth", "type": "foundation",
@@ -238,6 +255,178 @@ class ReprojectionPresenceH8(unittest.TestCase):
         hard, _ = lint(pdir)
         self.assertEqual(has(hard, "H8"), [], hard)
 
+
+class ArchitectureDispositionH9(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _lint_posture(self, posture):
+        manifest = copy.deepcopy(GOLDEN_MANIFEST)
+        manifest["architecture_disposition"] = posture
+        case_root = Path(tempfile.mkdtemp(dir=self.root))
+        return lint(build_plan(case_root, manifest))
+
+    def test_valid_required_posture_passes(self):
+        hard, advisory = self._lint_posture(copy.deepcopy(ARCHITECTURE_DISPOSITION))
+        self.assertEqual(has(hard, "H9"), [], hard)
+        self.assertEqual(has(advisory, "A12"), [], advisory)
+
+    def test_legacy_absence_is_advisory_only(self):
+        manifest = copy.deepcopy(GOLDEN_MANIFEST)
+        del manifest["architecture_disposition"]
+        hard, advisory = lint(build_plan(self.root, manifest))
+        self.assertEqual(has(hard, "H9"), [], hard)
+        self.assertTrue(has(advisory, "A12"), advisory)
+
+    def test_malformed_present_posture_is_hard_failure(self):
+        hard, _ = self._lint_posture("required")
+        self.assertTrue(has(hard, "H9"), hard)
+
+    def test_required_needs_convergence_iteration_and_trigger(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["triggers"] = []
+        posture["convergence"]["status"] = "deferred"
+        posture["convergence"]["iteration_count"] = 0
+        hard, _ = self._lint_posture(posture)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("status `converged`", joined)
+        self.assertIn("iteration_count >= 1", joined)
+        self.assertIn("at least one trigger", joined)
+
+    def test_recommended_allows_converged_or_deferred_but_needs_trigger(self):
+        for state in ("converged", "deferred"):
+            with self.subTest(state=state):
+                posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+                posture["decision"] = "recommended"
+                posture["triggers"] = ["team-policy-recommendation"]
+                posture["convergence"]["status"] = state
+                posture["convergence"]["iteration_count"] = 1 if state == "converged" else 0
+                hard, _ = self._lint_posture(posture)
+                self.assertEqual(has(hard, "H9"), [], hard)
+
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["decision"] = "recommended"
+        posture["triggers"] = []
+        posture["convergence"]["status"] = "waived"
+        hard, _ = self._lint_posture(posture)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("`converged` or `deferred`", joined)
+        self.assertIn("at least one trigger", joined)
+
+    def test_recommended_iteration_semantics(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["decision"] = "recommended"
+        posture["triggers"] = ["planned-reuse-recommendation"]
+        posture["convergence"]["status"] = "converged"
+        posture["convergence"]["iteration_count"] = 0
+        hard, _ = self._lint_posture(posture)
+        self.assertIn("iteration_count >= 1", " ".join(has(hard, "H9")))
+
+        posture["convergence"]["status"] = "deferred"
+        posture["convergence"]["iteration_count"] = 1
+        hard, _ = self._lint_posture(posture)
+        self.assertIn("iteration_count 0", " ".join(has(hard, "H9")))
+
+    def test_not_required_needs_na_zero_iterations_and_no_triggers(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["decision"] = "not-required"
+        posture["triggers"] = []
+        posture["convergence"]["status"] = "not-applicable"
+        posture["convergence"]["iteration_count"] = 0
+        hard, _ = self._lint_posture(posture)
+        self.assertEqual(has(hard, "H9"), [], hard)
+
+        posture["triggers"] = ["unexpected-boundary"]
+        posture["convergence"]["status"] = "converged"
+        posture["convergence"]["iteration_count"] = 1
+        hard, _ = self._lint_posture(posture)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("`not-applicable`", joined)
+        self.assertIn("iteration_count 0", joined)
+        self.assertIn("empty triggers", joined)
+
+    def test_waiver_needs_trigger_and_explicit_human_evidence(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["decision"] = "waived"
+        posture["convergence"]["status"] = "waived"
+        hard, _ = self._lint_posture(posture)
+        self.assertEqual(has(hard, "H9"), [], hard)
+
+        posture["triggers"] = []
+        posture["rationale"] = ""
+        posture["decided_by"] = "agent"
+        posture["convergence"]["summary"] = ""
+        hard, _ = self._lint_posture(posture)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("rationale", joined)
+        self.assertIn("decided_by", joined)
+        self.assertIn("summary", joined)
+        self.assertIn("at least one trigger", joined)
+
+    def test_waiver_requires_a_recorded_iteration(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["decision"] = "waived"
+        posture["convergence"]["status"] = "waived"
+        posture["convergence"]["iteration_count"] = 0
+        hard, _ = self._lint_posture(posture)
+        self.assertIn("iteration_count >= 1", " ".join(has(hard, "H9")))
+
+    def test_unknown_and_duplicate_triggers_are_hard_failures(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["triggers"] = [
+            "cross-feature-durable-or-async-flow",
+            "bogus-trigger",
+            "cross-feature-durable-or-async-flow",
+        ]
+        hard, _ = self._lint_posture(posture)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("unknown trigger(s): bogus-trigger", joined)
+        self.assertIn("duplicate trigger(s)", joined)
+
+    def test_decision_rejects_trigger_from_the_other_taxonomy(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["triggers"] = ["team-policy-recommendation"]
+        hard, _ = self._lint_posture(posture)
+        self.assertIn("only required architecture trigger", " ".join(has(hard, "H9")))
+
+        posture["decision"] = "recommended"
+        posture["triggers"] = ["shared-data-ownership-or-migration"]
+        hard, _ = self._lint_posture(posture)
+        self.assertIn("only recommendation trigger", " ".join(has(hard, "H9")))
+
+    def test_required_posture_cannot_use_light_plan_tier(self):
+        manifest = copy.deepcopy(GOLDEN_MANIFEST)
+        manifest["plan_tier"] = "light"
+        hard, _ = lint(build_plan(self.root, manifest))
+        self.assertIn("incompatible with `plan_tier: light`", " ".join(has(hard, "H9")))
+
+    def test_present_plan_tier_uses_known_vocabulary(self):
+        for tier in ("minimal", []):
+            with self.subTest(tier=tier):
+                manifest = copy.deepcopy(GOLDEN_MANIFEST)
+                manifest["plan_tier"] = tier
+                case_root = Path(tempfile.mkdtemp(dir=self.root))
+                hard, _ = lint(build_plan(case_root, manifest))
+                self.assertIn(
+                    "must be `standard` or `light`", " ".join(has(hard, "H9"))
+                )
+
+    def test_leaf_types_and_unknown_keys_are_hard_failures(self):
+        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
+        posture["unexpected"] = True
+        posture["triggers"] = [""]
+        posture["convergence"]["iteration_count"] = True
+        posture["convergence"]["decision_refs"] = [7]
+        hard, _ = self._lint_posture(posture)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("unknown key", joined)
+        self.assertIn("triggers", joined)
+        self.assertIn("integer >= 0", joined)
+        self.assertIn("decision_refs", joined)
 
 class ClosureAdvisoriesA10A11(unittest.TestCase):
     def setUp(self):

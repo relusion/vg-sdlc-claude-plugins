@@ -6,9 +6,9 @@
   "source_plan_revision": 1,
   "source_plan_path": "docs/plans/team-invitations-rbac",
   "sources": [
-    {"path": "docs/plans/team-invitations-rbac/plan.json", "sha256": "5235082be067cba0bc1820345ab9079952d433e5d32816e9826602daff7d967e", "kind": "plan"},
+    {"path": "docs/plans/team-invitations-rbac/plan.json", "sha256": "f34899148b2aed28a14691d5140b5f7a617215e5008b291ea0817c09a40aada1", "kind": "plan"},
     {"path": "docs/plans/team-invitations-rbac/feature-plan.md", "sha256": "9e4f476c8e5fd2f7d05094c85f197beb67babd1de50d495e65e72257e1f2e05e", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/shared-context.md", "sha256": "2014e2d7e854610d73f434b5b56e3f603fc3944600462d63ac09f70de9d72a60", "kind": "plan"},
+    {"path": "docs/plans/team-invitations-rbac/shared-context.md", "sha256": "710b1b572379a0c76653d5e0ab41ef89eb9896ed4aaa36ae4c656d3421dd18b3", "kind": "plan"},
     {"path": "docs/plans/team-invitations-rbac/threat-model.md", "sha256": "7a1eaac1746c3199ed2a0d1d7ba8d21cb64185126acac0f374f1914d85a9942d", "kind": "plan"},
     {"path": "docs/plans/team-invitations-rbac/interaction-contract.md", "sha256": "2d594a2084ca7fc4add87e84a231d45b7ce26d3158fcf381e8546854aeeca64f", "kind": "plan"},
     {"path": "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md", "sha256": "f9eea14208ed41134e32f021f71d36a5fcea008e32f630ab0daea4e2c6506bf4", "kind": "plan"},

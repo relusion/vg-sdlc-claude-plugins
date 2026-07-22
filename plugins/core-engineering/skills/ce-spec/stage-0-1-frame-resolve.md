@@ -38,6 +38,36 @@ fields, or any slug/id mismatch is not a minimal-plan shortcut. Stop and route
 the exact defect to `/core-engineering:ce-plan`; never guess or manufacture the
 missing full-plan files.
 
+For a full plan, run the structural gate before interpreting its architecture
+disposition or loading any feature design context:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
+  docs/plans/<slug> --json
+```
+
+- **exit 0:** inspect both the manifest and advisory output. If the
+  `architecture_disposition` field is absent, plan-lint reports legacy advisory
+  `A12`; stop and route that unassessed plan to `/core-engineering:ce-plan`
+  Stage R. The lint compatibility pass is not downstream permission to skip
+  architecture. Otherwise continue with the lint-validated manifest.
+- **exit 1:** stop and route the exact hard defect to
+  `/core-engineering:ce-plan` Stage R. A malformed *present* disposition is one
+  such defect; a missing legacy disposition follows the exit-0 `A12` route
+  above.
+- **exit 2:** stop and route to Stage R because the full plan cannot be trusted.
+  Never replace the deterministic result with an inferred disposition.
+
+Read the validated `architecture_disposition` before checking the package. It
+has `decision: required | recommended | not-required | waived`, a `triggers`
+array, non-empty `rationale`, `decided_by: human`, and `convergence` with
+`status`, non-negative `iteration_count`, `summary`, and accepted-ADR
+`decision_refs`. Require every reference to resolve inside the repository to a
+readable ADR recorded as accepted; otherwise stop and route the exact reference
+defect to Stage R. Load the validated ADRs as binding design context. If
+`decision: required` does not carry `convergence.status: converged`, stop and
+route to Stage R: the plan froze without completing its required shaping pass.
+
 Before treating `architecture/` as present or absent, inventory direct children
 of the plan directory whose names start with `.architecture-publish-`, without
 following symlinks. Any lock, stage, backup, or rejected path means publication
@@ -81,12 +111,21 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" \
   and run `/core-engineering:ce-architecture <slug>` to revise it; never
   silently design against stale architecture.
 - **exit 2:** the package could not be validated. Stop with the error and route
-  to `/core-engineering:ce-architecture <slug>`; absence is optional, but a
-  present package is never silently ignored.
+  to `/core-engineering:ce-architecture <slug>`; a present package is never
+  silently ignored.
 
 For a full plan, after that clean transaction-state scan, only lstat-confirmed
-namespace absence (no entry named `architecture`) records
-`Architecture: N/A — optional package absent`; continue normally.
+namespace absence (no entry named `architecture`) uses the disposition matrix:
+
+| Plan decision | Missing-package disposition |
+|---|---|
+| `required` + convergence `converged` | Stop and route to `/core-engineering:ce-architecture <slug>`. Architecture shaping converged, but the governed current package required before specification has not been published. |
+| `recommended` | Continue only with `Architecture: coverage gap — recommended package absent`, plus the exact triggers, rationale, convergence summary, and decision refs. Keep cross-feature design unknown rather than filling the gap locally. |
+| `not-required` | Record `Architecture: N/A — plan disposition not-required`, plus the rationale. |
+| `waived` | Continue only with `Architecture: waived by human`, the exact rationale, triggers, convergence summary, and residual risk. A waiver is not architecture or authority to invent it. |
+
+Any unknown combination is a planning defect: route to Stage R and stop. These
+absence rules never bypass validation of a namespace that is actually present.
 
 If `specs/<id>/ce-spec.md` already exists, this is a **revision**: load it, note
 what changed in `features/<id>.md` or the minimal plan's Single Feature block
@@ -138,10 +177,12 @@ Feature block when `plan_mode: single-feature-minimal`:
 - hard dependencies (specced/built) and soft dependencies (+ bridges)
 - any bridge this feature owns
 - accepted architecture mapping (components, data entities/lifecycle, flows,
-  and quality scenarios), including any repository-evidence drift advisory, or
-  `N/A — optional package absent`; in minimal mode record architecture,
-  dependencies, bridges, Journey Map, and cross-feature obligations as
-  `N/A by construction`
+  and quality scenarios), including any repository-evidence drift advisory; or
+  the exact disposition-derived `recommended` coverage gap, `not-required` N/A,
+  or human waiver. Include the disposition triggers, rationale, convergence
+  summary/iteration count, and decision refs. In minimal mode record
+  architecture, dependencies, bridges, Journey Map, and cross-feature
+  obligations as `N/A by construction`
 
 ### 0.4 Frame Checkpoint  [material]
 

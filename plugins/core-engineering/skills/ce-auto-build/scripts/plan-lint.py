@@ -40,6 +40,8 @@ HARD checks (a FAIL -> exit 1; facts derivable from plan.json + the filesystem):
       `## No Cross-Feature Protocol` written *in place of* the sections). A missing
       or empty file is the silent omission the re-projection discipline forbids.
       (A single-feature minimal plan has no plan.json and never reaches the lint.)
+  H9  A present `architecture_disposition` records a structurally valid applicability
+      decision and internally consistent architecture-plan convergence evidence.
 
 ADVISORY checks (warnings only; never change the exit code — completeness or
 markdown-derived, best-effort):
@@ -57,6 +59,8 @@ markdown-derived, best-effort):
       `owned-by:<id>` / `bridge:…` / `excluded:<reason>`, never blank.
   A11 Surface-Removal Closure (feature-plan.md §8) — each `continuity` cell is
       dispositioned `deprecate:…` / `shim:…` / `hard-break:…`, never blank.
+  A12 `architecture_disposition` is absent on a legacy plan. Compatibility mode
+      remains non-blocking until the next explicit plan revision records the posture.
 
 Usage:
     plan-lint.py <plan-dir>                 # dir holding plan.json + features/
@@ -84,6 +88,35 @@ from pathlib import Path
 TYPES = {"foundation", "user-facing", "integration", "infrastructure", "refactor", "enabling"}
 RISKS = {"low", "medium", "high"}
 COMPLEXITIES = {"Simple", "Moderate", "Complex"}
+ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required", "waived"}
+ARCHITECTURE_CONVERGENCE_STATES = {
+    "converged", "deferred", "not-applicable", "waived",
+}
+ARCHITECTURE_DISPOSITION_KEYS = {
+    "decision", "triggers", "rationale", "decided_by", "convergence",
+}
+ARCHITECTURE_CONVERGENCE_KEYS = {
+    "status", "iteration_count", "summary", "decision_refs",
+}
+ARCHITECTURE_REQUIRED_TRIGGERS = {
+    "explicit-architecture-deliverable",
+    "multi-runtime-or-deployment-boundary",
+    "cross-feature-durable-or-async-flow",
+    "shared-data-ownership-or-migration",
+    "trust-residency-or-sensitive-boundary",
+    "shared-protocol-or-schema",
+    "platform-or-topology-choice",
+    "architecture-determining-nfr",
+    "contested-cross-feature-owner",
+}
+ARCHITECTURE_RECOMMENDED_TRIGGERS = {
+    "team-policy-recommendation",
+    "planned-reuse-recommendation",
+    "baseline-preference",
+}
+ARCHITECTURE_ALL_TRIGGERS = (
+    ARCHITECTURE_REQUIRED_TRIGGERS | ARCHITECTURE_RECOMMENDED_TRIGGERS
+)
 
 # Placeholder / empty values that must not count as a real boundary-owner category.
 EMPTY_VALUES = {"", "-", "none", "null", "n/a", "na", "tbd", "~"}
@@ -289,6 +322,198 @@ def _check_surface_cell(advisory: list, surface: str, cell: str) -> None:
             f"A11 {surface}: `continuity` = `{cell}` is not a recognized disposition "
             f"(deprecate:… / shim:… / hard-break:…)"
         )
+
+
+def validate_architecture_disposition(
+    manifest: dict,
+    hard: list,
+    advisory: list,
+) -> None:
+    """Validate the plan's architecture applicability and convergence posture.
+
+    Absence is a deliberate legacy-compatibility path. Once the field is present,
+    malformed or internally contradictory evidence is a hard structural failure.
+    """
+    plan_tier = manifest.get("plan_tier")
+    if "plan_tier" in manifest and (
+        not isinstance(plan_tier, str) or plan_tier not in {"standard", "light"}
+    ):
+        hard.append("H9: `plan_tier`, when present, must be `standard` or `light`")
+
+    if "architecture_disposition" not in manifest:
+        advisory.append(
+            "A12: `architecture_disposition` is absent — legacy plan; "
+            "compatibility mode applies until the next Stage R revision"
+        )
+        return
+
+    posture = manifest.get("architecture_disposition")
+    if not isinstance(posture, dict):
+        hard.append("H9: `architecture_disposition` must be an object")
+        return
+
+    missing = sorted(ARCHITECTURE_DISPOSITION_KEYS - set(posture))
+    extra = sorted(set(posture) - ARCHITECTURE_DISPOSITION_KEYS)
+    if missing:
+        hard.append(
+            "H9: `architecture_disposition` is missing key(s): " + ", ".join(missing)
+        )
+    if extra:
+        hard.append(
+            "H9: `architecture_disposition` has unknown key(s): " + ", ".join(extra)
+        )
+
+    decision = posture.get("decision")
+    if not isinstance(decision, str) or decision not in ARCHITECTURE_DECISIONS:
+        hard.append(
+            "H9: `architecture_disposition.decision` must be one of "
+            f"{sorted(ARCHITECTURE_DECISIONS)}"
+        )
+
+    raw_triggers = posture.get("triggers")
+    triggers_valid = (
+        isinstance(raw_triggers, list)
+        and all(isinstance(item, str) and item.strip() for item in raw_triggers)
+    )
+    if not triggers_valid:
+        hard.append(
+            "H9: `architecture_disposition.triggers` must be a list of non-empty strings"
+        )
+        triggers: list[str] = []
+    else:
+        triggers = [item.strip() for item in raw_triggers]
+        duplicates = sorted({item for item in triggers if triggers.count(item) > 1})
+        if duplicates:
+            hard.append(
+                "H9: `architecture_disposition.triggers` contains duplicate "
+                "trigger(s): " + ", ".join(duplicates)
+            )
+        unknown = sorted(set(triggers) - ARCHITECTURE_ALL_TRIGGERS)
+        if unknown:
+            hard.append(
+                "H9: `architecture_disposition.triggers` contains unknown "
+                "trigger(s): " + ", ".join(unknown)
+            )
+
+    rationale = posture.get("rationale")
+    if not isinstance(rationale, str) or not rationale.strip():
+        hard.append("H9: `architecture_disposition.rationale` must be non-empty")
+    if posture.get("decided_by") != "human":
+        hard.append("H9: `architecture_disposition.decided_by` must be 'human'")
+
+    convergence = posture.get("convergence")
+    if not isinstance(convergence, dict):
+        hard.append("H9: `architecture_disposition.convergence` must be an object")
+        return
+
+    missing = sorted(ARCHITECTURE_CONVERGENCE_KEYS - set(convergence))
+    extra = sorted(set(convergence) - ARCHITECTURE_CONVERGENCE_KEYS)
+    if missing:
+        hard.append(
+            "H9: `architecture_disposition.convergence` is missing key(s): "
+            + ", ".join(missing)
+        )
+    if extra:
+        hard.append(
+            "H9: `architecture_disposition.convergence` has unknown key(s): "
+            + ", ".join(extra)
+        )
+
+    convergence_status = convergence.get("status")
+    if (
+        not isinstance(convergence_status, str)
+        or convergence_status not in ARCHITECTURE_CONVERGENCE_STATES
+    ):
+        hard.append(
+            "H9: `architecture_disposition.convergence.status` must be one of "
+            f"{sorted(ARCHITECTURE_CONVERGENCE_STATES)}"
+        )
+    iteration_count = convergence.get("iteration_count")
+    iteration_valid = (
+        isinstance(iteration_count, int)
+        and not isinstance(iteration_count, bool)
+        and iteration_count >= 0
+    )
+    if not iteration_valid:
+        hard.append(
+            "H9: `architecture_disposition.convergence.iteration_count` "
+            "must be an integer >= 0"
+        )
+    summary = convergence.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        hard.append(
+            "H9: `architecture_disposition.convergence.summary` must be non-empty"
+        )
+    refs = convergence.get("decision_refs")
+    if not (
+        isinstance(refs, list)
+        and all(isinstance(item, str) and item.strip() for item in refs)
+    ):
+        hard.append(
+            "H9: `architecture_disposition.convergence.decision_refs` "
+            "must be a list of non-empty strings"
+        )
+
+    # Cross-field consistency. Run these checks only where the constituent value
+    # is itself well-typed, avoiding misleading cascades from one malformed leaf.
+    if decision == "required":
+        if plan_tier == "light":
+            hard.append("H9: decision `required` is incompatible with `plan_tier: light`")
+        if convergence_status != "converged":
+            hard.append("H9: decision `required` requires convergence status `converged`")
+        if iteration_valid and iteration_count < 1:
+            hard.append("H9: decision `required` requires iteration_count >= 1")
+        if triggers_valid and not triggers:
+            hard.append("H9: decision `required` requires at least one trigger")
+        elif triggers_valid:
+            invalid = sorted(set(triggers) - ARCHITECTURE_REQUIRED_TRIGGERS)
+            if invalid:
+                hard.append(
+                    "H9: decision `required` accepts only required architecture "
+                    "trigger(s); found: " + ", ".join(invalid)
+                )
+    elif decision == "recommended":
+        if convergence_status not in {"converged", "deferred"}:
+            hard.append(
+                "H9: decision `recommended` requires convergence status "
+                "`converged` or `deferred`"
+            )
+        if triggers_valid and not triggers:
+            hard.append("H9: decision `recommended` requires at least one trigger")
+        elif triggers_valid:
+            invalid = sorted(set(triggers) - ARCHITECTURE_RECOMMENDED_TRIGGERS)
+            if invalid:
+                hard.append(
+                    "H9: decision `recommended` accepts only recommendation "
+                    "trigger(s); found: " + ", ".join(invalid)
+                )
+        if iteration_valid:
+            if convergence_status == "converged" and iteration_count < 1:
+                hard.append(
+                    "H9: decision `recommended` with status `converged` "
+                    "requires iteration_count >= 1"
+                )
+            elif convergence_status == "deferred" and iteration_count != 0:
+                hard.append(
+                    "H9: decision `recommended` with status `deferred` "
+                    "requires iteration_count 0"
+                )
+    elif decision == "not-required":
+        if convergence_status != "not-applicable":
+            hard.append(
+                "H9: decision `not-required` requires convergence status `not-applicable`"
+            )
+        if iteration_valid and iteration_count != 0:
+            hard.append("H9: decision `not-required` requires iteration_count 0")
+        if triggers_valid and triggers:
+            hard.append("H9: decision `not-required` requires an empty triggers list")
+    elif decision == "waived":
+        if convergence_status != "waived":
+            hard.append("H9: decision `waived` requires convergence status `waived`")
+        if triggers_valid and not triggers:
+            hard.append("H9: decision `waived` requires at least one trigger")
+        if iteration_valid and iteration_count < 1:
+            hard.append("H9: decision `waived` requires iteration_count >= 1")
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +724,11 @@ def run_checks(manifest: dict, plan_dir: Path, registry: set[str] | None) -> tup
             if not body.strip():
                 hard.append(f"H8: `{fname}` is empty — write the re-projection or its attested negative, never a silent omission")
 
+    # H9 architecture posture — structural only. The presence and freshness of a
+    # required published baseline is enforced by downstream architecture consumers,
+    # after the written plan exists and can be hash-bound without a circular manifest.
+    validate_architecture_disposition(manifest, hard, advisory)
+
     # --- advisory: per-feature completeness + enum sanity ---
     for _idx, f in norm:
         fid = f.get("id") or "<no-id>"
@@ -631,7 +861,7 @@ def main(argv=None) -> int:
         for f in hard:
             print(f"    x {f}")
     else:
-        print("\n  PASS — hard structural-integrity checks (H1-H8) hold.")
+        print("\n  PASS — hard structural-integrity checks (H1-H9) hold.")
         print("         (checks STRUCTURE, not soundness — well-formed, not necessarily good.)")
     if advisory:
         print(f"\n  advisory ({len(advisory)} — review, non-blocking):")

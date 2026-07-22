@@ -155,6 +155,11 @@
           "equals": {
             "project_slug": "team-invitations-rbac",
             "status": "planned",
+            "plan_tier": "standard",
+            "architecture_disposition.decision": "required",
+            "architecture_disposition.decided_by": "human",
+            "architecture_disposition.convergence.status": "converged",
+            "architecture_disposition.convergence.iteration_count": 1,
             "features.0.id": "01-roles-authz-foundation",
             "features.0.type": "foundation",
             "features.1.id": "02-team-invitations",
@@ -230,6 +235,7 @@
       "prompt": "Spec feature 01-invite-user from the team-invitations plan.",
       "expected_files": [
         "docs/plans/team-invitations/plan.json",
+        "docs/plans/team-invitations/shared-context.md",
         "docs/plans/team-invitations/threat-model.md",
         "docs/plans/team-invitations/features/01-invite-user.md"
       ],
@@ -298,6 +304,8 @@
       "expected_files": [
         "src/invitations.py",
         "checks/invitations_check.py",
+        "docs/plans/team-invitations/plan.json",
+        "docs/plans/team-invitations/shared-context.md",
         "docs/plans/team-invitations/specs/01-invite-user/ce-spec.md",
         "docs/plans/team-invitations/specs/01-invite-user/tasks.json"
       ],

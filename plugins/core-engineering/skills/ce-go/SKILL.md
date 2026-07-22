@@ -37,6 +37,48 @@ Route on evidence you gather, not on what the user already knows:
 - **Does the named feature have a spec?** a `docs/plans/<slug>/specs/<id>/`
   directory for the feature the request is about. Its presence is the fork
   between the plan-tied skill and its plan-free sibling.
+- **What is the plan's architecture prerequisite?** Before routing a full-plan
+  request to `/core-engineering:ce-spec`, `/core-engineering:ce-implement`, or
+  `/core-engineering:ce-auto-build`,
+  read `plan.json`'s `architecture_disposition` and lstat-check the sibling
+  `architecture` namespace. A missing/malformed legacy disposition or unfinished
+  required convergence routes to plan revision; a required, converged
+  disposition with an absent package routes to architecture publication first.
+  Do not treat a merely present package as validated — the destination runs the
+  consumer lint. Reproduce the full plan H9 check here; a partial pairing check
+  is not enough for routing:
+  - the disposition has exactly `decision`, `triggers`, `rationale`,
+    `decided_by`, and `convergence`; convergence has exactly `status`,
+    `iteration_count`, `summary`, and `decision_refs`;
+  - `decision` is `required | recommended | not-required | waived`,
+    `rationale` and `summary` are non-empty strings, `decided_by: human` is
+    exact, both list fields contain only non-empty strings, and a non-negative
+    integer `iteration_count` must also be a non-boolean integer >= 0;
+  - triggers are unique, and every trigger is one of
+    `explicit-architecture-deliverable`,
+    `multi-runtime-or-deployment-boundary`,
+    `cross-feature-durable-or-async-flow`,
+    `shared-data-ownership-or-migration`,
+    `trust-residency-or-sensitive-boundary`, `shared-protocol-or-schema`,
+    `platform-or-topology-choice`, `architecture-determining-nfr`,
+    `contested-cross-feature-owner`, `team-policy-recommendation`,
+    `planned-reuse-recommendation`, or `baseline-preference`;
+  - `required` uses only the first nine load-bearing trigger ids and pairs only
+    with `converged`, at least one trigger, and `iteration_count >= 1`;
+    `recommended` uses only the final three recommendation ids and pairs with
+    `converged` and at least one iteration, or `deferred` and zero iterations,
+    and always has a trigger;
+    `not-required` pairs with `not-applicable`, no triggers, and zero
+    iterations; `waived` pairs with `waived`, at least one trigger, and at
+    least one iteration; and
+  - `plan_tier`, when present, is exactly `standard` or `light`, and a `light`
+    plan cannot have decision `required`.
+
+  An absent `plan_tier` reads as `standard`. Any missing key, extra key,
+  mistyped value, duplicate/unknown/cross-category trigger, invalid
+  pairing/count, or plan-tier
+  contradiction is malformed and routes to Stage R; never repair it in this
+  read-only router.
 - **Is the request a symptom, a question, or a change?** a symptom describes
   something misbehaving; a question asks how/where/why; a change asks to build,
   fix, or modify.
@@ -77,6 +119,8 @@ outside the markers — the parity lint reads only what is between them.
 | a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/core-engineering:ce-patch` | one express-only gate; any failed or uncertain screen routes to `/core-engineering:ce-plan` |
 | a raw idea that needs shaping before planning | `/core-engineering:ce-brief` | persona-lens interview → a planning-ready brief |
 | a real project/feature to decompose | `/core-engineering:ce-plan` | ordered, dependency-aware feature plan with gates |
+| a written full plan has no valid `architecture_disposition`, or says architecture is `required` but convergence is not `converged` | `/core-engineering:ce-plan` | Stage R must establish or finish the human-owned architecture disposition before downstream work |
+| a request would specify or implement a planned feature, or auto-build a whole plan, and that plan says architecture is `required` + `converged` but its `architecture` namespace is absent | `/core-engineering:ce-architecture` | publish the required, governed, current solution baseline before specification or implementation starts |
 | a written multi-feature plan that needs system context, runtime/container, deployment, data/integration, and quality views | `/core-engineering:ce-architecture` | plan-backed cross-feature solution baseline with source hashes, traceability, gaps, and human approval |
 | ONE already-planned feature to detail | `/core-engineering:ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |
 | a specified feature's task list to build | `/core-engineering:ce-implement` | test-first execution to done under Scope Lock |
@@ -137,11 +181,28 @@ name both in the gate and let the human pick.
    review ask. If it is empty or unclassifiable, ask one clarifying question.
 2. **Resolve the repo-state signals** for any fork the request touches — read
    `docs/plans/plans.json`, look for the `specs/<id>/` dir, check whether a
-   running target is named. Gather only what the routing decision needs; do not
-   bulk-read.
+   running target is named, and, before a full-plan spec, implement, or
+   whole-plan auto-build route, read that plan's `architecture_disposition`
+   plus lstat-check its
+   `architecture` namespace. Gather only what the routing decision needs; do
+   not bulk-read.
 3. **Pick exactly one route** from the table using the request class + the
    resolved signals. Hold the evidence that decided it (the file you found or
-   did not find, the signal that tipped a fork).
+   did not find, the signal that tipped a fork). Apply the architecture
+   prerequisite before the ordinary spec/implement/auto-build row, using every
+   structural and cross-field rule in the H9 reproduction above:
+   - missing or malformed disposition, or `required` without `converged` →
+     `/core-engineering:ce-plan` Stage R;
+   - `required` + `converged` + lstat-confirmed package absence →
+     `/core-engineering:ce-architecture <slug>`;
+   - `recommended`, `not-required`, or `waived` + absence → preserve that
+     disposition in the routing evidence and continue to the requested
+     spec/implement/auto-build route. `recommended` is a visible coverage gap and
+     `waived` carries its human rationale/residual risk;
+   - any occupied package namespace → continue to the requested destination,
+     which must validate it before use. Never claim presence means current.
+   A registry-backed single-feature minimal plan records the prerequisite
+   `N/A by construction`; do not manufacture a full-plan disposition for it.
 4. **Render the single routing gate** (below), then act on the choice.
 5. **Hand off — the mechanism depends on the destination's invocation mode.**
    - **Model-invocable route** (the default) → invoke the chosen `/ce-*` skill

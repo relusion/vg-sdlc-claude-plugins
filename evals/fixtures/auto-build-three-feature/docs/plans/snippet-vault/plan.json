@@ -1,6 +1,18 @@
 {
   "project_slug": "snippet-vault",
   "status": "planned",
+  "architecture_disposition": {
+    "decision": "waived",
+    "triggers": ["shared-data-ownership-or-migration"],
+    "rationale": "The human accepted architecture rework risk for this bounded single-runtime evaluation fixture.",
+    "decided_by": "human",
+    "convergence": {
+      "status": "waived",
+      "iteration_count": 1,
+      "summary": "The first shaping result was explicitly waived for the controlled fixture run.",
+      "decision_refs": []
+    }
+  },
   "relates_to": [],
   "features": [
     {

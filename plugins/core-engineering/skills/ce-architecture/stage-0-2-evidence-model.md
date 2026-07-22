@@ -73,15 +73,20 @@ Run:
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
 ```
 
-- exit 0: retain its output as preflight evidence;
+- exit 0: retain its output as preflight evidence. If it contains legacy
+  advisory `A12`, restore the baseline, route to `/core-engineering:ce-plan`
+  Stage R to record and converge the architecture disposition, and stop. Do
+  not publish a package that the required revision would immediately stale;
 - exit 1: show the hard failures, route to `/core-engineering:ce-plan` Stage R,
   restore the baseline, and stop;
 - exit 2: show the input/load error, route to `/core-engineering:ce-plan` Stage
   R, restore the baseline, and stop;
 - command unavailable / no result: name the degradation and manually check
   required files, feature ids, feature paths, dependency references, and both
-  re-projections. The scope gate must say that the deterministic plan floor did
-  not run and require explicit acceptance of this degraded preflight. A
+  re-projections. Also require a complete, internally consistent
+  `architecture_disposition`; an absent legacy posture routes to Stage R even
+  under degradation. The scope gate must say that the deterministic plan floor
+  did not run and require explicit acceptance of this degraded preflight. A
   single-feature plan with an occupied architecture namespace cannot enter the
   destructive retirement branch under this degradation; park until the
   deterministic plan floor runs.

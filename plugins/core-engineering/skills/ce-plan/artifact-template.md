@@ -118,7 +118,7 @@ Place it per this map:
 | File | What it contains |
 |---|---|
 | `feature-plan.md` | 1 Overview · 2 Project Context · 4 Decomposition Q&A · 5 Why This Split · 8 Journey Map / Consumability Trace · 9 Journey Bridges by Feature · 10 Dependency Flow · Feature Table · 12 Execution Checklist · 13 Notes · 14 Tooling Mapping |
-| `shared-context.md` | 3 Codebase Profile · 6 Project Docs · 7 Known Pitfalls · Resolved Project Decisions |
+| `shared-context.md` | 3 Codebase Profile · 6 Project Docs · 7 Known Pitfalls · Architecture Disposition · Resolved Project Decisions |
 | `threat-model.md` | Threat Model (Trust Boundaries · Secrets & Data-Classes · Exposure Surface · Per-Feature Security Obligations) — a read-only re-projection of §3 / §6.3 / §7.5; see *Threat Model* below |
 | `interaction-contract.md` | Interaction Contract (Behavioural-Protocol Invariants · Architecture-Determining NFRs · Per-Feature Interaction Obligations) — a read-only re-projection of §3 / §8 Journey Map / §10 Dependency Flow / §6.3 durable nouns (multi-toucher set derived via §8 / §10) / §2–§4 cited NFRs; see *Interaction Contract* below |
 | `features/<id>.md` | one copy of the 11 Features block, per feature |
@@ -445,28 +445,50 @@ If pitfalls were added to `patterns.md`, mention the path.
 
 ---
 
+### Architecture Disposition
+
+Write the Final Plan Approval result into `shared-context.md` so every human and
+downstream skill sees the same routing decision as `plan.json`:
+
+```markdown
+## Architecture Disposition
+
+| Decision | Triggers | Convergence | Iterations | Basis | Accepted decisions | Downstream consequence |
+|---|---|---|---:|---|---|---|
+| required | shared-data-ownership-or-migration | converged | 2 | The source-of-truth and migration boundary shape P02/P03. | `docs/adr/0007-order-source.md` | Publish a current approved `/core-engineering:ce-architecture` package before spec or auto-build. |
+```
+
+Use `recommended`, `not-required`, or `waived` exactly as recorded in the
+manifest. A waiver row includes the human reason and residual delivery risk;
+never describe it as security, compliance, release, or production acceptance.
+
+---
+
 ### Resolved Project Decisions
 
-A ledger of cross-feature decisions resolved downstream by
-`/core-engineering:ce-spec`. It is **empty when the plan is written** — specs append
-to it as they resolve unknowns that affect more than one feature, so every later
-spec reads it before re-deciding anything.
+A ledger of cross-feature decisions resolved during architecture shaping or
+later by `/core-engineering:ce-spec`. It is empty at plan write only when no
+plan-time decision was required. Specs append to it as they resolve unknowns
+that affect more than one feature, so every later spec reads it before
+re-deciding anything.
 
-Write the section into `shared-context.md` with a placeholder:
+When no plan-time decision exists, write this placeholder:
 
 ```markdown
 ## Resolved Project Decisions
 
-_None yet — populated by `/core-engineering:ce-spec` as cross-feature unknowns are resolved._
+_None yet — populated by architecture shaping or `/core-engineering:ce-spec` as cross-feature unknowns are resolved._
 ```
 
-Specs append rows in this shape:
+Architecture shaping writes accepted decisions with origin `plan architecture
+shaping`; specs append rows in the same shape:
 
 ```markdown
 | # | Decision | Resolution | Origin | Detail |
 |---|---|---|---|---|
 | RPD-1 | Which identity provider for admin login? | Okta | spec customer-portal/03-user-profile | ADR-0007 |
 | RPD-2 | Are failed imports retryable? | Yes — retryable with backoff | spec customer-portal/05-bulk-import | (inline) |
+| RPD-3 | Which service owns order writes during migration? | Existing order service until cutover | plan architecture shaping | `docs/adr/0012-order-cutover.md` |
 ```
 
 Architecturally-significant decisions cite their ADR in **Detail**;
@@ -715,6 +737,8 @@ Include:
 - high-risk feature justifications
 - accepted bridge trade-offs
 - explicit user overrides
+- architecture disposition, shaping iteration count, and any human waiver with
+  its residual rework risk
 - known limitations
 - assumptions made during planning
 - durable-noun reciprocals excluded by design (with reason) — usability (revisit / amend / retire) **and** governance (retain / export / erase), each named
@@ -826,6 +850,18 @@ parsing Markdown.
   "status": "planned",
   "plan_revision": 1,
   "plan_tier": "standard",
+  "architecture_disposition": {
+    "decision": "required",
+    "triggers": ["shared-data-ownership-or-migration"],
+    "rationale": "The source-of-truth and migration boundary shape the feature cut.",
+    "decided_by": "human",
+    "convergence": {
+      "status": "converged",
+      "iteration_count": 1,
+      "summary": "The shaping pass confirmed one write owner and an ordered cutover feature.",
+      "decision_refs": ["docs/adr/0012-order-cutover.md"]
+    }
+  },
   "relates_to": [],
   "features": [
     {
@@ -845,12 +881,40 @@ parsing Markdown.
 The `features` array is in ship order. Every `file` path is relative to the plan
 directory and must point to an existing `features/<id>.md`.
 
+### `architecture_disposition` — architecture admission and convergence
+
+Every newly written full plan carries this object. A missing object is a legacy
+governance gap: plan lint reports it as an advisory, while specification,
+implementation, and auto-build route the plan to Stage R for assessment instead
+of assuming architecture is optional.
+
+Consistency rules:
+
+| `decision` | Required convergence | Other invariants |
+|---|---|---|
+| `required` | `converged` | at least one trigger; `iteration_count >= 1`; a current approved architecture package is required before spec |
+| `recommended` | `converged` or `deferred` | at least one recommendation trigger; `converged` has `iteration_count >= 1`, `deferred` has `iteration_count: 0`; package absence is a visible coverage gap |
+| `not-required` | `not-applicable` | no triggers; `iteration_count: 0`; human-confirmed basis |
+| `waived` | `waived` | at least one trigger; `iteration_count >= 1`; explicit human rationale/summary; residual risk remains visible |
+
+`decided_by` is `human`. `decision_refs` contains repository-relative paths to
+accepted ADRs and may be empty. Shaping convergence is not final architecture
+approval: the architecture package is written afterward so it can bind stable
+feature ids, `plan_revision`, and source hashes without a circular manifest
+dependency.
+
+`triggers` contains only Stage 3.9 stable ids. Required routes use the nine
+load-bearing driver ids; recommended routes use only
+`team-policy-recommendation`, `planned-reuse-recommendation`, or
+`baseline-preference`; waived routes retain the originating id from either set.
+Duplicate, prose, or unknown trigger values are invalid.
+
 ### `plan_revision` — the revision counter
 
 `plan_revision` is a monotonically increasing integer stamped on every write.
 The **first written plan is revision `1`** (an **absent** key is read as `1`, so a
 plan written before this key existed needs no migration). Each `/core-engineering:ce-plan` **Stage R**
-revision (SKILL.md Execution Contract item 17) bumps it by one and appends a
+revision (SKILL.md Execution Contract item 18) bumps it by one and appends a
 `plan-revision <N>` entry to Notes (§13) recording what changed, which gates re-ran,
 and which were held. A touched feature's `features/<id>.md` Structured-Metadata block is
 stamped `revised_by: plan-revision <N>` — the signal that its `specs/<id>/` (if any) is
@@ -861,8 +925,8 @@ their specs are preserved byte-for-byte.
 
 `plan_tier` is `standard` (default) or `light`. An **absent** key reads as `standard`, so a
 plan written before this key existed needs no migration. It is written `light` only when the
-run entered the **light-plan tier** (SKILL.md Execution Contract item 18 · stage-4-7-gates.md
-§4.3) — a ≤ 3-feature plan with no contested Boundary-Owner and no `sensitive` data-class —
+run entered the **light-plan tier** (SKILL.md Execution Contract item 19 · stage-4-7-gates.md
+§4.3) — a ≤ 3-feature plan with no contested Boundary-Owner, no `sensitive` data-class, and no required architecture route —
 and did **not** expand back to the full gates at 8.3. In the light tier the standalone
 Candidate Decision (§5.4) folds into Final Approval and, when both read-only re-projections
 resolve negative, the 8.2.1 + 8.2.2 attestations combine into one (§8.2.3); the correctness

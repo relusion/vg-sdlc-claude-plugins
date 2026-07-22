@@ -10,7 +10,9 @@ before the autonomous loop.
 
 Resolve the slug through `docs/plans/plans.json`. Read `plan.json`,
 `shared-context.md`, the selected feature files, their hard dependencies, the plan's
-threat model and interaction contract when present, and relevant ADRs.
+threat model and interaction contract when present, the
+`architecture_disposition`, its accepted-ADR `convergence.decision_refs`, and
+other relevant ADRs.
 
 Run the structural gate before any spawn:
 
@@ -18,10 +20,82 @@ Run the structural gate before any spawn:
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
 ```
 
-- `exit 0`: continue.
-- `exit 1`: stop and route the reported planning defects to `/core-engineering:ce-plan`.
+- `exit 0`: inspect both the manifest and advisory output. If the
+  `architecture_disposition` field is absent, plan-lint reports legacy advisory
+  `A12`; stop and route that unassessed plan to `/core-engineering:ce-plan`
+  Stage R. The lint compatibility pass is not permission to keep the former
+  optional behavior. Otherwise continue.
+- `exit 1`: stop and route the reported hard planning defects to
+  `/core-engineering:ce-plan`. A malformed *present* disposition is one such
+  defect; a missing legacy disposition follows the exit-0 `A12` route above.
 - `exit 2`: stop because auto-build cannot establish a trustworthy plan. A human
   may choose an interactive workflow instead.
+
+### 1.1 Enforce the architecture disposition
+
+Do this after plan-lint and before resolving the run baseline, asking for kickoff
+approval, initializing state, or spawning any worker. Apply it on both a fresh
+run and `--resume`; durable run state never exempts the current plan/package
+from this preflight. Read the lint-validated object exactly as written:
+
+```text
+architecture_disposition:
+  decision: required | recommended | not-required | waived
+  triggers: [<stable trigger ids>]
+  rationale: <non-empty>
+  decided_by: human
+  convergence:
+    status: converged | deferred | not-applicable | waived
+    iteration_count: <non-negative integer>
+    summary: <non-empty>
+    decision_refs: [<repo-relative accepted ADR paths>]
+```
+
+Load each `decision_refs` ADR. A missing, unreadable, non-accepted, or
+out-of-repository reference is a plan defect: stop and route to Stage R.
+`decision: required` with any convergence status other than `converged` is also
+a Stage-R stop; auto-build cannot finish architecture shaping inside an
+unattended implementation run.
+
+Before classifying the canonical package as present or absent, inventory direct
+children of the plan directory whose names start with
+`.architecture-publish-`, without following symlinks. Any lock, stage, backup,
+or rejected path means publication may be active or crashed. Stop, show every
+exact path, and route to `/core-engineering:ce-architecture <slug>` for explicit
+human recovery. Never delete a transaction path or call architecture absent
+while one remains.
+
+Use an lstat-style namespace check. If any entry named `architecture` occupies
+the path — including a broken symlink, symlinked directory, non-directory, or
+partial directory — validate that exact path before using it:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" \
+  docs/plans/<slug>/architecture --repo-root . --consumer --json
+```
+
+- `exit 0`: record the package status and architecture/source-plan revisions,
+  load its feature mappings and gaps for the selected features, and surface
+  repository-evidence drift advisories. `approved-with-gaps` adds the relevant
+  gaps to kickoff coverage.
+- `exit 1`: stop and route to `/core-engineering:ce-architecture <slug>`; the
+  package is invalid or stale and cannot gate an unattended run.
+- `exit 2`: stop with the exact error and the same architecture recovery route.
+  Presence is never reinterpreted as absence.
+
+Only lstat-confirmed namespace absence uses this matrix:
+
+| Plan decision | Auto-build disposition |
+|---|---|
+| `required` + convergence `converged` | Stop and route to `/core-engineering:ce-architecture <slug>`; the required governed package has not been published. |
+| `recommended` | Continue, but add `recommended architecture package absent` plus triggers, rationale, convergence summary, and decision refs to kickoff coverage and the final report. |
+| `not-required` | Record `Architecture: N/A — plan disposition not-required` and its rationale. |
+| `waived` | Continue, but show the human waiver rationale, triggers, convergence summary, and residual risk in kickoff coverage and the final report. The waiver does not authorize workers to invent architecture. |
+
+An unknown decision/status combination is a plan defect to Stage R. Product,
+security-acceptance, architecture, and boundary decisions discovered later still
+park under the normal worker contract; neither a recommendation gap nor a waiver
+widens worker authority.
 
 Resolve the optional feature range to an explicit ship-ordered list. Reject unknown,
 duplicate, non-contiguous, or dependency-invalid ranges.
@@ -51,8 +125,9 @@ Gate 1 of 2 — Auto-Build Kickoff
 Plan: <slug>
 Features: <explicit ids in ship order>
 Baseline: <commit>
+Architecture: <decision + convergence status + package status/revision, explicit N/A, or waiver>
 Required checks: <commands/capabilities>
-Coverage gaps: <none or exact gaps>
+Coverage gaps: <none or exact gaps, including recommended/waived architecture absence>
 Token/compute budget: <positive estimate>
 Per-feature failure-attempt cap (`--retry-cap`): <positive integer; recommend 3>
 Consecutive-park cap: <positive integer; recommend 3>

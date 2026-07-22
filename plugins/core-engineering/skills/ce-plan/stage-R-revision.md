@@ -41,11 +41,13 @@ mechanism. Load that file when you reach R.6.
 Read, from `docs/plans/<slug>/`, the whole frozen shape — do not reconstruct it from
 memory:
 
-- `plan.json` (the manifest — ship order, deps, feature files, and the current
-  `plan_revision`; **absent ⇒ treat as revision 1**);
+- `plan.json` (the manifest — ship order, deps, feature files, current
+  `plan_revision`, and `architecture_disposition`; **absent revision ⇒ 1**,
+  absent disposition ⇒ legacy-unassessed and therefore a revision delta);
 - every `features/<id>.md`;
 - `feature-plan.md` (Journey Map / Consumability Trace, Dependency Flow, Notes);
-- `shared-context.md` (Codebase Profile, Resolved Project Decisions);
+- `shared-context.md` (Codebase Profile, Architecture Disposition, Resolved
+  Project Decisions);
 - `threat-model.md` and `interaction-contract.md` (the read-only re-projections whose
   `TZ-NNN` / `IC-NNN` rows the attestations own);
 - `docs/plans/plans.json` (the registry — the plan's entry and its `relates_to`).
@@ -79,6 +81,7 @@ features/rows in each:
 | **feature re-ordered** | ship order changed; no scope change | "`05` ships before `04`" |
 | **feature removed** | an existing feature dropped from the plan | "drop `06-legacy-import`" |
 | **boundary row touched** | a `threat-model.md` (`TZ-NNN`) or `interaction-contract.md` (`IC-NNN`) row added / changed / removed, or a §6.3 durable-noun closure row moved (a new persisted noun, a data-class change, a new cross-feature edge) | "checkout now writes `refund` (sensitive)" |
+| **architecture posture touched** | applicability triggers, disposition, convergence evidence, waiver, accepted ADR refs, or another decomposition-shaping architecture driver changed; this includes adding the first disposition to a legacy plan | "shared order writes now require a migration owner" |
 
 A change that fits **no** bucket (a pure typo in a description, a Notes clarification) is not
 a revision that reopens a gate — apply it, bump `plan_revision`, and skip straight to R.6.
@@ -99,9 +102,11 @@ triggered by any bucket is **held from revision N-1**:
 | **Session-Fit (§7)** | any feature **added / re-cut / removed** | re-check 7.1 graph soundness, 7.2 MODIFY-reach, 7.5 Boundary-Owner uniqueness, 7.6 unknowns, 7.7 bridge integrity, 7.8 Interface Foundation — over the changed feature set (correctness; mostly autonomous, interactive only on a 7.8 consented exception) |
 | **8.2.1 Threat-model attestation** `[material]` | a **boundary row touched** that adds/changes a `TZ-NNN`, a trust boundary, or a §6.3 durable noun's data-class | attest **only** the changed `TZ-NNN` rows; unchanged threat rows are held |
 | **8.2.2 Interaction-contract attestation** `[material]` | a **boundary row touched** that adds/changes an `IC-NNN` (a cross-feature edge or a >1-touched durable noun moved) | attest **only** the changed `IC-NNN` rows; unchanged contract rows are held |
+| **Architecture applicability + convergence (Stage 3.9 / 5A)** `[material, conditional]` | any feature add/remove/re-cut/re-order, boundary-row change, architecture-posture change, accepted architecture decision, or missing legacy disposition | re-screen the whole affected system boundary; invoke `/core-engineering:ce-architecture shape:<slug>` when required, and accept only a result bound to the revised candidate |
 
 **Gate locators (R5) are recomputed for this reduced set.** Two gates always fire in a
 revision — **R.3 Revision Delta Confirmation** and **R.6 Final Revision Approval** — plus
+each Architecture-Plan Convergence pass that actually needs a human call and
 whichever of Reachability / 8.2.1 / 8.2.2 the delta triggers (Session-Fit adds a locator
 only if 7.8 needs a consented-exception prompt). Compute **M from the gates that will
 actually fire this revision** and print `Gate N of M — <name>` at each; if a re-run gate
@@ -135,6 +140,10 @@ Gate 1 of M — Revision Delta   (M per the recomputed locator set, R.2)
    *"Held: Session-Fit (no feature re-cut), 8.2.2 interaction-contract (no cross-feature
    edge moved); preserved specs: `01`, `02`, `04`, `05`."*
 
+Architecture convergence may be held only when no feature, dependency, order,
+journey, boundary, trigger, NFR, or accepted decision changed and the prior
+disposition is present. A legacy-unassessed plan can never hold it.
+
 Then attest with `AskUserQuestion`, each option labelled by its consequence (R1):
 
 | Option | What happens next |
@@ -154,21 +163,45 @@ revision. `Amend the delta` loops without advancing and appends nothing.
 
 ## R.4 — Re-run only the affected gates
 
-Run **only** the gates R.2 marked as triggered, in the same order and at the same rigor as
-a fresh run — **reusing the existing gate procedures**, never a revision-only variant:
+Run **only** the gates R.2 marked as triggered, at the same rigor and in this
+fresh-plan order. Reuse the existing gate procedures, never a revision-only
+variant:
 
-- **Reachability** → re-render `stage-4-7-gates.md` §6.6 (the Reachability Decision, its
+1. **Pre-Reachability architecture applicability / convergence** → when R.2
+   reopened architecture, run Stage 3.9 and
+   `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md` before any
+   Reachability or Session-Fit work. Treat the frozen plan as candidate revision
+   1 for this revision run, increment on each accepted structural delta, and
+   record the provisional disposition. For the Stage 5A handoff only, map every
+   existing stable `NN-slug` to a unique `PNN-slug` alias and put the stable id in
+   `Stable source (revision only)`; new features use the next free provisional
+   id with `None (new)`. This is not a rename. Translate every returned delta
+   through the alias map before showing it, and never let architecture alter a
+   stable id. Architecture proposes; Stage R and the human alone modify the
+   plan. Stage 5A's Stage R caller mapping returns here, never to a fresh-plan
+   stage.
+2. **Reachability** → re-render `stage-4-7-gates.md` §6.6 (the Reachability Decision, its
   full legend and consequence-glossary) for **only** the journeys whose step-owners
   changed. Untouched journeys are shown as *held from revision N-1* with their prior
   dispositions; do not re-ask them. The §6.6 checkpoint appends as usual.
-- **Session-Fit** → run `stage-4-7-gates.md` §7 (7.1–7.8) over the changed feature set.
+3. **Post-Reachability architecture re-screen** → whenever Reachability ran,
+   rerun Stage 3.9 against its accepted journey, durable-state, continuity,
+   trust/data, media, and NFR evidence. If that changed the candidate revision,
+   triggers, decisions, or evidence boundary, invoke Stage 5A again and do not
+   enter Session-Fit until the result is current or human-waived.
+4. **Session-Fit** → run `stage-4-7-gates.md` §7 (7.1–7.8) over the changed feature set.
   This is correctness, not ceremony — a re-cut that breaks graph soundness or
   Boundary-Owner uniqueness **fails and loops back** exactly as in a fresh run. It is
   interactive only when 7.8 needs a consented exception (which then gets its own locator).
-- **8.2.1 / 8.2.2 attestations** → run `stage-8-9-write.md` §8.2.1 / §8.2.2 for **only** the
+5. **8.2.1 / 8.2.2 attestations** → run `stage-8-9-write.md` §8.2.1 / §8.2.2 for **only** the
   changed `TZ-NNN` / `IC-NNN` rows. Each changed row is attested evidence-first with its
   basis + cost-if-wrong from the shared glossary, exactly as in a fresh run; unchanged rows
   are held. Their checkpoints append as usual.
+6. **Post-attestation architecture convergence recheck** → run
+   `stage-8-9-write.md` §8.2.4 after the changed TZ/IC attestations and before
+   R.6. Any changed threat, interaction, NFR, decision, trigger, or evidence row
+   invalidates the prior result and returns to Stage 5A. A current result may
+   pass autonomously; a new material outcome gets its own recomputed locator.
 
 Because Stage R reuses those procedures verbatim, the shared consequence-glossary lives in
 exactly one place (§6.6's runtime Legend); Stage R never re-defines a gloss.
@@ -196,6 +229,10 @@ Before writing:
 - **Removed features** — drop their `features/<id>.md` and manifest entry. If a
   `specs/<id>/` exists for a removed feature, **do not delete it silently**: name it in the
   R.6 render as an orphaned spec the human disposes of (keep for history / delete manually).
+- **Preserve architecture disposition and decision-ledger bytes only when the
+  architecture gate is legitimately held.** Otherwise update
+  `architecture_disposition` in `plan.json` and the matching Architecture
+  Disposition / Resolved Project Decisions sections in `shared-context.md`.
 
 ---
 
@@ -217,6 +254,10 @@ its revision/hash boundary stale or malformed and that
 the planning workflow does not silently refresh or remove that sibling-owned
 package. Label each option by consequence (R1/R5):
 
+Even when no architecture namespace exists, a revised `decision: required`
+means the current plan must publish its baseline before any touched/new spec.
+Render that consequence at this gate.
+
 | Option | What happens next |
 |---|---|
 | **Write revision** | Write the touched files + bumped `plan.json`, preserving the untouched set. **The commit point.** |
@@ -232,7 +273,9 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
    journeys), and — **only if a boundary row moved** — re-project `threat-model.md` /
    `interaction-contract.md` from the changed rows (still a read-only re-projection, never a
    fresh set of decisions; unchanged rows copied verbatim). Untouched re-projections are not
-   rewritten.
+   rewritten. When architecture posture changed, also write the new
+   `architecture_disposition` in `plan.json` and only the Architecture
+   Disposition / Resolved Project Decisions sections in `shared-context.md`.
 3. **Append the revision rationale to Notes (§13)** in `feature-plan.md`: `plan-revision <N>`
    — what changed, why, which gates re-ran, and which were held from `N-1`. The Notes
    history is the on-disk audit trail of how the plan evolved.
@@ -245,12 +288,14 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
    let it block the write.
 
 **Closing.** Confirm what changed (files written, features touched, `plan_revision: <N>`),
-then name the next actions. If that lstat-style check found any `architecture`
-namespace occupant, print
+then name the next actions. If the revised disposition is `required` **or** that
+lstat-style check found any `architecture` namespace occupant, print
 `/core-engineering:ce-architecture <slug>` first and do not print a direct spec
 command as the immediate next action; when the revised plan has only one
 feature, that architecture run owns the explicit obsolete-package disposition.
-Otherwise, for each touched feature whose spec is now stale
+For `recommended` with no existing package, offer architecture first and label
+its absence a coverage gap, then print the spec reruns. Otherwise, for each
+touched feature whose spec is now stale
 (`revised_by: plan-revision <N>` with an existing `specs/<id>/`), print its
 `/core-engineering:ce-spec <slug> <id>` re-run line; for each new feature, print its `/core-engineering:ce-spec` line. Do not
 start downstream specification automatically.

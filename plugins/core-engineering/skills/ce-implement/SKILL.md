@@ -103,12 +103,47 @@ When invoked by `/core-engineering:ce-auto-build`, load `${CLAUDE_SKILL_DIR}/aut
 
 ## Stage 0 — Load and Frame
 
-Resolve the registered plan directory and classify the full or
-`single-feature-minimal` shape defined in Runtime Inputs before loading optional
-plan context. For minimal mode, `feature-plan.md` is context while
-`ce-spec.md` + `tasks.json` remain the implementation authority; do not treat
-the missing full-plan files as a degraded load. Load the spec, `tasks.json`,
-the shape-appropriate plan context, and referenced ADRs. Check preconditions:
+Resolve the registered plan directory and classify the full or `single-feature-minimal` shape defined in Runtime Inputs. **Complete the architecture preflight below before trusting `ce-spec.md` or `tasks.json` as implementation authority, changing `.gitignore`, or mutating code.** Run it on direct, auto-build, and resume paths; upstream validation and saved state are not freshness evidence.
+
+For minimal mode, `feature-plan.md` is context while `ce-spec.md` + `tasks.json` remain the implementation authority. Any full-plan authority or `architecture` namespace makes the shape mixed: stop and route the exact path to `/core-engineering:ce-plan`, or to `/core-engineering:ce-architecture <slug>` for obsolete-package human disposition. Otherwise record `Architecture: N/A — single-feature minimal plan`; disposition/package checks are N/A by construction.
+
+For a full plan, run the bundled structural gate before interpreting any feature or spec design:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
+```
+
+- **exit 0:** inspect advisories; `A12` means the disposition is absent, so stop at `/core-engineering:ce-plan` Stage R. Compatibility PASS is not implementation authority.
+- **exit 1:** route every hard or malformed-plan defect to Stage R; never repair the plan here.
+- **exit 2:** route to Stage R because no trustworthy contract was established; never infer it from prose.
+
+From the lint-validated disposition, load every `convergence.decision_refs` entry. It must be repository-relative, remain inside the repository, and resolve to a readable, regular ADR recorded as
+**accepted**. Route any missing, unreadable, escaping, non-ADR, or non-accepted reference to Stage R; only a human can accept or rewrite it.
+
+Inventory direct children named `.architecture-publish-*` without following symlinks. Any lock, stage, backup, or rejected transaction path may be live or interrupted: stop, show every exact path, and route to `/core-engineering:ce-architecture <slug>` for explicit human recovery. Never delete it or call architecture absent.
+
+Next lstat the canonical `architecture` namespace. If anything occupies it — including a partial directory, non-directory, symlinked directory, or broken symlink — validate that exact path before using the spec:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" docs/plans/<slug>/architecture --repo-root . --consumer --json
+```
+
+- **exit 0:** record package status/revisions, relevant gaps, and repository-evidence drift in the frame; this context cannot widen the spec, and accepted ADRs remain binding.
+- **exit 1:** stop at `/core-engineering:ce-architecture <slug>` because the occupied package is invalid or stale.
+- **exit 2:** stop with the exact error and the same recovery route; never reinterpret presence as absence.
+
+Only a clean transaction scan plus lstat-confirmed namespace absence uses this matrix:
+
+| Plan decision | Missing-package implementation disposition |
+|---|---|
+| `required` + convergence `converged` | Stop and route to `/core-engineering:ce-architecture <slug>` before trusting the spec or changing code; shaping convergence is not the required governed package. |
+| `recommended` | Continue with `Architecture: coverage gap — recommended package absent`, the exact triggers, rationale, convergence summary/iteration count, and decision refs. Do not fill the cross-feature gap locally. |
+| `not-required` | Record `Architecture: N/A — plan disposition not-required` and its rationale. |
+| `waived` | Continue with `Architecture: waived by human`, the exact rationale, triggers, convergence summary/iteration count, decision refs, and residual risk. A waiver is not architecture or redesign authority. |
+
+Any other pairing is a Stage-R defect. These are the same coverage outcomes as `/core-engineering:ce-spec`; they never alter Scope Lock or human authority.
+
+After that preflight, load the spec, `tasks.json`, shape-appropriate plan context, and referenced ADRs. Check preconditions:
 
 - `ce-spec.md` exists and is ready for implementation.
 - Every hard dependency is built. Minimal mode records
@@ -140,8 +175,8 @@ It verdicts each `done` task `fresh` (its `commit_sha` is an ancestor of HEAD), 
 `unstamped` (legacy or not-yet-committed — a warning, never a block). Exit 1 ⇒ at least
 one task is stale. **A `stale` task is treated as NOT done.**
 
-Present the plan — feature, total tasks, how many `done` and **fresh**, how many
-**stale**, how many remain — and confirm with the human  [material]:
+Present the feature/task freshness counts and architecture package status or exact disposition-derived coverage record, then confirm with the human [material]. A `recommended` absence and human waiver must be visible at this
+**Proceed** gate with residual risk; `not-required` and minimal mode show the explicit N/A basis:
 
 - **No stale tasks:** the ordinary *Proceed / Abort*.
 - **Stale tasks found** — R2 evidence-first, name each stale task and its basis (the

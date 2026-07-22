@@ -33,6 +33,12 @@ codebase_profile:
 - Invitation-token replay must not duplicate membership rows.
 - Authorization is checked before invitation data is written.
 
+## Architecture Disposition
+
+| Decision | Triggers | Convergence | Iterations | Basis | Accepted decisions | Downstream consequence |
+|---|---|---|---:|---|---|---|
+| required | explicit-architecture-deliverable; trust-residency-or-sensitive-boundary; shared-data-ownership-or-migration | converged | 1 | Authorization, membership writes, and invitation acceptance require one reviewed cross-feature baseline. | `docs/adr/0001-single-service-runtime.md` | Publish a current approved architecture package before spec or auto-build. |
+
 ## Resolved Project Decisions
 
 | # | Decision | Resolution | Origin | Detail |

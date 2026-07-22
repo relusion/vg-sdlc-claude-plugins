@@ -19,10 +19,12 @@ The main workflow is a spine where each stage produces a durable input for the
 next:
 
 ```text
-/core-engineering:ce-brief -> /core-engineering:ce-plan -> [/core-engineering:ce-architecture] -> /core-engineering:ce-spec -> /core-engineering:ce-implement
-                                                                 |-> /core-engineering:ce-verify   behavior and acceptance proof
-                                                                 |-> /core-engineering:ce-review   code-quality findings
-                                                                 `-> /core-engineering:ce-debug    cause analysis and fix routing
+/core-engineering:ce-brief -> /core-engineering:ce-plan (conditional architecture shaping)
+    -> [/core-engineering:ce-architecture baseline, required by plan disposition when load-bearing]
+    -> /core-engineering:ce-spec -> /core-engineering:ce-implement
+                                      |-> /core-engineering:ce-verify   behavior and acceptance proof
+                                      |-> /core-engineering:ce-review   code-quality findings
+                                      `-> /core-engineering:ce-debug    cause analysis and fix routing
 
 /core-engineering:ce-auto-build  orchestrates the planned spine across multiple features
 /core-engineering:ce-patch       handles one low-risk change of at most two files
@@ -32,10 +34,17 @@ release tail: /core-engineering:ce-ship-release -> /core-engineering:ce-ship-doc
 ```
 
 The artifacts, rather than a chat transcript, are the handoff contract. A plan
-defines feature boundaries and order. For a multi-feature solution that needs
-a shared design baseline, the optional architecture stage projects that frozen
-plan into approved system, deployment, data/integration, and quality views. A
-spec then defines acceptance criteria, tests, and tasks for one feature.
+defines feature boundaries and order, but it does not freeze them before
+load-bearing architecture has challenged the cut. Stage 3 screens architecture
+applicability; when required, planning invokes
+`/core-engineering:ce-architecture shape:<draft-slug>` over provisional features,
+then alone applies any human-approved delta. The written plan records
+`architecture_disposition`. A required disposition blocks specification and
+direct implementation until
+the normal architecture mode projects the stable plan into approved system,
+deployment, data/integration, and quality views. Recommended, not-required, and
+human-waived routes remain explicit rather than treating absence as silently
+optional. A spec then defines acceptance criteria, tests, and tasks for one feature.
 Implementation works against that approved spec. Verification and review
 inspect the result and route defects back to the layer that owns the
 correction.
@@ -44,9 +53,11 @@ correction.
 
 Every write-capable stage has a **Scope Lock**:
 
-- `/core-engineering:ce-architecture` may synthesize cross-feature views from a
-  written plan, but it may not re-cut features, add obligations, or make
-  feature-level design decisions.
+- `/core-engineering:ce-architecture` shape mode may propose an evidence-backed
+  delta to a provisional candidate but may not apply it; `/core-engineering:ce-plan`
+  and the human retain decomposition authority. Baseline mode may synthesize
+  cross-feature views from a written plan, but it may not re-cut features, add
+  obligations, or make feature-level design decisions.
 - `/core-engineering:ce-spec` may refine one planned feature, but it may not expand the plan.
 - `/core-engineering:ce-implement` may implement the approved spec, but it may not redesign it.
 - `/core-engineering:ce-patch` may touch only its approved file set; structural work graduates
@@ -87,11 +98,11 @@ can invoke it directly.
 | Skill | Responsibility |
 |---|---|
 | `/core-engineering:ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
-| `/core-engineering:ce-plan` | Decompose work into ordered features, decisions, risks, and cross-feature obligations. |
-| `/core-engineering:ce-architecture` | Turn one written multi-feature plan into a human-approved, repository-grounded solution-architecture package; it does not decompose work or replace feature specifications. |
+| `/core-engineering:ce-plan` | Decompose work into ordered features, decisions, risks, and cross-feature obligations; conditionally compose architecture shaping before the cut freezes. |
+| `/core-engineering:ce-architecture` | In `shape:<draft-slug>` mode, assess a provisional candidate read-only and return planning impact; in normal mode, turn one written multi-feature plan into a human-approved, repository-grounded baseline. It never applies a re-cut or replaces feature specifications. |
 | `/core-engineering:ce-plan-audit` | Lint and review an existing plan without rewriting it. |
-| `/core-engineering:ce-spec` | Convert one planned feature into EARS acceptance criteria, tests, and `tasks.json`. |
-| `/core-engineering:ce-implement` | Execute an approved task list test-first and record verification evidence. |
+| `/core-engineering:ce-spec` | Validate the plan's architecture disposition and any occupied package, then convert one eligible planned feature into EARS acceptance criteria, tests, and `tasks.json`; required missing or stale architecture blocks. |
+| `/core-engineering:ce-implement` | Revalidate the plan's architecture prerequisite before trusting an existing spec, then execute its approved task list test-first and record verification evidence. |
 | `/core-engineering:ce-patch` | Handle one change of at most two files through a single approval gate; failed or uncertain admission routes to planning. |
 | `/core-engineering:ce-auto-build` | Run one fixed, sequential spec/implement/verify/review loop across features with budgets, retries, parks, and an end review. |
 
@@ -178,9 +189,12 @@ docs/
         └── evidence-pack/<date>/
 ```
 
-Not every plan contains every file. The `architecture/` package is optional and
-is written as one coherent set only after human approval; an approved package
-is design context for downstream specs, not implementation, security,
+Not every plan contains every file. The `architecture/` package is conditional:
+it is mandatory before spec, direct implementation, or auto-build when
+`plan.json` records `required`, a
+visible coverage gap when `recommended`, N/A when `not-required`, and an
+explicit residual risk when human-waived. It is written as one coherent set
+only after human approval; an approved package is design context for downstream specs, not implementation, security,
 compliance, release, or deployment authority. Review and diagnosis artifacts
 appear only when those workflows run. `STATUS.md` is a generated projection of
 plan and auto-build state, not a second source of truth.
@@ -387,7 +401,9 @@ evidence, options and consequences, and an exact resume input). The caller's
 answer resumes from the named checkpoint; silence is never approval.
 
 `/core-engineering:ce-auto-build` is different: it is the in-plugin orchestrator for a complete
-plan. Stage 0 fixes the feature range, failure-attempt cap, park cap, and budget. Features
+plan. Stage 0 validates `architecture_disposition` and any present package,
+blocking a missing/stale required baseline before a worker spawns; it then fixes
+the feature range, failure-attempt cap, park cap, and budget. Features
 then move in ship order, one at a time, through specification, deterministic
 lint, implementation, verification, and independent review. Blocking product,
 security-acceptance, destructive, architecture, and scope decisions are parked

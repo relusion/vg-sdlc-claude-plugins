@@ -2,7 +2,23 @@
   "project_slug": "team-invitations-rbac",
   "status": "planned",
   "plan_revision": 1,
-  "plan_tier": "light",
+  "plan_tier": "standard",
+  "architecture_disposition": {
+    "decision": "required",
+    "triggers": [
+      "explicit-architecture-deliverable",
+      "trust-residency-or-sensitive-boundary",
+      "shared-data-ownership-or-migration"
+    ],
+    "rationale": "Authorization, membership writes, and invitation acceptance require one reviewed cross-feature baseline.",
+    "decided_by": "human",
+    "convergence": {
+      "status": "converged",
+      "iteration_count": 1,
+      "summary": "The provisional cut converged on one runtime with explicit authorization and invitation components.",
+      "decision_refs": ["docs/adr/0001-single-service-runtime.md"]
+    }
+  },
   "relates_to": [],
   "features": [
     {

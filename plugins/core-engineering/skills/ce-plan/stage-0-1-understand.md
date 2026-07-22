@@ -62,7 +62,7 @@ continue to *Resume Check* below.
 
 If it **does** exist, this invocation is a candidate **revision**, not a fresh
 decomposition — route to **Stage R** (`${CLAUDE_SKILL_DIR}/stage-R-revision.md`, SKILL.md
-Execution Contract item 17) rather than Stages 1–9. Three sub-cases:
+Execution Contract item 18) rather than Stages 1–9. Four sub-cases:
 
 - **Unambiguous revision** — an explicit `revise:` argument (`revise=docs/plans/<slug>` or a
   `revise:` input), a `/core-engineering:ce-patch` text handoff naming this existing plan's slug, or a `/core-engineering:ce-spec`
@@ -73,6 +73,12 @@ Execution Contract item 17) rather than Stages 1–9. Three sub-cases:
   coexist. A completed plan normally has no scratch (Stage 9 / R.6 deletes it), so the pair
   means a prior **revision** was interrupted. Load `stage-R-revision.md` and resume at the
   last passed gate (Stage R → *Resume*) — do not re-run R.0 or re-ask the confirmed delta.
+- **Legacy architecture assessment** — `plan.json` has no
+  `architecture_disposition`, including a handoff from spec, implement, or
+  auto-build. Load
+  Stage R and classify the missing posture as an `architecture posture touched`
+  delta; run applicability/convergence before any downstream work. Do not treat
+  the absent legacy field as permission to skip architecture.
 - **Slug collision** — a bare `/core-engineering:ce-plan <description>` whose derived slug happens to match an
   existing written plan, with no revision signal. **Never silently overwrite.** Present the
   routing choice, each option labelled by its consequence (HITL Gate Standard R1):

@@ -40,7 +40,7 @@ entry point.
 | Stage | Adopt | Why now | Exit signal |
 |---|---|---|---|
 | **1 — Establish trust** | [Bootstrap](#recipe-18-bootstrap-a-repository), [small fixes](#recipe-6-handle-a-small-fix), [review and verify](#recipe-5-review-and-verify-before-handoff), then the [merge bar](#recipe-29-roll-out-the-merge-bar) | These are frequent, bounded workflows with visible checks and limited autonomy. They establish repository policy and a common quality floor. | Developers repeat the workflows voluntarily; protected PRs require both mechanical integrity and human validity. |
-| **2 — Standardize delivery** | [Refine](#recipe-2-refine-a-work-item), [plan and optionally architect](#recipe-3-plan-a-new-feature), [build](#recipe-4-build-one-planned-feature), [revise](#recipe-21-revise-an-existing-plan), and [release handoff](#recipe-9-prepare-a-release-handoff) | Durable briefs, plans, architecture views, specs, and evidence make handoffs repeatable across developers and teams. | A representative feature moves through the spine without undocumented scope or cross-feature design changes or artifact repair. |
+| **2 — Standardize delivery** | [Refine](#recipe-2-refine-a-work-item), [plan with architecture convergence](#recipe-3-plan-a-new-feature), [build](#recipe-4-build-one-planned-feature), [revise](#recipe-21-revise-an-existing-plan), and [release handoff](#recipe-9-prepare-a-release-handoff) | Durable briefs, plans, architecture views, specs, and evidence make handoffs repeatable across developers and teams. | A representative feature moves through the spine without undocumented scope or cross-feature design changes or artifact repair. |
 | **3 — Add bounded autonomy** | [Plan audit](#recipe-14-audit-planning-and-process), [auto-build](#recipe-10-run-the-full-spine-autonomously), [supervision](#recipe-20-operate-an-unattended-run), and the [morning trust ritual](#recipe-25-build-overnight-trust-it-by-morning) | Autonomy becomes useful only after inputs, stops, and independent checks are trusted. | Parked decisions are actionable, retry rates are understood, and unattended output passes independent verification. |
 | **4 — Expand by organizational need** | Incident, security, debt, governance, and knowledge-transfer campaigns | These create high value for specific operating contexts but should reuse the proven core rather than form a parallel process. | The owning team has named metrics, an accountable human owner, and a review cadence for each adopted campaign. |
 
@@ -164,35 +164,42 @@ all, it is not a work item yet — it is an idea, and `/core-engineering:ce-brie
 ```text
 /core-engineering:ce-brief Add team invitations with role-based access.
 /core-engineering:ce-plan <brief-or-project-description>
-/core-engineering:ce-architecture <plan-slug>  # optional for a multi-feature solution baseline
+/core-engineering:ce-architecture <plan-slug>  # run when the plan disposition requires it; recommended may be deferred
 ```
 
 **Expected artifacts:** `docs/briefs/<slug>.md`, then `docs/plans/<slug>/` with
 `feature-plan.md`, `plan.json`, `threat-model.md`, `interaction-contract.md`,
-and feature files. When the optional architecture step runs, it writes the
-human-approved five-file package under `docs/plans/<slug>/architecture/`.
+and feature files. `plan.json` records an `architecture_disposition` after the
+planner screens applicability and, when required, converges a provisional cut
+through read-only architecture shaping. Normal architecture mode writes the
+human-approved five-file package under `docs/plans/<slug>/architecture/` when
+the disposition requires it or the team accepts a recommendation.
 
 **Done when:** the plan has bounded features, ship order, journey trace,
-durable-state closure, security obligations, and interaction contracts. If the
-solution needs a shared cross-feature design, the architecture package also
-traces system, deployment, data/integration, and quality views to that frozen
-plan and repository evidence before feature specification begins.
+durable-state closure, security obligations, interaction contracts, and a
+current human-owned architecture disposition. A required shaping pass has
+converged before the plan freezes, and the required architecture package traces
+system, deployment, data/integration, and quality views to the stable plan and
+repository evidence before feature specification begins.
 
 **Measure:** first-pass `architecture-lint` pass rate and downstream spec
 rework caused by missing cross-feature design. Invocation count alone is not an
 outcome.
 
 **Stop or escalate when:** a material product, scope, or security decision is
-unknown. The human decides; the skill records. Architecture may expose a
-missing plan boundary or one consequential technical fork, but it must route
-those back to `/core-engineering:ce-plan` or `/core-engineering:ce-decide`
-instead of silently changing the plan.
+unknown. The human decides; the skill records. Architecture shaping may expose
+a missing plan boundary or one consequential technical fork, but only
+`/core-engineering:ce-plan` applies a human-approved re-cut. Consequential
+technical choices may route through `/core-engineering:ce-decide`; architecture
+never silently changes the plan.
 
 ## Recipe 4: Build One Planned Feature
 
-**Use when:** a plan exists and one feature is ready for detailed design and
-implementation. An approved architecture package is consumed as design context
-when present; it is not a substitute for the feature spec.
+**Use when:** a plan exists, its architecture disposition is valid, and one
+feature is ready for detailed design and implementation. A required architecture
+package must be present and current; a recommended absence is carried as an
+explicit coverage gap. The package is design context, not a substitute for the
+feature spec.
 
 ```text
 /core-engineering:ce-spec <plan-slug> <feature-id>
@@ -201,6 +208,12 @@ when present; it is not a substitute for the feature spec.
 
 **Expected artifacts:** `ce-spec.md`, `tasks.json`, updated code/tests, and
 `verification.md`.
+
+Both commands independently revalidate the disposition and every occupied
+architecture package. This closes the direct-implementation path for an old or
+hand-authored spec: required missing/stale architecture stops before the spec is
+trusted or code is changed; recommended/waived absence remains visible at the
+human Proceed gate.
 
 **Done when:** tasks are complete, tests were run, dependency checks passed, and
 verification evidence is written.
@@ -348,6 +361,14 @@ across every feature of an unattended run, and the audit is cheap insurance.
 
 **Expected artifacts:** per-feature specs, implementations, gate results,
 status board, metrics, and end-review package.
+
+Before kickoff approval, worker initialization, or resume, Stage 0 validates
+the plan's `architecture_disposition` and every occupied architecture package.
+A legacy plan with no disposition routes to `/core-engineering:ce-plan` Stage R;
+a required missing or stale package routes to
+`/core-engineering:ce-architecture`. Recommended absence and a human waiver
+remain explicit coverage and residual-risk lines rather than becoming worker
+assumptions.
 
 **Done when:** the end-review is clean or every park/failure has a clear route.
 
@@ -631,8 +652,12 @@ Conflict, or a `/core-engineering:ce-patch` that graduated.
 a fresh decomposition. It diffs the requested delta against the frozen shape, then
 re-runs **only** the gates the delta touches (Reachability if a journey's step-owners
 moved, Session-Fit if a feature is re-cut, the threat / interaction attestations if a
-boundary row moved). Untouched gates are *held from the prior revision* and never
-re-asked; untouched features' specs are preserved byte-for-byte.
+boundary row moved, and architecture applicability/convergence when a structural
+driver changed or the legacy plan was never assessed). Untouched gates are *held
+from the prior revision* and never re-asked; untouched features' specs are
+preserved byte-for-byte. When the revised source hashes invalidate a required
+architecture package, regenerate and approve that package before re-specifying
+any touched feature.
 
 **Expected artifacts:** the touched `features/<id>.md` (each stamped `revised_by:
 plan-revision <N>`), an updated `feature-plan.md` (with a `plan-revision <N>` Notes
@@ -640,7 +665,9 @@ entry), re-projected `threat-model.md` / `interaction-contract.md` only if a bou
 row moved, and `plan.json` with `plan_revision` bumped (absent ⇒ was 1 ⇒ becomes 2).
 
 **Done when:** the revised plan is written with the delta applied, untouched work
-preserved, and each touched feature whose spec is now stale pointed back at `/core-engineering:ce-spec`.
+preserved, its architecture disposition is current, any required invalidated
+package has been republished, and each touched feature whose spec is now stale
+is pointed back at `/core-engineering:ce-spec`.
 
 **Stop or escalate when:** the "revision" is actually a new project that only collides
 on slug — take the new-slug branch, never overwrite the existing plan. If a re-run gate
@@ -758,6 +785,8 @@ matches the revised specs before the next standup.
 # touches the plan's shape → continue:
 /core-engineering:ce-plan revise:docs/plans/<slug> <the change, stated as a delta>
 /core-engineering:ce-plan-audit <slug>
+# if the revised disposition is required and the prior package is now stale:
+/core-engineering:ce-architecture <slug>
 # then, per feature the revision stamped stale (revised_by: plan-revision <N>):
 /core-engineering:ce-spec <slug>/<feature-id>
 /core-engineering:ce-ship-backlog <slug>/<feature-id> --format ado-md
@@ -774,8 +803,10 @@ not a re-decomposition. It diffs the delta against the frozen shape, re-runs onl
 the gates the delta touches (untouched gates are held from the prior revision),
 bumps `plan_revision` in `plan.json`, and preserves every untouched feature's
 `features/<id>.md` and `specs/<id>/` byte-for-byte — in-flight work survives the
-change. The Final Revision Approval names each touched feature whose existing
-spec is now stale.
+change. It also re-screens architecture when the delta changes a driver,
+decision, journey, dependency, durable-state row, TZ/IC row, or shaping NFR.
+The Final Revision Approval names each touched feature whose existing spec is
+now stale and whether a required architecture package must be republished first.
 
 `/core-engineering:ce-plan-audit` then reads the just-revised plan in a fresh context: scope-drift,
 decomposition, reachability, and re-projection-closure lenses catch what the
@@ -784,7 +815,8 @@ decision-quality findings route to `/core-engineering:ce-decide` when a scored t
 recommendation is needed, then feed the chosen decision into `/core-engineering:ce-spec` rather
 than being re-decided in the audit.
 
-Re-spec only what the revision stamped stale — `/core-engineering:ce-spec` detects the existing
+Republish any invalidated required architecture package before re-specification.
+Then re-spec only what the revision stamped stale — `/core-engineering:ce-spec` detects the existing
 spec, revises rather than overwrites, and increments `spec_revision`; Scope Lock
 now binds to the revised boundary. Finally, `/core-engineering:ce-ship-backlog` per changed
 feature overwrites `docs/plans/<slug>/backlog/` in place, and the
@@ -801,14 +833,17 @@ byte-identical), a dated report under `docs/plan-audits/`, re-specced
 `docs/plans/<slug>/backlog/<id>.*` files.
 
 **Done when:** the revised plan is written with untouched work preserved, the
-audit's findings are triaged, every stale spec is re-specced, and the tracker's
-Stories carry the new `spec_revision` stamp.
+audit's findings are triaged, its architecture disposition and any required
+package are current, every stale spec is re-specced, and the tracker's Stories
+carry the new `spec_revision` stamp.
 
 **Stop or escalate when:** `/core-engineering:ce-impact`'s Thin-Description Gate refuses — get a
 real description before deciding the lane. A patch that breaches its boundary
 graduates to `/core-engineering:ce-plan` Stage R and stops — the safety net for a wrong step-1
 call. An audit lint FAIL (structural break) loops back to `/core-engineering:ce-plan` before any
-re-spec; the revision itself is only a "new project" if it merely collides on
+architecture publication or re-spec; required missing/stale architecture loops
+to `/core-engineering:ce-architecture` before re-spec. The revision itself is
+only a "new project" if it merely collides on
 slug — take the new-slug branch, never overwrite the plan.
 
 ## Recipe 25: Build Overnight, Trust It By Morning

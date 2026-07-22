@@ -143,6 +143,22 @@ def _make_repo(root: Path) -> tuple[Path, dict]:
     plan = {
         "project_slug": "team-invitations",
         "plan_revision": 2,
+        "plan_tier": "standard",
+        "architecture_disposition": {
+            "decision": "required",
+            "triggers": [
+                "shared-data-ownership-or-migration",
+                "trust-residency-or-sensitive-boundary",
+            ],
+            "rationale": "Cross-feature state and authorization shape the plan.",
+            "decided_by": "human",
+            "convergence": {
+                "status": "converged",
+                "iteration_count": 1,
+                "summary": "The architecture shaping pass confirmed the feature cut.",
+                "decision_refs": ["docs/adr/0001-existing-runtime.md"],
+            },
+        },
         "features": [
             {
                 "id": "01-roles-authz-foundation",
@@ -421,6 +437,30 @@ def _save(arch_dir: Path, manifest: dict) -> None:
 
 
 class ArchitectureLintGreen(unittest.TestCase):
+    def test_source_plan_trigger_taxonomies_are_frozen(self):
+        self.assertEqual(
+            al.REQUIRED_ARCHITECTURE_TRIGGERS,
+            {
+                "explicit-architecture-deliverable",
+                "multi-runtime-or-deployment-boundary",
+                "cross-feature-durable-or-async-flow",
+                "shared-data-ownership-or-migration",
+                "trust-residency-or-sensitive-boundary",
+                "shared-protocol-or-schema",
+                "platform-or-topology-choice",
+                "architecture-determining-nfr",
+                "contested-cross-feature-owner",
+            },
+        )
+        self.assertEqual(
+            al.ARCHITECTURE_RECOMMENDATION_TRIGGERS,
+            {
+                "team-policy-recommendation",
+                "planned-reuse-recommendation",
+                "baseline-preference",
+            },
+        )
+
     def test_valid_package_passes(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -428,6 +468,23 @@ class ArchitectureLintGreen(unittest.TestCase):
             hard, advisory = al.check_package(arch_dir, root, al.load_package(arch_dir))
             self.assertEqual(hard, [])
             self.assertEqual(advisory, [])
+
+    def test_legacy_source_plan_posture_is_advisory_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            plan_path = root / "docs/plans/team-invitations/plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            del plan["architecture_disposition"]
+            _write(plan_path, json.dumps(plan, indent=2))
+            source = next(
+                row for row in manifest["sources"]
+                if row["path"] == "docs/plans/team-invitations/plan.json"
+            )
+            source["sha256"] = _sha(plan_path)
+            hard, advisory = al.check_package(arch_dir, root, manifest)
+            self.assertEqual(hard, [])
+            self.assertTrue(any(item.startswith("A12") for item in advisory), advisory)
 
     def test_proposed_scratch_requires_explicit_flag(self):
         with tempfile.TemporaryDirectory() as td:
@@ -496,6 +553,154 @@ class ArchitectureLintGreen(unittest.TestCase):
 
 
 class ArchitectureLintRed(unittest.TestCase):
+    def _check_source_plan(self, mutate):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            plan_path = root / "docs/plans/team-invitations/plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            mutate(plan)
+            _write(plan_path, json.dumps(plan, indent=2))
+            source = next(
+                row for row in manifest["sources"]
+                if row["path"] == "docs/plans/team-invitations/plan.json"
+            )
+            source["sha256"] = _sha(plan_path)
+            return al.check_package(arch_dir, root, manifest)
+
+    def test_malformed_source_plan_posture_is_h9_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            plan_path = root / "docs/plans/team-invitations/plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            plan["architecture_disposition"]["decision"] = "required"
+            plan["architecture_disposition"]["triggers"] = []
+            plan["architecture_disposition"]["convergence"]["status"] = "deferred"
+            plan["architecture_disposition"]["convergence"]["iteration_count"] = 0
+            _write(plan_path, json.dumps(plan, indent=2))
+            source = next(
+                row for row in manifest["sources"]
+                if row["path"] == "docs/plans/team-invitations/plan.json"
+            )
+            source["sha256"] = _sha(plan_path)
+            hard, _ = al.check_package(arch_dir, root, manifest)
+            posture_failures = [item for item in hard if item.startswith("H9")]
+            self.assertTrue(posture_failures, hard)
+            joined = " ".join(posture_failures)
+            self.assertIn("status `converged`", joined)
+            self.assertIn("iteration_count >= 1", joined)
+            self.assertIn("at least one trigger", joined)
+
+    def test_source_plan_rejects_unknown_duplicate_and_cross_category_triggers(self):
+        def invalid_required(plan):
+            plan["architecture_disposition"]["triggers"] = [
+                "shared-data-ownership-or-migration",
+                "bogus-trigger",
+                "shared-data-ownership-or-migration",
+                "team-policy-recommendation",
+            ]
+
+        hard, _ = self._check_source_plan(invalid_required)
+        joined = " ".join(item for item in hard if item.startswith("H9"))
+        self.assertIn("unknown trigger(s): bogus-trigger", joined)
+        self.assertIn("duplicate trigger(s): shared-data-ownership-or-migration", joined)
+        self.assertIn("only required architecture trigger ids", joined)
+
+        def invalid_recommended(plan):
+            posture = plan["architecture_disposition"]
+            posture["decision"] = "recommended"
+            posture["triggers"] = ["platform-or-topology-choice"]
+            posture["convergence"]["status"] = "deferred"
+            posture["convergence"]["iteration_count"] = 0
+
+        hard, _ = self._check_source_plan(invalid_recommended)
+        self.assertIn(
+            "only recommendation trigger ids",
+            " ".join(item for item in hard if item.startswith("H9")),
+        )
+
+    def test_source_plan_enforces_recommended_iteration_semantics(self):
+        def zero_iteration_convergence(plan):
+            posture = plan["architecture_disposition"]
+            posture["decision"] = "recommended"
+            posture["triggers"] = ["planned-reuse-recommendation"]
+            posture["convergence"]["status"] = "converged"
+            posture["convergence"]["iteration_count"] = 0
+
+        hard, _ = self._check_source_plan(zero_iteration_convergence)
+        self.assertIn(
+            "iteration_count >= 1",
+            " ".join(item for item in hard if item.startswith("H9")),
+        )
+
+        def iterated_deferral(plan):
+            posture = plan["architecture_disposition"]
+            posture["decision"] = "recommended"
+            posture["triggers"] = ["baseline-preference"]
+            posture["convergence"]["status"] = "deferred"
+            posture["convergence"]["iteration_count"] = 1
+
+        hard, _ = self._check_source_plan(iterated_deferral)
+        self.assertIn(
+            "iteration_count 0",
+            " ".join(item for item in hard if item.startswith("H9")),
+        )
+
+    def test_source_plan_enforces_waiver_iteration_without_maximum(self):
+        def zero_iteration_waiver(plan):
+            posture = plan["architecture_disposition"]
+            posture["decision"] = "waived"
+            posture["convergence"]["status"] = "waived"
+            posture["convergence"]["iteration_count"] = 0
+
+        hard, _ = self._check_source_plan(zero_iteration_waiver)
+        self.assertIn(
+            "iteration_count >= 1",
+            " ".join(item for item in hard if item.startswith("H9")),
+        )
+
+        def many_iterations(plan):
+            plan["architecture_disposition"]["convergence"]["iteration_count"] = 99
+
+        hard, _ = self._check_source_plan(many_iterations)
+        self.assertFalse(
+            any(item.startswith("H9") for item in hard),
+            hard,
+        )
+
+    def test_source_plan_validates_plan_tier_and_required_light_conflict(self):
+        for invalid_tier in ("minimal", []):
+            with self.subTest(invalid_tier=invalid_tier):
+                hard, _ = self._check_source_plan(
+                    lambda plan, value=invalid_tier: plan.__setitem__(
+                        "plan_tier", value
+                    )
+                )
+                self.assertIn(
+                    "must be `standard` or `light`",
+                    " ".join(item for item in hard if item.startswith("H9")),
+                )
+
+        hard, _ = self._check_source_plan(
+            lambda plan: plan.__setitem__("plan_tier", "light")
+        )
+        self.assertIn(
+            "incompatible with `plan_tier: light`",
+            " ".join(item for item in hard if item.startswith("H9")),
+        )
+
+    def test_source_plan_rejects_unhashable_enum_leaf_values(self):
+        def invalid_enum_leaves(plan):
+            posture = plan["architecture_disposition"]
+            posture["decision"] = []
+            posture["convergence"]["status"] = []
+
+        hard, _ = self._check_source_plan(invalid_enum_leaves)
+        joined = " ".join(item for item in hard if item.startswith("H9"))
+        self.assertIn("architecture_disposition.decision", joined)
+        self.assertIn("architecture_disposition.convergence.status", joined)
+
     def test_stale_source_hash_fails(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

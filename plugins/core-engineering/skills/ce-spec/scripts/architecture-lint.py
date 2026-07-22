@@ -69,6 +69,36 @@ COMPONENT_KINDS = {
 DISPOSITIONS = {"cross-feature", "feature-local"}
 EVIDENCE_STATES = {"recorded", "observed", "inferred", "unknown"}
 LIFECYCLE_KEYS = {"retain", "export", "erase"}
+ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required", "waived"}
+ARCHITECTURE_CONVERGENCE_STATES = {
+    "converged", "deferred", "not-applicable", "waived",
+}
+ARCHITECTURE_DISPOSITION_KEYS = {
+    "decision", "triggers", "rationale", "decided_by", "convergence",
+}
+ARCHITECTURE_CONVERGENCE_KEYS = {
+    "status", "iteration_count", "summary", "decision_refs",
+}
+PLAN_TIERS = {"standard", "light"}
+REQUIRED_ARCHITECTURE_TRIGGERS = {
+    "explicit-architecture-deliverable",
+    "multi-runtime-or-deployment-boundary",
+    "cross-feature-durable-or-async-flow",
+    "shared-data-ownership-or-migration",
+    "trust-residency-or-sensitive-boundary",
+    "shared-protocol-or-schema",
+    "platform-or-topology-choice",
+    "architecture-determining-nfr",
+    "contested-cross-feature-owner",
+}
+ARCHITECTURE_RECOMMENDATION_TRIGGERS = {
+    "team-policy-recommendation",
+    "planned-reuse-recommendation",
+    "baseline-preference",
+}
+ARCHITECTURE_TRIGGERS = (
+    REQUIRED_ARCHITECTURE_TRIGGERS | ARCHITECTURE_RECOMMENDATION_TRIGGERS
+)
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 CONTRACT_ID_RE = re.compile(r"^(?:TZ|IC)-\d{3}$")
 CONTRACT_IDS_RE = re.compile(r"(?<![A-Za-z0-9_-])(?:TZ|IC)-\d{3}(?![A-Za-z0-9_-])")
@@ -223,6 +253,225 @@ def _objects(value: object) -> list[dict]:
 
 def _string_list(value: object) -> list[str]:
     return [item for item in _list(value) if isinstance(item, str) and item]
+
+
+def _validate_source_architecture_disposition(
+    plan: dict,
+    hard: list[str],
+    advisory: list[str],
+) -> None:
+    """Validate a source plan's architecture posture without breaking legacy plans."""
+    if "architecture_disposition" not in plan:
+        advisory.append(
+            "A12: source plan `architecture_disposition` is absent — legacy plan; "
+            "compatibility mode applies until the next Stage R revision"
+        )
+        return
+
+    plan_tier = plan.get("plan_tier")
+    if plan_tier is not None and (
+        not isinstance(plan_tier, str) or plan_tier not in PLAN_TIERS
+    ):
+        hard.append(
+            "H9 source plan `plan_tier`, when present, must be `standard` or `light`"
+        )
+
+    posture = plan.get("architecture_disposition")
+    if not isinstance(posture, dict):
+        hard.append("H9 source plan `architecture_disposition` must be an object")
+        return
+
+    missing = sorted(ARCHITECTURE_DISPOSITION_KEYS - set(posture))
+    extra = sorted(set(posture) - ARCHITECTURE_DISPOSITION_KEYS)
+    if missing:
+        hard.append(
+            "H9 source plan `architecture_disposition` is missing key(s): "
+            + ", ".join(missing)
+        )
+    if extra:
+        hard.append(
+            "H9 source plan `architecture_disposition` has unknown key(s): "
+            + ", ".join(extra)
+        )
+
+    decision = posture.get("decision")
+    if not isinstance(decision, str) or decision not in ARCHITECTURE_DECISIONS:
+        hard.append(
+            "H9 source plan `architecture_disposition.decision` must be one of "
+            f"{sorted(ARCHITECTURE_DECISIONS)}"
+        )
+
+    raw_triggers = posture.get("triggers")
+    triggers_valid = (
+        isinstance(raw_triggers, list)
+        and all(isinstance(item, str) and item.strip() for item in raw_triggers)
+    )
+    if not triggers_valid:
+        hard.append(
+            "H9 source plan `architecture_disposition.triggers` must be a list "
+            "of non-empty strings"
+        )
+        triggers: list[str] = []
+    else:
+        triggers = raw_triggers
+        unknown_triggers = sorted(set(triggers) - ARCHITECTURE_TRIGGERS)
+        duplicate_triggers = sorted(
+            {trigger for trigger in triggers if triggers.count(trigger) > 1}
+        )
+        if unknown_triggers:
+            hard.append(
+                "H9 source plan `architecture_disposition.triggers` has unknown "
+                "trigger(s): " + ", ".join(unknown_triggers)
+            )
+        if duplicate_triggers:
+            hard.append(
+                "H9 source plan `architecture_disposition.triggers` has duplicate "
+                "trigger(s): " + ", ".join(duplicate_triggers)
+            )
+
+    rationale = posture.get("rationale")
+    if not isinstance(rationale, str) or not rationale.strip():
+        hard.append(
+            "H9 source plan `architecture_disposition.rationale` must be non-empty"
+        )
+    if posture.get("decided_by") != "human":
+        hard.append(
+            "H9 source plan `architecture_disposition.decided_by` must be 'human'"
+        )
+
+    convergence = posture.get("convergence")
+    if not isinstance(convergence, dict):
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence` must be an object"
+        )
+        return
+
+    missing = sorted(ARCHITECTURE_CONVERGENCE_KEYS - set(convergence))
+    extra = sorted(set(convergence) - ARCHITECTURE_CONVERGENCE_KEYS)
+    if missing:
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence` is missing key(s): "
+            + ", ".join(missing)
+        )
+    if extra:
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence` has unknown key(s): "
+            + ", ".join(extra)
+        )
+
+    convergence_status = convergence.get("status")
+    if (
+        not isinstance(convergence_status, str)
+        or convergence_status not in ARCHITECTURE_CONVERGENCE_STATES
+    ):
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence.status` must be one of "
+            f"{sorted(ARCHITECTURE_CONVERGENCE_STATES)}"
+        )
+    iteration_count = convergence.get("iteration_count")
+    iteration_valid = (
+        isinstance(iteration_count, int)
+        and not isinstance(iteration_count, bool)
+        and iteration_count >= 0
+    )
+    if not iteration_valid:
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence.iteration_count` "
+            "must be an integer >= 0"
+        )
+    summary = convergence.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence.summary` "
+            "must be non-empty"
+        )
+    refs = convergence.get("decision_refs")
+    if not (
+        isinstance(refs, list)
+        and all(isinstance(item, str) and item.strip() for item in refs)
+    ):
+        hard.append(
+            "H9 source plan `architecture_disposition.convergence.decision_refs` "
+            "must be a list of non-empty strings"
+        )
+
+    if decision == "required":
+        if convergence_status != "converged":
+            hard.append(
+                "H9 source plan decision `required` requires convergence status `converged`"
+            )
+        if iteration_valid and iteration_count < 1:
+            hard.append(
+                "H9 source plan decision `required` requires iteration_count >= 1"
+            )
+        if triggers_valid and not triggers:
+            hard.append(
+                "H9 source plan decision `required` requires at least one trigger"
+            )
+        invalid = sorted(set(triggers) - REQUIRED_ARCHITECTURE_TRIGGERS)
+        if triggers_valid and invalid:
+            hard.append(
+                "H9 source plan decision `required` accepts only required architecture "
+                "trigger ids; found: " + ", ".join(invalid)
+            )
+        if plan_tier == "light":
+            hard.append(
+                "H9 source plan decision `required` is incompatible with "
+                "`plan_tier: light`"
+            )
+    elif decision == "recommended":
+        if convergence_status not in {"converged", "deferred"}:
+            hard.append(
+                "H9 source plan decision `recommended` requires convergence status "
+                "`converged` or `deferred`"
+            )
+        if triggers_valid and not triggers:
+            hard.append(
+                "H9 source plan decision `recommended` requires at least one trigger"
+            )
+        invalid = sorted(set(triggers) - ARCHITECTURE_RECOMMENDATION_TRIGGERS)
+        if triggers_valid and invalid:
+            hard.append(
+                "H9 source plan decision `recommended` accepts only recommendation "
+                "trigger ids; found: " + ", ".join(invalid)
+            )
+        if convergence_status == "converged" and iteration_valid and iteration_count < 1:
+            hard.append(
+                "H9 source plan decision `recommended` with convergence status "
+                "`converged` requires iteration_count >= 1"
+            )
+        if convergence_status == "deferred" and iteration_valid and iteration_count != 0:
+            hard.append(
+                "H9 source plan decision `recommended` with convergence status "
+                "`deferred` requires iteration_count 0"
+            )
+    elif decision == "not-required":
+        if convergence_status != "not-applicable":
+            hard.append(
+                "H9 source plan decision `not-required` requires convergence status "
+                "`not-applicable`"
+            )
+        if iteration_valid and iteration_count != 0:
+            hard.append(
+                "H9 source plan decision `not-required` requires iteration_count 0"
+            )
+        if triggers_valid and triggers:
+            hard.append(
+                "H9 source plan decision `not-required` requires an empty triggers list"
+            )
+    elif decision == "waived":
+        if convergence_status != "waived":
+            hard.append(
+                "H9 source plan decision `waived` requires convergence status `waived`"
+            )
+        if triggers_valid and not triggers:
+            hard.append(
+                "H9 source plan decision `waived` requires at least one trigger"
+            )
+        if iteration_valid and iteration_count < 1:
+            hard.append(
+                "H9 source plan decision `waived` requires iteration_count >= 1"
+            )
 
 
 def _evidence_state(row: dict, label: str, hard: list[str]) -> bool:
@@ -958,6 +1207,7 @@ def check_package(
     plan_slug = plan.get("project_slug", plan.get("slug"))
     if slug and plan_slug != slug:
         hard.append(f"H3 project_slug {slug!r} does not match source plan {plan_slug!r}")
+    _validate_source_architecture_disposition(plan, hard, advisory)
     plan_revision = plan.get("plan_revision", 1)
     if data.get("source_plan_revision") != plan_revision:
         hard.append(

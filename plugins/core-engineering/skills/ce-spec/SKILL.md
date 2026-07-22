@@ -2,7 +2,7 @@
 name: ce-spec
 description: |
   Turn ONE planned feature into an implementation-ready spec — resolve unknowns, EARS acceptance criteria → tagged test cases, design against the real codebase, an ordered tasks.json — without widening the planned boundary (Scope Lock).
-  Triggers: spec/specify/detail one planned feature for implementation. /core-engineering:ce-plan owns decomposition; /core-engineering:ce-architecture owns the optional cross-feature solution baseline; /core-engineering:ce-spec owns feature-local design.
+  Triggers: spec/specify/detail one planned feature for implementation. /core-engineering:ce-plan owns decomposition and the architecture disposition; /core-engineering:ce-architecture owns the conditionally required cross-feature solution baseline; /core-engineering:ce-spec owns feature-local design.
 argument-hint: "[feature-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -61,10 +61,17 @@ detailed procedure loads on demand — see *How to Run This Workflow* below.
   `interaction-contract.md` (this feature's **Per-Feature Interaction Obligations** —
   the `IC-NNN` behavioural-protocol invariants and architecture-determining NFRs §2.1
   derives `[CONTRACT]` criteria from; absent ⇒ no interaction obligations for this
-  feature), an optional **approved architecture package** under `architecture/`
-  (validated before use; its feature mapping, components, plan-owned data and
-  lifecycle mappings, flows, and quality scenarios are design context while
-  accepted ADRs remain the binding decision records), each hard
+  feature), the plan's required **`architecture_disposition`** (decision,
+  triggers, rationale, human owner, convergence result, and accepted-ADR
+  `decision_refs`), and any **approved architecture package** under
+  `architecture/`. Stage 0 validates the full plan before interpreting the
+  disposition and validates every present package before use. A
+  `required` + `converged` disposition blocks specification until that package
+  is present and current; `recommended`, `not-required`, and `waived` absence
+  remain visible with their exact rationale. A valid package's feature mapping,
+  components, plan-owned data and lifecycle mappings, flows, and quality
+  scenarios are design context while accepted ADRs remain the binding decision
+  records. Also load each hard
   dependency's `specs/<dep>/ce-spec.md` (or its built code), the project docs listed
   in `shared-context.md`, the accepted ADRs in `docs/adr/` relevant to this
   feature — opened individually via the Resolved Project Decisions ledger index
@@ -88,12 +95,19 @@ Follow the workflow exactly. Do not skip stages, gates, or validation.
 1. **Never write the spec before Final Approval** (Stage 5.4 → `Write`).
 2. **Honor the Scope Lock** (below). Scope changes only through an approved, logged Boundary Conflict — never silently.
 3. **Tiered human-in-the-loop** (below). Every judgment call is the human's. Default to asking; never assume silently.
-4. **Enforce dependency order** (Stage 0.2). Do not proceed unless every hard dependency is specced or built. For a valid single-feature minimal plan, record dependency order `N/A by construction`; discovering a dependency routes to planning.
-5. **Maintain traceability:** Scope item → Acceptance Criterion → Test Case → Task, and every journey step this feature owns → ≥ 1 Test Case (carrying the step's modality). No orphans at any link. A minimal plan has no Journey Map, so only the Scope chain applies unless planning expands the shape.
-6. **Stay focused.** Scale effort to feature size — a Simple feature with no unknowns runs light. Do not manufacture ceremony. The artifact template's **Tier-scaling** rule names which `ce-spec.md` sections such a feature omits (omit the empty section, never the analysis); `spec-lint` H1–H5 still pass on the reduced spec.
-7. **Log every decision** with its options, choice, rationale, tier, and `decided_by: human`. Propagate cross-feature resolutions — architecturally-significant ones to a project ADR, others to the shared-context ledger (Stage 5.2). Minimal mode has no shared ledger: a cross-feature resolution invalidates that mode and routes to planning rather than creating a missing artifact from inside spec.
-8. **Run the Mechanical Lint Gate** (below) before Final Approval — auto-build runs the same script as a blocking spec-artifact gate.
-9. **Output:** write `ce-spec.md` and `tasks.json` to `docs/plans/[slug]/specs/<id>/`.
+4. **Enforce the architecture disposition** (Stage 0.1) before feature design. A
+   missing, malformed, or non-converged required disposition routes to
+   `/core-engineering:ce-plan` Stage R. A `required` + `converged` disposition
+   without a current approved package routes to
+   `/core-engineering:ce-architecture <slug>` and stops. A recommended gap or
+   human waiver is context to surface, never authority to invent cross-feature
+   design.
+5. **Enforce dependency order** (Stage 0.2). Do not proceed unless every hard dependency is specced or built. For a valid single-feature minimal plan, record dependency order `N/A by construction`; discovering a dependency routes to planning.
+6. **Maintain traceability:** Scope item → Acceptance Criterion → Test Case → Task, and every journey step this feature owns → ≥ 1 Test Case (carrying the step's modality). No orphans at any link. A minimal plan has no Journey Map, so only the Scope chain applies unless planning expands the shape.
+7. **Stay focused.** Scale effort to feature size — a Simple feature with no unknowns runs light. Do not manufacture ceremony. The artifact template's **Tier-scaling** rule names which `ce-spec.md` sections such a feature omits (omit the empty section, never the analysis); `spec-lint` H1–H5 still pass on the reduced spec.
+8. **Log every decision** with its options, choice, rationale, tier, and `decided_by: human`. Propagate cross-feature resolutions — architecturally-significant ones to a project ADR, others to the shared-context ledger (Stage 5.2). Minimal mode has no shared ledger: a cross-feature resolution invalidates that mode and routes to planning rather than creating a missing artifact from inside spec.
+9. **Run the Mechanical Lint Gate** (below) before Final Approval — auto-build runs the same script as a blocking spec-artifact gate.
+10. **Output:** write `ce-spec.md` and `tasks.json` to `docs/plans/[slug]/specs/<id>/`.
 
 ## Scope Lock — the planned feature boundary
 

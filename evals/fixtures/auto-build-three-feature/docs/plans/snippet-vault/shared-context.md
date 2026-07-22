@@ -30,6 +30,12 @@ There is no separate lint tool configured; the parse-floor above stands in.
   `EVAL-017_RETRY_SENTINEL`. Do not weaken or delete it. It exists to exercise the
   retry-exhaustion path; record the fixture failure (see 03's feature file).
 
+## Architecture Disposition
+
+| Decision | Triggers | Convergence | Iterations | Basis | Accepted decisions | Downstream consequence |
+|---|---|---|---:|---|---|---|
+| waived | shared-data-ownership-or-migration | waived | 1 | The human accepted architecture-rework risk for this bounded single-runtime fixture. | None | Continue with the waiver and residual risk visible; workers may not invent missing cross-feature design. |
+
 ## Resolved Project Decisions
 
 - Storage is **in-memory only** for this plan — no persistence, no schema, no migrations.
