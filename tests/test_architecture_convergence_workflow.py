@@ -56,8 +56,8 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
         exploration = (ARCH / "exploration-mode.md").read_text(encoding="utf-8")
 
         required_gate = direction[
-            direction.index("For `required`, ask:") : direction.index(
-                "For `recommended`, add one option:"
+            direction.index("For `required`, ask one four-option question") : direction.index(
+                "For `recommended`, use this three-option primary question"
             )
         ]
         selection_validation = direction[
@@ -65,9 +65,41 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             direction.index("## 1A.8 Freshness and back-edge rule")
         ]
 
-        self.assertIn("Stage 2 remains blocked until a fresh human selection", required_gate)
+        self.assertIn("Stage 2 stays blocked until a direction is selected", required_gate)
+        self.assertEqual(
+            len(re.findall(r"^\| \*\*", required_gate, flags=re.MULTILINE)),
+            4,
+        )
         self.assertNotIn("Defer", required_gate)
         self.assertIn("There is no defer option for `required`", direction)
+        self.assertIn("instead of adding a\nfifth option", direction)
+        self.assertIn("Every question has at most four options", direction)
+        self.assertNotIn(
+            "Offer **Confirm not applicable**, **Adjust frame**, **Explore anyway**, **Park**",
+            direction,
+        )
+        recommended_gate = direction[
+            direction.index("For `recommended`, use this three-option primary question") :
+            direction.index("There is no defer option for `required`")
+        ]
+        not_required_gate = direction[
+            direction.index("Use a three-option primary question:", direction.index("For `not-required`")) :
+            direction.index("The `recommended` and `not-required` control branch")
+        ]
+        control_gate = direction[
+            direction.index("The `recommended` and `not-required` control branch") :
+            direction.index("Every question has at most four options")
+        ]
+        for label, block in (
+            ("recommended", recommended_gate),
+            ("not-required", not_required_gate),
+            ("shared controls", control_gate),
+        ):
+            with self.subTest(gate=label):
+                self.assertEqual(
+                    len(re.findall(r"^\| \*\*", block, flags=re.MULTILINE)),
+                    3,
+                )
         self.assertIn(
             "`selection.status` is exactly `direction-selected`",
             selection_validation,
@@ -87,6 +119,77 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
         self.assertIn("canonical decision-relevant projection", selection_validation)
         self.assertNotIn("current exact input bytes", selection_validation)
 
+    def test_direction_selection_has_a_readable_report_before_the_prompt(self):
+        exploration = (ARCH / "exploration-mode.md").read_text(encoding="utf-8")
+        report_template = (ARCH / "architecture-options-template.md").read_text(
+            encoding="utf-8"
+        )
+        architecture_skill = (ARCH / "SKILL.md").read_text(encoding="utf-8")
+        direction = (PLAN / "stage-1a-architecture-direction.md").read_text(
+            encoding="utf-8"
+        )
+        write = (PLAN / "stage-8-9-write.md").read_text(encoding="utf-8")
+        template = (PLAN / "artifact-template.md").read_text(encoding="utf-8")
+        overview = (REPO / "docs/HOW-IT-WORKS.md").read_text(encoding="utf-8")
+
+        persist = exploration.index("## Persist the Pre-Approval Comparison")
+        report_lint = exploration.index("architecture-options-lint.py", persist)
+        gate = exploration.index("## Architecture Direction Selection Gate")
+        prompt = exploration.index("Ask one direction decision", gate)
+        self.assertLess(persist, gate)
+        self.assertLess(report_lint, gate)
+        self.assertLess(gate, prompt)
+        self.assertIn(
+            "docs/plans/.drafts/<slug>/architecture-options.md", exploration
+        )
+        self.assertIn("review before choosing", exploration)
+        self.assertIn("re-read the entire file", exploration)
+        self.assertIn("--repo-root . --json", exploration)
+        self.assertIn("Require exit 0", exploration)
+        self.assertIn("It never constructs or records a human selection", exploration)
+        self.assertIn("Do not call `AskUserQuestion` unless", exploration)
+        self.assertIn("--allow 'docs/plans/.drafts/<slug>/architecture-options.md'", exploration)
+        self.assertIn("before the human gate, and on every\n   exit", exploration)
+        self.assertIn("sole permitted domain write", architecture_skill)
+        self.assertIn("requires `architecture-options-lint.py` to pass", architecture_skill)
+        self.assertIn("Decision status` and the Human\nDecision table to `awaiting-selection`", exploration)
+        self.assertIn("Axx — <title> — <key consequence>", exploration)
+        self.assertIn("never aggregate two\ndirections", exploration)
+        self.assertRegex(exploration, r"Do not\s+bind a direction yet")
+        self.assertIn("Never hide an eligible direction, combine return\nwith abort", exploration)
+        self.assertNotIn("Return to Stage 1A or abort", exploration)
+        self.assertIn("capture a non-empty human rationale", exploration)
+
+        for section in (
+            "## What Needs Your Decision",
+            "## Evaluation Frame",
+            "## Hard-Constraint Screen",
+            "## Weighted Comparison",
+            "## Direction A01 — <title>",
+            "## Machine-Readable Comparison Projection",
+            "## Human Decision",
+            "## Integrity",
+        ):
+            self.assertIn(section, report_template)
+        for binding in (
+            "Source input SHA-256",
+            "Evidence fingerprint",
+            "Option-set SHA-256",
+            "Option hash",
+        ):
+            self.assertIn(binding, report_template)
+
+        self.assertIn("Before prompting, it writes", direction)
+        self.assertIn("deterministic pre-approval report lint", direction)
+        self.assertIn("architecture_options_report_sha256", direction)
+        self.assertIn("schema-v2 canonical JSON result", direction)
+        self.assertIn("--require-current-schema", direction)
+        self.assertIn("**Publish the readable comparison.**", write)
+        self.assertIn("copy its exact bytes", write)
+        self.assertIn("architecture-options.md", template)
+        self.assertIn("Before asking", overview)
+        self.assertIn("outside the chat transcript", overview)
+
     def test_applicability_screen_precedes_every_plan_shortcut(self):
         scoring = (PLAN / "stage-2-3-decompose-score.md").read_text(encoding="utf-8")
         gates = (PLAN / "stage-4-7-gates.md").read_text(encoding="utf-8")
@@ -96,6 +199,9 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
         self.assertIn("cannot** take the single-feature minimal early exit", gates)
         self.assertIn("**Architecture not required**", gates)
         self.assertIn("Stage 3.9 applicability result is\n   `recommended` or `not-required`", gates)
+        self.assertIn("after the human selected an explored direction", gates)
+        self.assertIn("one-file minimal artifact cannot preserve", gates)
+        self.assertIn("explicitly `not-applicable` or `deferred`", gates)
 
     def test_required_candidate_routes_through_shape_before_reachability(self):
         gates = (PLAN / "stage-4-7-gates.md").read_text(encoding="utf-8")
@@ -366,6 +472,54 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
                     final_recheck,
                 ]
             ),
+        )
+
+    def test_revision_resume_recovers_validated_direction_without_reasking(self):
+        revision = (PLAN / "stage-R-revision.md").read_text(encoding="utf-8")
+        resume = revision[revision.index("## Resume — an aborted revision resumes too") :]
+
+        self.assertIn("newly persisted\n`architecture-selection.json`", resume)
+        self.assertIn("docs/plans/.drafts/<slug>/architecture-selection.json", resume)
+        self.assertIn("`architecture-exploration.json`", resume)
+        self.assertIn("canonical\n   decision-input hash", resume)
+        self.assertIn("valid pair from\n   another attempt is stale", resume)
+        self.assertIn("--repo-root .", resume)
+        self.assertIn("--require-current-schema --json", resume)
+        self.assertIn("`selection.status: direction-selected`", resume)
+        self.assertIn("`selection.decided_by: human`", resume)
+        self.assertIn("`architecture_options_report.status: present`", resume)
+        self.assertIn("without invoking exploration, re-asking the human", resume)
+        self.assertRegex(resume, r"or\s+rewriting either artifact")
+        self.assertIn("Reconstruct it exactly from the validated JSON", resume)
+        for field in (
+            "exploration_id",
+            "source_capability_revision",
+            "source_exploration_attempt",
+            "source_input_sha256",
+            "option_set_sha256",
+            "selection.option_id",
+            "selection.option_sha256",
+            "selection.rationale",
+            "architecture_options_report.path",
+            "architecture_options_report.sha256",
+        ):
+            self.assertIn(f"`{field}`", resume)
+        self.assertIn("`recovered from validated draft artifacts`", resume)
+        self.assertNotIn("recovered_from:", resume)
+        self.assertIn(
+            "architecture_options_report: docs/plans/.drafts/<slug>/"
+            "<architecture_options_report.path>",
+            resume,
+        )
+        self.assertIn("next **Stage R** gate", resume)
+        self.assertRegex(
+            resume,
+            r"(?s)report by itself.*`awaiting-selection`.*never proves approval",
+        )
+        self.assertIn("schema-v1\n   draft", resume)
+        self.assertRegex(
+            resume,
+            r"Leave the existing written plan and\s+legacy v1 artifacts unchanged",
         )
 
     def test_composed_shape_uses_the_parent_gate_sequence(self):

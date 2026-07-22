@@ -63,6 +63,7 @@ In the representative repository:
 | Multi-mode auto-build orchestration | One bounded sequential auto-build profile | Review and re-approve bounds; do not assume removed worktree/checkpoint modes still exist. |
 | Unstamped done tasks could pass the legacy freshness check with a warning | Release uses strict freshness | Re-open through `/core-engineering:ce-implement` to bind or re-derive evidence, then rerun `/core-engineering:ce-verify`; do not convert the release NO-GO into tool approval. |
 | Unversioned or schema-v1 metrics | Schema-v2 producers and coverage-aware reporting | Existing lines remain readable. Missing streams and runtime metadata now appear as gaps instead of zero activity. |
+| Schema-v1 `architecture-selection.json` | Schema-v2 selections bind the immutable human-readable `architecture-options.md` review snapshot | Existing v1 selections remain valid but have no options-report guarantee. To obtain one, reopen architecture direction selection through plan revision and review fresh options; never fabricate a report or imply retrospective approval. |
 | One date-only snapshot name per day | Collision-safe run keys | The first path keeps `<date>`; later same-day runs use `-2`, `-3`, and the same key across report and evidence companions. |
 
 ## Rollback And Support

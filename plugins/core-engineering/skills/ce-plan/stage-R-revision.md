@@ -47,6 +47,9 @@ memory:
   revision delta);
 - `architecture-selection.json` when named by the disposition; verify its exact
   file hash and selected-option hash before treating the direction as held;
+- `architecture-options.md` when a schema-v2 selection binds it; run the
+  selection linter so its sibling path, exact hash, visible option content, and
+  immutable `awaiting-selection` marker are verified before preserving it;
 - every `features/<id>.md`;
 - `feature-plan.md` (Journey Map / Consumability Trace, Dependency Flow, Notes);
 - `shared-context.md` (Codebase Profile, Architecture Disposition, Resolved
@@ -252,8 +255,12 @@ Before writing:
 - **Preserve or replace independent locks independently.** Preserve
   `architecture-selection.json` byte-for-byte whenever the capability/evaluation
   frame, evidence fingerprints, and direction choice are legitimately held,
-  even when shaping convergence must rerun. Replace it only after Stage 1A
-  returns a newly reviewed selected/deferred/N/A binding. Preserve convergence
+  even when shaping convergence must rerun. Preserve its matching
+  `architecture-options.md` human-readable view byte-for-byte too. Replace the
+  pair only after Stage 1A
+  returns a newly reviewed selected/deferred/N/A binding; a fresh explored
+  binding replaces both files, while N/A/deferred may remove the no-longer-
+  applicable options report only at the approved write. Preserve convergence
   only when its candidate/evidence binding is held. Then update the direction
   file hash and `architecture_disposition` in `plan.json` plus only the matching
   shared-context sections. A convergence waiver never erases the direction that
@@ -279,6 +286,11 @@ its revision/hash boundary stale or malformed and that
 the planning workflow does not silently refresh or remove that sibling-owned
 package. Label each option by consequence (R1/R5):
 
+If this revision changes an explored direction to `not-applicable` or
+`deferred`, the render must name deletion of the now-inapplicable
+`architecture-options.md` as a reviewed file-level consequence. It is removed
+only with **Write revision**, never during analysis or an aborted gate.
+
 Even when no architecture namespace exists, a revised `decision: required`
 means the current plan must publish its baseline before any touched/new spec.
 Render that consequence at this gate.
@@ -299,10 +311,15 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
    `interaction-contract.md` from the changed rows (still a read-only re-projection, never a
    fresh set of decisions; unchanged rows copied verbatim). Untouched re-projections are not
    rewritten. When architecture posture changed, also write the exact reviewed
-   `architecture-selection.json`, the new `architecture_disposition` and file
-   hash in `plan.json`, and only the Architecture Disposition / Resolved Project
+   `architecture-selection.json`, its matching `architecture-options.md` when
+   exploration ran, the new `architecture_disposition` and file hash in
+   `plan.json`, and only the Architecture Disposition / Resolved Project
    Decisions sections in `shared-context.md`. Never reconstruct options or
-   scores from a prose summary.
+   scores from a prose summary. When the approved new binding is N/A/deferred,
+   remove the prior `architecture-options.md` named at Final Revision Approval;
+   report whether the removed bytes are recoverable from version control and do
+   not claim recovery when they are not. Never leave the old report silently
+   represented as current evidence.
 3. **Append the revision rationale to Notes (§13)** in `feature-plan.md`: `plan-revision <N>`
    — what changed, why, which gates re-ran, and which were held from `N-1`. The Notes
    history is the on-disk audit trail of how the plan evolved.
@@ -314,7 +331,8 @@ On **Write revision**, apply the Stage 9 write, scoped to the revision:
    `feature: null`, note `plan_revision: <N>`) to `docs/plans/<slug>/.metrics.jsonl`; never
    let it block the write.
 
-**Closing.** Confirm what changed (files written, features touched, `plan_revision: <N>`),
+**Closing.** Confirm what changed (files written or removed, features touched,
+`plan_revision: <N>`, and recovery status for a removed options report),
 then name the next actions. If the revised disposition is `required` **or** that
 lstat-style check found any `architecture` namespace occupant, print
 `/core-engineering:ce-architecture <slug>` first and do not print a direct spec
@@ -337,5 +355,68 @@ frozen plan and a re-stated delta. Because the written plan **and** a scratch co
 during an in-flight revision, Stage 0's *Existing-Plan Check* treats that pair as an
 interrupted revision and re-enters Stage R at the last checkpointed gate (re-render its
 `state`, continue at the next gate — do not re-run the R.0 load or re-ask the confirmed
-delta). On the successful R.6 write the scratch is deleted; an abort or crash leaves it, so
-the revision stays resumable.
+delta).
+
+There is one narrow crash window to recover before advancing. When R.2 reopened
+Architecture Direction Selection, the draft may contain a newly persisted
+`architecture-selection.json` and its bound `architecture-options.md`, but the scratch may
+not yet contain `## Architecture Direction Selection — passed`. In that state:
+
+1. Treat only the current draft attempt under `docs/plans/.drafts/<slug>/` as
+   recovery evidence; the frozen plan's existing architecture files remain untouched and
+   cannot stand in for the draft. Require its regular, non-symlink
+   `architecture-exploration.json`, re-read it, and perform the complete Stage 1A freshness
+   comparison: project slug, capability revision, exploration attempt, canonical
+   decision-input hash, and every source hash must equal the selection. A valid pair from
+   another attempt is stale and cannot reconstruct a checkpoint.
+2. Run the current deterministic validator from the repository root over the sibling
+   selection/report pair:
+
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+     docs/plans/.drafts/<slug>/architecture-selection.json --repo-root . \
+     --require-current-schema --json
+   ```
+
+3. On exit 0, additionally require `selection.status: direction-selected`,
+   `selection.decided_by: human`, and `architecture_options_report.status: present`, then
+   append the missing checkpoint **without invoking exploration, re-asking the human, or
+   rewriting either artifact**. Reconstruct it exactly from the validated JSON: use the
+   selected option id and that option's title for `decision`; copy
+   `exploration_id`, `source_capability_revision`, `source_exploration_attempt`,
+   `source_input_sha256`, and `option_set_sha256`; copy `selection.option_id`,
+   `selection.option_sha256`, and `selection.rationale`; and copy
+   `architecture_options_report.path` and `architecture_options_report.sha256`. Append this
+   Stage 1A checkpoint shape (the report path is resolved relative to the validated JSON's
+   parent, never accepted from an unvalidated path):
+
+   ```text
+   ## Architecture Direction Selection — passed
+   decided_by: human
+   decision: <selection.option_id + matching option title>
+   state: |
+     exploration_id: <exploration_id>
+     source_capability_revision: <source_capability_revision>
+     source_exploration_attempt: <source_exploration_attempt>
+     source_input_sha256: <source_input_sha256>
+     option_set_sha256: <option_set_sha256>
+     selected_option_id: <selection.option_id>
+     selected_option_sha256: <selection.option_sha256>
+     architecture_options_report: docs/plans/.drafts/<slug>/<architecture_options_report.path>
+     architecture_options_report_sha256: <architecture_options_report.sha256>
+     rationale: <selection.rationale verbatim>
+   ```
+
+   In the recovery render, label the checkpoint `recovered from validated draft artifacts`.
+   Then continue at the next **Stage R** gate in the already-confirmed affected-gate set.
+   The persisted human selection is authoritative only because this exact v2 pair passed
+   current-schema validation.
+4. A report by itself — including a valid immutable report marked
+   `awaiting-selection` — never proves approval. A missing selection, exit 1/2, schema-v1
+   draft, missing/current-input mismatch, mismatched binding, or missing report must not
+   produce a checkpoint or alter the frozen plan. Leave the existing written plan and
+   legacy v1 artifacts unchanged, report the coverage gap, and resume the reopened Stage
+   1A direction-selection work from the last real checkpoint.
+
+On the successful R.6 write the scratch is deleted; an abort or crash leaves it, so the
+revision stays resumable.

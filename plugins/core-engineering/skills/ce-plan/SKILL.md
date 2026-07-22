@@ -2,7 +2,7 @@
 name: ce-plan
 description: |
   Select a human-approved solution-architecture direction when requirements make it load-bearing, then decompose the project into an ordered feature plan with sizing, risk, reachability, architecture-convergence, and session-fit gates.
-  Triggers: plan/decompose/break a project into features. It composes /core-engineering:ce-architecture first in read-only explore mode for whole-solution options and later in shape mode to test the provisional cut; use that skill directly for the governed post-plan baseline. /core-engineering:ce-spec details one planned feature at a time.
+  Triggers: plan/decompose/break a project into features. It composes /core-engineering:ce-architecture first in bounded-report explore mode for whole-solution options and later in read-only shape mode to test the provisional cut; use that skill directly for the governed post-plan baseline. /core-engineering:ce-spec details one planned feature at a time.
 argument-hint: "[project description]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -47,13 +47,13 @@ Follow the workflow exactly. Do not skip stages, gates, or validation. In partic
 2. **Keep provisional IDs (`P01-…`) until write time**; freeze stable IDs only in Stage 9.
 3. **Ask grouped questions, not one-by-one** (Stage 1.4 — 4–6 targeted questions in a single round; up to 10–12 total across rounds).
 4. **Use the Two-Surface Rendering Rule** (Stage 5.3): print long tables, diagrams, and per-feature blocks in the conversation as Markdown; reserve compact decision dialogs for the short question + options only.
-5. **Select architecture before detailed decomposition when it is load-bearing.** After Stage 1 has reconciled intent with repository evidence, load `${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`. Build a coarse `C01` capability map — never provisional features — and classify the stable architecture drivers as `required`, `recommended`, or `not-required`. A required route must pass the Evaluation Frame gate and return a fresh, human-owned `direction-selected` result from `/core-engineering:ce-architecture explore:<draft-slug>` before Stage 2. Recommended exploration may be explicitly deferred by the human; not-required records an explicit N/A. A material unknown takes the required path. Stage 3.9 re-screens the detailed candidate before Sizing can exit; a newly required or stale direction returns to Stage 1A and then reruns Stage 2. Required architecture can never collapse into the single-feature minimal shape or light-plan tier.
+5. **Select architecture before detailed decomposition when it is load-bearing.** After Stage 1 has reconciled intent with repository evidence, load `${CLAUDE_SKILL_DIR}/stage-1a-architecture-direction.md`. Build a coarse `C01` capability map — never provisional features — and classify the stable architecture drivers as `required`, `recommended`, or `not-required`. A required route must pass the Evaluation Frame gate, persist and surface `docs/plans/.drafts/<slug>/architecture-options.md`, and return a fresh, human-owned `direction-selected` result from `/core-engineering:ce-architecture explore:<draft-slug>` before Stage 2. Recommended exploration may be explicitly deferred by the human; not-required records an explicit N/A. A material unknown takes the required path. Stage 3.9 re-screens the detailed candidate before Sizing can exit; a newly required or stale direction returns to Stage 1A and then reruns Stage 2. Required architecture can never collapse into the single-feature minimal shape or light-plan tier.
 6. **Converge the selected direction with the candidate before freezing decomposition.** After Candidate Review and before Reachability, a required route invokes `/core-engineering:ce-architecture shape:<draft-slug>` through the `Skill` tool and loads `${CLAUDE_SKILL_DIR}/stage-5a-architecture-convergence.md`. A recommended route, including the light tier, first runs the explicit human shaping election in stage-4-7-gates.md §5.4.1 and records either current convergence or a same-revision defer; absence never becomes implicit deferral. Architecture may propose a paste-ready delta but never edits the plan; this skill and the human alone apply a re-cut. Re-screen after Reachability and after the final TZ/IC attestations. A changed capability or selection binding returns to Stage 1A; a changed candidate revision, driver, decision, journey, dependency, durable-state row, TZ/IC row, or decomposition-shaping NFR invalidates shaping convergence or the recorded defer.
 7. **Run the Reachability / Consumability Trace** (Stage 6) and the **Session-Fit Check** (Stage 7) before final approval. Re-cut features when checks fail — prefer re-slicing over accumulating bridges. The user may also request a **scope-preserving Coarsen** at Candidate Review (Stage 5.5) to reduce feature count without dropping scope — a consented session-fit trade-off recorded as a lease, with the Session-Fit correctness guards still binding. The Session-Fit Check includes the **Interface Foundation Gate** (Stage 7.8): any plan with user-facing features must own a design foundation, detect an existing one, or record a consented exception — never ship UI with no visual contract.
 8. **Honor both iteration caps:** Stage 6.6 allows at most 3 loops per journey, and architecture shaping allows at most 3 complete results per bounded sequence before it parks at a human cap gate. Only an explicit human-owned scope/evidence change starts another three-pass sequence; `architecture_iteration_count` remains cumulative.
 9. **Record user overrides, architecture waivers, deferred journeys, and high-risk justifications in Notes.**
 10. **Validate every item in the Validation Checklist Before Writing** (in `stage-8-9-write.md`) prior to writing.
-11. **Output:** write the final artifact as a plan **directory** at `docs/plans/[project-slug]/` — index `feature-plan.md`, `shared-context.md`, exact `architecture-selection.json`, `threat-model.md` (trust boundaries + data-classes + per-feature security obligations, a read-only re-projection of §3 / §6.3 / §7.5), `interaction-contract.md` (cross-feature protocol invariants + architecture-determining NFRs, a read-only re-projection of §3 / §8 / §10 / §6.3 / cited NFRs), one `features/<id>.md` per feature, and `plan.json` with the hash-bound `architecture_disposition.direction` — and update `docs/plans/plans.json` (the repo's plan registry). `[project-slug]` is derived per Stage 0 (Project Name Slug). For single-feature plans accepted at the Sizing Gate, use the single-file Recommended Minimal Output instead.
+11. **Output:** write the final artifact as a plan **directory** at `docs/plans/[project-slug]/` — index `feature-plan.md`, `shared-context.md`, exact `architecture-selection.json`, the human-readable `architecture-options.md` when directions were explored, `threat-model.md` (trust boundaries + data-classes + per-feature security obligations, a read-only re-projection of §3 / §6.3 / §7.5), `interaction-contract.md` (cross-feature protocol invariants + architecture-determining NFRs, a read-only re-projection of §3 / §8 / §10 / §6.3 / cited NFRs), one `features/<id>.md` per feature, and `plan.json` with the hash-bound `architecture_disposition.direction` — and update `docs/plans/plans.json` (the repo's plan registry). `[project-slug]` is derived per Stage 0 (Project Name Slug). For single-feature plans accepted at the Sizing Gate, use the single-file Recommended Minimal Output instead.
 12. **Prefer explicit assumptions over invented details** — when a fact is unknown, record a labeled assumption rather than fabricating specifics.
 13. **Keep structured Markdown stable enough for parsing** — downstream tooling reads the artifact; do not break its field structure.
 14. **Validate dependency direction programmatically when possible** — hard dependencies must point to an earlier feature in ship order.
@@ -272,9 +272,10 @@ Only one feature per category may claim ownership in a single plan.
 
 ## Gate Checkpoint & Resume
 
-`/core-engineering:ce-plan` writes **nothing durable** before Stage 8.3 Write, so a crash or a context
-compaction after the Reachability marathon otherwise loses the entire 9-stage run. To
-bound that loss, the workflow keeps a **terse resume transcript** — not the artifact — at:
+`/core-engineering:ce-plan` writes no **final plan** before Stage 8.3 Write. Before
+then it keeps only bounded draft inputs, the pre-approval architecture-options
+report when exploration runs, selected-result JSON, and a **terse resume transcript**
+so a crash or context compaction does not lose the entire 9-stage run. The transcript lives at:
 
 ```text
 docs/plans/.drafts/<slug>/scratch.md
@@ -315,21 +316,31 @@ newest passed block is the resume point.
 **Resume** is offered in Stage 0 (`stage-0-1-understand.md` → *Resume Check*) when a
 scratch for the slug already exists: *Resume at the last passed gate / Start fresh (deletes
 the scratch) / Abort*. On resume, re-render the last checkpoint's `state` and continue at
-the **next** gate — do not replay the codebase profile or re-ask settled questions.
+the **next** gate — do not replay the codebase profile or re-ask settled questions. For an
+interrupted Architecture Direction Selection, inspect both draft companions. A
+report without `architecture-selection.json` proves only what was shown: retain
+it as audit evidence, increment `exploration_attempt`, and replace it through a
+fresh explore pass before asking. When schema-v2 selection JSON and its sibling
+report both exist, run the current-schema linter; only a PASS may reconstruct
+the missing passed-gate checkpoint from their exact human selection and report
+hash and continue without re-asking. Any mismatch parks or starts a fresh
+attempt; an `awaiting-selection` report alone is never inferred approval.
 
-**Lifecycle.** Stage 9 deletes `docs/plans/.drafts/<slug>/` on a **successful** write (the
-final artifact now exists). **Abort or crash at any gate leaves the scratch in place** —
-that is the entire point: the interrupted run is exactly what resume recovers.
+**Lifecycle.** Stage 9 first copies the immutable pre-approval options report into the final plan
+when exploration ran, then deletes `docs/plans/.drafts/<slug>/` on a **successful**
+write. **Abort or crash at any gate leaves the scratch and report in place** — the
+interrupted run is exactly what resume recovers.
 
 ---
 
 ## Escalation
 
-Whole-solution direction generation and scoring are delegated read-only to
-`/core-engineering:ce-architecture explore:<draft-slug>` before detailed decomposition;
+Whole-solution direction generation, scoring, and the one bounded pre-approval
+report write are delegated to `/core-engineering:ce-architecture explore:<draft-slug>`
+before detailed decomposition;
 candidate coherence is delegated read-only to its `shape:<draft-slug>` mode afterward.
 This skill retains sole write authority over the exploration input, selected-result
-checkpoint, and decomposition. A single bounded consequential fork can route to
+JSON/checkpoint, final report publication, and decomposition. A single bounded consequential fork can route to
 `/core-engineering:ce-decide`; it does not replace whole-solution exploration. Downstream
 Boundary Conflicts return here from `/core-engineering:ce-spec`,
 `/core-engineering:ce-implement`, `/core-engineering:ce-review`, `/core-engineering:ce-verify`, or `/core-engineering:ce-debug`; this skill owns scope,

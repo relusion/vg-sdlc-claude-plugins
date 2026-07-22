@@ -108,7 +108,7 @@ labelled by its consequence (HITL Gate Standard R1):
 | Option | Result |
 |---|---|
 | **Resume at \<last passed gate\>** | Re-render the last checkpoint's `state` and continue at the **next workflow stage or gate**. Settled gates are **not** re-asked; autonomous derivations are rebuilt only when their recorded input changed. |
-| **Start fresh** | **Deletes the scratch** and restarts from Stage 1 — every prior decision for this slug is discarded. Use when the earlier run took a wrong turn. |
+| **Start fresh** | **Deletes the entire draft directory**, including scratch and any architecture input/options/selection files, then restarts from Stage 1 — every prior draft decision for this slug is discarded. Use when the earlier run took a wrong turn. |
 | **Abort** | Exit now, writing nothing and **leaving the scratch untouched** — the interrupted run stays resumable on the next invocation. |
 
 On **Resume**: load the stage file that owns the next workflow step, print the
@@ -126,9 +126,21 @@ questions the scratch already answered. Route the early checkpoints explicitly:
 - an older scratch that has a Stage-1 checkpoint but no Stage-1A state resumes at
   Stage 1A. It is not grandfathered past architecture selection merely because it
   predates that checkpoint.
+- when the last checkpoint is the passed Architecture Evaluation Frame, inspect
+  `architecture-options.md` and `architecture-selection.json` before invoking
+  exploration. Report-only means the prior session did not durably capture a
+  choice: increment the attempt and re-run. If both exist and
+  `python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py"
+  docs/plans/.drafts/<slug>/architecture-selection.json --repo-root .
+  --require-current-schema --json` passes, append the missing Architecture
+  Direction Selection checkpoint from the exact JSON fields plus report hash,
+  label it `recovered from validated draft artifacts`, and continue at Stage 2
+  without re-asking. A missing/mismatched report, failed lint, schema-v1 draft,
+  or selected report claim without JSON never implies approval; park or start a
+  fresh attempt.
 
 On **Start fresh**: delete `docs/plans/.drafts/<slug>/`, then run this stage
-normally. The scratch and its two Stage-1A JSON companions are resume state,
+normally. The scratch, Stage-1A JSON companions, and readable options report are resume state,
 never planning input for another workflow — they are not registered in
 `plans.json` and are never fed to `/core-engineering:ce-spec`.
 

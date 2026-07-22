@@ -48,8 +48,9 @@ It runs in two modes:
 
 - **Plan slug (optional):** e.g. `customer-portal`. Without one, resolve via `docs/plans/plans.json`; if multiple plans exist, ask which to audit.
 - **The plan directory:** `docs/plans/<slug>/`.
-- **Loaded (read-only):** `plan.json` and its bound `architecture-selection.json`
-  (multi-feature plans), `feature-plan.md`, `shared-context.md`, every
+- **Loaded (read-only):** `plan.json`, its bound `architecture-selection.json`,
+  and schema-v2 `architecture-options.md` sibling when present (multi-feature
+  plans), `feature-plan.md`, `shared-context.md`, every
   `features/<id>.md`, `threat-model.md`, `interaction-contract.md`, and the plan
   registry. For a single-feature minimal plan the inputs collapse to the lone
   `feature-plan.md`; there is no selection or manifest by construction.

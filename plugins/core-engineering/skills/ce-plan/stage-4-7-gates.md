@@ -14,14 +14,20 @@ binding is current.
 
 Before presenting a multi-feature plan, evaluate whether the project actually
 warrants decomposition. A Stage 3.9 `architecture_applicability: required`
-result **cannot** take the single-feature minimal early exit: it must already
-carry a fresh Stage 1A `direction-selected` binding, and
+result **cannot** take the single-feature minimal early exit. Neither can a
+`recommended` route after the human selected an explored direction: its
+schema-v2 selection and review report are durable planning inputs that the
+one-file minimal artifact cannot preserve. A required route must already carry
+a fresh Stage 1A `direction-selected` binding, and
 architecture-significant boundaries must be represented honestly in a full plan
 before shaping. If the current candidate still appears inseparable, return to
 Stage 2 only while that direction remains current; otherwise return to Stage 1A
 first, or park. Never manufacture a split.
 
-Only when architecture applicability is not `required`, recommend a single-feature plan if any of the following hold:
+Only when architecture applicability is not `required` **and** the current
+direction disposition is explicitly `not-applicable` or `deferred` (no selected
+or adopted direction and no options report), recommend a single-feature plan if
+any of the following hold:
 
 1. **Single-Simple fits**  
    Total scope scores Simple on every Complexity dimension and Brownfield friction is not High.

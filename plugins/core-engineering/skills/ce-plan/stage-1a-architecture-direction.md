@@ -25,8 +25,9 @@ Ownership remains split:
 - `/core-engineering:ce-plan` owns the capability/evaluation input, stable-driver
   classification, parent gate sequence, selected-result checkpoint, and all
   later decomposition;
-- `/core-engineering:ce-architecture explore:<slug>` owns read-only generation
-  and scoring of complete solution directions and the human Direction Selection
+- `/core-engineering:ce-architecture explore:<slug>` owns generation and scoring
+  of complete solution directions, the pre-approval
+  `architecture-options.md` review surface, and the human Direction Selection
   gate; and
 - `/core-engineering:ce-decide` is reserved for one bounded technical fork that
   exploration cannot settle. It is not the whole-solution option generator.
@@ -257,20 +258,24 @@ Print the locator from the plan's computed gate manifest:
 Gate N of M — Architecture Evaluation Frame
 ```
 
-For `required`, ask:
+For `required`, ask one four-option question. Put the consequence in each
+option label so the compact dialog remains decidable:
 
 | Option | Consequence |
 |---|---|
-| **Confirm frame and explore** | Freeze these inputs for this attempt, write the exploration JSON, and compare viable whole-solution directions; Stage 2 remains blocked until a fresh human selection returns. |
-| **Adjust frame** | Change the named capability/constraint/scenario/criterion; increment `capability_revision` for a substantive model/evidence change or only `exploration_attempt` for an unchanged-model retry, then re-render this gate. |
-| **Park for evidence or authority** | Stop before decomposition with the exact gap and owner; no architecture direction or plan is approved. |
-| **Abort** | Stop without a final plan; leave the checkpoint state resumable. |
+| **Confirm and explore — freeze this frame; Stage 2 stays blocked until a direction is selected** | Write the exploration input and compare viable whole-solution directions. |
+| **Adjust frame — revise inputs and return to this gate** | Change the named capability/constraint/scenario/criterion; increment `capability_revision` for a substantive model/evidence change or only `exploration_attempt` for an unchanged-model retry. |
+| **Park — stop for the named evidence or authority** | Stop before decomposition with the exact gap and owner; no architecture direction or plan is approved. |
+| **Abort — end without a final plan** | Stop and leave the checkpoint state resumable. |
 
-For `recommended`, add one option:
+For `recommended`, use this three-option primary question instead of adding a
+fifth option to the required question:
 
 | Option | Consequence |
 |---|---|
-| **Defer recommended exploration** | Continue to Stage 2 without a selected direction, record the human-owned coverage gap, and keep later Stage 3.9/5A re-screens binding; any newly required driver returns here. |
+| **Confirm and explore — freeze this frame; Stage 2 stays blocked until a direction is selected** | Write the exploration input and compare viable whole-solution directions. |
+| **Defer exploration — continue to Stage 2 with a recorded architecture coverage gap** | Record the human-owned gap and keep later Stage 3.9/5A re-screens binding; any newly required driver returns here. |
+| **Do not proceed with this frame — open adjust, park, or abort controls** | Ask the same-locator control follow-up below; no frame disposition is recorded yet. |
 
 There is no defer option for `required`. On defer, write a plan-owned
 `architecture-selection.json` disposition with `selection.status: deferred`,
@@ -281,11 +286,26 @@ draft selection so Stage 2 cannot mistake it for current. Append
 
 For `not-required`, this gate still fires: the negative classification shapes
 the work breakdown by authorizing decomposition without a selected direction.
-Offer **Confirm not applicable**, **Adjust frame**, **Explore anyway**, **Park**,
-and **Abort**, each with its consequence. `Explore anyway` adds the human's
-`baseline-preference` basis, reclassifies the route as `recommended`, increments
-the applicable revision/attempt, and re-renders the gate. On confirmation,
-write a plan-owned `architecture-selection.json` disposition with
+Use a three-option primary question:
+
+| Option | Consequence |
+|---|---|
+| **Confirm not applicable — continue to Stage 2 with an explicit N/A disposition** | Record the human-confirmed negative architecture screen; no direction is selected. |
+| **Explore anyway — reclassify as recommended and return with a new attempt** | Add the human's `baseline-preference` basis, increment the applicable revision/attempt, and re-render this gate. |
+| **Do not proceed with this frame — open adjust, park, or abort controls** | Ask the same-locator control follow-up below; no N/A disposition is recorded yet. |
+
+The `recommended` and `not-required` control branch uses one same-locator
+follow-up with no merged consequences:
+
+| Option | Consequence |
+|---|---|
+| **Adjust frame — revise inputs and return to this gate** | Change the named frame rows and increment the applicable revision/attempt. |
+| **Park — stop for the named evidence or authority** | Stop before decomposition; no disposition or final plan is approved. |
+| **Abort — end without a final plan** | Stop and leave checkpoint state resumable. |
+
+Every question has at most four options; the follow-up does not advance or nest
+the gate locator. On `Confirm not applicable`, write a plan-owned
+`architecture-selection.json` disposition with
 `selection.status: not-applicable`, null selected-option fields, the source
 capability revision and input hash, `decided_by: human`, and the evidence-backed
 rationale. Append `## Architecture Exploration N/A — passed` to scratch with
@@ -303,7 +323,9 @@ non-empty basis. Set
 `source_input_sha256`, retain the positive source exploration attempt from the
 confirmed input even when option generation did not run, and set
 `next_owner: ce-plan`. These are human dispositions, not fabricated architecture
-comparisons.
+comparisons. Emit result `schema_version: 2` with
+`architecture_options_report.status: not-produced`, null path/hash, report
+schema 1, and a non-empty reason that no multi-option comparison ran.
 
 On `Confirm frame and explore`, append
 `## Architecture Evaluation Frame — passed` to scratch with the exact input path,
@@ -316,15 +338,21 @@ checkpoint alone.
 Invoke `/core-engineering:ce-architecture explore:<slug>` through the `Skill`
 tool. Do not paste a second option generator into planning. The architecture
 skill reads only the exact draft JSON, scores complete solution directions, and
-owns the parent-located Direction Selection gate. It writes nothing.
+owns the parent-located Direction Selection gate. Before prompting, it writes
+and re-reads exactly one non-binding review artifact at
+`docs/plans/.drafts/<slug>/architecture-options.md`, prints that path and file
+hash, requires its deterministic pre-approval report lint to pass, and renders
+the same complete comparison in the conversation. It writes no plan, selection
+JSON, baseline, source, or configuration.
 
-Accept exactly one canonical JSON result with these top-level fields:
+Accept exactly one schema-v2 canonical JSON result with these top-level fields:
 
 ```text
 schema_version · project_slug · exploration_id
 source_capability_revision · source_exploration_attempt · source_input_sha256
 evaluation_frame · blocking_decision · sources · evidence_fingerprint · criteria · hard_constraints · options
 eliminated_options · option_set_sha256 · recommendation · selection · next_owner
+architecture_options_report
 ```
 
 `selection.status` is exactly one of:
@@ -348,7 +376,12 @@ Route non-selected results without entering Stage 2:
 | `requires-evidence` | Park for the named evidence/experiment and owner; a retry increments `exploration_attempt`. |
 | `requires-decision` | Require the exact populated `blocking_decision` with 2–4 supplied options, then route that bounded frame to `/core-engineering:ce-decide`; after the human-owned resolution, add the accepted decision, increment the applicable revision/attempt, and rerun exploration. |
 | `blocked` | Correct the named unsafe/invalid input or missing authority, then retry; never infer a direction. |
-| `human-aborted` | Stop without decomposition or final write; retain resumable scratch. |
+| `human-aborted` | Stop without decomposition or final write; retain resumable scratch and the review report. |
+
+The options report remains readable in the draft directory for every parked,
+aborted, or interrupted explored attempt. A retry may replace it only with a
+complete report for a higher `exploration_attempt`; never show a stale report
+as the current decision surface.
 
 ## 1A.7 Validate and persist the selected binding
 
@@ -368,10 +401,17 @@ unless all of these hold:
    applicability/driver screen, decisions, gaps, capabilities, journeys, and QA
    scenarios, while `blocking_decision` is null for a final selection;
 6. `option_set_sha256` matches the exact returned option set;
-7. `selection` is non-null, `selection.decided_by` is exactly `human`, its
+7. `architecture-options.md` is a regular non-symlink file beneath the current
+   draft slug; its immutable status is `awaiting-selection`, and its integrity table
+   matches the returned project, revisions, exploration id, input hash,
+   evidence fingerprint, option-set hash, every option id/title/hash, and the
+   returned `architecture_options_report` path/hash. The binding object is
+   `present` with schema 1 and `reason: null`. Re-read and hash the report rather
+   than trusting chat or the child response alone;
+8. `selection` is non-null, `selection.decided_by` is exactly `human`, its
    `option_id` resolves to one returned eligible option, and
    `selection.option_sha256` matches that option's exact bytes; and
-8. the selected option has only `pass` hard-constraint verdicts, is neither
+9. the selected option has only `pass` hard-constraint verdicts, is neither
    eliminated nor unresolved, and a `requires-evidence` result is never treated
    as a selection.
 
@@ -401,15 +441,21 @@ state: |
   option_set_sha256: <sha256>
   selected_option_id: <Axx>
   selected_option_sha256: <sha256>
+  architecture_options_report: docs/plans/.drafts/<slug>/architecture-options.md
+  architecture_options_report_sha256: <sha256 of immutable pre-gate report bytes>
   rationale: <verbatim human rationale>
 ```
 
 For **every** durable terminal state—selected, deferred, or not-applicable—run
-the deterministic floor over the draft before Stage 2:
+the deterministic floor over the draft before Stage 2. Every artifact produced
+by this run must use `--require-current-schema` so it cannot downgrade to legacy
+v1 and bypass the explicit report-present/not-produced disposition. Default
+backward-compatible validation is only for already-written legacy plans:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/.drafts/<slug>/architecture-selection.json --repo-root . --json
+  docs/plans/.drafts/<slug>/architecture-selection.json --repo-root . \
+  --require-current-schema --json
 ```
 
 Exit 1 means the frame, option/constraint/score vector, canonical hashes, or

@@ -4,17 +4,29 @@ Load this file only when `SKILL.md` first-action dispatch receives an exact
 `explore:<draft-slug>` invocation. Explore mode compares complete solution
 directions over a human-confirmed capability frame before detailed feature
 decomposition. It returns one content-bound human selection to
-`/core-engineering:ce-plan` Stage 1A and writes nothing.
+`/core-engineering:ce-plan` Stage 1A. Its only repository write is the
+human-readable comparison report described below; it never writes a plan,
+selection JSON, baseline, source, or configuration.
 
 ## Explore-Mode Contract
 
-1. **Remain repository-read-only.** Do not use Write or Edit. Do not run a
-   mutating Bash command, create a repository or temporary artifact, acquire or
-   restore a write lease, modify planning scratch, or write
-   `.claude/ce-write-scope.json`. Never call `scratch-write.py`,
+1. **Write only the review surface.** The sole allowed domain write is one
+   complete file at
+   `docs/plans/.drafts/<slug>/architecture-options.md`. Do not Edit it in
+   fragments: write the whole report from the fixed option set, then re-read
+   it. Do not write another repository or temporary artifact, modify planning
+   scratch, or write selection JSON. After validating input and output paths
+   and immediately before this one write, run
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill
+   ce-architecture --allow 'docs/plans/.drafts/<slug>/architecture-options.md'`.
+   Restore the deny-only baseline with `--restore-baseline --root .`
+   immediately after report verification, before the human gate, and on every
+   exit after lease acquisition. Only that guard helper may update
+   `.claude/ce-write-scope.json`; report this control-plane side effect. Never call `scratch-write.py`,
    `architecture-publish.py`, `architecture-retire.py`, or a baseline package
    linter. Read-only hashing and repository inspection are allowed only within
-   the validated evidence boundary below.
+   the validated evidence boundary below. Any report-path safety or persistence
+   failure returns `blocked` before a human choice is requested.
 2. **Validate the input path without following a shortcut.** Accept only the
    slug already validated by `SKILL.md`. Require
    `docs/plans/.drafts/<slug>/architecture-exploration.json` to be a regular,
@@ -32,7 +44,7 @@ decomposition. It returns one content-bound human selection to
    decisions are fixed for this attempt. Compare ways to realize that frame;
    never add or remove product scope, create feature ids, decompose work, or
    change the evaluation frame from inside this mode.
-5. **Compare complete directions, not isolated technologies.** Generate one to
+5. **Compare complete directions, not isolated technologies.** Generate two to
    four coherent end-to-end solution directions. `/core-engineering:ce-decide`
    remains the owner of one bounded technical fork with supplied options;
    `/core-engineering:ce-plan` owns decomposition and persistence; baseline
@@ -269,10 +281,89 @@ best. The deterministic lint repeats this range test, requires the recommendatio
 to be a highest base-score option, rejects `high` confidence when its score
 basis is inferred/unknown, and requires `low` confidence for an unstable leader.
 
+## Persist the Pre-Approval Comparison
+
+After the complete option objects, verdicts, scores, hashes, recommendation,
+and considered-but-not-carried list are fixed—and **before** printing the gate
+locator or calling `AskUserQuestion`—load and populate
+`${CLAUDE_SKILL_DIR}/architecture-options-template.md`. Write the complete
+report to:
+
+```text
+docs/plans/.drafts/<slug>/architecture-options.md
+```
+
+Validate this output with the same real-path discipline as the exploration
+input: `.drafts`, the slug directory, and an existing report must not be
+symlinks; the report must be a regular file beneath the validated slug
+directory. Refuse traversal, another slug, a directory, device, FIFO, socket,
+or hard-linked shortcut. The report is a non-binding review artifact, not
+planning scratch or an approved baseline.
+
+Populate every template section from the exact in-memory option set. The report
+must contain all complete directions, including eliminated and unresolved
+comparators; every hard-constraint verdict before scores; the full six-criterion
+vectors and evidence states; confidence and sensitivity; material gaps,
+cost-if-wrong, sources, and uncarried alternatives; and the exact input,
+evidence, option-set, and per-option hashes. Set `Decision status` and the Human
+Decision table to `awaiting-selection`. Markdown-escape source-derived table
+cells and prose so untrusted requirements or repository text cannot inject a
+heading, fence, link target, or raw HTML container into the decision surface.
+
+After writing, re-read the entire file from the validated path, compute its
+SHA-256, and verify every integrity value and every option id/title/hash against
+the fixed objects. Restore the deny-only baseline. When the comparison is
+decision-ready under the rules below—at least one defensible recommendation and
+no unresolved direction that could become selectable—run the deterministic
+pre-approval validator while no domain-write lease is active:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-options-lint.py" \
+  docs/plans/.drafts/<slug>/architecture-options.md --repo-root . --json
+```
+
+Require exit 0 before any Architecture Direction Selection prompt. The
+validator checks the safe report and sibling exploration paths, current
+exploration attempt and canonical input hash, source freshness,
+the exact embedded comparison projection, option and option-set hashes, visible
+decision fields, full direction detail, integrity rows, and hidden-content
+bypasses. It never constructs or records a human selection. Exit 1 means the
+comparison is incomplete, stale, inconsistent, or not actually visible; exit 2
+or no result means deterministic verification could not run. Either outcome
+returns `blocked` with reason `architecture-options-report-invalid`; a
+manual/model review may diagnose the failure but cannot authorize the prompt.
+When the comparison instead requires evidence/another bounded decision or has
+no eligible direction, preserve and surface the report, return that explicit
+non-selection status, and do not call this decision-readiness validator or the
+selection prompt; never relabel an expected unresolved option as report
+corruption.
+
+Only after exit 0, print all three lines in the conversation immediately before
+the rendered comparison:
+
+```text
+Architecture options report (review before choosing): docs/plans/.drafts/<slug>/architecture-options.md
+Report status: awaiting-selection
+Report SHA-256: <sha256 of the re-read bytes>
+```
+
+Do not call `AskUserQuestion` unless the write, re-read, hash, baseline restore,
+and deterministic validation all succeed; never pause with report write
+authority active. A path/persistence failure returns `blocked` with reason
+`architecture-options-report-unavailable`, while a validation failure uses the
+invalid reason above; Stage 2 remains blocked in either case. A gate pause,
+abort, evidence park, or crash leaves the report in place so the human can open
+it. After a lost session, the report is audit/orientation evidence, not a
+resumable machine selection: the caller increments `exploration_attempt`, reruns
+exploration, and replaces it with a freshly verified report before a new choice.
+Never infer approval from an `awaiting-selection` report.
+
 ## Architecture Direction Selection Gate `[material]`
 
-If no eligible defensible option exists, return the applicable non-selection
-status without asking this gate. Otherwise render Markdown first:
+If no eligible defensible option exists, persist the completed comparison when
+one was safely produced, then return the applicable non-selection status
+without asking this gate. Otherwise, after the report verification above,
+render the **same report content** as Markdown:
 
 - the locked intent, capability revision, exploration attempt, and sources;
 - **What needs your decision**, led by material gaps, inferences, eliminated or
@@ -289,21 +380,53 @@ Then print exactly the caller-provided locator; never start a nested counter:
 Gate <parent_gate_index> of <parent_gate_total> — Architecture Direction Selection
 ```
 
-Ask one decision. Keep every option consequence-decidable in the dialog:
+Ask one direction decision; split its dialog only when the option limit requires
+it. Build the dialog from the eligible set; never aggregate two
+directions behind one ambiguous “another option” row. Keep every direction and
+control consequence-decidable in the dialog:
 
 | Option | Consequence |
 |---|---|
-| **Select the recommended `Axx` direction** | Bind planning to that exact option hash; detailed decomposition may start, but no baseline, security acceptance, or implementation is approved. |
-| **Select another eligible `Axx` with a reason** | Bind planning to the named alternative and record the human override plus its displayed trade-offs; an eliminated or unresolved option remains unavailable. |
+| **Select `Axx — <title> — <key consequence>`** *(repeat once per eligible direction and mark the recommendation)* | Bind planning to that exact option hash; detailed decomposition may start with the named trade-off, but no baseline, security acceptance, or implementation is approved. |
 | **Gather evidence / run a bounded spike** | Return `requires-evidence`; no direction is selected and Stage 2 stays blocked. |
-| **Return to Stage 1A or abort** | Correct the capability/evaluation frame or stop; no direction is selected or written. |
+| **Return to Stage 1A** | Revise the capability/evaluation frame; no direction binding or final plan is written, and the report remains available as superseded review evidence. |
+| **Abort planning** | Stop the run; no direction binding or final plan is written, and the review report remains available. |
 
-When four options exist, the second choice names the selected id in free text.
-If the harness cannot capture that safely, split the choice with a stated reason
-and have the caller recompute the parent gate manifest; never hide the fourth
-option or use an unnumbered nested gate. Re-read the input bytes and every source
-hash immediately before recording selection. Any change returns `blocked` with
-reason `exploration-input-changed`; do not combine two attempts.
+Respect the four-option harness limit without merging consequences:
+
+- with one eligible direction, ask **Select / Gather evidence / Return to Stage
+  1A / Abort planning** in one question;
+- with two or three eligible directions, ask the named directions plus **Do not
+  bind a direction yet — open evidence/revision/abort choices**. If chosen, ask
+  the same-locator follow-up **Gather evidence / Return to Stage 1A / Abort
+  planning**; and
+- with four eligible directions, state that the gate needs two questions
+  because the harness allows at most four options. Label every first-question
+  row **Provisionally choose `Axx` — nothing is bound until the next question**,
+  then immediately ask **Bind this direction / Gather evidence / Return to
+  Stage 1A / Abort planning** under the same parent locator.
+
+Do not advance or nest the gate counter. A control answer overrides the
+provisional direction answer. Never hide an eligible direction, combine return
+with abort, or use a free-text id to disambiguate an aggregated row.
+
+After the human chooses a direction—and, in a split gate, confirms
+**Bind**—capture a non-empty human rationale in the same `AskUserQuestion` call
+when the harness supports a second question, or in an immediate same-locator
+follow-up before recording selection. Ask what
+requirements and trade-offs make this direction preferable. The clicked option
+label, recommendation text, report prose, or model-generated restatement does
+not count as the human rationale. Re-read the input bytes and every source hash
+immediately before recording selection. Any change returns `blocked` with reason
+`exploration-input-changed`; do not combine two attempts.
+
+After the answer and freshness check, **do not rewrite the report**. It is the
+immutable `awaiting-selection` snapshot the human actually reviewed; the
+canonical JSON below records the later decision and binds the snapshot's exact
+SHA-256. Re-read the report and require its bytes and hash to match the pre-gate
+verification. A changed or unavailable report returns `blocked` rather than
+`direction-selected`; planning may not decompose from a choice whose reviewed
+decision surface cannot be reproduced exactly.
 
 ## Canonical Result Binding
 
@@ -313,7 +436,7 @@ write claim:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project_slug": "<slug>",
   "exploration_id": "AEX-<12 lowercase hex>",
   "source_capability_revision": 1,
@@ -367,6 +490,13 @@ write claim:
     {"option_id": "A02", "constraint_ids": ["HC01"], "reason": "<reason>"}
   ],
   "option_set_sha256": "<64 lowercase hex>",
+  "architecture_options_report": {
+    "schema_version": 1,
+    "status": "present",
+    "path": "architecture-options.md",
+    "sha256": "<pre-gate report SHA-256>",
+    "reason": null
+  },
   "recommendation": {
     "option_id": "A01",
     "confidence": "high | medium | low",
@@ -403,6 +533,15 @@ hash and `decided_by` are `null`, while `rationale` names the evidence, decision
 input, or human-abort reason. For `direction-selected`, `decided_by` is exactly
 `human`, the selected option must have only `pass` verdicts, be present, and
 match its exact `option_sha256`.
+
+Explore results use `schema_version: 2`. A completed comparison uses
+`architecture_options_report.status: present`, exact sibling-relative path
+`architecture-options.md`, the SHA-256 of the unchanged pre-gate report, and
+`reason: null`. Only an early non-selection result that could not safely produce
+a comparison may use `not-produced`, with null path/hash and a non-empty reason;
+`direction-selected` always requires `present`. Result schema v2 does not change
+the exploration input schema or its v1 source-input hash projection. Existing
+schema-v1 plan artifacts remain legacy-valid but carry no report guarantee.
 
 Set `sensitivity_witness` to `null` for `stable` and `not-applicable`. For
 `unstable`, write exactly `{scenario, criterion_id, challenger_option_id,

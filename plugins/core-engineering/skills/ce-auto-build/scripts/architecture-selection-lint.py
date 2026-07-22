@@ -25,9 +25,11 @@ Hash scopes:
 * ``option_sha256`` hashes its option object with only that field removed.
 * ``option_set_sha256`` hashes an object containing ordered option id/hash
   bindings plus the complete, ordered ``eliminated_options`` ledger.
+* schema v2 ``architecture_options_report.sha256`` binds the exact sibling
+  ``architecture-options.md`` bytes the human reviewed before selection.
 
 By default only durable plan-artifact statuses are accepted.  The explicit
-``--allow-incomplete`` mode additionally accepts read-only exploration results
+``--allow-incomplete`` mode additionally accepts bounded exploration results
 that stopped before selection (requires-evidence / requires-decision / blocked /
 human-aborted).  Those transient results may omit evaluation sections and can
 never claim a selected option or human decision.
@@ -50,7 +52,10 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSIONS = {1, 2}
+CURRENT_SCHEMA_VERSION = 2
+EXPLORATION_INPUT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 1
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 PROJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 OPTION_ID_RE = re.compile(r"^A0[1-4]$")
@@ -94,7 +99,7 @@ TRANSIENT_STATUSES = {
     "requires-evidence", "requires-decision", "blocked", "human-aborted",
 }
 
-TOP_KEYS = {
+TOP_KEYS_V1 = {
     "schema_version",
     "project_slug",
     "exploration_id",
@@ -114,6 +119,7 @@ TOP_KEYS = {
     "selection",
     "next_owner",
 }
+TOP_KEYS_V2 = TOP_KEYS_V1 | {"architecture_options_report"}
 TRANSIENT_REQUIRED_TOP_KEYS = {
     "schema_version",
     "project_slug",
@@ -204,6 +210,74 @@ SENSITIVITY_EVIDENCE_BOUNDS = {"exact", "lower", "upper"}
 SELECTION_KEYS = {
     "status", "option_id", "option_sha256", "decided_by", "rationale",
 }
+REPORT_BINDING_KEYS = {"schema_version", "status", "path", "sha256", "reason"}
+REPORT_BINDING_STATUSES = {"present", "not-produced"}
+REPORT_REQUIRED_HEADINGS = (
+    "## What Needs Your Decision",
+    "## Evaluation Frame",
+    "## Hard-Constraint Screen",
+    "## Weighted Comparison",
+    "## Eliminated, Unresolved, and Uncarried Directions",
+    "## Evidence Sources",
+    "## Machine-Readable Comparison Projection",
+    "## Human Decision",
+    "## Integrity",
+)
+REPORT_DECISION_FIELDS = (
+    "Decision",
+    "Why now",
+    "Recommendation",
+    "Recommendation basis",
+    "Confidence / sensitivity",
+    "Cost if wrong",
+    "Material gaps and inferences",
+)
+REPORT_HIDDEN_HTML_PATTERNS = (
+    (
+        "collapsed or non-rendered HTML container",
+        re.compile(r"<\s*(?:details|template|dialog|script|style|noscript)\b", re.IGNORECASE),
+    ),
+    (
+        "hidden HTML attribute",
+        re.compile(r"<[^>\n]*\s(?:hidden|inert)(?:\s|=|/?>)", re.IGNORECASE),
+    ),
+    (
+        "aria-hidden HTML attribute",
+        re.compile(
+            r"<[^>\n]*\baria-hidden\s*=\s*(?:[\"']\s*true\s*[\"']|true(?:\s|/?>))",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "hidden HTML input",
+        re.compile(
+            r"<\s*input\b[^>\n]*\btype\s*=\s*(?:[\"']\s*hidden\s*[\"']|hidden(?:\s|/?>))",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "CSS hiding declaration",
+        re.compile(
+            r"<[^>\n]*\bstyle\s*=\s*[\"'][^\"']*"
+            r"(?:display\s*:\s*none|visibility\s*:\s*hidden|"
+            r"content-visibility\s*:\s*hidden|"
+            r"opacity\s*:\s*0(?:\.0+)?\s*(?:;|[\"']))",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "common hidden CSS class",
+        re.compile(
+            r"<[^>\n]*\bclass\s*=\s*[\"'][^\"']*"
+            r"\b(?:d-none|sr-only|visually-hidden)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "raw HTML element (escape it as Markdown text)",
+        re.compile(r"<\s*/?\s*[A-Za-z][^>\n]*>", re.IGNORECASE),
+    ),
+)
 
 
 class SelectionLintError(Exception):
@@ -248,7 +322,7 @@ def source_input_payload(data: dict) -> dict:
     frame = data.get("evaluation_frame")
     frame = frame if isinstance(frame, dict) else {}
     return {
-        "schema_version": data.get("schema_version"),
+        "schema_version": EXPLORATION_INPUT_SCHEMA_VERSION,
         "project_slug": data.get("project_slug"),
         "capability_revision": data.get("source_capability_revision"),
         "exploration_attempt": data.get("source_exploration_attempt"),
@@ -1550,6 +1624,550 @@ def _validate_selection(
     return status if isinstance(status, str) else None, False
 
 
+def _report_table_value(text: str, label: str) -> str | None:
+    pattern = re.compile(
+        rf"^\|\s*{re.escape(label)}\s*\|\s*(.*?)\s*\|\s*$", re.MULTILINE
+    )
+    matches = pattern.findall(text)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _report_scalar_values(value: object) -> list[str]:
+    """Flatten decision-support scalar values that must remain visible."""
+    if isinstance(value, dict):
+        result: list[str] = []
+        for child in value.values():
+            result.extend(_report_scalar_values(child))
+        return result
+    if isinstance(value, list):
+        result = []
+        for child in value:
+            result.extend(_report_scalar_values(child))
+        return result
+    if isinstance(value, str) and value.strip():
+        return [value]
+    if _is_number(value):
+        return [str(value)]
+    return []
+
+
+def _normalized_report_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.replace(r"\|", "|")).strip()
+
+
+def _report_section_body(text: str, heading: str) -> str | None:
+    """Return one level-two report section body, excluding later sections."""
+    matches = re.findall(
+        rf"^{re.escape(heading)}[ \t]*\r?\n(.*?)(?=^##\s|\Z)",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    return matches[0] if len(matches) == 1 else None
+
+
+def _require_section_projection(
+    text: str,
+    heading: str,
+    projection: object,
+    failures: list[str],
+    *,
+    require_explicit_negative: bool = False,
+) -> None:
+    """Keep machine JSON from substituting for a human comparison section."""
+    body = _report_section_body(text, heading)
+    if body is None:
+        return  # the exact-heading check emits the structural failure
+    normalized_body = _normalized_report_text(body)
+    if not normalized_body:
+        failures.append(
+            f"architecture options report section {heading!r} must not be empty"
+        )
+        return
+    missing = [
+        scalar
+        for scalar in _report_scalar_values(projection)
+        if _normalized_report_text(scalar) not in normalized_body
+    ]
+    if missing:
+        preview = ", ".join(repr(item) for item in missing[:8])
+        suffix = " ..." if len(missing) > 8 else ""
+        failures.append(
+            f"architecture options report section {heading!r} omits "
+            f"comparison value(s): {preview}{suffix}"
+        )
+    if require_explicit_negative and not re.search(
+        r"(?:\bnone\b|\bno\s+(?:eliminated|unresolved|uncarried)\b|\[\s*\])",
+        normalized_body,
+        flags=re.IGNORECASE,
+    ):
+        failures.append(
+            f"architecture options report section {heading!r} must state an "
+            "explicit negative when no direction has that disposition"
+        )
+
+
+def _report_rendering_surface(value: str) -> str:
+    """Remove Markdown code that cannot act as rendered HTML."""
+    lines: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in value.splitlines(keepends=True):
+        fence = re.match(r"^[ \t]*(`{3,}|~{3,})", line)
+        if fence_character is None:
+            if fence is not None:
+                marker = fence.group(1)
+                fence_character = marker[0]
+                fence_length = len(marker)
+                lines.append("\n" if line.endswith("\n") else "")
+                continue
+            lines.append(line)
+            continue
+        if (
+            fence is not None
+            and fence.group(1)[0] == fence_character
+            and len(fence.group(1)) >= fence_length
+            and re.fullmatch(r"[ \t]*(?:`{%d,}|~{%d,})[ \t]*\r?\n?" % (
+                fence_length, fence_length
+            ), line)
+        ):
+            fence_character = None
+            fence_length = 0
+        lines.append("\n" if line.endswith("\n") else "")
+    surface = "".join(lines)
+    return re.sub(r"`+[^`\n]*`+", " ", surface)
+
+
+def _is_one_option_legacy_adoption(data: dict) -> bool:
+    """Return whether report omission has the sole supported migration shape.
+
+    Schema v2 may preserve a schema-v1 adopted-existing result without
+    fabricating a report only when there was no comparison: one option is both
+    selected and recommended, both hashes bind that sole option, and no
+    eliminated direction is recorded.
+    """
+    selection = data.get("selection")
+    options = data.get("options")
+    recommendation = data.get("recommendation")
+    eliminated = data.get("eliminated_options")
+    if (
+        not isinstance(selection, dict)
+        or selection.get("status") != "adopted-existing"
+        or not isinstance(options, list)
+        or len(options) != 1
+        or not isinstance(options[0], dict)
+        or not isinstance(recommendation, dict)
+        or eliminated != []
+    ):
+        return False
+    option = options[0]
+    option_id = option.get("option_id")
+    option_sha = option.get("option_sha256")
+    return (
+        isinstance(option_id, str)
+        and _sha(option_sha)
+        and selection.get("option_id") == option_id
+        and selection.get("option_sha256") == option_sha
+        and recommendation.get("option_id") == option_id
+    )
+
+
+def options_report_projection(data: dict) -> dict:
+    """Return the exact selection-independent object embedded in the report."""
+    return {
+        "report_projection_schema_version": REPORT_SCHEMA_VERSION,
+        "project_slug": data.get("project_slug"),
+        "exploration_id": data.get("exploration_id"),
+        "source_capability_revision": data.get("source_capability_revision"),
+        "source_exploration_attempt": data.get("source_exploration_attempt"),
+        "source_input_sha256": data.get("source_input_sha256"),
+        "evaluation_frame": data.get("evaluation_frame"),
+        "blocking_decision": data.get("blocking_decision"),
+        "sources": data.get("sources"),
+        "evidence_fingerprint": data.get("evidence_fingerprint"),
+        "criteria": data.get("criteria"),
+        "hard_constraints": data.get("hard_constraints"),
+        "options": data.get("options"),
+        "eliminated_options": data.get("eliminated_options"),
+        "option_set_sha256": data.get("option_set_sha256"),
+        "recommendation": data.get("recommendation"),
+    }
+
+
+def _validate_options_report_binding(
+    value: object,
+    *,
+    data: dict,
+    artifact_path: Path,
+    repo_root: Path,
+    selection_status: object,
+    failures: list[str],
+) -> None:
+    """Validate schema-v2's exact human-readable sibling report binding."""
+    if not isinstance(value, dict):
+        failures.append("architecture_options_report must be an object in schema v2")
+        return
+    _exact_keys(
+        value,
+        REPORT_BINDING_KEYS,
+        "architecture_options_report",
+        failures,
+    )
+    if value.get("schema_version") != REPORT_SCHEMA_VERSION:
+        failures.append(
+            f"architecture_options_report.schema_version must equal {REPORT_SCHEMA_VERSION}"
+        )
+    binding_status = value.get("status")
+    if binding_status not in REPORT_BINDING_STATUSES:
+        failures.append(
+            "architecture_options_report.status must be one of "
+            f"{sorted(REPORT_BINDING_STATUSES)}"
+        )
+        return
+
+    report_path_value = value.get("path")
+    report_hash = value.get("sha256")
+    reason = value.get("reason")
+    if binding_status == "not-produced":
+        if report_path_value is not None or report_hash is not None:
+            failures.append(
+                "a not-produced architecture_options_report requires null path and sha256"
+            )
+        if not _nonempty(reason):
+            failures.append(
+                "a not-produced architecture_options_report requires a non-empty reason"
+            )
+        if selection_status == "direction-selected":
+            failures.append(
+                "schema-v2 direction-selected requires a present architecture options report"
+            )
+        elif selection_status == "adopted-existing" and not _is_one_option_legacy_adoption(data):
+            failures.append(
+                "schema-v2 adopted-existing without a report is limited to the "
+                "one-option legacy migration shape: the sole option must be selected "
+                "and recommended with matching hashes and no eliminated directions"
+            )
+        return
+
+    if report_path_value != "architecture-options.md":
+        failures.append(
+            "a present architecture_options_report.path must equal "
+            "'architecture-options.md'"
+        )
+    if not _sha(report_hash):
+        failures.append(
+            "a present architecture_options_report.sha256 must be 64 lowercase hex characters"
+        )
+    if reason is not None:
+        failures.append("a present architecture_options_report.reason must be null")
+    if report_path_value != "architecture-options.md" or not _sha(report_hash):
+        return
+
+    report_path = artifact_path.parent / report_path_value
+    symlinks = _symlink_components(repo_root, report_path)
+    if not _inside(artifact_path.parent, report_path) or symlinks:
+        failures.append(
+            "architecture_options_report.path must resolve beside the selection "
+            "artifact without symlinks"
+        )
+        return
+    if not report_path.is_file():
+        failures.append(
+            f"architecture options report is missing as a regular file: {report_path}"
+        )
+        return
+    try:
+        if report_path.stat().st_nlink != 1:
+            failures.append("architecture options report must not be hard-linked")
+            return
+        report_bytes = report_path.read_bytes()
+        report_text = report_bytes.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        failures.append(f"architecture options report could not be read as UTF-8: {exc}")
+        return
+    actual_hash = hashlib.sha256(report_bytes).hexdigest()
+    if actual_hash != report_hash:
+        failures.append(
+            "architecture_options_report.sha256 is stale: "
+            f"expected {report_hash}, actual {actual_hash}"
+        )
+
+    # Comments are not human-visible and therefore cannot satisfy any report
+    # structure or content requirement.
+    visible_report = re.sub(r"<!--.*?-->", " ", report_text, flags=re.DOTALL)
+    rendering_surface = _report_rendering_surface(visible_report)
+    for label, pattern in REPORT_HIDDEN_HTML_PATTERNS:
+        if pattern.search(rendering_surface):
+            failures.append(
+                "architecture options report must not hide decision content with "
+                f"a {label}"
+            )
+
+    slug = data.get("project_slug")
+    if isinstance(slug, str):
+        expected_title = f"# Solution Architecture Options — {slug}"
+        if visible_report.count(expected_title) != 1:
+            failures.append(
+                "architecture options report must contain its exact project title once"
+            )
+    status_marker = "> Decision status: awaiting-selection"
+    if visible_report.count(status_marker) != 1:
+        failures.append(
+            "architecture options report must remain the immutable awaiting-selection snapshot"
+        )
+    for heading in REPORT_REQUIRED_HEADINGS:
+        if visible_report.count(heading) != 1:
+            failures.append(
+                f"architecture options report must contain heading exactly once: {heading}"
+            )
+
+    decision_section_match = re.search(
+        r"^## What Needs Your Decision\s*$\n(.*?)(?=^##\s)",
+        visible_report,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    decision_section = decision_section_match.group(1) if decision_section_match else ""
+    for label in REPORT_DECISION_FIELDS:
+        field_pattern = re.compile(
+            rf"^[ \t]*-[ \t]+\*\*{re.escape(label)}:\*\*[ \t]*(.*?)[ \t]*$",
+            re.MULTILINE,
+        )
+        matches = field_pattern.findall(decision_section)
+        if len(matches) != 1:
+            failures.append(
+                "architecture options report What Needs Your Decision field "
+                f"{label!r} must appear exactly once and be visible"
+            )
+            continue
+        rendered_value = re.sub(r"<[^>\n]*>", " ", matches[0])
+        rendered_value = re.sub(r"[*_~]", "", rendered_value).strip()
+        if not rendered_value:
+            failures.append(
+                "architecture options report What Needs Your Decision field "
+                f"{label!r} must have a non-empty visible value"
+            )
+
+    projection_matches = re.findall(
+        r"## Machine-Readable Comparison Projection\s+```json\s*\n(.*?)\n```",
+        visible_report,
+        flags=re.DOTALL,
+    )
+    if len(projection_matches) != 1:
+        failures.append(
+            "architecture options report must contain exactly one fenced JSON "
+            "Machine-Readable Comparison Projection"
+        )
+    else:
+        try:
+            embedded_projection = json.loads(
+                projection_matches[0], parse_constant=_reject_constant
+            )
+        except (ValueError, json.JSONDecodeError) as exc:
+            failures.append(
+                f"architecture options report comparison projection is invalid JSON: {exc}"
+            )
+        else:
+            expected_projection = options_report_projection(data)
+            if embedded_projection != expected_projection:
+                failures.append(
+                    "architecture options report comparison projection does not "
+                    "exactly match architecture-selection.json"
+                )
+
+    option_rows_for_sections = (
+        [row for row in data.get("options", []) if isinstance(row, dict)]
+        if isinstance(data.get("options"), list)
+        else []
+    )
+    _require_section_projection(
+        visible_report,
+        "## Evaluation Frame",
+        data.get("evaluation_frame"),
+        failures,
+    )
+    _require_section_projection(
+        visible_report,
+        "## Hard-Constraint Screen",
+        {
+            "hard_constraints": data.get("hard_constraints"),
+            "option_verdicts": [
+                {
+                    "option_id": option.get("option_id"),
+                    "constraint_verdicts": option.get("constraint_verdicts"),
+                }
+                for option in option_rows_for_sections
+            ],
+        },
+        failures,
+    )
+    _require_section_projection(
+        visible_report,
+        "## Weighted Comparison",
+        {
+            "criteria": data.get("criteria"),
+            "option_scores": [
+                {
+                    "option_id": option.get("option_id"),
+                    "scores": option.get("scores"),
+                    "weighted_score": option.get("weighted_score"),
+                    "confidence": option.get("confidence"),
+                }
+                for option in option_rows_for_sections
+            ],
+            "recommendation": data.get("recommendation"),
+        },
+        failures,
+    )
+    eliminated_for_section = data.get("eliminated_options")
+    _require_section_projection(
+        visible_report,
+        "## Eliminated, Unresolved, and Uncarried Directions",
+        eliminated_for_section,
+        failures,
+        require_explicit_negative=eliminated_for_section == [],
+    )
+    _require_section_projection(
+        visible_report,
+        "## Evidence Sources",
+        data.get("sources"),
+        failures,
+    )
+
+    # Require the complete decision-support projection to be visibly present.
+    # HTML comments are removed so hidden metadata cannot substitute for a
+    # comparison a human can actually inspect. Whitespace and escaped table
+    # pipes are normalized, but the values themselves are not paraphrased.
+    normalized_report = _normalized_report_text(visible_report)
+    projection = {
+        "evaluation_frame": data.get("evaluation_frame"),
+        "blocking_decision": data.get("blocking_decision"),
+        "sources": data.get("sources"),
+        "criteria": data.get("criteria"),
+        "hard_constraints": data.get("hard_constraints"),
+        "options": data.get("options"),
+        "eliminated_options": data.get("eliminated_options"),
+        "recommendation": data.get("recommendation"),
+    }
+    missing_visible_values: list[str] = []
+    for scalar in _report_scalar_values(projection):
+        normalized_scalar = _normalized_report_text(scalar)
+        if normalized_scalar and normalized_scalar not in normalized_report:
+            missing_visible_values.append(scalar)
+    if missing_visible_values:
+        preview = ", ".join(repr(item) for item in missing_visible_values[:8])
+        suffix = " ..." if len(missing_visible_values) > 8 else ""
+        failures.append(
+            "architecture options report omits decision-support value(s): "
+            f"{preview}{suffix}"
+        )
+
+    options = data.get("options")
+    option_rows = [row for row in options if isinstance(row, dict)] if isinstance(options, list) else []
+    direction_positions: list[tuple[int, dict]] = []
+    for option in option_rows:
+        oid = option.get("option_id")
+        title = option.get("title")
+        option_sha = option.get("option_sha256")
+        if not isinstance(oid, str) or not isinstance(title, str):
+            continue
+        heading = f"## Direction {oid} — {title}"
+        if visible_report.count(heading) != 1:
+            failures.append(
+                f"architecture options report must contain exact direction heading {oid}"
+            )
+            continue
+        direction_positions.append((visible_report.index(heading), option))
+        if isinstance(option_sha, str) and visible_report.count(
+            f"**Option hash:** `{option_sha}`"
+        ) != 1:
+            failures.append(
+                f"architecture options report must contain exact option hash for {oid}"
+            )
+    direction_positions.sort(key=lambda row: row[0])
+    dimension_labels = (
+        "Responsibilities and boundaries",
+        "Runtime and deployment",
+        "Data ownership",
+        "Integrations and failure behavior",
+        "Trust, residency, and security",
+        "Quality tactics",
+        "Migration and evolution",
+        "Capability implications",
+        "Assumptions",
+        "Irreversible commitments",
+    )
+    report_tail = visible_report.find("## Eliminated, Unresolved, and Uncarried Directions")
+    for index, (start, option) in enumerate(direction_positions):
+        end = (
+            direction_positions[index + 1][0]
+            if index + 1 < len(direction_positions)
+            else report_tail if report_tail > start else len(visible_report)
+        )
+        section = visible_report[start:end]
+        normalized_section = _normalized_report_text(section)
+        oid = option.get("option_id")
+        for label in dimension_labels:
+            if section.count(f"| {label} |") != 1:
+                failures.append(
+                    f"architecture options report direction {oid} must contain "
+                    f"the {label!r} dimension exactly once"
+                )
+        if "**Confidence:**" not in section:
+            failures.append(
+                f"architecture options report direction {oid} must state confidence"
+            )
+        option_projection = {
+            key: option.get(key)
+            for key in (
+                *OPTION_ARRAY_KEYS,
+                "constraint_verdicts",
+                "scores",
+                "weighted_score",
+                "confidence",
+            )
+        }
+        missing_option_values = [
+            scalar
+            for scalar in _report_scalar_values(option_projection)
+            if _normalized_report_text(scalar) not in normalized_section
+        ]
+        if missing_option_values:
+            preview = ", ".join(repr(item) for item in missing_option_values[:6])
+            suffix = " ..." if len(missing_option_values) > 6 else ""
+            failures.append(
+                f"architecture options report direction {oid} omits option detail(s): "
+                f"{preview}{suffix}"
+            )
+
+    integrity_values = {
+        "Report schema": str(REPORT_SCHEMA_VERSION),
+        "Project slug": f"`{data.get('project_slug')}`",
+        "Capability revision": f"`{data.get('source_capability_revision')}`",
+        "Exploration attempt": f"`{data.get('source_exploration_attempt')}`",
+        "Exploration id": f"`{data.get('exploration_id')}`",
+        "Source input SHA-256": f"`{data.get('source_input_sha256')}`",
+        "Evidence fingerprint": f"`{data.get('evidence_fingerprint')}`",
+        "Option-set SHA-256": f"`{data.get('option_set_sha256')}`",
+    }
+    for label, expected in integrity_values.items():
+        if _report_table_value(visible_report, label) != expected:
+            failures.append(
+                f"architecture options report integrity row {label!r} must equal {expected}"
+            )
+
+    awaiting_rows = {
+        "Status": "awaiting-selection",
+        "Selected direction": "Not selected",
+        "Selected option hash": "Not selected",
+        "Decided by": "Not selected",
+    }
+    for label, expected in awaiting_rows.items():
+        if _report_table_value(visible_report, label) != expected:
+            failures.append(
+                "architecture options report must preserve its pre-approval "
+                f"Human Decision row {label!r} as {expected!r}"
+            )
+
+
 def validate_document(
     data: dict,
     *,
@@ -1563,16 +2181,20 @@ def validate_document(
     raw_status = selection_value.get("status") if isinstance(selection_value, dict) else None
     transient = allow_incomplete and raw_status in TRANSIENT_STATUSES
 
-    required_keys = TRANSIENT_REQUIRED_TOP_KEYS if transient else TOP_KEYS
+    schema_version = data.get("schema_version")
+    top_keys = TOP_KEYS_V2 if schema_version == 2 else TOP_KEYS_V1
+    required_keys = TRANSIENT_REQUIRED_TOP_KEYS if transient else set(top_keys)
+    if transient and schema_version == 2:
+        required_keys = set(required_keys) | {"architecture_options_report"}
     missing = sorted(required_keys - set(data))
-    extra = sorted(set(data) - TOP_KEYS)
+    extra = sorted(set(data) - top_keys)
     if missing:
         failures.append("artifact missing key(s): " + ", ".join(missing))
     if extra:
         failures.append("artifact has unknown key(s): " + ", ".join(extra))
 
-    if data.get("schema_version") != SCHEMA_VERSION:
-        failures.append(f"schema_version must equal {SCHEMA_VERSION}")
+    if schema_version not in SCHEMA_VERSIONS:
+        failures.append(f"schema_version must be one of {sorted(SCHEMA_VERSIONS)}")
     slug = data.get("project_slug")
     if not isinstance(slug, str) or PROJECT_SLUG_RE.fullmatch(slug) is None:
         failures.append("project_slug must be canonical lowercase kebab-case")
@@ -1608,6 +2230,16 @@ def validate_document(
     _validate_blocking_decision(
         data.get("blocking_decision"), status=raw_status, failures=failures
     )
+
+    if schema_version == 2:
+        _validate_options_report_binding(
+            data.get("architecture_options_report"),
+            data=data,
+            artifact_path=artifact_path,
+            repo_root=repo_root,
+            selection_status=raw_status,
+            failures=failures,
+        )
 
     if transient:
         _validate_selection(
@@ -1734,6 +2366,7 @@ def validate_file(
     repo_root: Path | None = None,
     allow_incomplete: bool = False,
     expected_project_slug: str | None = None,
+    require_current_schema: bool = False,
 ) -> tuple[dict, list[str]]:
     if artifact_path.is_dir():
         artifact_path = artifact_path / "architecture-selection.json"
@@ -1755,6 +2388,12 @@ def validate_file(
         allow_incomplete=allow_incomplete,
         expected_project_slug=expected_project_slug,
     )
+    if require_current_schema and data.get("schema_version") != CURRENT_SCHEMA_VERSION:
+        failures.insert(
+            0,
+            "fresh exploration output must use current schema_version "
+            f"{CURRENT_SCHEMA_VERSION}",
+        )
     return data, failures
 
 
@@ -1777,6 +2416,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="accept explicitly unselected transient exploration-result statuses",
     )
+    parser.add_argument(
+        "--require-current-schema",
+        action="store_true",
+        help="reject legacy schema versions (use for fresh exploration output)",
+    )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args(argv)
 
@@ -1788,6 +2432,7 @@ def main(argv: list[str] | None = None) -> int:
             artifact_path,
             repo_root=args.repo_root,
             allow_incomplete=args.allow_incomplete,
+            require_current_schema=args.require_current_schema,
         )
     except SelectionLintError as exc:
         if args.json:

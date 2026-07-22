@@ -1,7 +1,7 @@
 ---
 name: ce-architecture
 description: |
-  Explore and score complete solution-architecture directions before decomposition when invoked as explore:<draft-slug>, shape a provisional candidate plan read-only as shape:<draft-slug>, or turn one WRITTEN multi-feature plan into a repository-grounded, human-approved solution-architecture baseline. Explore mode compares 2-4 genuine directions and requires human selection without writing a baseline; a one-direction artifact is reserved for an explicit legacy adopted-existing migration. Shape mode returns planning impact but never edits the draft; baseline mode never re-cuts plan-owned boundaries or TZ/IC obligations. Triggers: explore architecture options from a planning capability frame, shape architecture during planning, or design/document/revise the cross-feature solution architecture for an existing plan. For decomposition use /core-engineering:ce-plan, for one bounded supplied technical option set use /core-engineering:ce-decide, and for feature-level design use /core-engineering:ce-spec.
+  Explore and score complete solution-architecture directions before decomposition when invoked as explore:<draft-slug>, shape a provisional candidate plan read-only as shape:<draft-slug>, or turn one WRITTEN multi-feature plan into a repository-grounded, human-approved solution-architecture baseline. Explore mode compares 2-4 genuine directions, writes one reviewable options report before its human selection gate, and never writes a baseline; a one-direction artifact is reserved for an explicit legacy adopted-existing migration. Shape mode returns planning impact but never edits the draft; baseline mode never re-cuts plan-owned boundaries or TZ/IC obligations. Triggers: explore architecture options from a planning capability frame, shape architecture during planning, or design/document/revise the cross-feature solution architecture for an existing plan. For decomposition use /core-engineering:ce-plan, for one bounded supplied technical option set use /core-engineering:ce-decide, and for feature-level design use /core-engineering:ce-spec.
 argument-hint: "[plan-slug | explore:<draft-slug> | shape:<draft-slug>]"
 allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
@@ -17,7 +17,8 @@ reviewable solution-architecture baseline under
 capability-level planning frame and require a human direction selection before
 decomposition. In **shape mode** (`shape:<draft-slug>`), inspect one provisional
 plan candidate and return its architecture impact to `/core-engineering:ce-plan`.
-Explore and shape modes are repository-read-only. No mode edits the plan,
+Explore mode writes only its non-binding draft `architecture-options.md` review
+surface; shape mode is repository-read-only. Neither mode edits the plan,
 accepted ADRs, specifications, source, tests, or deployment configuration, and
 no result represents security, compliance, release, or production approval.
 
@@ -35,7 +36,7 @@ and the post-write baseline seam between planning and feature specification:
 ## Runtime Inputs
 
 - **Mode selector (optional):** an exact `explore:<draft-slug>` input selects
-  read-only exploration mode; an exact `shape:<draft-slug>` input selects
+  bounded-report exploration mode; an exact `shape:<draft-slug>` input selects
   read-only shape mode. Any invocation without either prefix stays in default
   baseline mode; never infer a draft mode merely because draft files exist.
 - **Exploration input (required in explore mode):** the regular, non-symlink file
@@ -48,6 +49,12 @@ and the post-write baseline seam between planning and feature specification:
   accepted decisions, and material gaps. It must not
   contain provisional features, feature order, or tasks. The exact contract
   lives in `exploration-mode.md`.
+- **Exploration report (explore-mode output):**
+  `docs/plans/.drafts/<draft-slug>/architecture-options.md`, populated from
+  `architecture-options-template.md`, persisted and re-read before the
+  direction prompt, and then kept byte-identical as the review snapshot. The
+  later JSON records the human result; this report is decision support, not the
+  machine-readable selection authority or final baseline.
 - **Shaping draft (required in shape mode):** the regular, non-symlink file
   `docs/plans/.drafts/<draft-slug>/scratch.md`, containing a complete
   `Architecture Shaping Input` block with a positive provisional
@@ -90,10 +97,13 @@ Follow the workflow and companion templates exactly.
 the invocation as data. First, if it begins with `explore:`, require the whole
 input to match `explore:[a-z0-9]+(?:-[a-z0-9]+)*`; otherwise stop without
 treating it as another mode or a baseline slug. For a match, load
-`${CLAUDE_SKILL_DIR}/exploration-mode.md` and execute only that contract. Do not
-run `write-lease.py`, restore a lease, inspect publication transactions, load a
-shape or baseline stage file, assemble the five-file package, or continue
-below. Second, if the input begins with `shape:`, require the whole input to
+`${CLAUDE_SKILL_DIR}/exploration-mode.md` and execute only that contract. Its
+validated `architecture-options.md` is the sole permitted domain write; after
+path validation that contract acquires one exact-file write lease, restores the
+deny-only baseline, and requires `architecture-options-lint.py` to pass before
+its human gate. Do not inspect
+publication transactions, load a shape or baseline stage file, assemble the
+five-file package, or continue below. Second, if the input begins with `shape:`, require the whole input to
 match `shape:[a-z0-9]+(?:-[a-z0-9]+)*`; otherwise stop without treating it as a
 baseline slug. For a match, load `${CLAUDE_SKILL_DIR}/shaping-mode.md` and
 execute only that contract, with the same prohibition on leases, publication
@@ -228,7 +238,8 @@ not add planned behavior or silently make the plan fit a preferred design.
 
 This section describes baseline mode. Explore mode has one parent-numbered
 Architecture Direction Selection gate after `/core-engineering:ce-plan` has
-confirmed the evaluation frame; the selection is direction-level input to
+confirmed the evaluation frame. It persists and surfaces the complete options
+report before asking; the selection is direction-level input to
 decomposition, not baseline approval. Shape mode has one read-only
 shaping-scope gate and returns unresolved material calls to their owning
 workflow. Neither draft mode offers baseline approval or publication.
@@ -282,7 +293,7 @@ After the mode dispatch, load companion files only for the selected mode:
 
 | Mode / stages | Load this file | Purpose |
 |---|---|---|
-| explore | `${CLAUDE_SKILL_DIR}/exploration-mode.md` | Compare and score complete capability-level solution directions, then return the human-selected binding without writes |
+| explore | `${CLAUDE_SKILL_DIR}/exploration-mode.md` | Write and re-read the non-binding options report, then return one human-selected direction binding |
 | shape | `${CLAUDE_SKILL_DIR}/shaping-mode.md` | Read one provisional candidate and return architecture impact without writes |
 | 0–2 | `${CLAUDE_SKILL_DIR}/stage-0-2-evidence-model.md` | Resolve and lint the plan; inventory evidence and build the structural model |
 | 3–5 | `${CLAUDE_SKILL_DIR}/stage-3-5-review-write.md` | Reconcile scope, disposition material calls, lint, approve, and publish |

@@ -104,6 +104,7 @@ docs/plans/[project-slug]/
 ├── feature-plan.md       # index — orientation and human review
 ├── shared-context.md     # context every downstream feature spec needs
 ├── architecture-selection.json  # reviewed pre-decomposition option set + human-selected direction
+├── architecture-options.md  # readable comparison; present when directions were explored
 ├── threat-model.md       # trust boundaries + data-classes + per-feature security obligations
 ├── interaction-contract.md  # cross-feature protocol invariants + architecture-determining NFRs (read-only re-projection)
 ├── features/
@@ -121,6 +122,7 @@ Place it per this map:
 | `feature-plan.md` | 1 Overview · 2 Project Context · 4 Decomposition Q&A · 5 Why This Split · 8 Journey Map / Consumability Trace · 9 Journey Bridges by Feature · 10 Dependency Flow · Feature Table · 12 Execution Checklist · 13 Notes · 14 Tooling Mapping |
 | `shared-context.md` | 3 Codebase Profile · 6 Project Docs · 7 Known Pitfalls · Selected Architecture Direction · Architecture Disposition · Resolved Project Decisions |
 | `architecture-selection.json` | Exact capability-level evaluation frame, source/evidence fingerprints, eligible/eliminated solution directions, constraint verdicts, score vectors, sensitivity/confidence, recommendation, and human selection |
+| `architecture-options.md` | Immutable human-readable pre-approval comparison of the explored directions, constraints, score vectors, confidence/sensitivity, evidence, and recommendation; the later human selection remains in `architecture-selection.json`; omitted only for explicit N/A/defer or legacy adopted-existing routes that ran no comparison |
 | `threat-model.md` | Threat Model (Trust Boundaries · Secrets & Data-Classes · Exposure Surface · Per-Feature Security Obligations) — a read-only re-projection of §3 / §6.3 / §7.5; see *Threat Model* below |
 | `interaction-contract.md` | Interaction Contract (Behavioural-Protocol Invariants · Architecture-Determining NFRs · Per-Feature Interaction Obligations) — a read-only re-projection of §3 / §8 Journey Map / §10 Dependency Flow / §6.3 durable nouns (multi-toucher set derived via §8 / §10) / §2–§4 cited NFRs; see *Interaction Contract* below |
 | `features/<id>.md` | one copy of the 11 Features block, per feature |
@@ -138,11 +140,13 @@ file, no directory.
 This file is the durable, machine-validated record of the capability-level
 evaluation performed before feature decomposition. It preserves decision
 support and human authority; it is not a final architecture baseline or an ADR.
+When directions were explored, `architecture-options.md` is the readable view
+that the human reviewed before choosing; this JSON remains authoritative.
 Use this exact top-level shape:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project_slug": "customer-support-portal",
   "exploration_id": "AEX-0123456789ab",
   "source_capability_revision": 1,
@@ -226,6 +230,13 @@ Use this exact top-level shape:
   ],
   "eliminated_options": [],
   "option_set_sha256": "<64 lowercase hex>",
+  "architecture_options_report": {
+    "schema_version": 1,
+    "status": "present",
+    "path": "architecture-options.md",
+    "sha256": "<SHA-256 of the immutable pre-approval report bytes>",
+    "reason": null
+  },
   "recommendation": {
     "option_id": "A01",
     "confidence": "medium",
@@ -273,6 +284,14 @@ criteria/weights; an explicit N/A or defer is not an incomplete frame. Only a tr
 supplied bounded options for `/core-engineering:ce-decide`; every durable status
 sets it to `null`.
 
+Schema v2 is mandatory for artifacts newly produced by planning. A freshly
+explored `direction-selected` result uses the `present` report binding shown
+above. A new `not-applicable` or `deferred` disposition instead writes
+`{"schema_version":1,"status":"not-produced","path":null,"sha256":null,
+"reason":"<why no multi-option comparison ran>"}`. Schema-v1 selections remain
+valid legacy inputs, but they carry no human-readable options-report guarantee;
+do not fabricate a report or retroactively imply review.
+
 Hash canonicalization is UTF-8 JSON with sorted object keys, compact separators,
 Unicode preserved, and finite numbers. `evidence_fingerprint` hashes the
 path-sorted complete `sources` array. An option hash covers that option with
@@ -282,6 +301,7 @@ plus the complete ordered eliminated ledger. For a selected exploration,
 `source_input_sha256` hashes the canonical decision-relevant projection of the
 confirmed input: revisions, evaluation frame, hard constraints, criteria, and
 complete source inventory; only the caller's parent-gate locator is excluded.
+Result schema v2 does not change that exploration-input schema-v1 projection.
 Run `architecture-selection-lint.py` before publishing the plan.
 
 ---
@@ -603,7 +623,8 @@ If pitfalls were added to `patterns.md`, mention the path.
 ### Selected Architecture Direction
 
 First summarize the pre-decomposition direction without replacing its
-machine-readable authority:
+machine-readable authority. When exploration ran, link the report the human
+reviewed before selection:
 
 ```markdown
 ## Selected Architecture Direction
@@ -612,6 +633,8 @@ machine-readable authority:
 |---|---|---|---|---|---|---|
 | direction-selected | AEX-customer-support-1 | A02 — modular API + worker | A02 | medium / stable | `architecture-selection.json` (`<sha256>`) | Best fit for migration isolation while preserving the latency target. |
 ```
+
+Readable option comparison: [`architecture-options.md`](architecture-options.md)
 
 For `not-applicable`, `deferred`, or `waived`, render the explicit status and
 basis with no invented selected option. This table is a projection;

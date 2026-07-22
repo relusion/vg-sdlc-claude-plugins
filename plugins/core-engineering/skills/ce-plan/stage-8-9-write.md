@@ -326,6 +326,7 @@ docs/plans/[project-slug]/
 ├── feature-plan.md       # index: overview, dependency flow, feature table, checklist
 ├── shared-context.md     # codebase profile, selected direction, decisions, known pitfalls
 ├── architecture-selection.json  # exact pre-decomposition evaluation + human direction disposition
+├── architecture-options.md  # human-readable comparison when directions were explored
 ├── threat-model.md       # trust boundaries + data-classes + per-feature security obligations
 ├── interaction-contract.md  # cross-feature protocol invariants + architecture-determining NFRs
 ├── features/
@@ -394,6 +395,24 @@ later shaping waiver preserves the selected direction that actually shaped the
 cut; only a human-reaffirmed legacy no-direction waiver uses direction status
 `waived`.
 
+**Publish the readable comparison.** When the direction came from fresh explore
+mode (schema v2 with `architecture_options_report.status: present`), require the
+immutable pre-approval report at
+`docs/plans/.drafts/<slug>/architecture-options.md`. Re-read it and verify its
+integrity table, option ids/titles/hashes, recommendation, source-input hash,
+evidence fingerprint, option-set hash, and exact file SHA-256 against the
+schema-v2 binding in `architecture-selection.json`; the later selected id/hash
+and rationale remain in JSON because this report preserves what existed before
+the choice. Then copy its exact bytes to
+`docs/plans/<slug>/architecture-options.md`. Do not regenerate the report from
+plan prose. A missing, mutated, unsafe, or contradictory report blocks the
+write and retains scratch. Schema-v1 selections are explicit legacy artifacts
+with no report guarantee; not-applicable/deferred routes and legacy
+adopted-existing records with no explored comparison omit the report
+explicitly. Absence is not an excuse to omit it from a schema-v2 present route.
+The JSON remains the machine authority and the Markdown is its durable human
+review surface.
+
 **Record the plan tier.** Write `"plan_tier": "light"` into `plan.json` (top-level, beside
 `plan_revision` — see `${CLAUDE_SKILL_DIR}/artifact-template.md` → *Plan Manifest*) whenever
 the run entered the **light-plan tier** (§4.3) and did **not** expand back at 8.3; write
@@ -408,10 +427,16 @@ proportionality choice**, the same discipline as the Sizing Gate's, not a silent
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/<slug>/architecture-selection.json --json
+  docs/plans/<slug>/architecture-selection.json \
+  --require-current-schema --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
   docs/plans/<slug> --require-architecture-direction --json
 ```
+
+Stage R may omit `--require-current-schema` only when it is preserving a
+previously valid schema-v1 selection byte-for-byte. Any selection regenerated
+by the current workflow—including N/A/deferred—must use schema v2 and the
+current-schema flag.
 
 Dispose by exit code (the same contract `/core-engineering:ce-spec`'s `spec-lint` follows — the lint **supplements** the checklist, never replaces it):
 
@@ -444,6 +469,10 @@ Re-verify, against the frozen plan, every property Stage 8.1 could have mutated 
 - [ ] `architecture-selection.json` is current for the confirmed capability
       frame, passes its deterministic lint, and records human authority; its
       selected option or explicit N/A/defer/waiver matches the final plan.
+- [ ] A schema-v2 explored direction has the immutable pre-approval
+      `architecture-options.md` whose exact hash and integrity values match its
+      `architecture-selection.json` binding; explicit N/A/defer/schema-v1 legacy
+      routes record why no comparison report applies.
 - [ ] `architecture_disposition` is complete and internally consistent; any
       required shaping result is `converged`, human-decided, within the
       three-pass cap, and current for the final candidate revision.
@@ -510,6 +539,7 @@ Created: docs/plans/[project-slug]/
   feature-plan.md
   shared-context.md
   architecture-selection.json
+  architecture-options.md  (when solution directions were explored)
   threat-model.md
   interaction-contract.md
   plan.json

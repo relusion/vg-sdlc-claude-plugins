@@ -42,7 +42,14 @@ shape, it invokes `/core-engineering:ce-architecture explore:<draft-slug>` to
 generate complete solution directions, eliminate hard-constraint failures, and
 score the viable options against human-confirmed requirements and quality
 priorities. A human selects the direction before detailed feature decomposition.
-The exact option set and selection survive in `architecture-selection.json`.
+Before asking, exploration writes and surfaces
+`docs/plans/.drafts/<slug>/architecture-options.md`, so the human can inspect
+the full named directions, constraints, scores, trade-offs, evidence, and
+recommendation outside the chat transcript. A deterministic pre-approval check
+blocks the choice prompt when that report is stale, incomplete, hidden, or not
+bound to the current exploration input. The immutable report is then preserved
+with the plan; schema-v2 `architecture-selection.json` binds its exact hash and
+records the later machine-readable option set and selection.
 
 After decomposition, `/core-engineering:ce-architecture shape:<draft-slug>` checks
 that provisional features realize the selected direction; planning alone applies
@@ -168,6 +175,7 @@ docs/
     ├── express-log.jsonl            # accepted /core-engineering:ce-patch ledger
     └── <slug>/
         ├── architecture-selection.json    # reviewed option set + human-selected pre-decomposition direction
+        ├── architecture-options.md        # readable pre-approval comparison when directions were explored
         ├── feature-plan.md
         ├── shared-context.md
         ├── threat-model.md
@@ -203,6 +211,9 @@ Every newly written full plan carries `architecture-selection.json`: either the
 exact reviewed option set and selected direction, an adopted existing direction,
 or an explicit not-applicable/deferred/waived record. Legacy absence routes to
 plan revision before a write-capable downstream workflow proceeds. The
+human-readable `architecture-options.md` accompanies every freshly explored
+direction; explicit N/A/deferred and legacy adopted-existing routes may omit it
+because no multi-option comparison occurred. The
 `architecture/` package remains conditional:
 it is mandatory before spec, direct implementation, or auto-build when
 `plan.json` records `required`, a
