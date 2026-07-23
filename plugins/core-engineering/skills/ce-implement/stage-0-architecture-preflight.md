@@ -1,32 +1,26 @@
 # Implement — Stage 0 Architecture and Spec-Binding Preflight
 
-Read `SKILL.md` first. Complete this companion before trusting `ce-spec.md` or
-`tasks.json`, changing `.gitignore`, or mutating code. Run it on direct,
-auto-build, and resume paths; upstream validation and saved state are not
-freshness evidence.
+Read `SKILL.md` first. Run sections 1–2 before trusting or compact-composing a
+spec. Run section 3 after canonical `ce-spec.md` and `tasks.json` exist, before
+changing `.gitignore` or code. Apply this on direct, auto-build, and resume
+paths; upstream validation is not freshness evidence.
 
-## 1. Classify the plan shape
+## 1. Validate the canonical plan
 
-For minimal mode, `feature-plan.md` is context while `ce-spec.md` +
-`tasks.json` remain implementation authority. Any full-plan authority or
-`architecture` namespace makes the shape mixed: stop and route the exact path
-to `/core-engineering:ce-plan`, or to
-`/core-engineering:ce-architecture <slug>` for obsolete-package human
-disposition. Otherwise record
-`Architecture: N/A — single-feature minimal plan`.
-
-For a full plan, run:
+Require regular, non-symlink `plan.json`, `architecture-selection.json`,
+`shared-context.md`, `feature-plan.md`, and `features/<id>.md`, then run:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
   docs/plans/<slug> --require-architecture-direction --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/<slug>/architecture-selection.json --json
+  docs/plans/<slug>/architecture-selection.json \
+  --require-current-schema --json
 ```
 
 Exit 1 routes every hard or malformed-plan defect to Stage R. Exit 2 routes to
-Stage R because no trustworthy contract was established. A legacy missing
-disposition/direction (`A12`/`A13`) is a hard stop in this consumer path.
+Stage R because no trustworthy contract was established. A missing required
+disposition/direction (`A12`/`A13`) is a hard stop.
 
 From the lint-validated disposition, load every
 `convergence.decision_refs` entry. It must be repository-relative, remain
@@ -59,9 +53,9 @@ Only a clean transaction scan plus lstat-confirmed namespace absence uses:
 | Plan decision | Missing-package implementation disposition |
 |---|---|
 | `required` + convergence `converged` | Stop at `/core-engineering:ce-architecture <slug>` before trusting the spec or changing code. |
-| `recommended` | Continue with `Architecture: coverage gap — recommended package absent`, exact triggers, rationale, convergence evidence, and decision refs. |
+| `recommended` + selected direction + convergence `converged` | Stop at `/core-engineering:ce-architecture <slug>` before trusting the spec or changing code. |
+| `recommended` + direction/convergence `deferred` | Continue with `Architecture: coverage gap — recommended package explicitly deferred`, exact triggers, rationale, convergence evidence, and decision refs. |
 | `not-required` | Record `Architecture: N/A — plan disposition not-required` and its rationale. |
-| `waived` | Continue with `Architecture: waived by human`, exact rationale, triggers, convergence evidence, decision refs, and residual risk. |
 
 Any other pairing is a Stage-R defect.
 
@@ -78,10 +72,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/architecture_context.py" --repo-root . \
 
 - Exit 0: the tasks/Markdown contexts agree and match the current
   consumer-linted package receipt, revisions, and feature mapping, or the exact
-  typed minimal/not-required/recommended-absent/waived state.
+  typed no-package state (`not-required` or `recommended-absent`).
 - Exit 1: refuse implementation and route to
   `/core-engineering:ce-spec <slug>/<id>`; the specification is stale,
-  mismatched, or legacy-unbound.
+  mismatched, or unbound.
 - Exit 2: stop as a tooling/integrity gap. Never reinterpret a missing helper,
   unreadable artifact, or un-runnable package validator as a match.
 

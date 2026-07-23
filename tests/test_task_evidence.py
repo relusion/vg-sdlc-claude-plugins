@@ -465,11 +465,18 @@ class ReleaseConsumerContract(unittest.TestCase):
         stages = RELEASE_STAGES.read_text(encoding="utf-8")
         skill = RELEASE_SKILL.read_text(encoding="utf-8")
         self.assertIn(
-            'task-evidence.py" check specs/<id>/tasks.json --strict --json',
+            'task-evidence.py" check \\\n'
+             "     docs/plans/<slug>/specs/<id>/tasks.json --strict --json",
             stages,
         )
-        self.assertIn("does not change the workflow result to `GO`", skill)
-        self.assertIn("external release-owner authority", stages)
+        self.assertIn('scripts/review-gate.py"', stages)
+        self.assertIn("--require-blocking-route", stages)
+        self.assertIn('scripts/verification-gate.py" check', stages)
+        self.assertIn("--evaluated-commit <full-head-sha>", stages)
+        self.assertIn("Every exit 1/2", stages)
+        self.assertIn("this package remains", skill)
+        self.assertIn("`NO-GO — external exception`", skill)
+        self.assertIn("NO-GO — external exception by <owner>", stages)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Behavioral tests for downstream architecture provenance and freshness."""
 
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -56,10 +57,38 @@ def write_full_plan(root: Path, decision: str = "not-required") -> Path:
     (plan_dir / "features/01-feature.md").write_text(
         "# Feature\n", encoding="utf-8"
     )
-    (plan_dir / "architecture-selection.json").write_text(
-        json.dumps({"schema_version": 2, "fixture": True}),
-        encoding="utf-8",
-    )
+    selection_bytes = json.dumps(
+        {"schema_version": 2, "fixture": True}, sort_keys=True
+    ).encode("utf-8")
+    (plan_dir / "architecture-selection.json").write_bytes(selection_bytes)
+    if decision == "required":
+        convergence_status = "converged"
+        iteration_count = 1
+        triggers = ["cross-feature-durable-or-async-flow"]
+        direction_status = "direction-selected"
+        selected_option_id = "A01"
+        selected_option_sha256 = "b" * 64
+    elif decision == "recommended":
+        convergence_status = "deferred"
+        iteration_count = 0
+        triggers = ["team-policy-recommendation"]
+        direction_status = "deferred"
+        selected_option_id = None
+        selected_option_sha256 = None
+    elif decision == "not-required":
+        convergence_status = "not-applicable"
+        iteration_count = 0
+        triggers = []
+        direction_status = "not-applicable"
+        selected_option_id = None
+        selected_option_sha256 = None
+    else:
+        convergence_status = decision
+        iteration_count = 0
+        triggers = []
+        direction_status = decision
+        selected_option_id = None
+        selected_option_sha256 = None
     (plan_dir / "plan.json").write_text(
         json.dumps(
             {
@@ -74,15 +103,21 @@ def write_full_plan(root: Path, decision: str = "not-required") -> Path:
                 "architecture_disposition": {
                     "decision": decision,
                     "rationale": f"architecture is {decision} for this fixture",
-                    "triggers": [],
+                    "triggers": triggers,
                     "decided_by": "human",
+                    "direction": {
+                        "status": direction_status,
+                        "artifact": "architecture-selection.json",
+                        "artifact_sha256": hashlib.sha256(selection_bytes).hexdigest(),
+                        "exploration_id": "AEX-fixture",
+                        "selected_option_id": selected_option_id,
+                        "selected_option_sha256": selected_option_sha256,
+                        "decided_by": "human",
+                        "summary": f"fixture direction is {direction_status}",
+                    },
                     "convergence": {
-                        "status": (
-                            "converged"
-                            if decision == "required"
-                            else "not-applicable"
-                        ),
-                        "iteration_count": 0,
+                        "status": convergence_status,
+                        "iteration_count": iteration_count,
                         "summary": "fixture convergence",
                         "decision_refs": [],
                     },
@@ -237,11 +272,10 @@ class ContextDerivation(unittest.TestCase):
                     script_dir=scripts,
                 )
 
-    def test_every_no_package_outcome_is_typed_and_has_empty_mapping(self):
+    def test_valid_no_package_outcomes_are_typed_and_have_empty_mapping(self):
         for decision, expected in (
             ("not-required", "not-required"),
             ("recommended", "recommended-absent"),
-            ("waived", "waived"),
         ):
             with self.subTest(decision=decision), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
@@ -254,19 +288,40 @@ class ContextDerivation(unittest.TestCase):
                 self.assertTrue(all(not ids for ids in context["mapped_ids"].values()))
                 self.assertIsNone(context["package_receipt_sha256"])
 
+    def test_retired_waiver_is_rejected_as_unknown(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            plan_dir = root / "docs/plans/demo"
-            plan_dir.mkdir(parents=True)
-            (plan_dir / "feature-plan.md").write_text("# Minimal\n", encoding="utf-8")
-            context = ac.derive_context(
-                plan_dir,
-                "01-feature",
-                repo_root=root,
-                plan_mode="single-feature-minimal",
-            )
-            self.assertEqual(context["mode"], "single-feature-minimal")
-            self.assertIsNone(context["plan_revision"])
+            with self.assertRaisesRegex(
+                ac.ContextError, "unknown architecture disposition"
+            ):
+                ac.derive_context(
+                    write_full_plan(root, "waived"),
+                    "01-feature",
+                    repo_root=root,
+                )
+
+    def test_converged_recommendation_requires_a_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir = write_full_plan(root, "recommended")
+            plan_path = plan_dir / "plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            posture = plan["architecture_disposition"]
+            posture["convergence"]["status"] = "converged"
+            posture["convergence"]["iteration_count"] = 1
+            posture["direction"]["status"] = "direction-selected"
+            posture["direction"]["selected_option_id"] = "A01"
+            posture["direction"]["selected_option_sha256"] = "b" * 64
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            with self.assertRaisesRegex(
+                ac.ContextError,
+                "recommended selected and converged architecture package is absent",
+            ):
+                ac.derive_context(
+                    plan_dir,
+                    "01-feature",
+                    repo_root=root,
+                )
 
     def test_required_absent_package_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -347,53 +402,48 @@ class ContextDerivation(unittest.TestCase):
                 after_selection["plan_contract_sha256"],
             )
 
-    def test_minimal_context_binds_authority_and_rejects_mixed_namespace(self):
+    def test_plan_json_is_required_even_when_feature_plan_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             plan_dir = root / "docs/plans/demo"
-            spec_dir = plan_dir / "specs/01-feature"
-            spec_dir.mkdir(parents=True)
-            feature_plan = plan_dir / "feature-plan.md"
-            feature_plan.write_text("# Minimal one\n", encoding="utf-8")
-            context = ac.derive_context(
-                plan_dir,
-                "01-feature",
-                repo_root=root,
-                plan_mode="single-feature-minimal",
+            plan_dir.mkdir(parents=True)
+            (plan_dir / "feature-plan.md").write_text(
+                "# Non-canonical plan artifact\n", encoding="utf-8"
             )
-            tasks = {
-                "feature_id": "01-feature",
-                "spec_revision": 1,
-                "architecture_context": context,
-                "tasks": [
-                    {
-                        "id": "T-1",
-                        "files": ["src/feature.py"],
-                        "verifies": ["TC-1"],
-                    }
-                ],
-            }
-            feature_plan.write_text(
-                "# Materially changed minimal authority\n", encoding="utf-8"
-            )
-            hard, _ = ac.validate_spec_context(
-                spec_text=markdown_with_context(context),
-                tasks=tasks,
-                spec_dir=spec_dir,
-                repo_root=root,
-            )
-            self.assertTrue(any("stale or mismatched" in item for item in hard))
+            with self.assertRaisesRegex(
+                ac.ContextError,
+                "plan.json must be a regular non-symlink file",
+            ):
+                ac.derive_context(
+                    plan_dir,
+                    "01-feature",
+                    repo_root=root,
+                )
 
-            (plan_dir / "architecture").mkdir()
-            hard, _ = ac.validate_spec_context(
-                spec_text=markdown_with_context(context),
-                tasks=tasks,
-                spec_dir=spec_dir,
-                repo_root=root,
-            )
-            self.assertTrue(
-                any("forbidden full-plan/architecture" in item for item in hard)
-            )
+    def test_retired_minimal_context_mode_is_rejected(self):
+        context = {
+            "schema_version": ac.CONTEXT_SCHEMA_VERSION,
+            "project_slug": "demo",
+            "feature_id": "01-feature",
+            "plan_contract_sha256": "a" * 64,
+            "mode": "single-feature-minimal",
+            "package_path": None,
+            "plan_revision": None,
+            "architecture_revision": None,
+            "package_receipt_sha256": None,
+            "feature_mapping_sha256": None,
+            "mapped_ids": {key: [] for key in ac.MAPPING_KEYS},
+            "reason": "retired fixture",
+        }
+        errors = ac.validate_context_shape(context)
+        self.assertTrue(
+            any("architecture_context.mode must be one of" in item for item in errors),
+            errors,
+        )
+        self.assertTrue(
+            any("architecture_context.plan_revision must be >= 1" in item for item in errors),
+            errors,
+        )
 
 
 class PersistedParityAndBinding(unittest.TestCase):
@@ -540,6 +590,16 @@ class PersistedParityAndBinding(unittest.TestCase):
             )
             before = ac.review_binding(spec_dir, repo_root=root)
 
+            (plan_dir / "review-learnings.md").write_text(
+                "# Review learnings\n\n## RL-1\nDismissed false positive.\n",
+                encoding="utf-8",
+            )
+            after_learning = ac.review_binding(spec_dir, repo_root=root)
+            self.assertEqual(
+                before["repository_state_sha256"],
+                after_learning["repository_state_sha256"],
+            )
+
             (spec_dir / "review-summary.json").write_text(
                 "{}\n", encoding="utf-8"
             )
@@ -550,6 +610,12 @@ class PersistedParityAndBinding(unittest.TestCase):
             (plan_dir / "STATUS.md").write_text("# Status\n", encoding="utf-8")
             (plan_dir / "code-review.md").write_text(
                 "# Plan review\n", encoding="utf-8"
+            )
+            (plan_dir / "verification-report.md").write_text(
+                "# Verification\n", encoding="utf-8"
+            )
+            (plan_dir / "verification-summary.json").write_text(
+                "{}\n", encoding="utf-8"
             )
             run_dir = plan_dir / "ce-auto-build"
             run_dir.mkdir()

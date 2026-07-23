@@ -2,8 +2,8 @@
 
 Output structure, section templates, manifest schema, and tooling mapping for the
 plan directory the plan skill writes, **plus the repo-level layer** every
-plan in the repo shares. The skill loads this file at write time (Stage 9, after
-either the single-feature or multi-feature Final Plan Approval).
+plan in the repo shares. The skill loads this file at write time after Final
+Plan Approval.
 
 ---
 
@@ -96,7 +96,7 @@ dependency is neither specced nor built.
 
 ## Plan Directory Structure
 
-A multi-feature plan is written as a **directory**, not a single file, so a
+Every plan is written as a **directory**, including a one-feature plan, so a
 downstream skill can load one feature without reading the whole plan:
 
 ```text
@@ -119,19 +119,17 @@ Place it per this map:
 
 | File | What it contains |
 |---|---|
-| `feature-plan.md` | 1 Overview · 2 Project Context · 4 Decomposition Q&A · 5 Why This Split · 8 Journey Map / Consumability Trace · 9 Journey Bridges by Feature · 10 Dependency Flow · Feature Table · 12 Execution Checklist · 13 Notes · 14 Tooling Mapping |
+| `feature-plan.md` | 1 Overview · 2 Project Context · 4 Material Decisions and Assumptions · 5 Why This Split · 8 Journey Map / Consumability Trace · 9 Journey Bridges by Feature · 10 Dependency Flow · Feature Table · 12 Execution Checklist · 13 Notes · 14 Tooling Mapping |
 | `shared-context.md` | 3 Codebase Profile · 6 Project Docs · 7 Known Pitfalls · Selected Architecture Direction · Architecture Disposition · Resolved Project Decisions |
 | `architecture-selection.json` | Exact capability-level evaluation frame, source/evidence fingerprints, eligible/eliminated solution directions, constraint verdicts, score vectors, sensitivity/confidence, recommendation, and human selection |
-| `architecture-options.md` | Immutable human-readable pre-approval comparison of the explored directions, constraints, score vectors, confidence/sensitivity, evidence, and recommendation; the later human selection remains in `architecture-selection.json`; omitted only for explicit N/A/defer or legacy adopted-existing routes that ran no comparison |
+| `architecture-options.md` | Immutable human-readable pre-approval comparison of explored and eliminated directions, constraints, score vectors, confidence/sensitivity, evidence, assumptions, reasoning, consequences, and recommendation; the later human selection remains in `architecture-selection.json`; omitted when no comparison ran |
 | `threat-model.md` | Threat Model (Trust Boundaries · Secrets & Data-Classes · Exposure Surface · Per-Feature Security Obligations) — a read-only re-projection of §3 / §6.3 / §7.5; see *Threat Model* below |
 | `interaction-contract.md` | Interaction Contract (Behavioural-Protocol Invariants · Architecture-Determining NFRs · Per-Feature Interaction Obligations) — a read-only re-projection of §3 / §8 Journey Map / §10 Dependency Flow / §6.3 durable nouns (multi-toucher set derived via §8 / §10) / §2–§4 cited NFRs; see *Interaction Contract* below |
 | `features/<id>.md` | one copy of the 11 Features block, per feature |
 | `plan.json` | the manifest (see Plan Manifest below) |
 
 `feature-plan.md` must **not** inline the per-feature blocks — it carries only the
-compact Feature Table and links to `features/<id>.md`. For a single-feature plan
-approved after the separate security attestation and complete minimal preview,
-use **Recommended Minimal Output** instead — one file, no directory.
+compact Feature Table and links to `features/<id>.md`.
 
 ---
 
@@ -155,6 +153,10 @@ Use this exact top-level shape:
   "evaluation_frame": {
     "project_intent": "Enable customers to complete the support journey.",
     "non_goals": ["Replace the existing identity platform."],
+    "decision_owner": {
+      "identity_or_role": "Solution Architecture Council",
+      "authority_basis": "Repository governance assigns whole-solution direction approval to this council."
+    },
     "architecture_applicability": "required",
     "driver_screen": [
       {"id": "explicit-architecture-deliverable", "verdict": "positive", "basis": "The brief requests a solution baseline.", "evidence": ["docs/briefs/customer-support-portal.md"]},
@@ -216,12 +218,12 @@ Use this exact top-level shape:
         {"constraint_id": "HC01", "verdict": "pass", "basis": "<specific basis>"}
       ],
       "scores": [
-        {"criterion_id": "requirements-fit", "score": 5, "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
-        {"criterion_id": "quality-attribute-fit", "score": 4, "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
-        {"criterion_id": "repository-fit", "score": 4, "evidence_state": "observed", "evidence": ["README.md"]},
-        {"criterion_id": "evolvability", "score": 3, "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
-        {"criterion_id": "operability", "score": 4, "evidence_state": "inferred", "evidence": ["README.md"]},
-        {"criterion_id": "delivery-feasibility", "score": 4, "evidence_state": "inferred", "evidence": ["README.md"]}
+        {"criterion_id": "requirements-fit", "score": 5, "basis": "A01 realizes C01 and J01 without adding product scope.", "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
+        {"criterion_id": "quality-attribute-fit", "score": 4, "basis": "A01 addresses the recorded quality scenarios with one remaining inference.", "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
+        {"criterion_id": "repository-fit", "score": 4, "basis": "A01 uses the observed repository runtime and boundaries.", "evidence_state": "observed", "evidence": ["README.md"]},
+        {"criterion_id": "evolvability", "score": 3, "basis": "A01 preserves an additive migration path but retains some coupling.", "evidence_state": "inferred", "evidence": ["docs/briefs/customer-support-portal.md"]},
+        {"criterion_id": "operability", "score": 4, "basis": "A01 reuses observed operational conventions with explicit failure handling.", "evidence_state": "inferred", "evidence": ["README.md"]},
+        {"criterion_id": "delivery-feasibility", "score": 4, "basis": "A01 fits the current delivery environment with a reversible cutover.", "evidence_state": "inferred", "evidence": ["README.md"]}
       ],
       "weighted_score": 4.1,
       "confidence": "medium",
@@ -249,6 +251,7 @@ Use this exact top-level shape:
     "option_id": "A01",
     "option_sha256": "<same option hash>",
     "decided_by": "human",
+    "approved_by": "Solution Architecture Council",
     "rationale": "<human rationale>"
   },
   "next_owner": "ce-plan"
@@ -256,12 +259,14 @@ Use this exact top-level shape:
 ```
 
 Every eligible option carries all six score rows in the canonical criterion
-order and one verdict per hard constraint. A failed or unknown constraint makes
-the option ineligible, with `scores: []`, `weighted_score: null`, and
-`confidence: not-applicable`; `eliminated_options` exactly lists failed options.
+order. Each row includes a non-empty option-specific `basis`, which is covered
+by the option hash and rendered in the readable weighted comparison. Each
+option also carries one verdict per hard constraint. A failed or unknown
+constraint makes the option ineligible, with `scores: []`,
+`weighted_score: null`, and `confidence: not-applicable`;
+`eliminated_options` exactly lists failed options.
 A fresh `direction-selected` exploration retains two to four complete
-directions, even when constraint gating leaves one eligible; a one-option
-artifact is valid only for a separately approved `adopted-existing` migration.
+directions, even when constraint gating leaves one eligible.
 For a `stable` or `not-applicable` recommendation, set
 `sensitivity_witness: null`. An `unstable` recommendation instead records the
 first deterministic leader-changing scenario as exactly `{scenario,
@@ -275,22 +280,24 @@ flips, otherwise `{recommended: lower, challenger: upper}` to expose the
 combined evidence-range condition. `condition` uses the canonical sentence
 template defined by exploration mode. The validator recomputes and pins every
 field, so generic or false sensitivity prose cannot authorize a selection.
-For `not-applicable`, `deferred`, or `waived`, keep
+For `not-applicable` or `deferred`, keep
 the same top-level keys, use null selected-option fields, empty option arrays
-when no exploration ran, and record `decided_by: human` plus a non-empty basis.
+when no exploration ran, and record `decided_by: human`, `approved_by: null`,
+plus a non-empty basis. For a selected direction, `approved_by` exactly matches
+`evaluation_frame.decision_owner.identity_or_role`; delegation requires a
+decision-frame revision before selection.
 Every durable status retains the exact `evaluation_frame` and all six confirmed
 criteria/weights; an explicit N/A or defer is not an incomplete frame. Only a transient
 `requires-decision` carries a non-null `blocking_decision`, with two to four
 supplied bounded options for `/core-engineering:ce-decide`; every durable status
 sets it to `null`.
 
-Schema v2 is mandatory for artifacts newly produced by planning. A freshly
+Schema v2 is mandatory. A freshly
 explored `direction-selected` result uses the `present` report binding shown
 above. A new `not-applicable` or `deferred` disposition instead writes
 `{"schema_version":1,"status":"not-produced","path":null,"sha256":null,
-"reason":"<why no multi-option comparison ran>"}`. Schema-v1 selections remain
-valid legacy inputs, but they carry no human-readable options-report guarantee;
-do not fabricate a report or retroactively imply review.
+"reason":"<why no multi-option comparison ran>"}`. Do not fabricate a report or
+retroactively imply review.
 
 Hash canonicalization is UTF-8 JSON with sorted object keys, compact separators,
 Unicode preserved, and finite numbers. `evidence_fingerprint` hashes the
@@ -301,7 +308,7 @@ plus the complete ordered eliminated ledger. For a selected exploration,
 `source_input_sha256` hashes the canonical decision-relevant projection of the
 confirmed input: revisions, evaluation frame, hard constraints, criteria, and
 complete source inventory; only the caller's parent-gate locator is excluded.
-Result schema v2 does not change that exploration-input schema-v1 projection.
+The selection result version does not change that input canonicalization.
 Run `architecture-selection-lint.py` before publishing the plan.
 
 ---
@@ -385,27 +392,28 @@ codebase_profile:
 
 A per-plan, **read-only re-projection** assembled at write time from the **§3
 Codebase Profile** (artifact section — trust boundaries / exposure), the **plan
-Stage-6.3 Durable-State Closure** (data-classes), and the **plan Stage-7.5**
-security / secrets Boundary-Owner. (The `§6.3` / `§7.5` are *plan stage* numbers,
+Stage-6.2 Durable-State Closure** (data-classes), and the **plan Stage-6.4**
+security projection. (The `§6.2` / `§6.4` are *plan stage* numbers,
 distinct from this artifact's own §1–§14 sections.) It is the
 security context `/core-engineering:ce-spec` derives `[SECURITY]` criteria from, and `/core-engineering:ce-review`,
 `/core-engineering:ce-probe-sec`, and `/core-engineering:ce-verify` read. **It never re-assigns a data-class** — the §6.3
-closure owns that (assigned once, human-attested); the threat model only
-re-projects it, so the two can never drift.
+closure owns that (assigned once from evidence and any material human
+decision); the threat model only re-projects it, so the two can never drift.
 
 **Threat-id assignment is *surface, don't force*:** a feature earns a `TZ-NNN`
 (zero-padded, house style) when it **crosses a trust boundary** — owns / exposes a
 public interaction surface, or integrates across an auth / external-API / payment /
 object-store boundary — **or is the security / secrets Boundary-Owner**. A feature
 that *only owns* a `sensitive` / `personal` noun with no boundary of its own carries
-an **advisory note**, never a forced threat_id. Assignment is **model-derived,
-human-confirmed at the Stage 8 Final Review** (the same posture as the data-class).
+an **advisory note**, never a forced threat id. Assignment is evidence-derived
+and included in Final Plan Approval; only an exception or acceptance decision
+requires its own material decision.
 
 ````markdown
 # Threat Model: <plan-slug>
 
 > Generated by /core-engineering:ce-plan — a READ-ONLY re-projection of §3 Codebase
-> Profile + §6.3 Durable-State Closure (data-classes) + §7.5 security/secrets owner.
+> Profile + §6.2 Durable-State Closure (data-classes) + §6.4 security projection.
 > Consumed by /core-engineering:ce-spec (derives [SECURITY: TZ-NNN] criteria), /core-engineering:ce-review, /core-engineering:ce-probe-sec, /core-engineering:ce-verify.
 > Data-classes are owned by the §6.3 closure and never re-assigned here.
 
@@ -443,8 +451,8 @@ security_obligations:
 
 **No-Security-Surface negative.** When **none** of the four detection conditions
 hold across the plan, write `threat-model.md` with the section below *in place of*
-the four above — an explicit attested negative, **never a silent skip** (the same
-discipline as §6.4 `N/A` and the Interface-Foundation consented exception):
+the four above — an explicit assessed negative with evidence, never a silent
+skip:
 
 ````markdown
 ## No Security Surface
@@ -480,8 +488,8 @@ idempotency / retry / concurrency), and the **numbers that shaped the decomposit
 **It owns nothing the layers below own.** It is **keyed on an edge it does not own** —
 the Journey Map (§8) and Dependency Flow (§10) own the edge set; this contract only
 attaches the protocol *values* to an edge they already trace, never enumerating or
-re-deciding an edge. It **never re-assigns a data-class** (the §6.3 closure owns that,
-assigned once, human-attested) and **never re-cuts a feature boundary** (the
+re-deciding an edge. It **never re-assigns a data-class** (the §6.3 closure owns
+that) and **never re-cuts a feature boundary** (the
 decomposition owns that); it only adds the multi-toucher concurrency/idempotency
 posture §6.3 does not capture and the protocol residue of an async edge — so the two
 can never drift.
@@ -494,8 +502,8 @@ residue and earns no row), or for a §6.3 durable noun **touched by >1 feature**
 in §2 / §3 / §4 (Decomposition Q&A — incl. a brief's success criteria / constraints) *and* that **demonstrably shaped the cut** (forced a split, a boundary, an
 async edge, a separate worker) — never a general perf target, never a number the plan
 never stated. The `IC-NNN` ids (zero-padded, house style; **one shared id space across
-both tables**) are **model-derived, human-confirmed at the Stage 8 Final Review** (the
-same posture as the data-class and the `TZ-NNN`).
+both tables**) are evidence-derived and included in Final Plan Approval. A
+material protocol exception remains a separate human-owned decision.
 
 ````markdown
 # Interaction Contract: <plan-slug>
@@ -542,8 +550,8 @@ interaction_obligations:
 
 **No-Cross-Feature-Protocol negative.** When **none** of the four detection conditions
 hold across the plan, write `interaction-contract.md` with the section below *in place
-of* the tables above — an explicit attested negative, **never a silent skip** (the same
-discipline as §6.4 `N/A` and the No-Security-Surface negative):
+of* the tables above — an explicit assessed negative with evidence, never a
+silent skip:
 
 ````markdown
 ## No Cross-Feature Protocol
@@ -562,9 +570,10 @@ interaction_obligations: []
 
 ---
 
-### 4. Decomposition Q&A
+### 4. Material Decisions and Assumptions
 
-Record Q/A pairs verbatim.
+Record only questions actually asked, human-owned decisions, and material
+assumptions. Do not manufacture a Q&A transcript for repository facts.
 
 ```markdown
 | # | Question | Answer |
@@ -636,8 +645,8 @@ reviewed before selection:
 
 Readable option comparison: [`architecture-options.md`](architecture-options.md)
 
-For `not-applicable`, `deferred`, or `waived`, render the explicit status and
-basis with no invented selected option. This table is a projection;
+For `not-applicable` or `deferred`, render the explicit status and basis with
+no invented selected option. This table is a projection;
 `architecture-selection.json` and its manifest hash are authoritative.
 
 ### Architecture Disposition
@@ -653,9 +662,9 @@ downstream skill sees the same routing decision as `plan.json`:
 | required | shared-data-ownership-or-migration | converged | 2 | The source-of-truth and migration boundary shape P02/P03. | `docs/adr/0007-order-source.md` | Publish a current approved `/core-engineering:ce-architecture` package before spec or auto-build. |
 ```
 
-Use `recommended`, `not-required`, or `waived` exactly as recorded in the
-manifest. A waiver row includes the human reason and residual delivery risk;
-never describe it as security, compliance, release, or production acceptance.
+Use `recommended` or `not-required` exactly as recorded in the manifest.
+`recommended` is either selected and converged or explicitly deferred;
+`not-required` is not-applicable.
 
 ---
 
@@ -797,6 +806,7 @@ feature slug. Each file contains exactly this block:
 **Title:** Human-readable feature title  
 **Type:** foundation | user-facing | integration | infrastructure | refactor | enabling  
 **Description:** Short explanation of what this feature delivers.
+**Specification route:** compact | explicit
 
 ### Structured Metadata
 
@@ -891,8 +901,17 @@ This feature is ready for downstream specification when the spec can define how 
 
 ### Run
 
+For `explicit`:
+
 ```bash
-/core-engineering:ce-spec 01-feature-slug
+/core-engineering:ce-spec <plan-slug>/01-feature-slug
+```
+
+For `compact` (implementation composes and lints the canonical compact spec
+before code):
+
+```bash
+/core-engineering:ce-implement <plan-slug>/01-feature-slug
 ```
 ````
 
@@ -904,10 +923,10 @@ This feature is ready for downstream specification when the spec can define how 
 full detail lives in each `features/<id>.md`.
 
 ```markdown
-| # | Feature | Type | Final Complexity | Risk | Hard Deps | File |
-|---:|---|---|---|---|---|---|
-| 1 | 01-auth-foundation | foundation | Moderate | low | — | `features/01-auth-foundation.md` |
-| 2 | 02-dashboard-shell | user-facing | Simple | low | 01-auth-foundation | `features/02-dashboard-shell.md` |
+| # | Feature | Type | Spec route | Final Complexity | Risk | Hard Deps | File |
+|---:|---|---|---|---|---|---|---|
+| 1 | 01-auth-foundation | foundation | compact | Moderate | low | — | `features/01-auth-foundation.md` |
+| 2 | 02-dashboard-shell | user-facing | explicit | Simple | low | 01-auth-foundation | `features/02-dashboard-shell.md` |
 ```
 
 ---
@@ -932,16 +951,15 @@ Include:
 - high-risk feature justifications
 - accepted bridge trade-offs
 - explicit user overrides
-- architecture disposition, shaping iteration count, and any human waiver with
-  its residual rework risk
+- architecture disposition, shaping iteration count, and any human-owned
+  exception with its residual rework risk
 - known limitations
 - assumptions made during planning
 - durable-noun reciprocals excluded by design (with reason) — usability (revisit / amend / retire) **and** governance (retain / export / erase), each named
 - any durable-noun data-class downgrade (`personal` → `operational`) or upgrade (`personal` → `sensitive`), with reason
 - existing surfaces hard-broken by design (with reason and blast radius)
-- the light-plan tier when `plan_tier: light` — a `plan-tier: light` entry naming
-  the one folded gate (Candidate Decision → Final Approval) and confirming that
-  threat-model and interaction-contract attestations remained separate
+- the light plan tier when `plan_tier: light`, including why the feature
+  boundaries and verification were unambiguous
 
 ---
 
@@ -982,7 +1000,7 @@ sizing:
     examples:
       - string
   fits_one_implementation_session: true | false
-  session_fit: standard | consented-coarsened   # consented-coarsened ⇒ a Stage-5.5 Coarsening Lease kept this feature oversized by user consent
+  session_fit: standard | approved-exception
   intrinsic_complexity: Simple | Moderate | Complex
   brownfield_adjusted_complexity: Simple | Moderate | Complex
   reviewer_trigger_count: number
@@ -1075,6 +1093,7 @@ parsing Markdown.
       "id": "01-auth-foundation",
       "title": "Authentication foundation",
       "type": "foundation",
+      "specification_route": "explicit",
       "final_complexity": "Moderate",
       "risk_profile": "low",
       "ship_order": 1,
@@ -1087,23 +1106,24 @@ parsing Markdown.
 
 The `features` array is in ship order. Every `file` path is relative to the plan
 directory and must point to an existing `features/<id>.md`.
+`features[].specification_route` is the machine authority and is exactly
+`compact` or `explicit`. Each feature Markdown file contains one matching
+`**Specification route:** ...` projection and does not repeat the field in its
+YAML metadata.
 
 ### `architecture_disposition` — architecture admission and convergence
 
-Every newly written full plan carries this object and its `direction` binding.
-A missing object or direction is a legacy governance gap: plan lint reports it
-as an advisory by default, while specification, implementation, auto-build, and
-baseline architecture invoke the consumer flag and route the plan to Stage R
-instead of assuming architecture is optional.
+Every plan carries this object and its `direction` binding. Specification,
+implementation, auto-build, and baseline architecture validate it rather than
+assuming architecture is optional.
 
 Consistency rules:
 
 | `decision` | Direction status | Required convergence | Other invariants |
 |---|---|---|---|
-| `required` | `direction-selected` or migrated `adopted-existing` | `converged` | at least one trigger; `iteration_count >= 1`; a current accepted-for-specification architecture package is required before spec |
-| `recommended` | selected/adopted, or `deferred` | `converged` or `deferred` | at least one recommendation trigger; selected/adopted plus `converged` has `iteration_count >= 1`; `deferred` has `iteration_count: 0`; package absence is a visible coverage gap |
-| `not-required` | `not-applicable` | `not-applicable` | no triggers; `iteration_count: 0`; human-confirmed basis |
-| `waived` | prior `direction-selected`/`adopted-existing`, or `waived` when no direction was selected | `waived` | at least one trigger; `iteration_count >= 1`; explicit human rationale/summary; residual risk remains visible |
+| `required` | `direction-selected` | `converged` | at least one load-bearing trigger; `iteration_count >= 1`; a current accepted-for-specification architecture package is required before spec |
+| `recommended` | `direction-selected` or `deferred` | `converged` or `deferred` | at least one recommendation trigger; selected plus `converged` has `iteration_count >= 1`; `deferred` has `iteration_count: 0`; residual uncertainty stays visible |
+| `not-required` | `not-applicable` | `not-applicable` | no positive triggers; `iteration_count: 0`; the complete negative screen and Final Plan Approval supply the basis |
 
 `decided_by` is `human`. `decision_refs` contains repository-relative paths to
 accepted ADRs and may be empty. Shaping convergence is not final architecture
@@ -1111,33 +1131,27 @@ approval: the architecture package is written afterward so it can bind stable
 feature ids, `plan_revision`, and source hashes without a circular manifest
 dependency.
 
-For `recommended`, direction status and shaping convergence are independent:
-direction `deferred` means Stage 1A exploration itself was deferred; a selected
-direction with convergence `deferred` means the human approved a direction but
-deferred the candidate-shaping pass. Either convergence defer is copied from
-the explicit §5.4.1 human election for the same candidate revision—write time
-never infers it from the absence of a Stage 5A result.
+For `recommended`, direction status and shaping convergence remain independent:
+direction `deferred` means the human deferred the recommendation at the
+architecture workbench. Write time never infers defer from an absent result.
 
 `direction.artifact` is exactly `architecture-selection.json`; its SHA-256 is
 over the exact file bytes. The exploration id and selected option id/hash must
 equal the selection artifact, with null selected fields for
-an artifact whose direction status is `not-applicable`, `deferred`, or `waived`.
-A post-decomposition shaping waiver preserves a prior selected option id/hash.
+an artifact whose direction status is `not-applicable` or `deferred`.
 Both the disposition and direction record
 `decided_by: human`; prose summaries never override the bound artifact.
 
 `triggers` contains only Stage 3.9 stable ids. Required routes use the nine
 load-bearing driver ids; recommended routes use only
 `team-policy-recommendation`, `planned-reuse-recommendation`, or
-`baseline-preference`; waived routes retain the originating id from either set.
-Duplicate, prose, or unknown trigger values are invalid.
+`baseline-preference`. Duplicate, prose, or unknown trigger values are invalid.
 
 ### `plan_revision` — the revision counter
 
 `plan_revision` is a monotonically increasing integer stamped on every write.
-The **first written plan is revision `1`** (an **absent** key is read as `1`, so a
-plan written before this key existed needs no migration). Each `/core-engineering:ce-plan` **Stage R**
-revision (SKILL.md Execution Contract item 18) bumps it by one and appends a
+The first written plan is revision `1`. Each `/core-engineering:ce-plan` Stage R
+revision bumps it by one and appends a
 `plan-revision <N>` entry to Notes (§13) recording what changed, which gates re-ran,
 and which were held. A touched feature's `features/<id>.md` Structured-Metadata block is
 stamped `revised_by: plan-revision <N>` — the signal that its `specs/<id>/` (if any) is
@@ -1146,93 +1160,10 @@ their specs are preserved byte-for-byte.
 
 ### `plan_tier` — which gate set ran
 
-`plan_tier` is `standard` (default) or `light`. An **absent** key reads as `standard`, so a
-plan written before this key existed needs no migration. It is written `light` only when the
-run entered the **light-plan tier** (SKILL.md Execution Contract item 19 · stage-4-7-gates.md
-§4.3) — a ≤ 3-feature plan with no contested Boundary-Owner, no `sensitive` data-class, and no required architecture route —
-and did **not** expand back to the full gates at 8.3. In the light tier the
-standalone Candidate Decision (§5.4) folds into Final Approval; the correctness
-gates (Reachability §6 and Session-Fit §7) and both material attestations
-(Threat-Model §8.2.1 and Interaction-Contract §8.2.2) still run separately. The
-key lets `/core-engineering:ce-plan-audit` and a later **Stage R** read the folded
-gate set from the artifact rather than re-deriving which gates fired. A matching
-`plan-tier: light` entry in Notes (§13) names the Candidate Decision fold and the
-separate attestation checkpoints in prose. `light` is only ever written for a
-multi-feature directory plan — a single-feature minimal plan has no `plan.json`
-to carry the key.
-
----
-
-## Recommended Minimal Output for Very Small Projects
-
-If the Sizing Gate recommends a single-feature plan, the separate security
-attestation passes, and the user approves the complete preview at
-Single-Feature Final Plan Approval, skip the directory structure and write a
-single simplified file — `docs/plans/[project-slug]/feature-plan.md` — with:
-
-1. Overview
-2. Project Context
-3. Codebase Profile
-4. Single Feature
-5. Validation Target
-6. Execution Checklist
-7. Notes
-
-The single feature should still include:
-
-- `Feature ID: <id>` on its own line, using the same stable, unqualified id
-  convention as a full plan's `features/<id>.md` (for example
-  `Feature ID: 01-health-check`);
-- final Complexity
-- Risk-Profile
-- Scope
-- Excluded
-- Open-Unknowns
-- Validation Target
-- exactly one qualified downstream run line whose slug and id match the
-  registry entry and `Feature ID`, for example
-  `Run: /core-engineering:ce-spec service-health/01-health-check`. Never emit an
-  unqualified run line for this shape: the pair is the machine-readable handoff
-  that lets `/core-engineering:ce-spec` resolve a plan with no `plan.json` or
-  `features/` directory.
-
-`Feature ID` and the qualified `Run` line are durable identity fields, not
-display prose. They must agree exactly and may change only through an explicit
-plan revision; a title or heading is not a substitute for either field.
-
-The `## 6. Execution Checklist` must contain exactly one implementation checkbox
-keyed by that same id, for example
-`- [ ] 01-health-check — implemented and verified`. `/core-engineering:ce-implement`
-ticks that existing row after acceptance; it never guesses which checkbox owns
-the feature or appends a replacement row.
-
-Inside `## 4. Single Feature`, include `### Security Projection`. Copy the
-Single-Feature Security Attestation's human-confirmed feature-local
-trust/exposure screen: entry points,
-untrusted input, auth/authz, external integrations, secrets, and
-personal/sensitive data. Assign `TZ-NNN` only for a detected boundary/security
-surface and preserve this machine-readable block even when the list is empty:
-
-```yaml
-security_obligations:
-  - feature: 01-health-check
-    threat_ids: [TZ-001]
-    surface_kinds: [authz, validation]
-```
-
-When no surface is found, write an explicit assessed negative with the checked
-conditions, evidence, human confirmation, and `threat_ids: []`. This is not a
-claim that one feature has no security surface by construction. A sensitive or
-personal noun without an owned boundary remains an advisory; an unresolved
-security surface blocks the minimal write until the security attestation and
-Single-Feature Final Plan Approval are rerun.
-
-**No separate `threat-model.md` / `interaction-contract.md`.** The minimal file
-embeds its feature-local security projection so `/core-engineering:ce-spec` can
-enforce any `TZ-NNN` obligations. It omits `interaction-contract.md` because one
-feature has no cross-feature edge or multi-toucher protocol. Discovery of a new
-security obligation routes to plan revision; discovery of a cross-feature
-surface re-runs Sizing and normally expands to the full directory shape.
+`plan_tier` is `standard` or `light`. `light` is derived only when scope,
+boundaries, and verification are unambiguous, no feature is high risk, and
+architecture is not required. Both tiers use the same directory shape,
+reachability/security/interaction checks, final approval, and lint floor.
 
 ---
 

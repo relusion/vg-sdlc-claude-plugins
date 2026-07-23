@@ -15,9 +15,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 Work a feature's `tasks.json` to done — implement each task, verify it against the
 spec's test cases, and confirm every acceptance criterion is met.
 
-The feature must already be specified by `/core-engineering:ce-spec` (`specs/<id>/ce-spec.md`
-+ `tasks.json`). The hard thinking is done: this workflow **executes** the spec, it
-does not redesign it.
+Implementation always runs from canonical `specs/<id>/ce-spec.md` +
+`tasks.json`. If the approved `plan.json` gives an unambiguous feature
+`specification_route: compact` and its Markdown projection matches, this
+workflow may compose those artifacts before code changes; assurance is
+retained, not bypassed.
 
 It is **resumable** — it implements the next pending tasks and updates their status;
 re-run it to continue. A large feature need not finish in one pass.
@@ -26,24 +28,16 @@ re-run it to continue. A large feature need not finish in one pass.
 
 - **Feature id (required):** e.g. `03-user-profile`, or the qualified form
   `<plan-slug>/03-user-profile` for explicit selection. If missing, read
-  `docs/plans/plans.json` and list features with a `specs/<id>/` directory
-  under each plan; ask which to implement. Do not guess.
+  `docs/plans/plans.json` and list planned features; ask only when selection is
+  ambiguous.
 - **Loaded implementation authority:** `specs/<id>/ce-spec.md` and
-  `specs/<id>/tasks.json` are the contract in both supported plan shapes.
-- **Plan context (auto-detected):** a full plan loads `shared-context.md`
-  (codebase profile, pitfalls, the Resolved Project Decisions ledger),
-  `features/<id>.md`, and its normal plan inputs. A registry-backed
-  single-feature minimal plan intentionally has no `plan.json`,
-  `architecture-selection.json`, `shared-context.md`, `threat-model.md`, `interaction-contract.md`, or
-  `features/` directory: load its regular, non-symlink `feature-plan.md` as the
-  sole plan context, record those full-plan inputs `N/A by construction`, and
-  set `plan_mode: single-feature-minimal`. Its exactly one
-  `Feature ID: <id>`, qualified
-  `Run: /core-engineering:ce-spec <slug>/<id>`, and implementation checkbox in
-  `## 6. Execution Checklist` must all name the same registry slug / feature id
-  as the invocation and spec directory. A mixed shape, missing/duplicate field,
-  symlinked authority, or mismatch routes to `/core-engineering:ce-plan` before
-  code changes; never manufacture the absent full-plan files.
+  `specs/<id>/tasks.json` are the contract, whether pre-existing or composed by
+  the compact path.
+- **Plan context:** load canonical `plan.json`, `feature-plan.md`,
+  `features/<id>.md`, `shared-context.md`,
+  `architecture-selection.json`, and applicable threat/interaction artifacts.
+  A missing, symlinked, or mismatched authority routes to
+  `/core-engineering:ce-plan` before code changes.
 - **Other loaded context:** the ADRs referenced by the spec and
   `docs/plans/vc-policy.md`. Also the
   target repo's `AGENTS.md` if present (build/test commands, conventions,
@@ -58,14 +52,26 @@ re-run it to continue. A large feature need not finish in one pass.
 
 ## Execution Contract
 
-0. **Proportionality route.** Invoked without a spec on a single bounded change (one behavior, no new durable state, no cross-feature surface), route to `/core-engineering:ce-patch` before touching code — it is the designed lane for exactly this, at a fraction of the cost. With a spec present, this item never fires; the spec is the contract.
+0. **Resolve missing authority.** For an ad hoc bounded change with no plan,
+   route to `/core-engineering:ce-patch`. For a planned feature with no spec,
+   follow the compact-or-explicit route in Stage 0. Never mutate code until
+   canonical spec artifacts exist and pass `spec-lint`.
 
 1. **The spec is the contract.** Implement exactly what `ce-spec.md` and `tasks.json` define. Honor the Scope Lock (below).
-2. **Test-first, and the tests stay honest.** For each task, write its `auto` test cases as tests before the code; red → green. The red tests are snapshotted and an external gate (`test-guard.py`) verifies they were **not weakened** to reach green — execute the spec, don't edit the test to pass. `manual` cases are verified by a human in Stage 2.
+2. **Test-first, and the tests stay honest.** For each task, write its `auto`
+   test cases before the code; red → green. Snapshot them and use
+   `test-guard.py` to detect weakening. Tool-driven `manual:harness-gap` checks
+   run in Stage 2; only `manual:judgment` requires a human verdict.
 3. **One task at a time, in order.** Verify a task before starting the next.
 4. **Resume, don't restart.** Skip tasks already `done` — but only after `task-evidence.py check` confirms their evidence still holds; a task whose proving commit left HEAD's ancestry is **downgraded to `stale`** and re-derived, never trusted on a bare flag (Stage 0).
-5. **Human gates are mandatory** — destructive operations and final acceptance (below).
-6. **Version control:** honor the repo's recorded VC policy (`docs/plans/vc-policy.md`). Every `branch` or `commit` is gated by human consent — a recorded policy choice or an explicit prompt. Never push, open PRs, merge to the main branch, skip hooks, or change git config.
+5. **Human gates are selective** — destructive/irreversible operations, Spec
+   Conflicts, explicit version-control actions, manual judgment, and final
+   acceptance.
+6. **Version control:** honor `docs/plans/vc-policy.md`, but ask immediately
+   before each branch creation/switch or commit unless the current invocation
+   explicitly authorized that exact action. Policy describes the preferred
+   shape; it is not blanket execution consent. Never push, open PRs, merge, skip
+   hooks, rewrite shared history, or change git config.
 7. **Close the loop:** update `tasks.json` status and tick the feature's box in the plan's Execution Checklist.
 
 ## Scope Lock — the approved spec
@@ -82,18 +88,19 @@ raise a Spec Conflict.** Do not improvise around it. Escalate to `/core-engineer
 
 ## Human-in-the-Loop
 
-Execution is mostly autonomous — it is enacting a finished design. The human's role is
-**review and approve**:
+Execution is autonomous for routine, reversible, in-scope work. Show progress
+and task diffs, but do not turn them into approval gates. Ask only:
 
-- **Material (explicit approval):** any destructive or irreversible operation
-  (migration, data delete, schema change) *before it runs*; any Spec Conflict; final
-  acceptance.
-- **Routine (batch review):** ordinary task diffs — shown for review; the human may
-  stop or redirect at any task.
+- immediately before a destructive or irreversible operation;
+- for a Spec Conflict or materially ambiguous ownership/boundary;
+- immediately before an explicit branch, commit, or shared-history action;
+- for a `manual:judgment` verdict; and
+- for final feature acceptance.
 
 *Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant. That printed string is also the attestation event's `gate_index` (Metrics, below) — same string, no second vocabulary.
 
-Never run a destructive operation without explicit approval. Never commit unless asked.
+Never run a destructive operation or version-control write without explicit
+authority for that action.
 
 ## Autonomous Mode
 
@@ -103,33 +110,62 @@ When invoked by `/core-engineering:ce-auto-build`, load `${CLAUDE_SKILL_DIR}/aut
 
 ## Stage 0 — Load and Frame
 
-Resolve the registered plan directory and classify the full or
-`single-feature-minimal` shape. Then load and complete
-`${CLAUDE_SKILL_DIR}/stage-0-architecture-preflight.md` before trusting
-`ce-spec.md` or `tasks.json`, changing `.gitignore`, or mutating code. That
-companion validates the plan, selection, package transaction state, current
-consumer package, and the spec's exact architecture binding on direct,
-auto-build, and resume paths.
+Resolve the canonical registered plan directory. Load
+`${CLAUDE_SKILL_DIR}/stage-0-architecture-preflight.md`; run its plan and
+architecture checks before trusting or creating a spec.
 
-After that preflight, load the spec, `tasks.json`, shape-appropriate plan context, and referenced ADRs. Check preconditions:
+If `ce-spec.md` or `tasks.json` is missing:
 
-- `ce-spec.md` exists and is ready for implementation.
-- Every hard dependency is built. Minimal mode records
-  `Dependency Order: N/A — sizing-attested single feature`; if the spec or
-  repository reveals another planned feature or hard dependency is required,
-  route to `/core-engineering:ce-plan` because the minimal shape is false.
+1. Read the exact `plan.json.features[].specification_route` machine authority
+   and require one matching `**Specification route:** compact|explicit`
+   Markdown projection. Missing, duplicate, or mismatched values return to Plan
+   Stage R.
+2. `explicit` stops and routes to
+   `/core-engineering:ce-spec <slug>/<id>`.
+3. Re-run the ce-spec Compact Composition screen as a drift guard.
+
+Compact is disqualified when:
+
+- `final_complexity` is `Complex`;
+- a security/privacy obligation or security reviewer trigger is present;
+- the feature owns or changes an external/public API, CLI, event, schema, or
+  configuration contract;
+- a hard-dependency interface is unresolved;
+- the feature owns or changes a cross-feature flow, shared shape, or interaction
+  contract;
+- material migration, concurrency, failure, compatibility, destructive, or
+  irreversible design remains;
+- any product, scope, boundary, acceptance-adequacy, or `manual:judgment`
+  decision remains, or behavior, acceptance, test location, validation
+  commands, and a small ordered task cut are not all known.
+
+A stable built dependency or already selected architecture direction does not
+disqualify compact by itself. Route drift returns to Plan Stage R; never
+silently switch routes.
+4. When eligible, invoke `/core-engineering:ce-spec` through `Skill` in compact
+   composition mode. It must write the normal `ce-spec.md` and `tasks.json` and
+   run the same `spec-lint.py`. Only a recorded exit 0 proceeds. Exit 1 must be
+   repaired and re-run or stopped; exit 2 stops. A human acknowledgement never
+   substitutes for lint.
+
+After the artifacts exist, complete the companion's spec-binding check. Then
+load the spec, tasks, plan context, and referenced ADRs. Check:
+
+- Every hard dependency is built.
 - Build, test, and lint/type-check commands are discoverable.
-- Report the working-tree state; if it is not clean, have the human acknowledge before proceeding.
+- Record the working-tree baseline and preserve pre-existing changes. A dirty
+  tree is not a gate. Stop only when an in-scope file already has changes whose
+  ownership cannot be separated safely.
 - Ensure `.test-guard/` is ignored by version control — the per-task red-test snapshots (Stage 1) are transient. If the repo has a `.gitignore` and the entry is missing, add it; if there is no `.gitignore`, note that the snapshots live under `.test-guard/` and should not be committed.
 
 **Diagnosis lead (when a `/core-engineering:ce-debug` diagnosis is present).** Check the plan-root `docs/plans/<slug>/diagnosis.md`, which is cumulative across features. When a `DX` entry's routed feature is **this** feature **and** its classification is `bug`, load it and carry its `file:line` fix locus + the named confirming test/AC into the relevant task's **Restate** step (Stage 1) as the **lead** — where to look and what proves the fix — so the human need not hand-carry the diagnosis across the debug→implement seam. It is *a lead, never a spec widening*: the Scope Lock holds, the diagnosis cannot add scope, and a diagnosis that implies new or changed behavior is a **Spec Conflict** to `/core-engineering:ce-spec` as usual (a `spec-gap` or `structural` diagnosis already routes there, never here). Ignore a diagnosis for another feature or classified anything but `bug`.
 
-**Version-control policy.** Read `docs/plans/vc-policy.md` (the repo-level policy):
-
-- If it does not exist, establish it now — detect whether this is a git repository, then ask the human (material) for the branching model (feature-branch / trunk-based / manual), the branch pattern (default `feature/<plan-slug>/<id>` — multi-plan-safe), and commit granularity. Label each granularity option by its consequence (HITL Gate Standard R1): **per-task** — a commit per task, granular reviewable history but many commits; **per-feature** — one commit per feature, clean history but coarser; **none** — the workflow stages changes but never commits, you handle all version control yourself. Record the answers in `docs/plans/vc-policy.md`.
-- If it exists, honor it for this run.
-
-If the policy is **feature-branch** and the current branch does not match the policy's branch pattern (e.g. `feature/customer-portal/03-user-profile`), **offer** to create it — offer and confirm, never switch branches silently. If the human is already on a suitable branch, use it.
+**Version-control policy.** Read `docs/plans/vc-policy.md`. If absent, ask once
+for branching model, branch pattern, and commit granularity before writing this
+shared policy. If present, honor it without re-confirmation. A feature-branch
+policy does not itself authorize a branch change: show the exact current and
+target branches and ask immediately before create/switch. If no branch action is
+needed, continue without a VC gate.
 
 **Recheck recorded done-ness before trusting it (freshness).** On resume, a `done`
 flag is only as good as the evidence behind it — a task marked `done` whose proving
@@ -138,26 +174,18 @@ commit was reverted, rebased away, or lives on a branch this checkout doesn't ho
 
 `python3 "${CLAUDE_SKILL_DIR}/scripts/task-evidence.py" check specs/<id>/tasks.json --json`
 
-It verdicts each `done` task `fresh` (its `commit_sha` is an ancestor of HEAD), `stale`
-(the sha is absent from HEAD's ancestry — the code the flag points at is not here), or
-`unstamped` (legacy or not-yet-committed — a warning, never a block). Exit 1 ⇒ at least
-one task is stale. **A `stale` task is treated as NOT done.**
-
-Present the feature/task freshness counts and architecture package status or exact disposition-derived coverage record, then confirm with the human [material]. A `recommended` absence and human waiver must be visible at this
-**Proceed** gate with residual risk; `not-required` and minimal mode show the explicit N/A basis:
-
-- **No stale tasks:** the ordinary *Proceed / Abort*.
-- **Stale tasks found** — R2 evidence-first, name each stale task and its basis (the
-  `commit_sha` no longer in HEAD's ancestry) and the cost if wrong:
-  - **A. Re-derive** — clear each stale task's `done` status and re-run it in the loop; the proving code is not in this checkout, so trusting the flag would report done over unbuilt work. *(Recommended when the commit is genuinely gone.)*
-  - **B. Keep done** — you attest the code is present another way (e.g. the commit was rebased into HEAD under a new sha); the flag stands and you re-stamp it at step 8. *(If wrong: the feature reports done over code this tree does not contain.)*
-  - **C. Abort** — stop and investigate the divergence.
+It verdicts each `done` task `fresh`, `stale`, or `unstamped`. Treat `stale` as
+pending and re-derive it; a flag whose proving commit is outside HEAD cannot be
+kept by attestation. Report freshness counts, architecture status, gaps, and
+residual risks, then continue.
 
 ## Stage 1 — Per-Task Loop
 
 For each task in `tasks.json` order whose status is not `done`:
 
-1. **Restate** the task: its change, target files, and the test cases it must satisfy. **Where a `bug` diagnosis (Stage 0) targets this task's locus, restate its `file:line` lead and named confirming test/AC too** — a lead into the work, never added scope.
+1. **Restate** the task, target files, and proving test cases. If it contains a
+   destructive or irreversible operation, obtain approval **before** the first
+   such command. Include any matching diagnosis lead without widening scope.
 2. **Test first** — for each `auto` test case the task must satisfy, write the test before the code; run it; it fails (red). **Then snapshot the red tests:** copy each test file you wrote or changed into `.test-guard/<id>/<task-id>/`, mirroring its repo-relative path. This is the baseline the test-integrity gate (step 5) diffs the green tests against — and the only way the *within-task* genie (a strong red test quietly weakened to pass) can be caught, since the red form is never committed. `manual` test cases carry no code — they are checked in Stage 2.
 3. **Implement** — make the change. Honor the design's patterns, conventions, pitfalls, and the accepted ADRs it cites in `docs/adr/`. For a feature exposing a foundationed surface (`browser`, or another live surface), build against the interface-foundation ADR's tokens/primitives or contract — never ad-hoc styling. If this feature *is* the foundation owner, deliver its **conformance checker** and wire it into the lint/test command.
 
@@ -174,23 +202,32 @@ For each task in `tasks.json` order whose status is not `done`:
    **(a) Test-integrity** — over the red snapshot vs the green working tree: `python3 "${CLAUDE_SKILL_DIR}/scripts/test-guard.py" --snapshot .test-guard/<id>/<task-id> --task <task-id>`. Dispose by exit code:
    - **PASS (exit 0)** → proceed. On PASS the gate also **appends a `{task_id, verdict, ts, snapshot_sha256}` entry to the feature-level `.test-guard/<id>/passes.json` ledger** — the durable proof that *this task* captured a red baseline and reached green without weakening it. That ledger outlives the per-task snapshot dir and is what Stage 2's honor check (`--verify-passes`) audits, closing the gap where a task that never snapshotted would slip through unguarded. (It is also the source of truth for the task's `test_run_digest`.) **Interactive mode only:** delete the snapshot dir (it has served its purpose; the ledger entry survives). **Under autonomous mode (auto-build) do *not* delete it** — the orchestrator owns the snapshot lifecycle and re-runs test-guard over the snapshots as an external gate, then cleans them up (see Autonomous Mode).
    - **FAIL (exit 1)** → a test was weakened to reach green. This is a **test-design defect, not a code bug** — do not loop the implement step blindly. Restore the test to its red intent and re-run (within the task's ~3-attempt budget). If the weakening is genuinely correct (the spec *retired* the behavior), record it in-code with a `test-guard: allow <reason>` marker citing the AC, and re-run. If it cannot be reconciled within the spec, it is a **Spec Conflict** → escalate.
-   - **Could-not-run (exit 2)** (no snapshot captured, git/IO error) → degrade **loudly**: say so, fall back to a manual diff of the test files, record the degradation. Never a silent skip.
+   - **Could-not-run (exit 2)** → stop with the tooling/integrity gap. A manual
+     assertion cannot replace the external test-integrity gate.
 
    A task with no `auto` test cases writes no tests and no snapshot — the test-integrity gate is **N/A** for it (skip, not a failure).
 
    **(b) Dependency-existence** — if this task touched a dependency manifest, confirm the deps you added are exactly the ones you verified in step 3: `python3 "${CLAUDE_SKILL_DIR}/scripts/dep-guard.py" --base <pre-task ref or HEAD> --declared <comma-separated deps you verified>`. It detects new direct deps in the manifest diff (offline; the *network* existence check was step 3's job) and flags any **undeclared** one. The undeclared check is **ON by default**, so if you verified nothing, an empty/omitted `--declared` fails *any* new dep (fail-safe — that is the point); never pass `--detect-only` here. Dispose by exit code:
    - **PASS (exit 0)** → proceed (an `A1` typosquat advisory still warrants a second look at the registry).
    - **FAIL (exit 1)** → a dependency entered the manifest that you did **not** verify/declare — the slopsquatting smoking gun. This is a **supply-chain/spec-gap defect, not a code bug**: verify the dep on the registry and declare it (or remove it) and re-run; a dep the spec never anticipated that you cannot verify is a **Spec Conflict** → escalate. Never wave it through.
-   - **Could-not-run (exit 2)** (unknown ecosystem, unparseable manifest, git error) → degrade **loudly**: fall back to a manual read of the manifest diff, record the degradation. Never a silent skip.
+   - **Could-not-run (exit 2)** → stop with the tooling/integrity gap. Do not
+     install or accept an unverified dependency by manual assertion.
 
    A task that touched no dependency manifest → dep-guard is **N/A** (no manifest in the diff; skip).
-6. **Checkpoint** — show the diff. Routine tasks: batch review. A task with a destructive operation: explicit approval before it runs.
+6. **Checkpoint** — show the diff and check results for visibility, then
+   continue on routine in-scope work without an approval prompt.
 7. **Record — stamp evidence-bound done-ness, don't just flip a flag.** Rather than hand-set `status: "done"`, run the stamp script so the task carries *proof* it was completed, not a bare boolean a later revert can strand:
 
    `python3 "${CLAUDE_SKILL_DIR}/scripts/task-evidence.py" stamp specs/<id>/tasks.json --task <task-id> --passes .test-guard/<id>/passes.json`
 
-   It sets `status: "done"` and writes three additive fields onto the task: `completed_at` (UTC), `test_run_digest` — the `sha256:` fingerprint **projected verbatim from this task's PASS marker** in `.test-guard/<id>/passes.json` (step 5a's ledger, the source of truth that the task captured a red baseline and reached green honestly), and `commit_sha` (`null` here — filled at step 8 / Stage 3). A task with no `auto` test (hence no marker) instead passes `--test-log <captured-output>` to fingerprint the run; with neither, `test_run_digest` is `null`, never fabricated. Exit 1 = the task id is unknown (a wiring bug — fix the id, nothing was written); exit 2 = tasks.json unreadable → record done-ness by hand, loudly.
-8. **Commit** — if the VC policy's granularity is `per-task`, commit the task's change and its `tasks.json` update on the feature branch, with a message naming the task, then **bind the task to that commit**: re-run `task-evidence.py stamp specs/<id>/tasks.json --task <task-id> --commit HEAD` so `commit_sha` records the commit that now holds the proven change (this one-field update is trailing bookkeeping — sweep it into the next task's commit). The diff was reviewed at step 6 and the human chose `per-task` granularity, so no extra confirmation is needed. Otherwise skip — `commit_sha` stays `null` until Stage 3 fills it. (Never commit the `.test-guard/` snapshots — they are gitignored transient state.)
+   It sets `status: "done"` and writes `completed_at`, `test_run_digest`, and
+   `commit_sha` (`null` until a commit). A task with no `auto` test uses
+   `--test-log <captured-output>`. Exit 1 is a task-id wiring defect; exit 2 is
+   an integrity stop. Do not record done-ness by hand.
+8. **Optional commit** — when policy says `per-task`, show the exact diff and
+   message and ask immediately before the commit. On approval, commit and bind
+   the task with `task-evidence.py ... --commit HEAD`. On decline, continue with
+   `commit_sha: null`. Never commit `.test-guard/`.
 
 A task whose test cases are all `manual` is implemented and marked `done` here;
 its verification is deferred to the manual pass in Stage 2.
@@ -203,7 +240,7 @@ Allow ~3 attempts on a task before escalating to the human.
 When all tasks are `done`, verify the feature in two passes.
 
 **Automated.** Run the full feature test suite — every `auto` test case green.
-**Run the test-integrity honor check** — `python3 "${CLAUDE_SKILL_DIR}/scripts/test-guard.py" --verify-passes --spec-dir specs/<id>`. It audits the `.test-guard/<id>/passes.json` ledger and **fails (exit 1, naming the task) for any `done` task carrying an `auto` test case that left no PASS marker** — a task that reached done without ever proving its tests (the honor gap the per-task snapshot gate cannot see, since a task that skipped the snapshot is simply never checked). Write each such task into `verification.md` as a **loud degradation line** (`task <id> reached done without test-integrity evidence`) — never a silent pass; it routes back to Stage 1 to re-capture the red snapshot for that task. Exit 2 (spec-lint unloadable / ledger unreadable) degrades to a manual snapshot review, recorded.
+**Run the test-integrity honor check** — `python3 "${CLAUDE_SKILL_DIR}/scripts/test-guard.py" --verify-passes --spec-dir specs/<id>`. It fails any `done` task with an `auto` case but no PASS marker and routes it back to Stage 1. Exit 2 stops as an integrity gap; a manual snapshot assertion is not equivalent.
 Run the project build and lint/type-check. **Run the interface-conformance check**
 where the feature exposes a foundationed surface — the `auto` / `manual:harness-gap`
 conformance criteria from the spec (uses the shared tokens/primitives, no stray
@@ -219,19 +256,20 @@ bookkeeping subtree, `.test-guard/`, and `docs/adr/` promotions are sanctioned, 
 a violation). A **FAIL (exit 1)** names each stray file — a **Spec Conflict**: either
 the change genuinely belongs to this feature (add the file to the owning task's
 `files` and re-run) or it widens the planned boundary (**escalate to `/core-engineering:ce-spec`**),
-mirroring `/core-engineering:ce-patch`'s mandatory-promotion posture. On a **legacy spec that declares
-no `tasks[].files`** the gate cannot enforce and returns an advisory (recorded,
-non-blocking); **exit 2** (not a git repo / unreadable tasks.json) degrades to the
-manual file-boundary check, loudly. (m4: a write into a `.gitignore`'d path is
-invisible to the diff — the manual check covers ignored-path writes.)
+mirroring `/core-engineering:ce-patch`'s mandatory-promotion posture. Missing
+`tasks[].files` is a Spec Conflict. Exit 2 stops as an integrity gap; a manual
+file-boundary assertion does not replace the gate.
 
-**Manual.** For each `manual` test case, present its check script — the
-preconditions / action / expected from `ce-spec.md` — as Markdown, then capture the
-human's verdict with `AskUserQuestion` (`Pass` / `Fail` / `Blocked`, one per
-case). Do the legwork first where possible — start the dev server, drive the
-browser, capture a screenshot — so the human renders only the judgment. A `Fail`
-loops back to a task (Stage 1); a `Blocked` leaves the feature *implemented but
-not verified*.
+**Non-unit verification.**
+
+- Drive each `manual:harness-gap` script with the available browser/API/device
+  tool and record the demonstrated result without asking for confirmation. If
+  its harness is unavailable, record `Blocked`; never invent a Pass.
+- For `manual:judgment`, do the setup and capture evidence, then ask the human
+  for `Pass` / `Fail` / `Blocked`. This is the only per-case verdict gate.
+
+A `Fail` loops back to Stage 1; `Blocked` leaves the feature implemented but not
+verified.
 
 **Surface Critique — the inverse pass.** When the feature renders a **user-facing
 surface**, do not stop at "does each case's `expected` hold?" — that is
@@ -244,15 +282,14 @@ record any **functional** finding **even when every cited AC passes**. A functio
 finding (a `must-not` / `must-be-legible` / `primary-affordance` clause broken, or —
 for an unbound finding — a specifically *cited blocked use*) is a **Spec Conflict**
 (the criteria were too weak) → escalate; never a silent green. A `taste`-class
-finding (palette, brand feel) is noted and deferred. The verdict stays the human's;
-the critique adds fallible findings, it does not self-certify the surface. *(This is
+finding (palette, brand feel) becomes `manual:judgment`. The critique adds
+fallible evidence; it does not self-certify the surface. *(This is
 the framework's **Surface Critique** discipline — full rubric, functional-vs-taste
 classifier, and evidence tiers in `spec/surface-critique.md`.)*
 
-Then confirm **every acceptance criterion** is met: trace each AC → its test
-cases → passing results (`auto` green, `manual` Pass). An unverified criterion is
-a gap, not a pass. Summarize: criteria met, automated tests passing, manual
-verdicts, files changed.
+Then derive every acceptance-criterion result from its test evidence:
+`auto` green, demonstrated `manual:harness-gap`, or human
+`manual:judgment`. An unverified criterion is a gap, not a pass.
 
 ## Stage 3 — Acceptance and Handoff
 
@@ -284,10 +321,9 @@ optionally exercise the feature before deciding — then ask for final acceptanc
 On **Accept**:
 
 - Confirm all tasks are `done` in `tasks.json`.
-- Tick this feature's existing box in `feature-plan.md`'s Execution Checklist.
-  In minimal mode, match the one checkbox keyed by the exact `Feature ID`; if it
-  is missing or ambiguous, stop and route the malformed plan to
-  `/core-engineering:ce-plan` rather than appending or guessing a row.
+- Tick the exact feature row in `feature-plan.md`'s Execution Checklist. If it
+  is missing or ambiguous, route the malformed plan to
+  `/core-engineering:ce-plan`; never append or guess a row.
 - Write `specs/<id>/verification.md` per the template in `${CLAUDE_SKILL_DIR}/artifact-template.md` (do not reconstruct it from memory) — each acceptance criterion with its pass evidence (automated test results, and for `manual` cases the script, verdict, who, and when), the test-run summary, and the **Try It Yourself** runbook as its own section.
 
   **The artifact template is bundled in this skill's own directory.** Read it at `${CLAUDE_SKILL_DIR}/artifact-template.md` — `${CLAUDE_SKILL_DIR}` is the environment variable that resolves to this skill's directory regardless of the current working directory. Resolve it once if needed (`ls "${CLAUDE_SKILL_DIR}"`) and read the file by its resulting absolute path; **never load the companion file by bare name** — in an installed plugin the working directory is the user's project, so a bare name finds nothing and triggers a filesystem search.
@@ -310,7 +346,11 @@ Append one JSON line per event to `docs/plans/<slug>/.metrics.jsonl` (`stage: "i
 - **`retry`** — one per re-attempt inside a task's ~3-attempt budget (Stage 1); set `feature` so retro can join it to complexity drift.
 - **`escalation`** — one on a Spec Conflict: `escalation_type: "/core-engineering:ce-spec"` (or `/core-engineering:ce-plan` for a Boundary Conflict), `detail` naming the conflict.
 - **`stage-complete`** — one at Stage 3 **Accept**.
-- **`attestation`** — one line per HITL-gate decision, at **every** interactive gate this run fires (Stage 0 *Proceed/Abort* and the VC-policy / branch offers, Stage 1's destructive-op approval, each Stage 2 `manual` verdict, Stage 3 *Accept / Revise / Reject*). Emit the `attestation` event from the `retro` schema: `gate` = the gate name, `gate_index` = that gate's printed `Gate N of M` locator (R5) **verbatim**, `basis_shown` = whether the gate rendered its evidence-first basis, and `action` per the schema's definitions — `confirm` (accepted as rendered, e.g. Accept / a `Pass` verdict / an accepted offer), `override` (rejected or changed it, e.g. Reject / a `Fail` verdict / a declined offer), `edit` (accepted with a modification, e.g. Revise back to a task), or `loop` (one line per re-prompt of the *same* gate, so a churning gate stays visible). This is the confirm-vs-override telemetry `/core-engineering:ce-retro` and the evidence pack consume; it is emitted nowhere else.
+- **`attestation`** — one line per interactive gate that actually fires:
+  policy creation, branch/commit action, destructive operation, Spec Conflict,
+  `manual:judgment`, or final acceptance. Use the printed `Gate N of M` locator
+  verbatim as `gate_index`; routine diffs and demonstrated PASS rows emit no
+  attestation.
 
 ## Closing
 
@@ -327,8 +367,7 @@ Pushing, PRs, and merging are the human's to do — never automatic. Point to th
 next step: an independent code review of this feature
 (`/core-engineering:ce-review <id>` — correctness beyond tests, security,
 maintainability, conformance) before it ships, then the next feature to implement
-or spec in ship order. In `single-feature-minimal` mode there is no next feature,
-so omit that ship-order suggestion. **If this feature owns a user-facing `browser` surface,** add
+or spec in ship order. **If this feature owns a user-facing `browser` surface,** add
 one pointer: its *single-surface* readability was critiqued here (the Surface Critique
 pass), but the **cross-journey experiential layer** — cross-feature consistency
 (action-label / pattern / navigation / tone drift), off-path dead-ends, coverage

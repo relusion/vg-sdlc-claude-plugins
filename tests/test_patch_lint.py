@@ -1,4 +1,4 @@
-"""Focused tests for the express-only `/core-engineering:ce-patch` admission and diff gate."""
+"""Focused tests for `/core-engineering:ce-patch` admission and evidence modes."""
 
 import importlib.util
 import json
@@ -60,20 +60,33 @@ def init_repo(root: Path) -> str:
     return git(root, "rev-parse", "HEAD").strip()
 
 
-class ExpressContractText(unittest.TestCase):
+class PatchContractText(unittest.TestCase):
     def test_first_nonzero_admission_result_is_terminal(self):
         stages = STAGES.read_text(encoding="utf-8")
         self.assertIn("first non-zero admission result is terminal", stages)
         self.assertIn("Do not try alternate candidate", stages)
 
-    def test_failed_green_or_regression_check_routes_without_repair_loop(self):
+    def test_failed_after_or_regression_check_routes_without_repair_loop(self):
         skill = SKILL.read_text(encoding="utf-8")
         stages = STAGES.read_text(encoding="utf-8")
         self.assertNotIn("until the intended check is green", stages)
         self.assertIn("this lane has no automated repair loop", skill)
-        self.assertIn("still-red intended check", skill)
+        self.assertIn("failed after check", skill)
         self.assertIn("regression/lint/build failure", skill)
         self.assertIn("Any\n   failure or could-not-run result routes directly to `/core-engineering:ce-plan`", stages)
+
+    def test_behavior_and_content_modes_have_honest_evidence(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        stages = STAGES.read_text(encoding="utf-8")
+        artifact = (
+            REPO / "plugins/core-engineering/skills/ce-patch/artifact-reference.md"
+        ).read_text(encoding="utf-8")
+        for text in (skill, stages):
+            self.assertIn("Behavior/code", text)
+            self.assertIn("Prose/content/internal config", text)
+        self.assertIn("Do not manufacture a failing\n     unit test for a typo", skill)
+        self.assertIn('"mode": "behavior | content"', artifact)
+        self.assertIn("do not add a\nfictional test result", artifact)
 
 
 class AdmissionFileBoundary(unittest.TestCase):

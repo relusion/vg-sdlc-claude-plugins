@@ -27,9 +27,10 @@ Sections (each populated or gap-listed):
   3. gate_verdicts     — the gate_runner.py merge verdict (policy sha256, base/
                          head SHAs, change class) when supplied, plus the
                          in-loop gate pass/fail tallies from the metrics stream.
-  4. human_attestations— verification-report.md (presence + verdict extract),
-                         the auto-build end-review run reports, and the
-                         attestation-telemetry rollup (confirm/override/edit/loop).
+  4. human_attestations— verification-report.md plus its derived freshness
+                         receipt, per-feature review-summary receipts, the
+                         auto-build end-review run reports, and the attestation-
+                         telemetry rollup (confirm/override/edit/loop).
   5. model_identity    — per-stage model ids from the metrics stream with
                          below-policy-tier flags (model-policy.json tier_patterns);
                          a hook-less run records model=null, never a guessed tier.
@@ -77,6 +78,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import merge_disposition  # noqa: E402  (dir-local forked ledger reader)
 
 SCHEMA_VERSION = 1
+FEATURE_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 # Lines in verification-report.md that read as a rendered verdict — extracted as
 # a convenience (the verbatim copy + sha256 is the authoritative record).
@@ -109,9 +111,11 @@ HONEST_LIMITATIONS = [
     "(surfaced as null_count, never a guessed tier). Below-tier flags depend on "
     "model-policy.json being locatable; when it is not, models are listed "
     "unflagged and the gap is recorded.",
-    "Markdown artifacts (verification-report.md, the end-review run reports) are "
-    "preserved verbatim with their sha256 and only lightly excerpted; their "
-    "prose — including end-review accepted findings — is not re-judged here.",
+    "Verification/review receipts and Markdown artifacts (verification-report.md, "
+    "the end-review run reports) are preserved verbatim with their sha256. This "
+    "pack does not rerun verification-gate.py or review-gate.py; the release "
+    "decision records those current-state results, and this compilation does not "
+    "turn their evidence into an independent verdict.",
     "The finding-disposition register is a HUMAN-AUTHORED file, reported as found "
     "and never re-judged: this pack does not verify that the named accepted_by "
     "actually approved the entry, nor that the accepted finding was real. What "
@@ -371,9 +375,11 @@ def gate_verdicts_section(merge_verdict: Path, audit_json: dict,
 
 # --- section 4: human attestations ---------------------------------------------
 
-def human_attestations_section(plan_dir: Path, audit_json: dict,
+def human_attestations_section(plan_dir: Path, plan: dict, audit_json: dict,
                                artifacts: list, gaps: list) -> dict:
     out = {"verification_report": {"present": False},
+           "verification_summary": {"present": False},
+           "review_summaries": [],
            "end_review_reports": [],
            "attestation_telemetry": {}}
 
@@ -395,6 +401,109 @@ def human_attestations_section(plan_dir: Path, audit_json: dict,
         gaps.append("no verification-report.md — /core-engineering:ce-verify has not produced a "
                     "cross-feature acceptance record for this plan")
     out["verification_report"] = vr_out
+
+    summary = plan_dir / "verification-summary.json"
+    entry = add_artifact(artifacts, "verification-summary", summary)
+    summary_out = {
+        "present": entry["present"],
+        "sha256": entry["sha256"],
+        "path": str(summary),
+    }
+    if entry["present"]:
+        parsed = load_json(summary)
+        if isinstance(parsed, dict):
+            summary_out["schema_version"] = parsed.get("schema_version")
+            summary_out["evaluated_commit"] = parsed.get("evaluated_commit")
+            summary_out["repository_state_sha256"] = parsed.get(
+                "repository_state_sha256"
+            )
+            rows = parsed.get("features")
+            summary_out["feature_count"] = len(rows) if isinstance(rows, list) else None
+        else:
+            summary_out["unreadable"] = True
+            gaps.append(
+                "verification-summary.json present but unreadable; freshness "
+                "receipt could not be inventoried"
+            )
+    else:
+        gaps.append(
+            "no verification-summary.json — current verification provenance "
+            "was not preserved"
+        )
+    out["verification_summary"] = summary_out
+
+    specs = plan_dir / "specs"
+    expected_ids: set[str] = set()
+    feature_rows = plan.get("features")
+    if isinstance(feature_rows, list):
+        for index, feature in enumerate(feature_rows):
+            feature_id = feature.get("id") if isinstance(feature, dict) else None
+            if (
+                not isinstance(feature_id, str)
+                or FEATURE_ID_RE.fullmatch(feature_id) is None
+            ):
+                gaps.append(
+                    f"plan.json features[{index}] has no safe feature id; "
+                    "review receipt coverage could not be resolved"
+                )
+                continue
+            if feature_id in expected_ids:
+                gaps.append(
+                    f"plan.json repeats feature {feature_id}; review receipt "
+                    "coverage is ambiguous"
+                )
+                continue
+            expected_ids.add(feature_id)
+    else:
+        gaps.append(
+            "plan.json features is unavailable; per-feature review receipt "
+            "completeness cannot be established"
+        )
+
+    discovered = {
+        path.parent.name: path
+        for path in (
+            sorted(specs.glob("*/review-summary.json"))
+            if specs.is_dir()
+            else []
+        )
+    }
+    receipt_ids = sorted(expected_ids | set(discovered))
+    for feature_id in receipt_ids:
+        review_summary = discovered.get(
+            feature_id, specs / feature_id / "review-summary.json"
+        )
+        entry = add_artifact(artifacts, "review-summary", review_summary)
+        receipt = {
+            "feature_id": feature_id,
+            "path": str(review_summary),
+            "present": entry["present"],
+            "sha256": entry["sha256"],
+            "readable": False,
+            "expected": feature_id in expected_ids,
+        }
+        if not entry["present"]:
+            gaps.append(
+                f"no review-summary.json for plan feature {feature_id}; "
+                "current review provenance was not preserved"
+            )
+        else:
+            parsed = load_json(review_summary)
+            if isinstance(parsed, dict) and entry["sha256"] is not None:
+                receipt["readable"] = True
+                receipt["schema_version"] = parsed.get("schema_version")
+            else:
+                gaps.append(
+                    f"review-summary.json for feature {feature_id} is unreadable "
+                    "or malformed; current review provenance could not be "
+                    "inventoried"
+                )
+        out["review_summaries"].append(receipt)
+    if not receipt_ids:
+        gaps.append(
+            "no review-summary.json receipts — current review provenance was "
+            "not preserved"
+        )
 
     # End-review records: the auto-build run reports carry the human's accepted
     # degradations / overrides. Preserved verbatim; prose not machine-parsed.
@@ -716,7 +825,9 @@ def main(argv=None) -> int:
         add_artifact(artifacts, "merge-verdict", merge_verdict, external=True)
 
     # Section 4 — human attestations.
-    human = human_attestations_section(plan_dir, audit_json, artifacts, gaps)
+    human = human_attestations_section(
+        plan_dir, plan if isinstance(plan, dict) else {}, audit_json, artifacts, gaps
+    )
 
     # Section 5 — model identity.
     model_identity = model_identity_section(plan_dir, gaps)

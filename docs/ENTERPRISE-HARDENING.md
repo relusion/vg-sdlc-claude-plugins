@@ -30,7 +30,7 @@ Primary references used for vocabulary and alignment:
 | Risk area | Relevant external vocabulary | Framework control | Evidence in this repo | Residual owner |
 |---|---|---|---|---|
 | Prompt injection and malicious repository text | OWASP LLM Top 10: prompt injection; OWASP Agentic: malicious task/tool instructions | Read-only skills must cite repository facts and ignore instructions embedded in analyzed files. Adversarial evals cover malicious fixture docs that ask the model to override policy or exfiltrate data. | `evals/scenarios.json` (`EVAL-011`, `EVAL-012`), `evals/fixtures/adversarial-instructions/`, `/core-engineering:ce-ask`, `/core-engineering:ce-impact` citation contracts | Skill author and reviewer |
-| Excessive agency | OWASP LLM Top 10: excessive agency; OWASP Agentic: tool misuse and unsafe delegation | Skills separate decision, implementation, verification, review, and release. Release never deploys; plugin agents are leaf agents without nested `Task`. The write-scope guard enforces session leases for read-only skills over a `/core-engineering:ce-init`-seeded deny-only baseline; git-guard tiers are env-hardenable to deny and fail closed on malformed Bash payloads. | `plugins/core-engineering/skills/ce-ship-release/SKILL.md`, `scripts/check.py` agent leaf check, `plugins/core-engineering/hooks/git-guard.py`, `plugins/core-engineering/hooks/write-scope-guard.py` | Human release owner |
+| Excessive agency | OWASP LLM Top 10: excessive agency; OWASP Agentic: tool misuse and unsafe delegation | Skills separate planning, implementation, independent verification/review, verified documentation, conditional reader audit, and the final release decision. Only actual human decisions gate progress; deterministic PASS and clean read-only results do not request authority. Release never deploys; plugin agents are leaf agents without nested `Task`. The write-scope guard enforces session leases for read-only skills over a `/core-engineering:ce-init`-seeded deny-only baseline; git-guard tiers are env-hardenable to deny and fail closed on malformed Bash payloads. | `plugins/core-engineering/skills/ce-ship-release/SKILL.md`, `scripts/check.py` agent leaf check, `plugins/core-engineering/hooks/git-guard.py`, `plugins/core-engineering/hooks/write-scope-guard.py` | Human release owner |
 | Sensitive information disclosure | OWASP LLM Top 10: sensitive information disclosure | `env-guard` blocks high-risk dotenv and `/proc/.../environ` reads on the Claude Code surface (read side); `net-guard` is the send side — over a `/core-engineering:ce-init`-seeded egress allowlist it confirms non-allowlisted outbound calls and hard-denies a guarded-secret upload payload; the merge bar's `secrets-guard` advisory gate scans the credentials a change ADDS (base..head, values redacted) and renders a machine verdict on any CI substrate — the first-party producer of the release package's secret-scan evidence row; CI additionally runs gitleaks with redaction and full history; security probes redact secrets in outputs. | `plugins/core-engineering/hooks/env-guard.py`, `plugins/core-engineering/hooks/net-guard.py`, `plugins/core-engineering/skills/ce-probe-infra/scripts/secrets-guard.py`, `.github/workflows/secret-scan.yml`, `/core-engineering:ce-probe-infra` and `/core-engineering:ce-probe-sec` docs | Repository owner; secrets manager owner |
 | Supply-chain dependency drift | OWASP LLM Top 10: supply-chain risk | `dep-guard.py` detects undeclared or typo-suspicious dependencies in implementation flows; byte-identical copies are enforced across callers from the machine-readable fork registry (`fork_sync.py --write` re-syncs). | `plugins/core-engineering/fork-manifest.json`, `ce-implement/scripts/dep-guard.py`, `ce-auto-build/scripts/dep-guard.py`, `ce-verify/scripts/dep-guard.py`, `scripts/check.py`, `scripts/fork_sync.py`, `scripts/supply_chain_check.py` | Implementer and reviewer |
 | CI and tool supply chain | SLSA, OpenSSF Scorecard | GitHub Actions references are pinned to commit SHAs; downloaded gitleaks tarball is checksum-verified; strict plugin validation and offline gates run in CI. | `.github/workflows/*.yml`, `scripts/supply_chain_check.py`, `scripts/portability_check.py` | Maintainer updating CI actions |
@@ -277,10 +277,13 @@ Current gaps are explicit:
 
 Default next improvements:
 
-1. Add an optional Scorecard CI workflow with pinned actions and reviewed
+1. Produce a fresh, receipt-backed live baseline for the lean workflow and
+   compare it with the previous contract on the same model and fixtures.
+2. Track input/context proxy, human review time, first-pass verification,
+   seeded-defect recall, false positives, and park/retry/could-not-run rates.
+3. Add focused evals for architecture adjustment, compact/explicit
+   specification routing, independent review-plus-verify, and
+   documentation/audit-before-release.
+4. Only after that evidence is stable, consider optional Scorecard, sample
+   SBOM, and provenance/signature workflows with pinned actions and reviewed
    permissions.
-2. Add sample CycloneDX and SPDX SBOM paths to release fixture repos.
-3. Add provenance/signature fixture checks to full-profile release evals once a
-   release eval exists.
-4. Extend `scripts/supply_chain_check.py` with organization-specific policy
-   hooks only after the current portable floor stays stable.

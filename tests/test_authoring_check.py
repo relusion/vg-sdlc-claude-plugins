@@ -243,6 +243,31 @@ class AuthoringCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("platform cap", res.stderr)
 
+    def test_dense_entrypoint_over_token_proxy_ceiling_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            skill = repo / SKILLS / "ce-ask/SKILL.md"
+            # One dense line stays below the line cap, proving A14 catches the
+            # context-growth class A7 cannot see.
+            skill.write_text(
+                skill.read_text(encoding="utf-8") + "\n" + ("x" * 40_001),
+                encoding="utf-8",
+            )
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("entrypoint ceiling", res.stderr)
+            self.assertIn("token proxy", res.stderr)
+
+    def test_dense_companion_over_token_proxy_ceiling_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._copy_repo(Path(tmp))
+            companion = repo / SKILLS / "ce-ask/context-dump.md"
+            companion.write_text("x" * 80_001, encoding="utf-8")
+            res = self._lint(repo)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("companion-file ceiling", res.stderr)
+            self.assertIn("context-dump.md", res.stderr)
+
     def test_evidence_mapping_clause_missing_fails(self):
         # A11 — a skill that keeps its `Three-State Evidence` rule but drops the
         # meta-scale mapping clause must red (the anti-pattern is falling back to

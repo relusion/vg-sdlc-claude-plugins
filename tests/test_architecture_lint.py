@@ -22,6 +22,7 @@ SELECTION_SCRIPT = (
     / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-selection-lint.py"
 )
 V2_FIXTURE = REPO / "tests/architecture_v2_fixture.py"
+SELECTION_FIXTURE = REPO / "tests/test_architecture_selection_lint.py"
 
 _spec = importlib.util.spec_from_file_location("architecture_lint_mod", SCRIPT)
 al = importlib.util.module_from_spec(_spec)
@@ -37,6 +38,11 @@ _v2_spec = importlib.util.spec_from_file_location(
 )
 v2 = importlib.util.module_from_spec(_v2_spec)
 _v2_spec.loader.exec_module(v2)
+_selection_fixture_spec = importlib.util.spec_from_file_location(
+    "architecture_selection_fixture_for_lint", SELECTION_FIXTURE
+)
+selection_fixture = importlib.util.module_from_spec(_selection_fixture_spec)
+_selection_fixture_spec.loader.exec_module(selection_fixture)
 
 
 def _legacy_check(*args, **kwargs):
@@ -213,6 +219,7 @@ def _selection_option(
             {
                 "criterion_id": criterion,
                 "score": score,
+                "basis": f"{option_id} fit against {criterion}.",
                 "evidence_state": "recorded",
                 "evidence": ["docs/briefs/team-invitations.md"],
             }
@@ -224,6 +231,25 @@ def _selection_option(
     }
     option["option_sha256"] = sl.option_hash(option)
     return option
+
+
+def _write_current_selection(plan_dir: Path, selection: dict) -> None:
+    """Write a current selected-direction fixture and its reviewed report."""
+
+    selection["schema_version"] = 2
+    report_path = plan_dir / "architecture-options.md"
+    _write(report_path, selection_fixture.render_options_report(selection))
+    selection["architecture_options_report"] = {
+        "schema_version": 1,
+        "status": "present",
+        "path": "architecture-options.md",
+        "sha256": _sha(report_path),
+        "reason": None,
+    }
+    _write(
+        plan_dir / "architecture-selection.json",
+        json.dumps(selection, ensure_ascii=False, indent=2) + "\n",
+    )
 
 
 def _write_selection(root: Path, plan_dir: Path) -> dict:
@@ -243,6 +269,13 @@ def _write_selection(root: Path, plan_dir: Path) -> dict:
     evaluation_frame = {
         "project_intent": "Add team invitations while preserving existing membership boundaries.",
         "non_goals": ["Replace the application runtime."],
+        "decision_owner": {
+            "identity_or_role": "Invitation Architecture Owner",
+            "authority_basis": (
+                "The accepted delivery governance assigns solution-direction "
+                "approval to the Invitation Architecture Owner."
+            ),
+        },
         "architecture_applicability": "required",
         "driver_screen": [
             {
@@ -315,7 +348,7 @@ def _write_selection(root: Path, plan_dir: Path) -> dict:
     option_set_sha256 = sl.option_set_hash(options, [])
     selected = options[0]
     selection = {
-        "schema_version": 1,
+        "schema_version": 2,
         "project_slug": "team-invitations",
         "exploration_id": f"AEX-{option_set_sha256[:12]}",
         "source_capability_revision": 1,
@@ -342,15 +375,13 @@ def _write_selection(root: Path, plan_dir: Path) -> dict:
             "option_id": selected["option_id"],
             "option_sha256": selected["option_sha256"],
             "decided_by": "human",
+            "approved_by": "Invitation Architecture Owner",
             "rationale": "Preserve the accepted runtime and strongest requirement fit.",
         },
         "next_owner": "ce-plan",
     }
     selection["source_input_sha256"] = sl.source_input_hash(selection)
-    _write(
-        plan_dir / "architecture-selection.json",
-        json.dumps(selection, indent=2) + "\n",
-    )
+    _write_current_selection(plan_dir, selection)
     return selection
 
 
@@ -975,18 +1006,16 @@ class ArchitectureLintRed(unittest.TestCase):
             " ".join(item for item in hard if item.startswith("H9")),
         )
 
-    def test_source_plan_enforces_waiver_iteration_without_maximum(self):
-        def zero_iteration_waiver(plan):
+    def test_source_plan_rejects_retired_waiver_and_allows_many_iterations(self):
+        def retired_waiver(plan):
             posture = plan["architecture_disposition"]
             posture["decision"] = "waived"
             posture["convergence"]["status"] = "waived"
-            posture["convergence"]["iteration_count"] = 0
 
-        hard, _ = self._check_source_plan(zero_iteration_waiver)
-        self.assertIn(
-            "iteration_count >= 1",
-            " ".join(item for item in hard if item.startswith("H9")),
-        )
+        hard, _ = self._check_source_plan(retired_waiver)
+        joined = " ".join(item for item in hard if item.startswith("H9"))
+        self.assertIn("architecture_disposition.decision", joined)
+        self.assertIn("architecture_disposition.convergence.status", joined)
 
         def many_iterations(plan):
             plan["architecture_disposition"]["convergence"]["iteration_count"] = 99
@@ -1998,6 +2027,25 @@ class ArchitectureLintV2(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             arch_dir, manifest = v2.make_v2_repo(root)
+            plan_dir = root / "docs/plans/team-invitations"
+            selection_path = plan_dir / "architecture-selection.json"
+            selection = json.loads(selection_path.read_text(encoding="utf-8"))
+            report_path = plan_dir / "architecture-options.md"
+            self.assertEqual(selection["schema_version"], 2)
+            self.assertEqual(
+                selection["architecture_options_report"]["status"],
+                "present",
+            )
+            self.assertEqual(
+                selection["architecture_options_report"]["sha256"],
+                _sha(report_path),
+            )
+            _, selection_failures = sl.validate_file(
+                selection_path,
+                repo_root=root,
+                require_current_schema=True,
+            )
+            self.assertEqual(selection_failures, [])
             hard, advisory = al.check_package(
                 arch_dir, root, manifest, allow_proposed=True
             )

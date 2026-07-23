@@ -15,7 +15,8 @@ allowed-tools: Read, Write, Glob, Grep, Bash, AskUserQuestion, Skill
 Independently review the **code** of an implemented feature — for correctness the
 tests miss, security, performance, maintainability, simplicity, and conformance to the spec and
 the interface-foundation contract. It reports **evidence-backed findings** and
-**escalates**; it never patches code or edits any artifact.
+**escalates**. It never patches code or edits source, plans, or specs; outbound
+mode writes only its review and evidence artifacts.
 
 This is the **code-quality sibling of `verify`**: verify checks that the
 software *behaves* as the spec says (suite, criteria, journeys); review checks
@@ -37,8 +38,9 @@ It runs in two **directions**, auto-detected by the Stage-0 mode probe:
   feature's diff. This is everything below.
 - **Inbound** (PR review comments pasted in) — *verify* findings someone else made:
   each comment is a **claimed** finding, checked against the code, triaged, and
-  answered with a paste-ready reply. Writes nothing; posts nothing. Its stages live
-  in `${CLAUDE_SKILL_DIR}/mode-inbound.md`.
+  answered with a paste-ready reply. It writes no review/code artifact and posts
+  nothing; optional plan telemetry may be appended. Its stages live in
+  `${CLAUDE_SKILL_DIR}/mode-inbound.md`.
 
 Outbound runs over two **scopes**:
 
@@ -56,18 +58,8 @@ Outbound runs over two **scopes**:
   pitfalls, ledger), `docs/plans/<slug>/threat-model.md` (trust boundaries,
   sensitive data-classes, and this feature's security obligations), and
   `docs/plans/<slug>/interaction-contract.md` (its cross-feature behavioral
-  invariants and architecture-determining NFRs). A valid registry-backed
-  `single-feature-minimal` plan instead loads its regular, non-symlink
-  `feature-plan.md` as sole plan context, including its inline
-  `### Security Projection` and matching `security_obligations` row. Assigned
-  `TZ-NNN` ids—or an explicit assessed-negative empty list—are plan-owned
-  Security-lens input even though no separate `threat-model.md` exists. Only
-  the interaction contract and cross-feature obligations are `N/A by
-  construction`; the ordinary Security and Correctness lenses still run
-  against the projection, spec, code, repository entry points, and reviewer
-  triggers. A missing/malformed projection, feature-id mismatch, mixed minimal
-  shape, or identity mismatch routes to `/core-engineering:ce-plan` before
-  findings are generated. Also load the accepted ADRs the spec cites (including the
+  invariants and architecture-determining NFRs). Also load the accepted ADRs
+  the spec cites (including the
   **interface-foundation ADR**), `docs/plans/vc-policy.md`, and the **review
   calibration & memory**: `docs/plans/review-policy.md` (repo-level,
   human-owned — what counts as High here, nit caps, skip-paths, re-review
@@ -149,9 +141,13 @@ The human triages each. Escalation routes — the same escalate-up chain as the 
 
 ## Human-in-the-Loop — tiered
 
-- **Stage 0 (material)** — confirm scope.
-- **Stage 2 (tiered)** — triage. High-severity (security / correctness) findings are material, per-finding; routine ones (style, minor duplication) batch with approve-with-veto.
-- **Inbound** applies the same tiering to *claims* rather than findings: a material scope gate over the parsed comment set, one material gate per substantiated High behavioral claim, and one batched approve-with-veto gate for the rest. See `${CLAUDE_SKILL_DIR}/mode-inbound.md`.
+- **Stage 0** — ask only when target or mode resolution is materially ambiguous.
+- **Stage 2** — ask per confirmed High security/correctness finding or when the
+  owning route is materially ambiguous. Record Medium/Low/suspected findings
+  with recommended routes; do not ask the human to approve routine findings.
+- **Inbound** uses the same rule for substantiated High behavioral claims and
+  material classification/route ambiguity. See
+  `${CLAUDE_SKILL_DIR}/mode-inbound.md`.
 
 *Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant. That printed string is also the attestation event's `gate_index` (Metrics, below) — same string, no second vocabulary.
 
@@ -190,8 +186,8 @@ earlier turn. First match wins:
    structure and anything else pulls toward outbound (e.g. a feature-id is also
    present), **stop and ask which the human means.** Never resolve an ambiguous
    payload toward outbound: outbound *writes* `review-summary.json`, the merge-bar
-   input, and inbound writes nothing. Ambiguity resolves toward asking, never
-   toward writing.
+   input, while inbound writes no review artifact. Ambiguity resolves toward
+   asking, never toward writing.
 1. **Explicit flag** — `--inbound`, or `--comments <file>` naming a file of pasted
    comments → **inbound**.
 2. **A bare feature-id (or nothing), and no comment block anywhere in the payload**
@@ -224,14 +220,14 @@ gates counted in `Gate N of M`.
 | Direction | Stages | Writes |
 |---|---|---|
 | **Outbound** (default) | Stage 0 → 1 → 1.5 → 2, inline below | `code-review.md`, `review-summary.json`, `evidence/`, `review-learnings.md` on a Dismiss |
-| **Inbound** (pasted comments) | `${CLAUDE_SKILL_DIR}/mode-inbound.md`, stages I0–I4 | nothing (at most an append to `.metrics.jsonl` when a plan resolves) |
+| **Inbound** (pasted comments) | `${CLAUDE_SKILL_DIR}/mode-inbound.md`, stages I0–I4 | no review/code artifact; optional `.metrics.jsonl` append |
 
 ## Stage 0 — Load and Scope  *(outbound)*
 
 Resolve the plan via `docs/plans/plans.json`. Derive each feature's state — `implemented` only if `tasks.json` exists, every task is `done`, and `verification.md` exists (the same `implemented` condition `verify` derives; this tool needs only implemented-or-not, not verify's `specced`/`planned` split).
 
 Load and complete `${CLAUDE_SKILL_DIR}/stage-0-architecture-preflight.md` before
-scope confirmation or findings. In plan scope, run its shared plan/package
+findings. In plan scope, run its shared plan/package
 checks once and its spec-binding check separately for every reviewed feature.
 
 Scope:
@@ -243,10 +239,14 @@ Obtain the diff: `git diff` of the feature's files against its base where git is
 
 **Load calibration & memory (read-only, both optional):**
 
-- `docs/plans/review-policy.md` — the repo-level, human-owned calibration. If **present**, honor it: its **skip-paths** bound the lens walk (don't review generated / vendored globs), its **nit caps** bound Low-severity reporting, its **severity calibration** sets this repo's High bar, and its **re-review convergence** rule narrows a feature's *second* review (e.g. High-only). If **absent**, run with documented defaults (full nit reporting, no skip-paths, no convergence) and note in `code-review.md`: *"no review-policy.md — running uncalibrated; add docs/plans/review-policy.md to tune"*. **Never** create it autonomously (it is hand-authored like `patterns.md`); standalone, you may *offer* to write the stub skeleton only on explicit consent at the scope gate below — never under auto-build.
+- `docs/plans/review-policy.md` — the repo-level, human-owned calibration. If
+  present, honor its skip paths, nit caps, severity calibration, and re-review
+  convergence. If absent, run with documented defaults and note the gap. Never
+  create it autonomously; write a stub only on a separate explicit request.
 - `docs/plans/<slug>/review-learnings.md` — the per-plan dismissal memory (append-only). If present, load its suppression rules for Stage 2 matching.
 
-Confirm scope with the human: *Proceed / Abort.*
+Announce the derived scope and continue. Ask only if multiple targets remain
+valid or the requested boundary is materially ambiguous.
 
 ## Stage 1 — Review
 
@@ -254,20 +254,13 @@ For each in-scope feature:
 
 1. Read the spec (the contract), `tasks.json`, and the accepted ADRs it cites —
    including the interface-foundation ADR where the feature exposes a
-   foundationed surface. For a full plan, also read
+   foundationed surface. Also read
    `docs/plans/<slug>/threat-model.md` if present (trust boundaries, sensitive
    nouns, and security obligations: where the Security lens should look
    hardest) and `docs/plans/<slug>/interaction-contract.md` if present (the
-   `IC-NNN` rows used by the Correctness and Conformance passes). In
-   `single-feature-minimal` mode, load the inline `### Security Projection`,
-   require exactly one `security_obligations` row whose `feature` equals the
-   stable Feature ID, and carry its entry-point assessment, `surface_kinds`, and
-   `threat_ids` into the Security lens. An explicit `threat_ids: []` is an
-   assessed negative, not N/A inferred from feature count. Record only the
-   interaction contract and cross-feature obligations `N/A by construction`;
-   do not manufacture their absent full-plan files.
-   Carry the validated architecture context's mapped IDs and exact gaps into the
-   Conformance lens; context informs review but never widens the spec.
+   `IC-NNN` rows used by the Correctness and Conformance passes). Carry the
+   validated architecture context's mapped IDs and exact gaps into
+   the Conformance lens; context informs review but never widens the spec.
 2. Run the **six lenses** over the feature's diff / files plus one hop to direct call sites.
 3. Capture each finding with `file:line`, a short code snippet, and the lens. Where useful, write a snippet to `docs/plans/<slug>/evidence/CR-N.txt`.
 
@@ -279,7 +272,12 @@ A first-pass High finding is a *candidate*, not a verdict. Before it can block, 
 
 For each **High** finding, attempt to substantiate it against the actual code — read-only, the review never runs or mutates code:
 
-- **Behavioral lens (Correctness / Security)** — *reproduce by tracing*: follow the data / control flow from an entry point to the cited `file:line` and confirm the defect is actually **reachable and triggerable** (the bad input reaches the sink; the unhandled path is real; the race is possible). For a Security finding, start from a full plan's `threat-model.md` boundary or a minimal plan's inline Security Projection. A documented untrusted entry reaching the sink makes the defect `confirmed`. If the code instead proves a previously undocumented untrusted entry reaches the sink, the defect is also `confirmed`; record `reproduced: true`, name the projection contradiction as `plan_conflict` in the observation, and set `suggested_escalation` to `/core-engineering:ce-plan` so it parks for human-owned plan revision rather than entering an implementation-only repair loop. Only when neither a documented nor observed untrusted path can be established does the finding stay `suspected`. For a **correctness finding on a cross-feature edge**, trace it against the `interaction-contract.md` row — a broken declared invariant (a missing dedupe where the contract declares at-least-once delivery, an out-of-order assumption where it declares per-key ordering, a concurrent write where it declares single-writer) is `confirmed` when the trace shows the guarantee unmet. Survives the trace → **`confirmed`**. Cannot establish reachability → **`suspected`**.
+- **Behavioral lens (Correctness / Security)** — trace from an entry point or
+  `threat-model.md` boundary to the cited sink. Reachable/triggerable means
+  `confirmed`; otherwise `suspected`. A newly observed untrusted entry is also
+  confirmed but carries `plan_conflict` and routes to
+  `/core-engineering:ce-plan`. On cross-feature edges, check the applicable
+  `interaction-contract.md` invariant.
 - **Judgment lens (Maintainability / Conformance)** — *refute the citation*: re-check that the cited `file:line` and the ADR / spec clause genuinely substantiate the claim. For a **conformance finding on a cross-feature edge**, the clause to re-check is the `interaction-contract.md` row — the built protocol behavior must match its declared invariant (delivery / ordering / idempotency / concurrency). Citation holds → **`confirmed`**. Citation is thin or the clause doesn't say what was claimed → **`suspected`**.
 
 Record the confidence on each High finding (Medium / Low get none). A **`suspected`** finding is **kept, not deleted** — it goes to the human at triage / end-review; it just loses its power to *block*. Be honest about the pass's reach: it **raises the floor, not the ceiling** — a fresh trace shares the model's blind spots, so it can confirm reachability but cannot prove the absence of a bug.
@@ -292,7 +290,11 @@ Group findings by lens, assign severity (and the High findings' confidence from 
 
 **Apply calibration.** Honor `review-policy.md` nit caps (overflow Low findings batched as "plus N more nits") and the re-review convergence rule on a feature's second-and-later review.
 
-Then triage (tiered, per the Findings-Not-Verdicts rule). On a human **`Dismiss`** of a finding that is a *false positive shape* (not a real hazard — that seeds `patterns.md` instead), **append an `RL-N` suppression rule** to `docs/plans/<slug>/review-learnings.md` (format in `${CLAUDE_SKILL_DIR}/artifact-template.md`) so the next review remembers it.
+Then triage. Ask only for each confirmed High behavioral finding or a materially
+ambiguous route. Record all other active findings with the proposed
+disposition/route without an approval gate. A later explicit human `Dismiss` of
+a false-positive shape appends an `RL-N` suppression rule; absence of an
+immediate prompt is not a dismissal.
 
 Write `code-review.md` — **cumulative**: each run adds findings and triage records; prior ones stay. Immediately before writing **`review-summary.json`**, derive and copy the exact current binding from the Stage-0 companion. Then write the per-feature summary (schema in `${CLAUDE_SKILL_DIR}/artifact-template.md`) and overwrite it each run. The two artifacts have different jobs and lifecycles: `code-review.md` is the cumulative human record; `review-summary.json` is the current-state gate input, so stale findings or provenance never remain authoritative.
 
@@ -304,7 +306,9 @@ After writing `code-review.md` / `review-summary.json`, append one JSON line per
 
 - **`gate`** — one per feature reviewed: `gate: "pass"|"fail"`, `detail: "blocking_high: <0|1>"` read from that feature's `review-summary.json` (`fail` iff a `confirmed`-High blocks; `pass` otherwise).
 - **`stage-complete`** — one when the review completes.
-- **`attestation`** — one line per HITL-gate decision, at **every** interactive gate this run fires (Stage 0 *Proceed/Abort*; each Stage 2 triage decision — per-finding for a High, the batched approve-with-veto for routine). Emit the `attestation` event from the `retro` schema: `gate` = the gate name, `gate_index` = that gate's printed `Gate N of M` locator (R5) **verbatim**, `basis_shown` = whether the gate rendered its evidence-first basis, and `action` per the schema's definitions — `confirm` (accepted the finding's rendered disposition), `override` (a **Dismiss** of a false-positive shape, or a changed route / severity), `edit` (accepted with a modification), or `loop` (one line per re-prompt of the *same* gate). This confirm-vs-override telemetry feeds `/core-engineering:ce-retro` and the evidence pack; it is emitted nowhere else.
+- **`attestation`** — one line only for target ambiguity, a confirmed High
+  behavioral finding, or material route ambiguity. Use the printed
+  `Gate N of M` locator verbatim; routine recorded findings emit no attestation.
 
 ---
 
@@ -337,4 +341,7 @@ to `/core-engineering:ce-decide`.
 - **Suppression is shape-matched and fallible.** `review-learnings.md` matches a dismissed finding by *shape* (lens + pattern + path), not `file:line`, and the match is a model judgment — biased to **false-miss** (re-surface a real recurrence) over false-suppress, and always **recorded under "Previously dismissed", never silently dropped**. A wrong suppression is visible and reversible by editing the cited `RL-N`. Memory makes review quieter, not blind.
 - **Calibration is human-owned.** `review-policy.md` is hand-authored; this workflow reads it and never writes it. Absent → review runs uncalibrated (full nits, no skip-paths) and says so — degradation is stated, never silent.
 - **Not a substitute for tests.** It complements `/core-engineering:ce-verify` (behavior) and the suite; it does not re-run them.
-- **Inbound writes nothing, and never reaches the merge bar.** A reviewer's pasted claim — however grave — leaves `review-summary.json` untouched, so `review-gate.py`'s `blocking_high` cannot move; a human routes the fix. Inbound also keeps no cross-round memory, and its mode probe is a heuristic: an outbound resolution over a payload that still looks like comments **stops and asks** rather than writing. Full limitations in `${CLAUDE_SKILL_DIR}/mode-inbound.md`.
+- **Inbound writes no review artifact and never reaches the merge bar.** Optional
+  telemetry aside, a pasted claim leaves `review-summary.json` untouched. It
+  keeps no cross-round review memory. Full limitations are in
+  `${CLAUDE_SKILL_DIR}/mode-inbound.md`.

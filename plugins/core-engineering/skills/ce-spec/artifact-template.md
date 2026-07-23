@@ -81,14 +81,10 @@ consumer-linted plan/package.
 }
 ```
 
-For `single-feature-minimal`, `not-required`, `recommended-absent`, or `waived`,
-keep the same exact keys. `project_slug`, `feature_id`, and
-`plan_contract_sha256` remain mandatory: the contract digest seals the minimal
-`feature-plan.md`, or the full plan, feature authority, selected direction,
-complete disposition, and accepted ADR bytes. Package path/revision/digests are
-`null`, every mapped ID list is empty, and `reason` is the exact typed
-N/A/gap/waiver basis produced by the helper. A full plan keeps its integer
-`plan_revision`; minimal mode uses `null`.
+For `not-required` or `recommended-absent`, keep the same exact keys.
+`project_slug`, `feature_id`, and `plan_contract_sha256` remain mandatory.
+Package path/revision/digests are `null`, every mapped ID list is empty, and
+`reason` is the exact typed N/A or explicit-deferral basis produced by the helper.
 
 ## 1. Feature & Frozen Boundary
 
@@ -111,7 +107,7 @@ N/A/gap/waiver basis produced by the helper. A full plan keeps its integer
 
 | # | Question (open unknown) | Decision | Rationale | Decided by | Propagation |
 |---|---|---|---|---|---|
-| D-1 | … | … | … | human | feature-local · RPD-n · ADR-NNNN |
+| D-1 | … | … | … | human · agent (repository-derived) | feature-local · RPD-n · ADR-NNNN |
 
 ## 3. Acceptance Criteria
 

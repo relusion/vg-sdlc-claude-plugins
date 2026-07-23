@@ -1,5 +1,7 @@
 # 03-export-snippets — Export snippets to CSV
 
+**Specification route:** explicit
+
 **Type:** user-facing · **Depends on:** 01-create-snippet (not 02) · **Engineered path:** retry-exhaustion → failed
 
 This feature is engineered to exercise the **retry-exhaustion** path. Its acceptance

@@ -105,7 +105,7 @@ free. Each is a minimized real skill output kept in-repo under `evals/golden/`:
 
 | Gate | Golden artifact | Replayed through | Asserts |
 |---|---|---|---|
-| EVAL-004 | `evals/golden/EVAL-004/` (plan dir) | `plan-lint.py --json` | the frozen plan is structurally well-formed (H1–H10 pass) |
+| EVAL-004 | `evals/golden/EVAL-004/` (plan dir) | `plan-lint.py --require-architecture-direction --json` | the frozen plan is structurally well-formed and binds a current-schema, hash-bound architecture workbench and human direction (H1–H10 pass) |
 | EVAL-005 | `evals/golden/EVAL-005/specs/01-invite-user/` | `spec-lint.py --json` | the frozen spec passes referential-integrity + traceability |
 | EVAL-007 | `evals/golden/EVAL-007/review-summary.json` | `json_fields` schema check | `status: blocked`, integer `blocking_high: 1`, `blocking_route: implement`, and the `CR-1` IDOR finding shape auto-build gates on |
 | EVAL-008 | `evals/golden/EVAL-008/infra-summary.json` | `json_fields` schema check | `status: pass`, `blocking_hard: 0`, all three formats detected, secrets redacted |

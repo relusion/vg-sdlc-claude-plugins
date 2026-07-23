@@ -1,5 +1,7 @@
 # 02-team-invitations — Team invitations
 
+**Specification route:** explicit
+
 ### Structured Metadata
 
 ```yaml

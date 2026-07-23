@@ -331,6 +331,31 @@ def _resolve_evaluated_commit(repo_root: Path, value: str) -> str:
     return resolved
 
 
+def _require_worktree_materializes_evaluated_commit(
+    context, *, repo_root: Path, git_root: Path | None, commit: str
+) -> None:
+    """Fail when a live release worktree differs from the evaluated commit.
+
+    Merge-bar callers may provide a separately materialized committed tree and
+    a Git repository used only for ancestry. In that mode the materializer owns
+    the tree/commit relationship. When the reviewed repository is itself the
+    Git worktree—as it is for ce-ship-release—the gate proves the relationship
+    directly and excludes only the same post-review evidence as the receipt.
+    """
+    if git_root is None or git_root.resolve() != repo_root.resolve():
+        return
+    differences = context.worktree_commit_differences(repo_root, commit)
+    if not differences:
+        return
+    preview = ", ".join(repr(path) for path in differences[:20])
+    remainder = len(differences) - 20
+    suffix = f" (+{remainder} more)" if remainder > 0 else ""
+    raise RuntimeError(
+        "worktree does not materialize evaluated commit for non-evidence "
+        f"path(s): {preview}{suffix}"
+    )
+
+
 def _emit(result: dict, as_json: bool) -> None:
     if as_json:
         print(json.dumps(result, indent=2))
@@ -457,6 +482,22 @@ def evaluate(
         if identity_errors:
             raise RuntimeError("; ".join(identity_errors))
 
+        current_commit = None
+        if evaluated_commit is not None:
+            if git_root is None:
+                raise RuntimeError(
+                    "--evaluated-commit requires an available Git repository"
+                )
+            current_commit = _resolve_evaluated_commit(
+                git_root, evaluated_commit
+            )
+            _require_worktree_materializes_evaluated_commit(
+                context,
+                repo_root=resolved_repo,
+                git_root=git_root,
+                commit=current_commit,
+            )
+
         current_binding = context.review_binding(
             spec_dir,
             repo_root=resolved_repo,
@@ -465,6 +506,15 @@ def evaluate(
             feature_id=resolved_feature,
             script_dir=Path(__file__).resolve().parent,
         )
+        if current_commit is not None:
+            # Recheck after hashing so a concurrent checkout cannot silently
+            # make the binding refer to a different candidate commit.
+            _require_worktree_materializes_evaluated_commit(
+                context,
+                repo_root=resolved_repo,
+                git_root=git_root,
+                commit=current_commit,
+            )
         recorded_binding = data["binding"]
         differing = sorted(
             key
@@ -476,15 +526,8 @@ def evaluate(
             raise RuntimeError(
                 "review binding is stale or mismatched for: " + ", ".join(differing)
             )
-        current_commit = current_binding.get("commit_sha")
-        if evaluated_commit is not None:
-            if git_root is None:
-                raise RuntimeError(
-                    "--evaluated-commit requires an available Git repository"
-                )
-            current_commit = _resolve_evaluated_commit(
-                git_root, evaluated_commit
-            )
+        if current_commit is None:
+            current_commit = current_binding.get("commit_sha")
         commit_ok, commit_error = _commit_is_current_or_ancestor(
             recorded=recorded_binding.get("commit_sha"),
             current=current_commit,

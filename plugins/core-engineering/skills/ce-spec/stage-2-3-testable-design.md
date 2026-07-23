@@ -62,14 +62,6 @@ state-driven criteria with real numbers.
 
 #### Security Criteria
 
-For `plan_mode: single-feature-minimal`, `IC-NNN`, governance-reciprocal, and
-cross-feature Journey obligations are `N/A by construction`; do not manufacture
-their absent full-plan files or ids. `TZ-NNN` is different: read it from the
-minimal plan's inline Security Projection and apply the same security-criterion
-rules below. If the real scope crosses a trust boundary not represented there,
-introduces shared durable state, or otherwise needs a new plan-owned obligation,
-route to `/core-engineering:ce-plan` and stop before drafting criteria.
-
 When the plan's `threat-model.md` assigns this feature one or more `TZ-NNN`
 threat-ids (its **Per-Feature Security Obligations** block — a feature that crosses
 a trust boundary or owns the security / secrets surface), each is a **stated
@@ -275,28 +267,20 @@ Test cases describe **what** to verify, not harness mechanics (that is Stage 3).
 - Every acceptance criterion → ≥ 1 test case.
 - Every **journey step this feature owns** (the plan's Journey Map `Owned By` column = this feature's id) → ≥ 1 test case that asserts the step's expected observable and carries the step's modality.
 - Every **governance reciprocal** the plan's Stage 6.3 closure dispositions `owned-by:` this feature (`retain` / `export` / `erase`) → ≥ 1 acceptance criterion and ≥ 1 test case (§2.1 Governance Reciprocal Criteria).
-- Every **`TZ-NNN` threat-id** the applicable plan security source assigns this feature—the full plan's `threat-model.md` or the minimal plan's inline Security Projection—→ ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` (the **spec-lint H5** gate — H5 checks the marker's presence; auto-build auto-discovers the full threat model on the canonical spec dir, while the interactive gate passes `--threat-model` using `threat-model.md` in full mode or `feature-plan.md` in minimal mode) **and** ≥ 1 test case proving it (the per-AC test-case rule above; H5 does not itself check the test case — A2 advisorily flags an unproven AC). A genuinely-N/A obligation is consent-excluded or explicitly assessed negative in the plan (and under autonomous auto-build the spawned agent parks it instead — it cannot edit plan-owned security input), never silently dropped.
+- Every **`TZ-NNN` threat-id** `threat-model.md` assigns this feature → ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` (the **spec-lint H5** gate checks the heading marker) **and** ≥ 1 test case proving it. A genuinely N/A obligation is consent-excluded in the plan (and under autonomous auto-build the spawned agent parks it), never silently dropped.
 - Every **Scope item that renders a user-facing surface composing >1 element** (a screen / list / board / map / `canvas`) → ≥ 1 Surface-Quality criterion marked `[SURFACE]` (non-overlap / in-bounds / readability, §2.1 Surface-Quality Criteria) with an `auto` geometric or `manual:harness-gap` test case. This is **human/agent-attested**, like the §3.5 SHARED reconciliation — spec-lint **A4** *advisorily* flags a declared `browser` surface carrying no `[SURFACE]` AC, but cannot prove the criterion is right or complete (no "surface renders multiple elements" signal exists to hard-gate; readability is un-lintable from markdown).
 - Every **`IC-NNN` obligation** the plan's `interaction-contract.md` assigns this feature → ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** ≥ 1 test case proving it. This is **human/agent-attested** (like the §3.5 SHARED reconciliation and the `[SURFACE]`/A4 advisory) — no machine signal can prove an AC captures a behavioural invariant or a numeric NFR, so there is **no H5-style hard gate**; an assigned `IC-NNN` with no `[CONTRACT:]` AC is a gap to surface or consent-exclude in the plan, never silently dropped.
 - No criterion or test case touches an Excluded item or unplanned scope.
-
-In `single-feature-minimal` mode, record only the Journey Map, governance
-reciprocal, and `IC-NNN` rows above as `N/A by construction`; the Scope chain and
-all applicable reviewer-trigger/surface checks still run. For `TZ-NNN`, consume
-the inline Security Projection: every assigned id must have the criterion/test
-coverage above, while an explicit empty `threat_ids` list is an assessed
-negative rather than N/A inferred from feature count. A newly observed boundary
-or obligation contradicts that plan input and routes to `/core-engineering:ce-plan`
-before the spec is approved; it is never an implicit waiver.
 
 Report the check result.
 
 ### 2.4 Review  [tiered]
 
-Criteria or test cases that encode a product decision are material; mechanical
-ones are routine. The human reviews wording and approves — including each
-`manual` classification: confirm the case genuinely cannot be automated rather
-than being a skipped test.
+Derive mechanical EARS wording, test enumeration, and trace links without a
+gate. Ask only when a criterion encodes a substantive product, security, or
+interaction-contract adequacy choice, or when a case is proposed as
+`manual:judgment`. Show the exact evidence and automation alternative. Compact
+composition stops rather than making either choice.
 
 ---
 
@@ -308,13 +292,10 @@ Read the actual files: the areas this feature will touch, the hard-dependency
 specs or built code (real interfaces), existing patterns and conventions, and the
 test harness.
 
-Also read the **binding architectural decisions**. For a full plan, use the
-Resolved Project Decisions ledger in `shared-context.md` as the index. In
-`single-feature-minimal` mode, use only ADRs explicitly cited by
-`feature-plan.md` or applicable repository rules; do not scan the whole ADR
-directory to compensate for the intentionally absent ledger. Open only ADRs
-whose decisions bear on this feature's surfaces or cross-cutting concerns.
-Consider only ADRs with `Status: accepted`; skip superseded ones.
+Also read the **binding architectural decisions**. Use the Resolved Project
+Decisions ledger in `shared-context.md` as the index. Open only ADRs whose
+decisions bear on this feature's surfaces or cross-cutting concerns. Consider
+only ADRs with `Status: accepted`; skip superseded ones.
 
 ### 3.2 Produce the Design
 
@@ -325,8 +306,7 @@ Consider only ADRs with `Status: accepted`; skip superseded ones.
 - **Interface foundation** — if this feature exposes a foundationed surface (`browser`, or another live surface), the design consumes the shared tokens/primitives or contract from its ADR; no ad-hoc styling. Name the primitives/contract elements it uses. **If this feature *is* the foundation owner, the design includes the conformance checker** the contract is enforced by.
 - **Data / schema** changes. For each persisted schema, event, message, or wire/API contract this feature touches, classify the shape **NEW** (introduced here) or **SHARED** (already read or written by an earlier *shipped* feature). Mark each SHARED shape this feature **modifies** — it carries forward into §3.5.
 - **Test harness mapping** — where each test case's test will live; fixtures.
-- **Pitfalls** from the full plan's `shared-context.md`, or the minimal plan's
-  inline Codebase Profile / Notes, that apply.
+- **Pitfalls** from `shared-context.md` that apply.
 
 ### 3.3 Boundary Reconciliation
 
@@ -336,11 +316,10 @@ required, a plan assumption is false, or a hard dependency is missing — raise 
 **Boundary Conflict** and present it as a *material* decision.
 
 - **Local fix** (this feature's Scope, Excluded, surfaces, unknowns, validation
-  target): on human approval, edit `features/<id>.md` for a full plan. In
-  `single-feature-minimal` mode edit only the `## 4. Single Feature` block and
-  append the `revised_by: spec`, date, and reason stamp to its Notes. Log the
-  change in the Boundary-Conflict Log, then re-enter Stage 1 (if unknowns
-  changed) or Stage 2 (if criteria changed).
+  target): after the human chooses the correction, queue the exact
+  `features/<id>.md` edit and Boundary-Conflict Log row in the scratch
+  transaction, then re-enter Stage 1 (if unknowns changed) or Stage 2 (if
+  criteria changed). Do not mutate the approved plan before Final Approval.
 - **Structural fix** (dependencies, IDs, ship order, other features): the spec
   cannot make it — escalate to `/core-engineering:ce-plan` and stop.
 
@@ -353,18 +332,15 @@ is a cross-feature, human-owned call.
 
 ### 3.4 Design Decisions  [tiered]
 
-Present genuine design tradeoffs as material decisions; mechanical choices are
-routine. The human approves the design. If an approved design decision is
-architecturally significant and cross-feature, promote it to an ADR (see
-*Architecture Decision Records* in `SKILL.md`).
+Apply repository conventions and dominant reversible engineering choices
+without a gate. Prompt only for genuine design tradeoffs with no safe dominant
+option, boundary/ownership ambiguity, or a security, public-contract,
+cross-feature, destructive, or irreversible consequence. Compact composition
+stops on any such prompt. If an approved decision is architecturally
+significant and cross-feature, promote it to an ADR (see *Architecture Decision
+Records* in `SKILL.md`) candidate for the final write transaction.
 
 ### 3.5 Shared-Shape Change Reconciliation
-
-For `plan_mode: single-feature-minimal`, record this check as `N/A by
-construction`. If code inspection finds another feature, migration owner, or
-planned consumer whose contract must change, the minimal shape is disproven;
-raise the structural Boundary Conflict and route to planning rather than
-running an in-place cross-feature reconciliation.
 
 The write-side inverse of Interface Conformance (§2.1, §3.2): conformance makes a
 feature *match* a shape it consumes; this makes a feature *reconcile* a shape it
@@ -403,9 +379,8 @@ call — **escalate up, never expand**.
 
 Record every SHARED-modify reconciliation in the spec's §5 Design under a
 `shared-shape-modify` block (one per shape). The NEW-vs-SHARED split, the
-additive-vs-breaking call, and the block's completeness are **human-attested** —
-at the §3.4 design review and again at the Stage 5.3 Validation Checklist; the
-spec stage carries no mechanical check for them.
+additive-vs-breaking call, and the block's completeness require an explicit
+material decision; the spec stage carries no mechanical check for them.
 
 **Under autonomous `/core-engineering:ce-auto-build`** the call cannot be human-attested in-dialog,
 so any SHARED-shape modification **parks** with the affected shape, consumers,
@@ -434,11 +409,6 @@ A SHARED shape with zero enumerated consumers is **not** a pass — surface it a
 reconciliation gap step 1 names, never an empty Additive default.
 
 ### 3.6 Cross-Feature Flow Reconciliation
-
-For `plan_mode: single-feature-minimal`, record `Cross-Feature Flow: N/A by
-construction`. If the design actually spans another feature, do not attempt to
-match an absent Journey Map: the minimal shape is disproven, so route to
-planning and stop.
 
 The **path-side** sibling of §3.5: where §3.5 reconciles a *shape* an earlier shipped
 feature consumes, this reconciles a *flow* the plan never traced. §3.3 catches a wrong

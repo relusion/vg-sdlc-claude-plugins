@@ -57,10 +57,7 @@ def make_v2_repo(
         selection["exploration_id"] = f"AEX-{option_set_sha256[:12]}"
         selection["selection"]["option_sha256"] = selected["option_sha256"]
         selection["source_input_sha256"] = legacy.sl.source_input_hash(selection)
-        (plan_dir / "architecture-selection.json").write_text(
-            json.dumps(selection, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        legacy._write_current_selection(plan_dir, selection)
         direction = plan["architecture_disposition"]["direction"]
         direction["artifact_sha256"] = legacy._sha(
             plan_dir / "architecture-selection.json"
@@ -172,7 +169,7 @@ def make_v2_repo(
         "schema_version": 2,
         "generator": {
             "name": "/core-engineering:ce-architecture",
-            "version": "0.10.7",
+            "version": "0.11.0",
         },
         "project_slug": "team-invitations",
         "lifecycle_status": "proposed",

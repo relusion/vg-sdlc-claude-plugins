@@ -58,6 +58,7 @@ TRIAGE_FIELDS = (
     "Recommendation",
     "Recommendation basis",
     "Confidence / sensitivity",
+    "Decision owner / authority",
     "Cost if wrong",
     "Material gaps and inferences",
 )
@@ -163,6 +164,7 @@ def _current_exploration_payload(value: dict) -> dict:
         "exploration_attempt": value.get("exploration_attempt"),
         "project_intent": value.get("project_intent"),
         "non_goals": value.get("non_goals"),
+        "decision_owner": value.get("decision_owner"),
         "architecture_applicability": value.get("architecture_applicability"),
         "driver_screen": value.get("driver_screen"),
         "accepted_decisions": value.get("accepted_decisions"),
@@ -484,6 +486,7 @@ def validate_file(report_path: Path, *, repo_root: Path) -> tuple[dict | None, l
         artifact_path=report.with_name("architecture-selection.json"),
         repo_root=repo_root.resolve(),
         selection_status=None,
+        allow_reportless_legacy=False,
         failures=failures,
     )
 
@@ -526,6 +529,26 @@ def validate_file(report_path: Path, *, repo_root: Path) -> tuple[dict | None, l
             failures.append(
                 "What Needs Your Decision confidence/sensitivity must state recommendation sensitivity"
             )
+    projection_frame = projection.get("evaluation_frame")
+    decision_owner = (
+        projection_frame.get("decision_owner")
+        if isinstance(projection_frame, dict)
+        else None
+    )
+    owner_text = sl._normalized_report_text(
+        triage.get("Decision owner / authority", "")
+    )
+    if isinstance(decision_owner, dict):
+        for key in ("identity_or_role", "authority_basis"):
+            value = decision_owner.get(key)
+            if (
+                isinstance(value, str)
+                and sl._normalized_report_text(value) not in owner_text
+            ):
+                failures.append(
+                    "What Needs Your Decision decision owner/authority must "
+                    f"include the exact decision_owner.{key}"
+                )
     return projection, failures
 
 

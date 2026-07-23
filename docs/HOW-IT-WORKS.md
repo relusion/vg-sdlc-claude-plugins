@@ -1,546 +1,323 @@
-# How `core-engineering` Works
+# How It Works
 
-`core-engineering` is a Claude Code plugin for planning, implementing, and
-checking software changes through repository-resident artifacts. It contains
-**29 skills** and **2 plugin-shipped custom agents**. A separate
-`product-discovery` plugin adds three optional idea and market-research skills.
+`vg-coding` has two layers:
 
-The Claude Code plugin is the primary runtime. The repository also contains an
-agent-independent merge bar that runs in CI without Claude Code.
+1. repository-aware Claude Code workflows that create reviewable artifacts;
+2. deterministic repository gates that validate structure and committed state
+   without trusting model prose.
 
-For installation and a first session, start with
-[Getting Started](GETTING-STARTED.md). For command selection, use the
-[Usage Matrix](USAGE-MATRIX.md). This page explains the architecture and the
-boundaries that apply across the whole framework.
+Use the [Usage Matrix](USAGE-MATRIX.md) to choose a command. This page defines
+the behavior and authority boundaries.
 
-## 1. The operating model
+## 1. Adaptive workflow
 
-The main workflow is a spine where each stage produces a durable input for the
-next:
+The default is the shortest safe path, not the longest artifact chain:
 
 ```text
-/core-engineering:ce-brief -> /core-engineering:ce-plan
-    (capability frame -> conditional architecture options + human direction selection
-     -> detailed decomposition -> architecture/plan shaping)
-    -> [/core-engineering:ce-architecture baseline, required by plan disposition when load-bearing]
-    -> /core-engineering:ce-spec -> /core-engineering:ce-implement
-                                      |-> /core-engineering:ce-verify   behavior and acceptance proof
-                                      |-> /core-engineering:ce-review   code-quality findings
-                                      `-> /core-engineering:ce-debug    cause analysis and fix routing
-
-/core-engineering:ce-auto-build  orchestrates the planned spine across multiple features
-/core-engineering:ce-patch       handles one low-risk change of at most two files
-/core-engineering:ce-ux-audit    checks a running product, with or without a plan
-
-release tail: /core-engineering:ce-ship-release -> /core-engineering:ce-ship-document
+[optional ce-brief] → ce-plan
+  ├─ direct planning when architecture is not load-bearing
+  └─ evidence-rich architecture workbench when it is
+       explore ↔ question / inspect / adjust → human selection
+       → decompose ⇄ read-only shape
+       → governed baseline only when required or deliberately chosen
+→ plan records Specification route: compact | explicit
+  ├─ compact: ce-implement composes and lints ce-spec.md + tasks.json
+  └─ explicit: ce-spec resolves design and human decisions first
+→ ce-implement
+→ ce-review ∥ ce-verify
+→ ce-ship-document when documentation impact requires it
+→ ce-doc-audit when reader or operational risk warrants it
+→ commit the documentation candidate, then refresh ce-review ∥ ce-verify
+  whenever documentation or its audit changed bound repository state
+→ ce-ship-release (final decision package)
 ```
 
-The artifacts, rather than a chat transcript, are the handoff contract. Planning
-first reconciles intent with repository evidence and builds a coarse capability
-map—never feature IDs or tasks. When architecture can determine the delivery
-shape, it invokes `/core-engineering:ce-architecture explore:<draft-slug>` to
-generate complete solution directions, eliminate hard-constraint failures, and
-score the viable options against human-confirmed requirements and quality
-priorities. A human selects the direction before detailed feature decomposition.
-Before asking, exploration writes and surfaces
-`docs/plans/.drafts/<slug>/architecture-options.md`, so the human can inspect
-the full named directions, constraints, scores, trade-offs, evidence, and
-recommendation outside the chat transcript. A deterministic pre-approval check
-blocks the choice prompt when that report is stale, incomplete, hidden, or not
-bound to the current exploration input. The immutable report is then preserved
-with the plan; schema-v2 `architecture-selection.json` binds its exact hash and
-records the later machine-readable option set and selection.
+`/core-engineering:ce-brief` is optional. Use it when the product request is too
+thin or conflicted for planning; do not manufacture a brief for already clear
+repository work.
 
-After decomposition, `/core-engineering:ce-architecture shape:<draft-slug>` checks
-that provisional features realize the selected direction; planning alone applies
-any human-approved delta. The written plan records `architecture_disposition` and
-the selection-file hash. A required disposition blocks specification and direct implementation until
-the normal architecture mode projects the stable plan into an
-accepted-for-specification baseline. Schema-v2 `architecture.json` is the
-strict structural authority; the four Markdown files and Mermaid diagrams are
-deterministic projections rather than separately authored copies. Its
-plan-relative coverage is distinct from security, deployment, and operational
-readiness. Architecture triggers conditionally require context, dynamic,
-trust/security, transition, topology, and operability realizations, or typed
-owner-routed gaps. Publication seals the reviewed package with an approval
-receipt and package digest. That digest proves byte integrity; it is not a
-cryptographic signature or independent identity attestation.
+`/core-engineering:ce-plan` always writes one canonical plan-directory shape.
+It adapts its questions and architecture work to repository evidence, risk, and
+unresolved decisions.
 
-Recommended, not-required, and human-waived routes remain explicit rather than
-treating absence as silently optional. A spec then binds the exact architecture
-revision, package digest, per-feature mapping, relevant gap ids, and the current
-plan/feature/direction/accepted-ADR authority digest before defining acceptance
-criteria, tests, and tasks. Minimal and no-package dispositions carry the same
-non-downgradable authority binding. Implementation and review revalidate it
-rather than trusting a spec authored against an older baseline. Review evidence
-also binds the non-ignored repository state and the exact evaluated commit; the
-autonomous pipeline rechecks every completed review after later features and
-combined verification evidence settle. Verification and review inspect the
-result and route defects back to the layer that owns the correction.
+### Architecture only when load-bearing
 
-### Scope Lock: escalate up, do not widen in place
+Architecture is load-bearing when the work changes shared boundaries, public
+contracts, durable data, cross-feature flows, deployment/trust topology,
+material quality attributes, or an accepted technical direction.
 
-Every write-capable stage has a **Scope Lock**:
+In that case plan composes `/core-engineering:ce-architecture
+explore:<draft-slug>` to **generate and score complete solution directions
+before decomposition**. The workbench persists two to four complete viable
+options when available, eliminated and unresolved alternatives, explicit
+criteria and weights, repository evidence, assumptions, trade-offs,
+recommendation, confidence, and sensitivity.
 
-- `/core-engineering:ce-architecture` shape mode may propose an evidence-backed
-  delta to a provisional candidate but may not apply it; `/core-engineering:ce-plan`
-  and the human retain decomposition authority. Explore mode may generate,
-  eliminate, score, and recommend complete solution directions, but only the
-  human selects one and only planning persists the binding. Baseline mode may synthesize
-  cross-feature views from a written plan, but it may not re-cut features, add
-  obligations, or make feature-level design decisions.
-- `/core-engineering:ce-spec` may refine one planned feature, but it may not expand the plan.
-- `/core-engineering:ce-implement` may implement the approved spec, but it may not redesign it.
-- `/core-engineering:ce-patch` may touch only its approved file set; structural work graduates
-  to `/core-engineering:ce-plan`.
-- product and release workflows may frame or prepare a decision, but do not
-  take product or deployment authority from the human.
+The architecture decision remains human-owned. At the stable `Architecture
+Direction Selection` gate the decision owner can:
 
-When a stage finds a conflict, it records the evidence and routes upward. A
-spec-level boundary conflict returns to planning; an implementation/spec
-conflict returns to specification. Code-read-only analysis workflows such as review, verify,
-debug, ask, impact, and most probes report findings instead of changing the
-layer they inspect.
+1. select a direction;
+2. inspect evidence or ask a question;
+3. adjust requirements, weights, constraints, an option, or add an alternative;
+4. park or abort.
 
-This keeps a convenient request such as "fix it while you are here" from
-silently turning a review or diagnosis into an unplanned code change.
+A frame adjustment first records a non-selectable audit revision and returns its
+delta to plan so the authoritative frame can be rewritten. Option-only changes
+recompute inside the workbench. Both return to the same locator. Each revision
+records a compact delta and prior hash; only the final selected snapshot becomes
+immutable and hash-bound.
 
-## 2. The skill surface
+The decision frame hash-binds the owner's identity or role and authority basis.
+The recorded `approved_by` must match that owner exactly; delegation first
+requires a visible frame revision. Every numeric option score carries an
+option-specific basis inside the option hash, so the comparison is inspectable
+rather than an unexplained total.
 
-`/core-engineering:ce-go <outcome>` is the front door when the caller does not know which skill
-fits. It inspects repository state, explains one proposed route, and hands off
-only after confirmation. It starts model-invocable routes and returns the exact
-command for direct-only routes. Callers who already know the workflow they need
-can invoke it directly.
+After decomposition, `shape:<draft-slug>` runs read-only under the parent
+workflow's existing authority. It reports converged, requires-plan-delta,
+requires-decision, or blocked. It does not ask for another consent gate.
 
-### Entry, repository understanding, and onboarding
+Normal architecture mode publishes the strict five-file baseline only when
+`plan.json` records it as required, or a human deliberately accepts a
+recommended baseline. **Required missing or stale architecture blocks**
+specification and implementation. The package is specification context, not
+security acceptance, deployment permission, or release approval.
+A recommended baseline may be deferred from the same workbench with human
+rationale; a required baseline may not.
+The downstream invariant is “required missing or stale architecture blocks.”
+Baseline synthesis does not ask the human to re-confirm the already approved
+plan. An Evidence Boundary Resolution gate appears only when candidate sources
+conflict, a missing source could materially change the model, or the human asks
+to change the evidence boundary. Material architecture choices and Final
+Architecture Approval remain explicit.
 
-| Skill | Responsibility |
-|---|---|
-| `/core-engineering:ce-go` | Route a request to one appropriate skill; it does not perform the work itself. |
-| `/core-engineering:ce-init` | Profile the repository and, with `--write`, create starter policy and guard configuration; `--readiness` separates local prerequisites from host controls that still need administrator evidence. |
-| `/core-engineering:ce-ask` | Answer one codebase question with `file:line` evidence and no writes. |
-| `/core-engineering:ce-impact` | Analyze the blast radius and unknowns of a proposed change without implementing it. |
-| `/core-engineering:ce-domain` | Teach the business concepts encoded in a codebase, separating recorded, enforced, and inferred claims. |
-| `/core-engineering:ce-onboard` | Teach the implementation of a built system or plan through an evidence-grounded walkthrough. |
+### Conditional specification
 
-### Planning, building, and bounded change
+Plan writes `plan.json.features[].specification_route` as `compact` or
+`explicit` for every feature and projects it once in feature Markdown. Plan
+lint rejects a missing, duplicate, unknown, or mismatched route.
 
-| Skill | Responsibility |
-|---|---|
-| `/core-engineering:ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
-| `/core-engineering:ce-plan` | Reconcile intent and repository evidence, conditionally obtain a human-selected solution direction, then decompose work into ordered features and verify architecture/plan convergence before the cut freezes. |
-| `/core-engineering:ce-architecture` | In `explore:<draft-slug>` mode, generate and score complete solution directions before decomposition; in `shape:<draft-slug>` mode, assess whether provisional features realize the selected direction; in normal mode, turn one written multi-feature plan into a digest-sealed, accepted-for-specification schema-v2 baseline with deterministic human projections. It never applies a re-cut, claims production readiness, or replaces feature specifications. |
-| `/core-engineering:ce-plan-audit` | Lint and review an existing plan without rewriting it. |
-| `/core-engineering:ce-spec` | Validate the plan's architecture disposition and any occupied package, bind its revision/digest/per-feature slice into the spec, then convert one eligible planned feature into EARS acceptance criteria, tests, and `tasks.json`; required missing or stale architecture blocks, as do legacy-v1 or gap-obscuring contexts. |
-| `/core-engineering:ce-implement` | Revalidate the plan, current architecture receipt, and the spec's persisted architecture binding before executing its approved task list test-first and recording verification evidence. |
-| `/core-engineering:ce-patch` | Handle one change of at most two files through a single approval gate; failed or uncertain admission routes to planning. |
-| `/core-engineering:ce-auto-build` | Run one fixed, sequential spec/implement/verify/review loop across features with budgets, retries, parks, and an end review. |
+- `explicit` means `/core-engineering:ce-spec` must resolve detailed behavior,
+  tests, tasks, and material decisions before implementation.
+- `compact` means the feature is already build-ready. On entry,
+  `/core-engineering:ce-implement` re-screens the route, composes the same
+  canonical `ce-spec.md` and `tasks.json` through the normal specification
+  stages, and requires `spec-lint` to pass before editing code.
 
-### Assurance, diagnosis, and operational evidence
+Compact is refused for complex work; security/privacy obligations; owned or
+changed public API/CLI/event/schema/config contracts; unresolved dependency
+interfaces; owned or changed shared shapes/cross-feature flows; material
+migration, concurrency, failure, compatibility, destructive, or irreversible
+design; or any unresolved product, scope, boundary, acceptance-adequacy, or
+manual judgment. The behavior, acceptance, test location, validation commands,
+and small ordered task cut must all be known. A stable built dependency or
+already selected architecture direction does not disqualify compact by itself.
+Route drift returns to Plan Stage R; there is no silent override.
 
-| Skill | Responsibility |
-|---|---|
-| `/core-engineering:ce-verify` | Check implemented behavior, journeys, dependencies, and acceptance criteria; it does not fix failures. |
-| `/core-engineering:ce-review` | Review code and inbound review comments, producing findings and a machine-readable summary; it does not patch. |
-| `/core-engineering:ce-debug` | Reproduce and classify a failure, then route the fix to implementation, specification, or planning. |
-| `/core-engineering:ce-ux-audit` | Walk planned journeys or probe an unplanned running surface for UX findings. |
-| `/core-engineering:ce-probe-deps` | Check pinned dependencies against OSV advisories, with loud degraded behavior when offline. |
-| `/core-engineering:ce-probe-infra` | Inspect infrastructure manifests and static scanner evidence. |
-| `/core-engineering:ce-probe-sec` | Perform consent-gated dynamic security probing against an authorized target. |
-| `/core-engineering:ce-probe-perf` | Collect measured performance signals from an authorized running target. |
-| `/core-engineering:ce-retro` | Summarize recorded pipeline signals and optionally compile an evidence pack without re-judging the work. |
+### Independent assurance, one handoff
 
-### Decisions, release, and documentation
+Review and verification are peers:
 
-| Skill | Responsibility |
-|---|---|
-| `/core-engineering:ce-decide` | Compare supplied options for one bounded technical fork and draft an evidence-tagged proposed ADR; complete solution-direction generation belongs to architecture exploration. |
-| `/core-engineering:ce-ship-backlog` | Emit one-way ADO, Jira, or GitHub work-item files from a spec; it does not call tracker APIs. |
-| `/core-engineering:ce-ship-release` | Prepare a GO/NO-GO decision package, evidence inventory, and optional changelog; it never deploys. |
-| `/core-engineering:ce-ship-document` | Generate user-facing documentation from verified behavior and runnable examples. |
-| `/core-engineering:ce-humanize` | Rewrite supplied prose while preserving facts and markup; file edits require consent. |
-| `/core-engineering:ce-doc-audit` | Execute an existing guide as a reader role in a sandbox and report findings without editing the source. |
+- `/core-engineering:ce-review` evaluates correctness, security, performance,
+  maintainability, conformance, and simplicity.
+- `/core-engineering:ce-verify` demonstrates acceptance behavior, journeys,
+  dependencies, and test evidence.
 
-The optional `product-discovery` plugin adds `/product-discovery:ce-idea-scout` for generating and
-ranking directions, `/product-discovery:ce-idea-score` for evaluating one direction, and
-`/product-discovery:ce-market-scan` for sourced market and competitor research. They sit before
-`/core-engineering:ce-brief`; the engineering spine does not require them.
+An orchestrator may run them together, but neither consumes the other's
+conclusion as proof. Demonstrated PASS rows and clean negative findings are
+reported without a confirmation gate. Failures, uncertainty, target ambiguity,
+stakeholder acceptance, and material manual judgments are routed explicitly.
 
-## 3. The artifact model
+### Documentation before release
 
-Durable workflow state is ordinary Markdown and JSON in the adopter
-repository. It can be reviewed in a pull request, diffed, retained, or removed
-without a proprietary database.
+`/core-engineering:ce-ship-document` generates user and operator documentation
+from verified behavior and runnable evidence. Run
+`/core-engineering:ce-doc-audit` before release when a changed quickstart,
+runbook, migration, safety procedure, or high-impact user journey needs an
+independent reader-role check. Clean audit results do not require
+re-attestation; findings route back to documentation.
 
-The central layout is:
+`/core-engineering:ce-ship-release` is the final workflow. It compiles the
+current plan, implementation, independent review and verification, required
+documentation/audit, rollback, and supply-chain evidence into GO/NO-GO input.
+It re-runs deterministic review and verification freshness gates against one
+resolved HEAD; stale receipts, changed plan/spec/task authority, or changed
+implementation files block GO. It never tags, publishes, or deploys.
+
+Documentation and doc-audit changes are part of that candidate HEAD. After
+either workflow changes repository state, the human incorporates those changes
+into the candidate commit and refreshes both review and verification before
+release. This is a freshness rerun, not another product or architecture
+decision: unchanged evidence stays automatic, while any new finding follows its
+normal owning route.
+
+## 2. Routing and escalation
+
+The plugin has **29 skills** and **2 plugin-shipped custom agents**. `ce-go` is
+the front door: it derives repository state, auto-routes an unambiguous
+model-invocable destination, and otherwise asks one discriminating question or
+returns the exact direct-only command.
+
+Each stage owns one scope. A conflict routes upward:
+
+- implementation conflict → specification;
+- specification or shared-boundary conflict → planning;
+- material architecture uncertainty → the architecture workbench and owner;
+- review or verification defect → implementation, specification, or planning
+  according to the validated route;
+- documentation finding → documentation;
+- missing release evidence → the producing workflow.
+
+A stage never widens its own Scope Lock.
+
+## 3. Durable artifacts
+
+All planned work uses the same directory shape:
 
 ```text
-docs/
-├── adr/                             # accepted cross-feature decisions
-├── briefs/
-│   ├── <slug>.md                    # human-readable brief
-│   └── <slug>.json                  # machine-readable brief status
-└── plans/
-    ├── plans.json                   # registry of plans in this repository
-    ├── repo-profile.json            # /core-engineering:ce-init repository profile
-    ├── vc-policy.md                 # version-control and release policy
-    ├── review-policy.md             # human-owned review calibration
-    ├── patterns.md                  # known repository hazards
-    ├── express-log.jsonl            # accepted /core-engineering:ce-patch ledger
-    └── <slug>/
-        ├── architecture-selection.json    # reviewed option set + human-selected pre-decomposition direction
-        ├── architecture-options.md        # readable pre-approval comparison when directions were explored
-        ├── feature-plan.md
-        ├── shared-context.md
-        ├── threat-model.md
-        ├── interaction-contract.md
-        ├── plan.json
-        ├── features/<id>.md
-        ├── architecture/
-        │   ├── solution-architecture.md
-        │   ├── views.md
-        │   ├── data-and-integrations.md
-        │   ├── quality-attributes.md
-        │   └── architecture.json
-        ├── specs/<id>/
-        │   ├── ce-spec.md
-        │   ├── tasks.json
-        │   ├── verification.md
-        │   ├── code-review.md
-        │   └── review-summary.json
-        ├── diagnosis.md
-        ├── verification-report.md
-        ├── evidence/
-        ├── .metrics.jsonl
-        ├── STATUS.md
-        ├── ce-auto-build/
-        │   ├── <date>-state.json
-        │   ├── <date>-ledger.jsonl
-        │   └── <date>-run.md
-        ├── release/<date>-release.md
-        └── evidence-pack/<date>/
+docs/plans/
+  plans.json
+  <slug>/
+    plan.json
+    feature-plan.md
+    shared-context.md
+    threat-model.md
+    interaction-contract.md
+    architecture-options.md
+    architecture-selection.json
+    architecture/
+      architecture.json
+      solution-architecture.md
+      data-and-integrations.md
+      quality-attributes.md
+      views.md
+    features/
+      <id>-<slug>.md
+    specs/
+      <id>/
+        ce-spec.md
+        tasks.json
+        verification.md
+        code-review.md
+        review-summary.json
+    verification-report.md
+    verification-summary.json
+    release/
+      <release-key>-release.md
+    STATUS.md
 ```
 
-Every newly written full plan carries `architecture-selection.json`: either the
-exact reviewed option set and selected direction, an adopted existing direction,
-or an explicit not-applicable/deferred/waived record. Legacy absence routes to
-plan revision before a write-capable downstream workflow proceeds. The
-human-readable `architecture-options.md` accompanies every freshly explored
-direction; explicit N/A/deferred and legacy adopted-existing routes may omit it
-because no multi-option comparison occurred. The
-`architecture/` package remains conditional:
-it is mandatory before spec, direct implementation, or auto-build when
-`plan.json` records `required`, a
-visible coverage gap when `recommended`, N/A when `not-required`, and an
-explicit residual risk when human-waived. It is written as one coherent set
-only after human approval. Schema v2 separates lifecycle, baseline acceptance,
-plan-relative coverage, and readiness; hashes the reviewed package into a
-durable approval receipt; and makes every human table/diagram a deterministic
-projection of strict JSON. Trigger-relevant dynamic, trust, transition,
-deployment, integration, and operational claims must be structured or carried
-as typed gaps with affected ids, owner, next check, and resolution condition.
-The package is specification context, not implementation, security, compliance,
-release, or deployment authority.
+Only artifacts required by the chosen route are present. For example,
+architecture workbench/baseline files are conditional, and documentation audits
+exist only when that risk trigger fires. `STATUS.md` is a projection, not a
+second source of truth.
 
-Each full-plan `tasks.json` persists the exact architecture package and
-feature-slice binding used to author its spec. Implementation, outbound review,
-and auto-build compare that binding to the current package before trusting the
-spec or a prior review summary. Review and diagnosis artifacts appear only when
-those workflows run. `STATUS.md` is a generated projection of plan and
-auto-build state, not a second source of truth.
+Machine JSON owns exact structure and digests. Human Markdown and diagrams are
+review views; where a deterministic projector exists, do not hand-maintain a
+second schema in prose.
 
-Other skills write dated, never-overwritten reports such as
-`docs/dep-audits/<date>-<slug>.md`,
-`docs/infra-reviews/<date>-<slug>.md`,
-`docs/sec-probes/<date>-<slug>.md`,
-`docs/perf-profiles/<date>-<slug>.md`,
-`docs/ux-audits/<date>-<slug>.md`,
-`docs/plan-audits/<date>-<slug>.md`,
-`docs/doc-audits/<date>-<slug>.md`,
-`docs/decisions/<slug>/<date>.md`,
-`docs/domain/<date>-<scope>-primer.md`, and
-`docs/onboarding/<date>-<target>.md`. The relevant skill defines the exact
-schema.
+Dated reports use `<date>`. A second run on the same day receives `-2`, then
+`-3`, consistently across its report and companions. Drafts under
+`docs/plans/.drafts/` are resumable work, not approved plan inputs.
 
-`<date>` is the first run key for that UTC day. A never-overwritten workflow
-resolves every companion path before it writes: if the first key already exists,
-the next run uses a shared `-2`, then `-3`, suffix across its report, machine
-companion, and evidence directory. For example, a second same-day audit uses
-`<date>-<slug>-2` everywhere. This keeps reruns distinct without splitting one
-evidence set across different keys.
+## 4. Human authority
 
-Draft directories under `docs/briefs/.drafts/` and `docs/plans/.drafts/` are
-crash-resume scratch space. They are not registered plans or approved inputs
-and are removed when the final artifact is accepted. Runtime guard state under
-`.claude/` is also configuration or session state, not a project decision.
+A human gate exists only for an actual choice, consent, exception, or
+authority-owned judgment. It is not required for:
 
-`tasks.json` is more than a checklist. When implementation marks work done, its
-helper scripts can bind the state to a completion time, commit, and test-run
-digest. Downstream workflows re-check that evidence and may report a task as
-stale after a rebase, revert, or mismatched test record. Legacy evidence checks
-continue to warn on unstamped tasks, while release uses the explicit strict mode:
-every done task must be stamped and fresh before the workflow can issue GO.
-Unstamped, stale, malformed, or unreadable evidence keeps the workflow at NO-GO;
-a release owner can act under separate external authority, but that exception is
-not relabeled as tool approval. A dated evidence pack
-copies and hashes available artifacts; it compiles what the pipeline recorded
-but is not a compliance attestation.
+- deterministic PASS;
+- a completed read-only step;
+- a generated projection;
+- a demonstrated verification PASS;
+- a clean review, audit, or probe result.
 
-## 4. Human authority and runtime safety
+Deterministic failure stops or routes. A human cannot make it green through
+re-attestation.
 
-The framework gives the model engineering work, not unrestricted authority.
-The durable rule is that product, scope, security, destructive, and release
-decisions remain human-owned.
+Material product, scope, architecture, security acceptance, destructive or
+irreversible operation, contract break, accepted-risk, and release choices are
+human-owned. Their gate shows repository evidence, alternatives, consequences,
+unknowns, recommendation, confidence, decision owner, and a gather-evidence,
+route, or park path. See the
+[HITL Gate Standard](contributing/HITL-GATE-STANDARD.md).
 
-### Human-in-the-loop gates
+## 5. Runtime safety
 
-Material decisions are rendered with evidence, consequences, and a visible
-`Gate N of M` locator. Dense gates lead with the rows that actually need a
-decision. A human should not be asked to confirm a model-derived classification
-without seeing its basis and the cost of being wrong.
+Claude Code hooks provide cooperative backstops:
 
-Each material question also names the decision owner or expertise required to
-accept the consequence. The person currently running a workflow is not assumed
-to own product, security, data, platform, and contract risk at once: when the
-evidence is insufficient or the current person lacks authority, the gate offers
-an explicit gather-evidence, route-to-owner, or park path. Separate material
-questions may share one interaction for efficiency, but they never share one
-answer; only routine rows bulk-approve. Every interaction stays within the
-platform limit of four questions and four options, splitting under the same gate
-locator when necessary.
+- recognized shared-history and PR mutations ask or deny;
+- credential-store and out-of-workspace secret reads are denied;
+- the active skill's session-bound write lease limits writes;
+- recognized outbound calls follow repository network policy;
+- session start checks installed hook integrity.
 
-Architecture scores are decision support, never automatic selection. Hard
-constraints gate before weighting; a failed or materially unknown residency,
-security, contractual, platform, or accepted-decision constraint cannot be
-averaged away. Even a single viable direction requires affirmative human
-selection before detailed decomposition.
+Decisions append to a hash-chained guard log. These hooks are tamper-evident
+pattern checks, not a complete sandbox or data-loss-prevention system. Skills
+still have no authority to push, merge, deploy, publish, tag, or rotate secrets.
 
-The normative contributor rules live in the
-[HITL Gate Standard](contributing/HITL-GATE-STANDARD.md). The installed skills
-carry their runtime instructions inline, so an adopter does not need this
-repository document for a gate to work.
+## 6. Deterministic control plane
 
-Review, verification, audits, and probes follow **findings, not verdicts**. They
-may classify severity and produce a blocking machine signal, but a human owns
-the disposition and any accepted risk. A release skill prepares a decision; it
-does not tag, publish, or deploy the release.
+Small stdlib-only validators own exact checks: plan graphs and references, spec
+traceability, architecture packages, test weakening, dependency declarations,
+write scope, review summaries, and evidence freshness.
 
-### Plugin hook backstops
+Their result shape is:
 
-On the Claude Code plugin surface, four PreToolUse hooks backstop common
-high-risk capabilities:
+- pass;
+- finding/failure;
+- could-not-run.
 
-- `git-guard.py` asks or denies, according to configured tiers, before recognized
-  shared-history operations: pushes, `gh pr create` / `gh pr merge`, mutating
-  `gh api` calls to pull/merge endpoints, tag changes, and history writes on a
-  protected branch. Other clients and indirect shell forms remain outside this
-  pattern-based backstop.
-- `env-guard.py` blocks high-risk credential-store and out-of-workspace secret
-  reads. It is targeted confinement, not complete data-loss prevention.
-- `write-scope-guard.py` enforces the active skill's session-bound write lease
-  across direct file tools and recognized shell write forms. A lease left by a
-  dead session self-heals to the baseline with a visible confirmation; an
-  in-scope live lease still denies out-of-scope writes.
-- `net-guard.py` checks common outbound calls and upload forms against the
-  repository's network policy, and denies recognized secret-upload payloads.
-  It is an egress checkpoint, not a network sandbox.
+Missing tools or malformed evidence never become a clean result.
 
-The guards append decisions to `.claude/ce-guard-log.jsonl`, whose records form
-a hash chain that can reveal edits, deletion, or reordering. `hook-integrity.py`
-checks the installed hook files at session start and warns on drift from the
-shipped manifest. These controls are tamper-evident rather than tamper-proof: a
-process with broad shell access is not contained the way an OS or container
-sandbox would contain it.
+The merge bar asks two separate questions:
 
-Code-read-only skills set a write lease at entry and clear it at exit. A skill
-may still own a narrow evidence artifact: for example, `/core-engineering:ce-verify`
-can update its cumulative `verification-report.md` and append best-effort
-`.metrics.jsonl`, while source, plans, specs, task state, and implementation
-evidence remain outside its lease.
-`/core-engineering:ce-init --write` creates the deny-only baseline and starter network policy. Without the
-relevant policy file, a hook may intentionally remain inert; the hook README
-documents each default and limitation.
+1. did deterministic integrity gates pass against the committed base and head?
+2. did the Git host enforce the required human review?
 
-The safety contract also applies above the hooks. Skills do not push, open or
-merge pull requests, deploy, rotate credentials, or publish packages on their
-own. `/core-engineering:ce-auto-build` also does not create branches, commits, or worktrees; its
-final human review owns the complete working-tree diff.
+[`scripts/gate_runner.py`](../scripts/gate_runner.py) answers only the first and
+records the policy's validity requirement. Branch protection, CODEOWNERS, normal
+build/test jobs, and required reviewers enforce the second. A green merge bar
+does not prove the project compiles, tests are sufficient, or the system is
+secure.
 
-Plugin hooks do not run in a standalone CI gate. CI judges only the committed
-repository state supplied to it and must not be described as equivalent runtime
-confinement.
+## 7. Automation
 
-## 5. Deterministic gates and the merge bar
+The `spec-author` and `spec-impl` custom agents are leaf wrappers around the same
+skills and artifacts. At a real decision they return a structured `Needs
+decision` checkpoint to their caller. They do not spawn nested workers or gain
+repository-history authority.
 
-The workflows use small, on-disk validators so important structural checks do
-not depend on a model agreeing with its own output. Examples include plan DAG
-and reference checks, spec traceability, test-integrity checks, dependency
-declarations, patch-boundary checks, review summaries, and evidence schemas.
-The scripts use a consistent exit shape: pass, finding/failure, or could-not-run.
-Degraded execution is reported instead of being presented as a clean result.
-The review-evidence gate independently derives `blocking_high` from the
-structured findings, rejects a contradictory `status`, and verifies the exact
-plan/spec/architecture/repository-state binding before trusting the verdict;
-malformed or stale review evidence is a could-not-run result, never a pass.
-Auto-build also requires a validated `blocking_route`: implementation defects
-may retry implementation, while a `plan-conflict` parks for human-owned planning
-instead of looping on code.
+`/core-engineering:ce-auto-build` is the bounded sequential orchestrator. It
+fixes feature range, attempts, parks, and budget up front; processes one feature
+at a time; persists status; and re-derives state on `--resume`. Product,
+architecture, security-acceptance, destructive, scope, and release decisions
+park for a human.
 
-### Two separate merge questions
+## 8. Evidence and evaluation
 
-The merge bar keeps two questions separate:
+Repository validation includes:
 
-1. **Integrity:** did the configured deterministic gates pass against the
-   committed base and head?
-2. **Validity:** did the required human review happen for this change class?
+- `scripts/check.py` and delegated corpus/product/supply-chain checks;
+- stdlib portability checks;
+- unit tests for hooks, gates, artifacts, and orchestration;
+- deterministic eval fixtures and goldens;
+- optional live-model runs with hard per-scenario budgets.
 
-[`scripts/gate_runner.py`](../scripts/gate_runner.py) executes the integrity
-part from the committed
-[`merge-policy.json`](../plugins/core-engineering/merge-policy.json). The
-shipped `standard` and `sensitive` classes require `spec-lint`, `test-guard`,
-and `dep-guard`. The policy also registers advisory checks for known-vulnerable
-dependencies, implementation scope, review evidence, plan structure, added
-secrets, and accepted-risk dispositions. Adopters can promote advisory gates
-after their repository has the inputs those gates require.
+A live-eval workflow conclusion is not itself behavioral evidence. The workflow
+emits an evidence receipt that records whether a clean, graded live summary was
+actually produced. The main-health canary requires that receipt and checks its
+freshness; a successful skipped run is unhealthy evidence state.
 
-The validity value is `human` or `two-human`. The runner records it but cannot
-prove that a reviewer approved the pull request. GitHub branch protection
-cannot vary its approval count per PR from that runtime value, so the supported
-default is **two required approvals globally**. That conservatively enforces
-both classes; `human` remains the reported minimum. A green integrity result
-without the protected review rule is not a merge authorization.
+[Benchmarks](BENCHMARKS.md) separates design verification from current live
+evidence. [Real Outputs](EXAMPLES.md) records provenance. Neither an evidence
+pack nor this framework is a compliance attestation.
 
-### What a green result proves
+## 9. Contributor model
 
-A green default result proves the configured artifact-integrity conditions:
-spec traceability held, tests were not weakened in the patterns the guard
-recognizes, and no undeclared direct dependency entered a supported manifest.
-It does **not** prove that:
+`SKILL.md` contains the always-loaded contract. Stage detail is loaded on
+demand. The [Skill Authoring Standard](contributing/SKILL-AUTHORING.md) enforces
+line and token-proxy ceilings so progressive disclosure is measurable.
 
-- the project compiles;
-- the test suite passes or is sufficient;
-- the behavior meets the product need;
-- a package name exists or is trustworthy on a registry;
-- the system is secure, compliant, or ready for production.
-
-Every adopter must keep its normal build, lint, test, and security jobs as
-separate required checks.
-
-### Keeping the PR from supplying its own policy
-
-The merge action judges committed refs. A local merge-policy override is read
-from the **base ref**, so a pull request cannot weaken its own bar in the same
-change. The declared-dependency list is intentionally read from **both the base
-ref and the PR head**, and the union is passed to `dep-guard`. This permits a
-same-PR dependency declaration, while edits under `.github/**` or
-`.merge-bar/**` classify the change as `sensitive` and therefore request two
-human reviewers under the shipped policy.
-
-The calling workflow is still part of the trust boundary. Protect `.github/**`
-with CODEOWNERS or a ruleset, and require both the merge bar and the project's
-build/test job. Optional signed verdicts bind a green result to base/head SHAs
-and a policy hash, but they complement rather than replace repository rules.
-
-### Delivery surfaces
-
-GitHub users can pin the
-[`action/merge-bar`](../action/merge-bar/README.md) composite action to a full
-40-character commit SHA. Teams that cannot run a third-party action can use the
-checksum-verified copy-in templates described in
-[Team Rollout](TEAM-ROLLOUT.md); equivalent templates are included for GitLab
-CI and Azure Pipelines. Teams that want only the test-integrity check can use
-the separate [`action/test-integrity`](../action/test-integrity/README.md).
-
-`scripts/drift_scan.py` is the post-merge complement: it re-projects committed
-plan/spec artifacts on a schedule and routes drift to `/core-engineering:ce-plan` or `/core-engineering:ce-spec`.
-The plugin does not wrap these local gates in a built-in MCP server; teams add
-external connectors only where a repository workflow actually needs them.
-
-## 6. Automation surfaces
-
-The plugin ships two leaf custom agents:
-
-- `spec-author` wraps `/core-engineering:ce-plan` and `/core-engineering:ce-spec` for focused artifact authoring.
-- `spec-impl` wraps `/core-engineering:ce-implement` for focused test-first execution.
-
-They use the same skills and artifact contracts as direct invocations. They do
-not spawn nested task workers and do not gain push, merge, or deployment
-authority. Because these leaf agents do not own an interactive-question channel,
-a skill gate pauses through a structured parent handoff (`Needs decision`, gate,
-evidence, options and consequences, and an exact resume input). The caller's
-answer resumes from the named checkpoint; silence is never approval.
-
-`/core-engineering:ce-auto-build` is different: it is the in-plugin orchestrator for a complete
-plan. Stage 0 validates the architecture-selection binding,
-`architecture_disposition`, and any present package,
-blocking a missing/stale required baseline before a worker spawns; it then fixes
-the feature range, failure-attempt cap, park cap, and budget. Features
-then move in ship order, one at a time, through specification, deterministic
-lint, implementation, verification, and independent review. Blocking product,
-security-acceptance, destructive, architecture, and scope decisions are parked
-for a human rather than guessed. Run state is persisted under `ce-auto-build/`,
-and `--resume` re-derives state from disk instead of trusting chat memory. One
-integration verification and a final human review close the run; the workflow
-never creates a branch or lands its own output.
-
-## 7. Evidence, evaluation, and honest limits
-
-Repository validation combines several layers:
-
-- `scripts/check.py` validates manifests, skill/agent inventory, model policy,
-  forked-script integrity, the README catalog, and delegated linters;
-- unit tests exercise hooks, gate scripts, the merge runner, eval tooling, and
-  documentation drift checks;
-- the eval corpus runs skills against small fixture repositories and replays
-  frozen artifacts through deterministic gates; executed receipts record the
-  observed Claude CLI version and local plugin manifest version when available,
-  while unavailable provenance and unobserved token/cost data remain explicit.
-  Scripted multi-turn scenarios verify declared gate/context anchors before
-  sending a scenario-scoped decision event, then hash-bind the prior response
-  and supplied answer in the receipt; they prove harness provenance, not human
-  comprehension or independent assent;
-- CI pins third-party actions, scans history for secrets, validates both
-  plugins, and runs the portable gate corpus without Claude Code.
-
-[Benchmarks and Evaluation Budgets](BENCHMARKS.md) distinguishes recorded live runs
-from design-verified scenarios and states which skills have not been measured.
-[Real Outputs](EXAMPLES.md) shows captured artifacts with provenance. The eval
-harness and contributor protocol live in the
-[eval corpus README](../evals/README.md).
-
-The framework records evidence; it does not convert evidence into a legal,
-security, or product guarantee. The control mapping in
-[Enterprise Hardening](ENTERPRISE-HARDENING.md) is a vocabulary bridge with
-explicit residual owners and gaps, not a certification. Dynamic probes are
-bounded observations, static checks have false-positive and false-negative
-risk, and model-written prose still needs human review.
-
-Best-effort plan telemetry uses a versioned event contract. Current producers
-can add run identity, terminal outcome, measured duration, and resolved runtime
-versions; legacy streams remain readable. Repository reports validate new event
-shapes and count missing streams and metadata as coverage gaps rather than zero
-activity. Events must not contain prompt bodies, source, credentials, raw tool
-output, or unnecessary personal data, and the adopter owns access and retention
-for both `.metrics.jsonl` and any evidence-pack copy.
-
-## 8. Contributor architecture
-
-Skills are the source of truth. A `SKILL.md` holds the always-loaded purpose,
-inputs, contract, human gates, escalation, and limitations. Larger skills move
-stage bodies and artifact templates into companion files loaded only when that
-stage runs. This progressive-disclosure shape reduces context use without
-creating a second workflow definition.
-
-The [Skill Authoring Standard](contributing/SKILL-AUTHORING.md) defines the
-shared skeleton, vocabulary, description limits, and routing clauses. Gate
-scripts that must exist beside multiple skills are registered in
-`plugins/core-engineering/fork-manifest.json`; contributors edit the canonical
-copy and run `python3 scripts/fork_sync.py --write` so CI can verify byte
-identity.
-
-When a change adds or removes a skill, alters a gate or escalation path, or
-moves an artifact, update this overview, the README catalog, and the
-Usage Matrix in the same change. Mechanical refactors and typo fixes do not
-need an architecture rewrite, but public behavior and public paths must never
-be left to inference from implementation code.
+When public routing, authority, artifacts, or failure behavior changes, update
+this overview, the README, Usage Matrix, recipes, tests, and changelog in the
+same change.

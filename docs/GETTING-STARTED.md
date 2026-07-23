@@ -1,22 +1,17 @@
 # Getting Started
 
-This is the fast path for using `core-engineering` in a real repository. Use
-`docs/HOW-IT-WORKS.md` when you need the architecture; use this page when you
-want to get useful output in the first session.
+Use this page for a first session. See [How It Works](HOW-IT-WORKS.md) for the
+full contract and [Usage Matrix](USAGE-MATRIX.md) for every capability.
 
 ## Prerequisites
 
-- **Claude Code** installed and authenticated (subscription or API billing) —
-  the plugin runs inside it, on any OS Claude Code supports.
-- **`python3`** (3.10+) on `PATH` — the plugin's safety hooks and on-disk gate
-  scripts are stdlib-only Python; nothing to `pip install`.
-- **A git repository to work in** — every artifact the skills write is plain
-  markdown/JSON, meant to be committed and reviewed like code.
-- **Model-spend awareness** — skills make model calls on your plan or API key;
-  see [What It Costs](#what-it-costs) below for historical budget caps.
+- Claude Code installed and authenticated.
+- Python 3.10+ and Git.
+- A repository with its normal build and test commands.
+- A human who owns product scope and can route material architecture, security,
+  and release decisions to the right person.
 
-The tested runtime floor and upgrade/migration policy are in
-[Compatibility and Upgrades](COMPATIBILITY.md).
+Supported versions are in [Compatibility](COMPATIBILITY.md).
 
 ## Install
 
@@ -25,220 +20,127 @@ claude plugin marketplace add relusion/vg-sdlc-claude-plugins
 claude plugin install core-engineering@vg-coding
 ```
 
-The upstream idea/market skills (`/product-discovery:ce-idea-scout`, `/product-discovery:ce-idea-score`,
-`/product-discovery:ce-market-scan`) ship as a small **companion** plugin. Install it only if you
-also want the product-discovery front-end — the core engineering framework does
-not need it:
+The optional discovery plugin is separate:
 
 ```bash
 claude plugin install product-discovery@vg-coding
 ```
 
-Then open a project repository in Claude Code and invoke skills directly with
-their plugin-qualified names, for example:
-
-```text
-/core-engineering:ce-ask Where is login rate limiting enforced?
-/core-engineering:ce-impact Add CSV export to the orders report.
-/core-engineering:ce-init --write
-/core-engineering:ce-brief We need team invitations with role-based access.
-```
-
-### Watch it catch a cheat (60 seconds, offline)
-
-From a clone of this repository (bash + git + python3 only — no network, no
-Claude required):
-
-```bash
-bash scripts/demo-cheat-catch.sh
-```
-
-The script builds a throwaway adopter repo from a shipped fixture and runs the
-merge bar three times: an honest change passes (green verdict), a committed
-"cheat" that guts the test file's assertions goes red with `test-guard` named
-in the hard failures, and reverting the cheat goes green again. On a color
-terminal the PASS/FAIL headline renders bold green/red so the verdict is
-readable from across the room.
-
 ## First 10 Minutes
 
-**One command to remember in week one:** `/core-engineering:ce-go <what you want>`. It is the
-front door: describe the outcome in plain language ("why does export fail",
-"score this idea", "is this code safe to ship") and it inspects repo state (a
-plan on disk? a spec for the named feature? a running target?), routes to the
-right skill, shows its reasoning, and asks you to confirm before it hands off.
-It routes, never executes: after confirmation it starts a model-invocable skill,
-or prints the exact command when the destination requires direct human
-invocation. Instead of learning ~30 skill names, you learn one. The steps below
-are what `/core-engineering:ce-go` routes *to*; run them directly once you know which one you want.
-
-```text
-/core-engineering:ce-go The export job silently stops after a few hundred rows.
-```
-
-Expected output: a single routing gate — e.g. *"Routing to `/core-engineering:ce-debug`
-because a failing component matches the diagnosis lane — Proceed / Pick another /
-Abort"* — then it starts the chosen skill or prints its direct command. It writes
-nothing itself.
-
-1. Bootstrap repository policy:
-
-   ```text
-   /core-engineering:ce-init --write
-   ```
-
-   Expected output: `docs/plans/repo-profile.json`, `vc-policy.md`,
-   `review-policy.md`, and `patterns.md` when missing, plus the
-   `.claude/ce-write-scope.json` deny-only write-scope baseline (git internals
-   and the lease file itself are never agent-writable). It also appends
-   `.gitignore` entries for the five runtime guard/session files
-   (`.claude/ce-write-scope.json`, `.claude/ce-write-scope.session.json`,
-   `.claude/ce-guard-log.jsonl`, `.claude/ce-session-model.json`, and
-   `.claude/ce-net-policy.json`) when they are absent.
-
-   Add `--readiness` for a deterministic follow-up that separates local setup
-   blockers from repository-host controls that require administrator evidence:
+1. Profile the repository:
 
    ```text
    /core-engineering:ce-init --readiness
    ```
 
-2. Ask one grounded question:
+   Add `--write` only when you want starter policy and write-scope files.
+   Readiness distinguishes local facts from Git-host controls that still need
+   administrator verification.
+
+2. Ask a grounded question:
 
    ```text
-   /core-engineering:ce-ask Where is authentication enforced?
+   /core-engineering:ce-ask Where is authorization enforced?
    ```
 
-   Expected output: a short answer with `file:line` citations and no file
-   writes.
+   Expect a read-only answer with `file:line` evidence.
 
-3. Analyze one proposed change:
+3. Refine the next change:
 
    ```text
-   /core-engineering:ce-impact Add CSV export to the orders report.
+   /core-engineering:ce-impact Add CSV export to order history.
    ```
 
-   Expected output: affected components, blast radius, rough sizing, open
-   questions, and a paste-ready summary.
+   Expect blast radius, affected contracts, risks, and open questions.
 
-4. If the work is real, start the planning path:
+4. Choose the smallest lane:
 
    ```text
-   /core-engineering:ce-brief Add team invitations with role-based access.
-   /core-engineering:ce-plan <brief-or-project-description>
-   /core-engineering:ce-architecture <plan-slug>  # required when plan.json records decision: required
+   /core-engineering:ce-patch Correct the archived-state label.
+   /core-engineering:ce-plan Add CSV export to order history.
    ```
 
-   Expected output: `docs/briefs/<slug>.md`, then `docs/plans/<slug>/`. Planning
-   first builds a capability-level evaluation frame. When architecture is
-   load-bearing, it generates and scores complete solution directions and
-   requires a human selection before detailed feature decomposition; the exact
-   reviewed binding is written as `architecture-selection.json`. A later
-   read-only shaping pass checks that the feature cut realizes that direction,
-   and `plan.json` records the human-owned `architecture_disposition`. A required
-   disposition blocks specification until the normal architecture command
-   writes a schema-v2 five-file package under
-   `docs/plans/<slug>/architecture/`. Its JSON is strict, its Markdown/Mermaid
-   views are deterministic projections, and final human approval seals an
-   accepted-for-specification package digest. A recommended baseline may be
-   deferred as an explicit typed coverage gap. Architecture does not silently
-   change the plan or code, and the receipt does not claim security, deployment,
-   or production readiness.
+   Patch admits only a low-risk change within two files. Anything structural or
+   uncertain routes to plan.
 
-5. If the work is genuinely small:
+5. If intent is genuinely unclear, use the optional specialist before planning:
 
    ```text
-   /core-engineering:ce-patch Fix the typo in the archived item status label.
+   /core-engineering:ce-brief We need better team administration.
    ```
 
-   Expected output: a mechanical admission screen for a change bounded to at
-   most two files. An admitted patch runs test-first, shows the diff and
-   evidence at one human gate, and records one line in
-   `docs/plans/express-log.jsonl` after acceptance. If the screen is uncertain
-   or the change is structural, `/core-engineering:ce-patch` stops and routes to `/core-engineering:ce-plan`.
+   Do not create a brief when the request and repository evidence are already
+   sufficient.
 
 ## Common First Runs
 
-| Situation | Start Here | What You Get |
+| Situation | Start here | Result |
 |---|---|---|
-| I am using this plugin in a repo for the first time | `/core-engineering:ce-init --write` | Repo profile, starter SDLC policy artifacts, and the write-scope baseline |
-| I need to understand code | `/core-engineering:ce-ask` | Cited answer, no writes |
-| I need to refine a work item | `/core-engineering:ce-impact` | Blast-radius read and open questions |
-| I have a raw feature idea | `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` | Brief, conditional scored architecture directions + human selection, then feature plan |
-| I have a written plan whose disposition requires or recommends a shared solution design | `/core-engineering:ce-architecture <plan-slug>` | Digest-sealed, accepted-for-specification schema-v2 baseline with generated context, dynamic, trust, deployment, transition, data/integration, quality, operations, and traceability views or typed gaps |
-| I have an approved plan feature whose architecture prerequisite is satisfied | `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` | `ce-spec.md` and `tasks.json` bound to the exact architecture revision/package/feature slice, then code, tests, and verification |
-| I need confidence before handoff | `/core-engineering:ce-review` + `/core-engineering:ce-verify` | Review findings and behavior-verification evidence |
-| I need release readiness | `/core-engineering:ce-ship-release` | Release decision package and changelog proposal |
-| I need a risk probe | `/core-engineering:ce-probe-infra`, `/core-engineering:ce-probe-sec`, `/core-engineering:ce-probe-perf`, or `/core-engineering:ce-ux-audit` (UX) | Evidence-backed findings within each probe boundary |
+| Unsure which workflow fits | `/core-engineering:ce-go <goal>` | Auto-route when unambiguous; otherwise one question or exact direct-only command |
+| Understand code | `/core-engineering:ce-ask` | Cited answer, no writes |
+| Refine a work item | `/core-engineering:ce-impact` | Blast radius and unknowns |
+| Small low-risk fix | `/core-engineering:ce-patch` | Two-file express lane or a safe route to plan |
+| Planned repository change | `/core-engineering:ce-plan` | One canonical plan directory and a per-feature specification route |
+| Unclear product problem | `/core-engineering:ce-brief` then `/core-engineering:ce-plan` | Optional clarified brief, then adaptive planning |
+| Load-bearing shared design | `/core-engineering:ce-plan` composes architecture exploration; run `/core-engineering:ce-architecture <slug>` only when the plan requires or deliberately chooses a baseline | Evidence-rich option loop, human selection, then governed baseline when needed |
+| Build-ready compact feature | `/core-engineering:ce-implement <feature-id>` | Re-screened route; canonical spec/tasks composed and linted before code |
+| Non-build-ready feature | `/core-engineering:ce-spec <feature-id>` then `/core-engineering:ce-implement <feature-id>` | Explicit decisions, canonical spec/tasks, then code |
+| Pre-handoff confidence | `/core-engineering:ce-review` and `/core-engineering:ce-verify` | Independent code findings and behavior evidence |
+| Release preparation | `/core-engineering:ce-ship-document`, conditional `/core-engineering:ce-doc-audit`, refresh review/verification after incorporating doc changes, then `/core-engineering:ce-ship-release` | Verified docs, current exact-state receipts, final GO/NO-GO package |
 
-For the full router, use `docs/USAGE-MATRIX.md`. For recipes with stop
-conditions, use `docs/WORKFLOW-RECIPES.md`.
+Architecture exploration is not mandatory for every plan. When it is
+load-bearing, the human may inspect evidence, ask questions, revise constraints
+or options, select, or park at one stable gate. Deterministic projections and
+clean checks continue without confirmation.
 
 ## What It Costs
 
-Skills make model calls on your Claude plan or API key. These are the configured
-caps on successful 2026-06-27 runs against deliberately tiny fixtures, not
-actual spend, current-contract passes, or forecasts. Every current scenario
-awaits a clean rerun after contract changes. Method, recency status, and reproduction commands
-are in [docs/BENCHMARKS.md](./BENCHMARKS.md):
+Skills use your Claude plan or API billing. The repository publishes configured
+historical safety caps, not observed spend or forecasts. Current behavior rows
+remain design-verified until fresh live receipts exist.
 
-| Path | Historical per-run cap (USD) |
-|---|---|
-| `/core-engineering:ce-ask` grounded answer · `/core-engineering:ce-impact` blast-radius read | $1 |
-| `/core-engineering:ce-review` six-lens review of one feature | $2 |
-| `/core-engineering:ce-plan` decomposition · `/core-engineering:ce-implement` one feature · `/core-engineering:ce-probe-infra` audit | $3 |
-| `/core-engineering:ce-spec` one implementation-ready spec · prior `/core-engineering:ce-patch` contract | $4 |
-
-Historically, those four calls authorized up to $12 for one tiny feature through
-plan → spec → implement → review; actual spend was not retained. Use a
-project-specific pilot before budgeting.
-Anything autonomous is budget-capped up front:
-`/core-engineering:ce-auto-build` asks for a token budget at Stage 0, and executed evals refuse
-to run without an explicit `--max-budget-usd`.
+See [Benchmarks and Evaluation Budgets](BENCHMARKS.md) before a pilot. Measure
+actual model cost, elapsed time, human review time, and first-pass verification
+on your own work. Autonomous runs require an explicit budget; executed evals
+require `--max-budget-usd`.
 
 ## Safety Boundaries
 
-The framework is intentionally conservative:
+- Skills do not push, merge, deploy, publish, tag, or rotate credentials.
+- Product scope, material architecture, security acceptance, destructive work,
+  accepted risk, and release stay human-owned.
+- Deterministic PASS, read-only completion, projections, and clean negatives
+  are not approval gates.
+- Deterministic failure cannot be waived into PASS inside a workflow.
+- Review, verify, debug, audit, probes, and retro report; they do not silently
+  fix findings.
+- Write leases and hooks are cooperative backstops, not an OS sandbox.
+- External issue text, review comments, and repository documents are untrusted
+  input.
 
-- It does not push, merge, deploy, rotate secrets, or tag releases.
-- Review, verify, debug, ask, impact, audit, probe, and retro workflows report
-  findings or evidence; they do not silently patch.
-- Product, scope, security, release, and destructive decisions stay with the
-  human.
-- Generated artifacts live in `docs/` so they can be reviewed, versioned, and
-  discarded like normal project files.
-- Read-only skills hold a **write lease** during their session (a small
-  `.claude/ce-write-scope.json` policy the write guard enforces, bound to the
-  session that set it). A lease left behind by a **dead** session self-heals:
-  the guard notices the current session does not own it, auto-replaces it with
-  the deny-only baseline, and asks you to approve **once** — no hidden JSON
-  file to hunt down and hand-delete. A deny you *do* see means a **live** skill
-  still holds the lease and the edit is outside its declared scope; let that
-  skill finish or reconcile with it rather than forcing the write.
+Keep the repository's build, test, security, branch-protection, and human-review
+controls. The merge bar complements them.
 
 ## Troubleshooting
 
-| Symptom | Likely Cause | Next Step |
-|---|---|---|
-| A skill picked the wrong lane | The request was ambiguous or too broad | Invoke the intended skill directly, for example `/core-engineering:ce-impact ...` |
-| `/core-engineering:ce-impact` refuses | The change description is too thin | Add subject, action, and desired outcome |
-| `/core-engineering:ce-patch` routes to `/core-engineering:ce-plan` before editing | The screen found more than 2 files, a reviewer-trigger surface, a cross-feature collision, a dependency manifest, or uncertain scope | Narrow the request or continue with `/core-engineering:ce-plan`; patch never silently expands its scope |
-| A probe refuses | Target, environment, or authorization is unsafe or unclear | Use a local/dedicated target and pass the consent gate |
-| A release is NO-GO | Verification/freshness, review, rollback, or supply-chain evidence is missing | Run the routed skill. Unverified, stale, or unstamped work cannot become workflow GO; the release owner may accept only the other documented risk gaps inside this workflow. |
-| Claude asked me to confirm a `git push` / PR command | The `git-guard` backstop is preserving human authority over shared history | Approve or refuse the prompt. For hard-deny tiers and environment variables, see the [hooks guide](../plugins/core-engineering/hooks/README.md). |
-| A file edit was denied mid-skill | A read-only skill holds the session write lease and the edit is outside its scope | Let a live skill finish. For a stale or ambiguous lease, follow the guard's recovery message and the [hooks guide](../plugins/core-engineering/hooks/README.md); do not bypass a live lease. |
+| Symptom | Action |
+|---|---|
+| No clear route | Run `/core-engineering:ce-go` with the desired outcome, not a skill name |
+| Patch refuses the change | Use `/core-engineering:ce-plan`; do not stretch the express lane |
+| Architecture loops at selection | Inspect evidence or adjust the frame/option at the same locator; route to the architecture owner or park if authority is missing |
+| Compact implementation refuses | Run `/core-engineering:ce-spec`; a material decision or contract made the feature non-build-ready |
+| A validator returns nonzero | Repair the producing artifact and rerun; do not ask a human to confirm it away |
+| Review and verify disagree | Preserve both evidence sets and route the defect by layer |
+| Release is NO-GO | Produce the missing verification, review, docs/audit, rollback, or supply-chain evidence |
+| A scheduled live eval is green but has no evidence | Inspect its evidence receipt; a skipped model run is not fresh behavioral evidence |
 
-## Where To Go Next
-
-- `docs/README.md` for the audience-based documentation index.
-- `docs/USAGE-MATRIX.md` for the canonical command router.
-- `docs/WORKFLOW-RECIPES.md` for common end-to-end paths.
-- `docs/HOW-IT-WORKS.md` for the framework model.
-- `docs/ENTERPRISE-HARDENING.md` for control mapping and supply-chain evidence.
-- `evals/README.md` for behavior-evaluation setup and grading.
+For framework defects, include the plugin and Claude Code versions, OS, command,
+expected/observed behavior, and a secret-free fixture.
 
 ## Contributing to the Framework
 
-Working on this repository itself rather than using the plugin? Contributor
-prerequisites, the full validation battery, and the authoring standards live
-in [CONTRIBUTING.md](../CONTRIBUTING.md).
+Run the validation battery in [CONTRIBUTING.md](../CONTRIBUTING.md). Workflow
+changes must update behavior docs, focused tests, eval coverage, and
+`CHANGELOG.md`. The authoring standard adds context budgets and the rule that
+only actual human decisions become gates.

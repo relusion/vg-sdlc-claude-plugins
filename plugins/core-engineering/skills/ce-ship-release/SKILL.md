@@ -1,216 +1,176 @@
 ---
 name: ce-ship-release
 description: |
-  Cut a gated release decision for a verified plan — derive the semver bump + changelog from shipped features, assemble rollback-readiness, propose the tag and notes. Owns CHANGELOG.md; refuses GO over unverified or non-fresh work; never pushes, tags a remote, or deploys.
-  Triggers: cut a release, decide a version bump, draft a changelog or release notes. Writes the CHANGELOG; /core-engineering:ce-ship-document writes user-facing docs.
-argument-hint: "[plan-slug] [--version <v>] [--base <branch>]"
+  Prepare the final human-owned release decision for a verified, reviewed, documented plan range. Derives version and changelog, checks fresh implementation evidence, documentation/doc-audit readiness, rollback, and supply-chain evidence, then writes a decision package on approval. Never tags, pushes, deploys, or claims compliance.
+  Triggers: cut a release, decide a version, draft release notes, or make a release go/no-go decision. /core-engineering:ce-ship-document owns product docs; /core-engineering:ce-doc-audit validates reader workflows.
+argument-hint: "[plan-slug] [--version <v>] [--base <ref>]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill
 disable-model-invocation: true
 ---
 
 # Ship Release
 
-**Invocation input:** Plan to release (and optional --version / --base): $ARGUMENTS
+**Invocation input:** $ARGUMENTS
 
+Prepare the evidence-backed decision to ship. This is the final workflow after
+review, verification, required documentation, and any required documentation
+audit. It decides and records; it never tags, pushes, deploys, or commits.
 
-Prepare and gate the decision to ship a verified plan — **decide, don't deploy**.
-
-`/core-engineering:ce-ship-release` is the downstream-most pipeline tool. It reads what the pipeline has
-already proven — the verification report, the code review, and the selected git range —
-and turns it into a **ship-release package**: a proposed version bump, a
-changelog derived from the shipped features, rollback-readiness plus
-**Supply-Chain Evidence**, and a proposed tag + release notes, all gated on a
-go/no-go the human owns. It writes one
-decision artifact and (only on consent) the versioned `CHANGELOG.md`. It **never**
-pushes, creates or moves a remote tag, deploys, or commits to a protected branch.
-
-It sits at the end of the chain, after the work is built and verified:
-
+```text
+plan → architecture? → spec → implement → {review + verify}
+     → ship-document? → doc-audit?
+     → {refresh review + verify when docs/audit changed state}
+     → ship-release
 ```
-plan → spec → implement → { verify · review } → release
-```
-
-Distinct from its neighbors:
-
-- **vs `/core-engineering:ce-verify`** — verify proves the software *behaves*; release decides whether
-  that proven state *ships*, and at what version. Release never re-tests — it reads
-  verify's report and **refuses GO over unverified or non-fresh work**.
-- **vs `/core-engineering:ce-ship-document`** — release owns the versioned `CHANGELOG.md` (it holds the
-  version number); `/core-engineering:ce-ship-document` writes user-facing usage docs and never writes the
-  changelog. The two never write the same file.
-- **It is a gate, not a deployer.** Tagging, pushing, and deploying are the
-  human's; release prepares the decision and stops at the go/no-go.
 
 ## Runtime Inputs
 
-- **Plan slug (required):** resolve via `docs/plans/plans.json`; if missing, ask. Do not guess.
-- **`--version` (optional):** an explicit target version, overriding the derived proposal.
-- **`--base` (optional):** the base branch / ref the release is cut against (default: the release profile's `base_branch`, else the repo default — confirmed at Stage 0).
-- **Loaded (read-only):** `docs/plans/<slug>/verification-report.md` (the proof); the code review — **both** the plan-level `code-review.md` **and** any per-feature `specs/<id>/code-review.md` (auto-build writes per-feature) for features in range; `plan.json` + `feature-plan.md` (shipped features, ship order); `docs/plans/vc-policy.md` (release profile); available SBOM files (CycloneDX / SPDX), SLSA provenance, artifact signatures, checksums, OpenSSF Scorecard output, and CI secret-scan / plugin-validation evidence; and the repo's git tags + history.
+- Plan slug, resolved through `docs/plans/plans.json`.
+- Optional explicit `--version` and `--base`.
+- Current `plan.json`, feature plan, git range/tags, verification report and
+  `verification-summary.json`, in-range `review-summary.json` artifacts, and
+  strict task evidence.
+- Documentation impact evidence, latest applicable
+  `docs/plans/<slug>/docs/<date>-docs-manifest.md`, and applicable
+  `docs/doc-audits/<date>-<slug>.md`.
+- Rollback/forward plans and available SBOM, provenance, checksums, signatures,
+  Scorecard, secret-scan, CI, and plugin-validation evidence.
 
-Writes `docs/plans/<slug>/release/<date>-release.md` (the decision package) and, in the same Stage 5 step, one dated per-release evidence pack under `docs/plans/<slug>/evidence-pack/<date>/` (`evidence-pack.py`, this skill's bundled copy — a compilation of the pipeline's recorded evidence, never overwritten) — and, only on explicit consent (Stage 5), the versioned `CHANGELOG.md` / release notes in the repo.
+Writes:
 
-Resolve a same-day collision before any write. The first release key is
-`<date>`; if either the decision package or evidence-pack path exists, use
-`<date>-2`, then `<date>-3`, for both (`<key>-release.md` and
-`evidence-pack/<key>/`). Never overwrite or split one release across keys.
+- `docs/plans/<slug>/release/<release-key>-release.md`;
+- `docs/plans/<slug>/evidence-pack/<release-key>/`;
+- an appended version section in `CHANGELOG.md` only as part of an approved GO.
+
+**Same-day collision rule:** use `<date>` first; if either release artifact or
+evidence-pack destination exists, use `<date>-2`, then `<date>-3`. Never
+overwrite or split one release across keys.
 
 ## Execution Contract
 
-*Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant.
+1. Validate state before recommendation. Every in-range feature must pass three
+   independent deterministic checks: `task-evidence.py check --strict`,
+   `review-gate.py`, and the plan-level `verification-gate.py` selection for the
+   exact release head. Missing, failing, malformed, or stale evidence blocks GO.
+2. Review and verification are separate evidence. `review-gate.py` re-derives
+   each feature's plan/spec/tasks/implementation/repository binding;
+   `verification-gate.py` independently binds the cumulative behavior report,
+   plan revision, in-range implementation state, per-feature verdict, and
+   acceptance. Never infer either result from Markdown prose.
+3. Classify documentation impact from shipped public, operational,
+   configuration, migration, and interface changes:
+   - `not-required` only with concrete evidence that no reader-facing behavior
+     changed;
+   - `required` needs a current ship-document manifest covering the release
+     range;
+   - `audit-required` additionally needs a current doc-audit when a
+     getting-started/runbook/API example, destructive/migration procedure,
+     privileged operation, or safety-critical instruction changed.
+4. Missing required documentation routes to
+   `/core-engineering:ce-ship-document`. Missing/failed required audit routes to
+   `/core-engineering:ce-doc-audit`. Neither is converted to a human checkbox.
+   After either workflow changes repository state, the human incorporates those
+   changes into the candidate HEAD, reruns both review and verification, and
+   restarts release Stage 0. Pre-documentation receipts are stale by design.
+5. Every changelog claim traces to a shipped feature, verified behavior, accepted
+   review finding, or git fact.
+6. Version is a recommendation; the human owns the release number.
+7. Record rollback and supply-chain gaps honestly. An evidence pack is a
+   compilation, not compliance attestation.
+8. A workflow GO cannot waive failed/stale task, review, or verification gates,
+   missing required product documentation, or missing required doc audit. An
+   external release owner may ship anyway, but this package remains
+   `NO-GO — external exception`.
+9. Final GO approves the version, release content, accepted risks, decision
+   artifact, and changelog append in one gate.
+10. Never tag, push, deploy, rewrite prior changelog sections, or modify code,
+    specs, reviews, verification, documentation, or git history.
 
-1. **Decide, don't deploy.** Prepare the release decision; never push, deploy, or commit to a protected branch — the `git-guard` hook backstops that push / PR / protected-commit boundary. It **never creates or moves a tag**; tagging is held by the Stage-4 go/no-go gate and the human — and git-guard now backstops that too (`git tag <name>` → confirm; listing stays silent; hardenable via `CE_GIT_GUARD_TAG=deny` — see *Honest Limitations* for the surface this covers).
-2. **No tool-issued GO over unverified or non-fresh work.** A release is gated on
-   two non-waivable predicates: every feature in the range is `verified` (Stage
-   0's predicate), and `task-evidence.py check --strict` (this skill's bundled
-   copy) exits 0, meaning every recorded `done` task is affirmatively `fresh`.
-   `stale`, `unstamped`, malformed, or could-not-run evidence blocks workflow GO.
-   Unverified → `/core-engineering:ce-verify`; stale or unstamped →
-   `/core-engineering:ce-implement` to bind or re-derive the evidence, then
-   `/core-engineering:ce-verify`. These gaps cannot be accepted into a workflow GO.
-   A human release owner may separately decide to proceed under authority outside
-   this workflow, but the package remains `NO-GO`, labels that choice an external
-   exception, and does not represent it as the tool's approval.
-3. **Evidence-bound.** Every changelog entry and readiness signal traces to a shipped feature, a verification result, a review finding, or a git fact (commit / tag / file). No claim without a source.
-4. **Version is a proposal, not a verdict.** Derive a semver bump from the shipped features' nature; the human owns the final number (a material decision).
-5. **Rollback-readiness is honest.** The checklist reports what *is* and *is not* reversible, and flags every unknown — it never fakes readiness for a destructive change with no recorded rollback.
-6. **Supply-chain evidence is explicit.** Record whether SBOM, SLSA provenance, artifact signatures, checksums, OpenSSF Scorecard output, secret-scan status, and plugin-validation status exist for the release. Missing evidence is a release finding or accepted gap, never a silent pass.
-7. **Read-only on code, specs, and git history — and owns the changelog.** Writes its decision artifact, and on consent the versioned `CHANGELOG.md`: it **appends** a new version section, **never rewriting prior sections**. `/core-engineering:ce-ship-document` never writes `CHANGELOG.md`.
-8. **Never commit, push, tag a remote, or deploy.**
+## Release-readiness decision
 
-## Scope Lock — the release decision  [decide, don't deploy]
+GO requires:
 
-Release holds no authority to ship. It assembles the decision and gates it; the
-human executes `git tag`, the push, and the deploy. If the readiness check is red —
-unverified or non-fresh work, an unaccepted high-severity finding, a destructive
-change with no rollback — release **withholds GO** and routes to the layer that fixes it
-(`/core-engineering:ce-verify`, `/core-engineering:ce-review` triage, or the human release owner), rather than shipping anyway. A release
-cut over a red gate is exactly the silent degradation the toolset forbids.
-Verification and freshness are the workflow's hard floor: a human decision to ship
-without them is external release-owner authority and does not change the workflow
-result from `NO-GO` to `GO`.
+- exact plan, base/head range, and release content are resolved;
+- every in-range feature has current passing task, review, and verification
+  gate results for the exact evaluated head;
+- documentation impact is evidenced and every required doc/manifest/audit is
+  current with no unaccepted blocking finding;
+- destructive/irreversible change has a rollback path or an explicitly accepted
+  release risk where workflow policy allows acceptance;
+- supply-chain evidence is inventoried and each allowed gap is explicit;
+- version, changelog, known issues, and execution handoff are approved.
 
-## Release-Readiness Gate  [material]
+The task/review/verification freshness gates and required-doc/audit predicates
+are non-waivable inside this workflow. Organizational policy may make
+additional predicates non-waivable.
 
-The go/no-go, presented after the version, changelog, and rollback-readiness are
-assembled. GO requires, and the human attests:
+## Human-in-the-Loop — adaptive
 
-- every feature in the range is `verified`, and strict task-evidence checking exits
-  0: every recorded `done` task is `fresh`, with no `stale` or `unstamped` task;
-- no unresolved high-severity `code-review.md` finding (or each accepted);
-- every destructive / irreversible change in the range has a recorded rollback path, or its absence is explicitly accepted;
-- SBOM / SLSA provenance / signatures / checksums / OpenSSF Scorecard / secret-scan evidence is present, or each missing item is explicitly accepted as a release gap;
-- the proposed version + changelog are approved.
+Do not confirm a plan/range/base that resolves unambiguously from invocation and
+git evidence. Ask only when several plausible release ranges or version
+authorities exist.
 
-The first predicate is a non-waivable prerequisite for workflow GO; the remaining
-risk gaps may be explicitly accepted by the human at this gate. Offer `Go` only when
-the verified-and-fresh prerequisite passes. Otherwise offer `Adjust / No-go`, name
-the blocker, and route to the fixing skill. If the human nevertheless exercises
-external release authority, record `NO-GO — external exception by <owner>`; that
-exception does not change the workflow result to `GO`.
+The normal run has one material gate:
 
-## Human-in-the-Loop — tiered
+```text
+Gate N of M — Release Decision
+Plan/range: <slug and base..head>
+Version: <proposal + reason>
+Documentation: <not-required|required complete|audit complete|blocked>
+Verification/review: <gate exits, evaluated head, receipt paths, current binding summary>
+Rollback/supply-chain: <ready, accepted gaps, blockers>
+Known issues: <items>
+Recommendation: GO|NO-GO
+```
 
-- **Stage 0 (material)** — confirm the plan, the release range, and the base.
-- **Stage 1 (material)** — the version number (release proposes; the human owns).
-- **Stage 4 (material)** — the Release-Readiness Gate (go/no-go).
-- **Stage 5 (material)** — consent before writing `CHANGELOG.md` to the repo.
-- Routine — changelog wording and grouping.
+When eligible, offer **Approve GO and write**, **Adjust version/package**,
+**NO-GO**, and **Park**. When a hard prerequisite fails, omit GO and offer the
+owning repair route, write a NO-GO package, or park. Silence is never release
+approval.
 
----
+## Scope Lock
 
-## How to Run This Workflow
+The release range and decision are frozen for the run. This workflow may
+describe or reject the candidate release; it cannot fix code, change the plan,
+rewrite documentation, waive hard evidence, or execute release operations.
 
-This skill is **staged**. `SKILL.md` (this file) is the orchestrator: it holds the
-Runtime Inputs, the Execution Contract, the Scope Lock, the
-Release-Readiness Gate, the tiered HITL, the Escalation table, and the Honest
-Limitations. The stage bodies — the run flow, the `release.md` artifact template,
-and the Closing — load on demand.
+## How to run
 
-**The stage file named below is bundled in this skill's own directory.** Read it at `${CLAUDE_SKILL_DIR}/stages.md` — `${CLAUDE_SKILL_DIR}` is the environment variable that resolves to this skill's directory regardless of the current working directory. Resolve it once if needed (`ls "${CLAUDE_SKILL_DIR}"`) and read the file by its resulting absolute path; **never load a companion file by bare name** — in an installed plugin the working directory is the user's project, so a bare name finds nothing and triggers a filesystem search.
+Load `${CLAUDE_SKILL_DIR}/stages.md` and execute:
 
-| Stage | Name (in `${CLAUDE_SKILL_DIR}/stages.md`) |
+| Stage | Outcome |
 |---|---|
-| 0 | Load and Scope the Release |
-| 1 | Version Decision  [material] |
-| 2 | Changelog |
-| 3 | Rollback-Readiness and Supply-Chain Evidence |
-| 4 | Release-Readiness Gate  [material] |
-| 5 | Write the Decision and Hand Off |
-
-`${CLAUDE_SKILL_DIR}/stages.md` also holds the `release.md` artifact template and the Closing.
-
-To begin: load `${CLAUDE_SKILL_DIR}/stages.md` and start Stage 0.
-
----
+| 0 | Resolve range and validate fresh verify/review/task evidence |
+| 1 | Classify and validate documentation/doc-audit readiness |
+| 2 | Propose version, changelog, and known issues |
+| 3 | Assemble rollback and supply-chain evidence |
+| 4 | Human Release Decision |
+| 5 | Write decision/evidence pack and append changelog on GO |
 
 ## Escalation
 
-Release decides; when readiness is red it withholds GO and routes:
-
-| Blocker | Route |
+| Gap | Owner/route |
 |---|---|
-| A feature in range is not `verified` | `/core-engineering:ce-verify` — prove it first |
-| A feature in range is `stale` (a `done` task's commit left HEAD's ancestry) | `/core-engineering:ce-implement` — re-derive the stale tasks, then `/core-engineering:ce-verify` |
-| A feature in range is `unstamped` (legacy, uncommitted, or no verifiable git HEAD) | `/core-engineering:ce-implement` — bind or re-derive its evidence, then `/core-engineering:ce-verify`; if the checkout is the problem, the human release owner corrects it first |
-| Strict task-evidence check could not run or returned malformed output | Fix the evidence input or checkout and rerun; it cannot produce workflow GO |
-| Unresolved high-severity review finding | `/core-engineering:ce-review` triage → `/core-engineering:ce-implement` or `/core-engineering:ce-spec` |
-| Destructive change with no rollback the human won't accept | `/core-engineering:ce-spec <id>` — specify the rollback **requirement** as acceptance criteria (forward + reverse steps) that `/core-engineering:ce-implement` builds and `/core-engineering:ce-verify` proves |
-| Missing SBOM / provenance / signature / checksum / OpenSSF Scorecard evidence the human won't accept | Release engineering / CI hardening owns generation; use `/core-engineering:ce-review` if missing evidence changes release risk |
-| The selected base/head range or release branch is stale / wrong | Human release owner corrects the branch or ref, then reruns `/core-engineering:ce-ship-release` |
-| Scope / boundary is wrong | `/core-engineering:ce-plan` |
-
-*Rehearsing or executing a rollback remains the human's — no skill in this toolset
-runs or tests a production rollback (there is deliberately no `/migrate`).* Release
-never resolves these itself; it gates on them.
-
----
+| unverified behavior | `/core-engineering:ce-verify` |
+| stale/unstamped task evidence | `/core-engineering:ce-implement`, then verify |
+| missing/stale/failed verification receipt | `/core-engineering:ce-verify` |
+| missing/stale review or blocking review finding | `/core-engineering:ce-review` |
+| missing/outdated required docs | `/core-engineering:ce-ship-document <slug>` |
+| missing/outdated required reader validation | `/core-engineering:ce-doc-audit <doc> --role <reader>` |
+| plan/spec contradiction | `/core-engineering:ce-plan` Stage R or `/core-engineering:ce-spec` |
+| missing rollback implementation/evidence | owning spec/implement/verify layer |
+| wrong base/head or release branch | human release owner |
+| missing supply-chain artifact | release engineering/CI owner |
 
 ## Honest Limitations
 
-- **Decides, does not deploy.** Prepares the release decision; tagging, pushing,
-  CI/CD, infra provisioning, and deploy orchestration are the human's — out of scope.
-- **Tag backstop is Claude Code-surface only.** `git-guard` now guards `git tag
-  <name>` (create / move / delete → confirm; listing stays silent; `CE_GIT_GUARD_TAG=deny`
-  to hard-block) alongside push / PR / protected-branch commits — the no-tag
-  discipline is structural on the Claude Code surface. Actions taken through
-  other clients are outside these hooks; host protections and the human release
-  owner remain the boundary there.
-- **Semver is inferred, not proven.** A breaking change the specs / ADRs didn't
-  record as breaking can slip the bump; the human owns the final number.
-- **Rollback-readiness is a checklist, not a tested rollback.** It records whether a
-  rollback *path exists*, not that it *works* — rehearsing it is the human's.
-- **Supply-chain evidence records presence; it does not generate SBOMs, SLSA
-  provenance, signatures, checksums, or OpenSSF Scorecard results.** Build and
-  release engineering own those artifacts and any formal attestation.
-- **Reads verification, doesn't re-run it — and requires affirmatively fresh
-  done-ness for GO.** A
-  release is only as sound as the verification report it trusts, and it never re-runs
-  the tests. It **does** re-check freshness: `task-evidence.py check --strict`
-  (Stage 0) requires every in-range feature's recorded `done` task to be bound to a
-  commit still in HEAD's ancestry. A reverted/rebased-away task is `stale`; legacy,
-  uncommitted, or no-HEAD evidence is `unstamped`. Either **blocks workflow GO**, as
-  does a could-not-run check. A release owner can record an external exception, but
-  the package remains `NO-GO`. Residual: a report stale
-  for a reason freshness can't see — a semantic regression over unchanged commits —
-  still needs a fresh `/core-engineering:ce-verify` run; the freshness check is commit-deep, not
-  behaviour-deep.
-- **Changelog is derived from the plan's shipped features**, not from every commit —
-  work outside the plan isn't seen.
-- **The per-release evidence pack is compilation, not attestation.** Stage 5
-  compiles one dated `evidence-pack/<date>/` bundle (`evidence-pack.py`) of what the
-  pipeline recorded — guard log, metrics, gate verdicts, attestations, model
-  identity, and the accepted-risk register — each section populated or gap-listed; it
-  is **not a conformity assessment** and renders no compliance verdict (see
-  `docs/ENTERPRISE-HARDENING.md` § *Regulatory Mapping — EU AI Act*). It does not
-  change the go/no-go, and compiling it is best-effort — a failure is a release
-  finding, never a block on the decision.
-- **A release ships with its accepted risk stated, not hidden.** The pack's
-  `finding_dispositions` section renders every entry in `.merge-bar/dispositions.json`
-  — the gate findings a human consciously accepted, with who accepted them and when
-  the acceptance lapses — split active vs expired. An **expired** entry is a gap in
-  the pack (its finding is already re-alarming through its gate). The register is
-  reported as found and never re-judged: this skill does not verify that the named
-  `accepted_by` approved it. What constrains it is out of band — `.merge-bar/**` sits
-  in the merge policy's `class_rules`, so editing the ledger escalates to two-human
-  review.
+- Verification and review artifacts are point-in-time evidence. Their gates
+  bind exact repository state and reject observable drift; they still cannot
+  prove behavior outside the evidence and environment that were exercised.
+- Semver inference cannot know every external compatibility promise.
+- **Supply-Chain Evidence:** the workflow records presence; it does not generate SBOMs,
+  SLSA provenance, signatures, or OpenSSF Scorecard reports, and it never
+  represents the inventory as an assurance attestation.
+- It cannot enforce actions performed outside repository hooks or host
+  protections.
+- A GO package is decision evidence, not proof that deployment succeeded.

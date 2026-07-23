@@ -2,25 +2,25 @@
   "project_slug": "snippet-vault",
   "status": "planned",
   "architecture_disposition": {
-    "decision": "waived",
-    "triggers": ["shared-data-ownership-or-migration"],
-    "rationale": "The human accepted architecture rework risk for this bounded single-runtime evaluation fixture.",
+    "decision": "not-required",
+    "triggers": [],
+    "rationale": "The existing single-owner in-memory store leaves no load-bearing architecture choice for this bounded fixture.",
     "decided_by": "human",
     "convergence": {
-      "status": "waived",
-      "iteration_count": 1,
-      "summary": "The first shaping result was explicitly waived for the controlled fixture run.",
+      "status": "not-applicable",
+      "iteration_count": 0,
+      "summary": "The complete driver screen is negative.",
       "decision_refs": []
     },
     "direction": {
-      "status": "waived",
+      "status": "not-applicable",
       "artifact": "architecture-selection.json",
-      "artifact_sha256": "c3629995147ee77ffbdfd372722ae0440e1126f06c1550f6ff5003d2aa4002b6",
-      "exploration_id": "AEX-waived-r1",
+      "artifact_sha256": "aa5a7611214055674edfdfc8258c79db85d039d389abcd18cce994222f9e5ad1",
+      "exploration_id": "AEX-not-required-r1",
       "selected_option_id": null,
       "selected_option_sha256": null,
       "decided_by": "human",
-      "summary": "The human waived pre-decomposition direction selection for this controlled legacy fixture."
+      "summary": "The complete negative driver screen makes architecture direction selection not applicable."
     }
   },
   "relates_to": [],
@@ -29,23 +29,31 @@
       "id": "01-create-snippet",
       "title": "Create a snippet",
       "type": "foundation",
+      "specification_route": "explicit",
       "final_complexity": "Simple",
       "risk_profile": "low",
       "ship_order": 1,
       "file": "features/01-create-snippet.md",
-      "dependencies": { "hard": [], "soft": [] }
+      "dependencies": {
+        "hard": [],
+        "soft": []
+      }
     },
     {
       "id": "02-share-snippet",
       "title": "Share a snippet by link",
       "type": "user-facing",
+      "specification_route": "explicit",
       "final_complexity": "Moderate",
       "risk_profile": "medium",
       "ship_order": 2,
       "file": "features/02-share-snippet.md",
       "dependencies": {
         "hard": [
-          { "id": "01-create-snippet", "reason": "A share targets an existing snippet created by 01." }
+          {
+            "id": "01-create-snippet",
+            "reason": "A share targets an existing snippet created by 01."
+          }
         ],
         "soft": []
       }
@@ -54,13 +62,17 @@
       "id": "03-export-snippets",
       "title": "Export snippets to CSV",
       "type": "user-facing",
+      "specification_route": "explicit",
       "final_complexity": "Simple",
       "risk_profile": "low",
       "ship_order": 3,
       "file": "features/03-export-snippets.md",
       "dependencies": {
         "hard": [
-          { "id": "01-create-snippet", "reason": "Exports the snippets 01 creates; independent of 02 so a parked 02 does not block it." }
+          {
+            "id": "01-create-snippet",
+            "reason": "Exports the snippets 01 creates; independent of 02 so a parked 02 does not block it."
+          }
         ],
         "soft": []
       }

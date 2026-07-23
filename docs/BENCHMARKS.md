@@ -17,7 +17,7 @@ no model calls, stdlib-only Python:
 |---|---|---|
 | `scripts/check.py` | manifests parse; skill/agent frontmatter; forked-gate byte-identity from `fork-manifest.json`; model-policy two-way consistency; merge-policy validity; README catalog matches the corpus; delegates corpus, authoring, product-layer, and supply-chain checks | repository-wide |
 | `scripts/corpus_lint.py` | no stale public names, no unknown `/ce-*` references, skeleton headings present, companion-file references resolve | repository corpus |
-| `scripts/authoring_check.py` | the [skill-authoring](./contributing/SKILL-AUTHORING.md) vocabulary: HITL heading enum, gate-label sanity, `<date>` placeholder, concept canon, router-cluster clauses, size/description caps, glossary two-copy sync, material-gate locators | skill corpus |
+| `scripts/authoring_check.py` | the [skill-authoring](./contributing/SKILL-AUTHORING.md) vocabulary plus line and deterministic token-proxy ceilings for always-loaded entrypoints and individually loaded companions | skill corpus |
 | `scripts/portability_check.py` | every shipped hook/gate script is stdlib-only and runs with zero Claude Code present | all shipped scripts |
 | `scripts/supply_chain_check.py` | SHA-pinned CI actions (incl. the adopter template), checksum-verified secret scanning, dependency-gate fork integrity, merge-bar anti-deregistration, live-eval workflow safety, evidence prompts present | supply-chain control set |
 | `tests/` unit suite | gate scripts, hooks policy, merge bar, write lease, SCA guard, eval tooling, catalog drift | unit suite |
@@ -64,12 +64,19 @@ but neither its code nor its receipt schema matches the current contract.
 Re-running the smoke profile from a clean commit (and committing the summary) is
 the path back to a live label.
 
+**Workflow health is not evidence health.** The live workflow writes an
+`evidence-receipt.json` even when model execution is skipped. It marks evidence
+produced only when a clean, non-dry, deterministically graded summary is bound to
+the workflow SHA. The main-health canary verifies that receipt's run identity
+and freshness. A GitHub run may therefore conclude `success` while correctly
+failing the behavioral-evidence health check.
+
 | Scenario | Skill | Proves | Per-scenario cap | Live result |
 |---|---|---:|---:|---|
 | EVAL-001 | `/core-engineering:ce-ask` | grounded, `file:line`-cited answer, no writes | $1.00 | design-verified, not live-run |
 | EVAL-002 | `/core-engineering:ce-impact` | grounded blast-radius read with citations + unknowns | $1.00 | design-verified, not live-run |
 | EVAL-003 | `/core-engineering:ce-impact` | refuses a too-thin work item instead of guessing | $1.00 | design-verified, not live-run |
-| EVAL-004 | `/core-engineering:ce-plan` | full plan directory: registry, plan JSON, threat model, interaction contract, feature files | $3.00 | design-verified, not live-run |
+| EVAL-004 | `/core-engineering:ce-plan` | asks a material architecture-option question, persists a hash-chained workbench revision, records an explicit human direction with rationale, then separately binds final approval to the exact linted plan bytes | $8.00 aggregate | design-verified, not live-run |
 | EVAL-005 | `/core-engineering:ce-spec` | `ce-spec.md` + `tasks.json` that pass `spec-lint.py` with full traceability | $4.00 | design-verified, not live-run |
 | EVAL-006 | `/core-engineering:ce-implement` | test-first implementation: tasks done, tests green, `verification.md` | $3.00 | design-verified, not live-run |
 | EVAL-007 | `/core-engineering:ce-review` | finds the seeded high-severity IDOR, `blocking_high: 1`, validated `blocking_route`, machine summary | $2.00 | design-verified, not live-run |
@@ -85,8 +92,8 @@ the path back to a live label.
 | EVAL-017 | `/core-engineering:ce-auto-build` | fixed sequential three-feature run: success, product park, retry exhaustion, schema-v2 state, and final human-review gate | $20.00 | design-verified, not live-run |
 | EVAL-018 | `/core-engineering:ce-humanize` | rewrites generic prose while preserving facts, links, and structure | $1.00 | design-verified, not live-run |
 | EVAL-019 | `/core-engineering:ce-go` | routes a bounded low-risk change to direct-only `/core-engineering:ce-patch`, then stops without writes | $1.00 | design-verified, not live-run |
-| EVAL-020 | `/core-engineering:ce-architecture` | loads and lints the written plan, renders the evidence-first Scope Confirmation gate, and stops without publishing before human approval; its frozen schema-v2 package separately proves strict structure, deterministic projections, typed trigger coverage, and a digest-bound acceptance receipt | $3.00 | design-verified, not live-run |
-| EVAL-021 | `/core-engineering:ce-plan` | renders Project Understanding, verifies its context anchors before sending one scenario-scoped decision event, resumes the same session, and stops at the evidence/authority-bearing Architecture Evaluation Frame without a final write | $3.00 aggregate | design-verified, not live-run |
+| EVAL-020 | `/core-engineering:ce-architecture` | loads and lints the written plan, renders the conditional Evidence Boundary Resolution gate for a requested boundary question, and stops without publishing before human approval; its frozen schema-v2 package separately proves strict structure, deterministic projections, typed trigger coverage, and a digest-bound acceptance receipt | $3.00 | design-verified, not live-run |
+| EVAL-021 | `/core-engineering:ce-plan` | renders Intent and Scope, verifies its context anchors before sending one scenario-scoped decision event, resumes the same session, and stops at the decision-ready Architecture Direction Selection workbench without selecting or writing a final plan | $3.00 aggregate | design-verified, not live-run |
 
 Honest failure log from the same batch — kept because it calibrated the
 budgets and the runner behavior:
@@ -141,12 +148,19 @@ autonomous is budget-capped up front
 - **A live CI path now exists but has recorded no run yet:** the `eval-live`
   workflow (manual dispatch + weekly schedule) executes the smoke profile with
   a hard budget cap once the `ANTHROPIC_API_KEY` Actions secret is configured,
-  uploading run records and the runner-generated `summary.json` as CI artifacts — CI
+  uploading run records, `summary.json`, and the evidence receipt as CI artifacts — CI
   never commits results, curated summaries land in `evals/results/`, and raw
   outputs stay out of git (`evals/runs/` is gitignored). Until a CI run id is
   citable, the only dollar evidence here remains the configured caps from the
   2026-06-27 manual batch; actual spend was not retained. Curated excerpts
   remain in [EXAMPLES.md](./EXAMPLES.md).
+- **The breaking lean routes have no current comparative live evidence.**
+  Optional brief skip, architecture question/adjust/resume, compact versus
+  explicit specification, independent review-plus-verify orchestration, and
+  documentation/audit-before-release need focused scenarios. Compare the lean
+  and previous contracts on the same model and fixtures, retaining input/context
+  proxy, output/review volume, elapsed time, deterministic grade,
+  seeded-defect recall, and human rubric results.
 
 ## Reproduce a live run
 

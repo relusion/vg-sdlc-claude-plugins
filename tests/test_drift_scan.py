@@ -38,11 +38,11 @@ def clean_fixture() -> dict[str, str]:
         "features": [
             {"id": "01-foo", "title": "Foo", "file": "features/01-foo.md",
              "type": "foundation", "final_complexity": "Simple",
-             "risk_profile": "low", "ship_order": 1,
+             "specification_route": "explicit", "risk_profile": "low", "ship_order": 1,
              "dependencies": {"hard": [], "soft": []}},
             {"id": "02-bar", "title": "Bar", "file": "features/02-bar.md",
              "type": "user-facing", "final_complexity": "Moderate",
-             "risk_profile": "low", "ship_order": 2,
+             "specification_route": "compact", "risk_profile": "low", "ship_order": 2,
              "dependencies": {"hard": ["01-foo"], "soft": []}},
         ],
     }
@@ -110,8 +110,14 @@ def clean_fixture() -> dict[str, str]:
         "docs/plans/acme/feature-plan.md": feature_plan,
         "docs/plans/acme/threat-model.md": threat_model,
         "docs/plans/acme/interaction-contract.md": interaction,
-        "docs/plans/acme/features/01-foo.md": "# 01-foo — Foo\n\n## Scope\n- Admin invites.\n",
-        "docs/plans/acme/features/02-bar.md": "# 02-bar — Bar\n\n## Scope\n- List invites.\n",
+        "docs/plans/acme/features/01-foo.md": (
+            "# 01-foo — Foo\n\n**Specification route:** explicit\n\n"
+            "## Scope\n- Admin invites.\n"
+        ),
+        "docs/plans/acme/features/02-bar.md": (
+            "# 02-bar — Bar\n\n**Specification route:** compact\n\n"
+            "## Scope\n- List invites.\n"
+        ),
         "docs/plans/acme/specs/01-foo/ce-spec.md": spec_foo,
         "docs/plans/acme/specs/01-foo/tasks.json": json.dumps(tasks_foo, indent=2),
         "docs/plans/acme/specs/02-bar/ce-spec.md": spec_bar,
@@ -206,6 +212,16 @@ class TestHardClasses(DriftScanBase):
         _data, f = self._assert_hard(files, "plan_lint_fail", "Scope Lock drift")
         self.assertEqual(f["route"], "/core-engineering:ce-plan")
         self.assertEqual(f["lock"], "Scope Lock")
+
+    def test_missing_plan_json_is_hard_drift(self):
+        files = self.mutate(_remove=["docs/plans/acme/plan.json"])
+        _data, f = self._assert_hard(
+            files,
+            "plan_lint_fail",
+            "plan-lint could not evaluate",
+        )
+        self.assertEqual(f["route"], "/core-engineering:ce-plan")
+        self.assertNotIn("minimal", f["message"].lower())
 
     def test_spec_lint_fail_is_spec_lock_drift(self):
         # A task verifies a TC that does not exist -> spec-lint H1 FAIL.

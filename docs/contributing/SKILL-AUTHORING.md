@@ -1,195 +1,152 @@
 # Skill Authoring Standard
 
-Skills written by many hands (and many Claudes) must read as **one
-product**: same skeleton, same vocabulary, same gate language, same artifact
-conventions. This document is the normative standard; `scripts/authoring_check.py`
-enforces its mechanical half (run by `check.py`, so a violation cannot merge),
-and the rest is contributor discipline flagged here honestly.
+Skills are product code. Keep their contracts small, repository-aware, and
+testable. `scripts/authoring_check.py` enforces the mechanical rules; the
+[HITL Gate Standard](HITL-GATE-STANDARD.md) governs real human decisions.
 
-Related standards: [HITL-GATE-STANDARD.md](HITL-GATE-STANDARD.md) (the five
-rules for interactive gates), `CLAUDE.md` (naming, model-tier policy, doc
-currency).
+## 1. Entrypoint contract
 
-## 1. The skeleton
+Every `SKILL.md` keeps only what is needed to route and start the workflow:
 
-Every `SKILL.md` carries, in this order:
+1. frontmatter (`name`, concise routing `description`, `argument-hint`, and
+   least-privilege `allowed-tools`);
+2. purpose and explicit non-responsibilities;
+3. `## Runtime Inputs`;
+4. `## Execution Contract`;
+5. `## Human-in-the-Loop` when decisions can occur;
+6. a short stage map or compact workflow;
+7. `## Escalation`;
+8. `## Honest Limitations`.
 
-1. Frontmatter — `name:` (must equal the directory, `ce-` prefixed),
-   `description:` (see §6), `argument-hint:`, `allowed-tools:` (leaf toolset).
-2. Title + one-paragraph purpose (what it produces, what it never does).
-3. `## Runtime Inputs` — what the invocation needs, required vs optional.
-4. `## Execution Contract` — the numbered non-negotiables.
-5. `## Human-in-the-Loop` — the gate topology (see §3).
-6. Cross-cutting rule sections (see §5), where the genre uses them.
-7. The stages — inline when small, externalized past the threshold (see §2).
-8. `## Escalation` — where findings/failures route.
-9. `## Honest Limitations` — what the skill cannot guarantee.
+Do not repeat schemas, command help, artifact templates, or deterministic
+algorithm details in the entrypoint. Point to the canonical companion or run
+the helper that owns the rule.
 
-`corpus_lint.py` enforces presence of the four load-bearing headings (Runtime
-Inputs, Execution Contract, Escalation, Honest Limitations) in `SKILL.md`
-itself — they must not move into stage files. Order is discipline, not lint.
+## 2. Context budgets and progressive disclosure
 
-## 2. Progressive disclosure — the externalization rule
+`SKILL.md` is always loaded. A companion should be loaded only by the stage
+that consumes it.
 
-`SKILL.md` is loaded on every invocation; stage bodies are not needed until
-their stage runs. **Hard cap: 400 lines per SKILL.md** (`authoring_check.py`
-A7). Reach for externalization earlier — around 300 lines or more than four
-stages:
+`authoring_check.py` enforces two independent ceilings:
 
-- **Staged form** (exemplars: `ce-plan`, `ce-spec`): stage bodies live in
-  `stage-<range>-<slug>.md`, `SKILL.md` keeps a stage-map table
-  (`| stages | file | one-line summary |`) plus load pointers
-  (`To begin: load ${CLAUDE_SKILL_DIR}/stage-....md and start Stage N`).
-- **Compact form** (exemplar: `ce-patch`): all stage bodies in one
-  `stages.md` when they are small.
-- Artifact templates always live in their own file
-  (`artifact-template.md` / `*-template.md`) — never reconstructed from memory.
+- entrypoint: 400 lines and a 10,000 token proxy;
+- each companion Markdown file: a 20,000 token proxy.
 
-Companion files are referenced as `${CLAUDE_SKILL_DIR}/<file>`;
-`corpus_lint.py` verifies every such reference resolves.
+The proxy is `ceil(UTF-8 bytes / 4)`. It is deterministic and
+tokenizer-independent; it is a context-growth guard, not measured model usage.
+The ceilings keep untouched skills valid during migration. New or substantially
+edited workflows should target no more than 2,500 proxy units for `SKILL.md`
+and 5,000 for a companion.
 
-## 3. Human-in-the-Loop heading vocabulary
+Prefer:
 
-The HITL heading names the skill's **gate topology** from a closed enum —
-a suffix is a shape, not a flourish (`authoring_check.py` A1):
+- one stage file per independently loaded concern;
+- a compact `stages.md` only when the whole body is genuinely small;
+- one canonical artifact template;
+- executable validators for exact schemas and calculations;
+- links instead of copied contracts.
 
-| Heading | Shape |
+Splitting a large file without reducing what one run loads is not progressive
+disclosure. Review the actual load path.
+
+Companions use `${CLAUDE_SKILL_DIR}/<file>`. `corpus_lint.py` verifies that
+references resolve.
+
+## 3. Human-in-the-loop vocabulary
+
+The suffix describes gate topology:
+
+| Heading | Meaning |
 |---|---|
-| `## Human-in-the-Loop` | default interactive — gates as they arise |
-| `— tiered` | material gates ask; mechanical steps proceed |
-| `— inverted` | autonomous by default; human pulled in at named boundaries |
-| `— adaptive` | gate density follows the user's signal |
-| `— light` | a consent gate + a read-back, little in between |
-| `— minimal` | a single confirmation around a mechanical transform |
-| `— opinionated` | renders a verdict; every call human-overridable |
-| `— batched` | judgment batched to a few named gates |
+| `## Human-in-the-Loop` | decisions appear when required |
+| `— tiered` | material decisions ask; mechanical work proceeds |
+| `— inverted` | autonomous until a named boundary |
+| `— adaptive` | decision density follows the evidence and user signal |
+| `— light` | initial consent plus a final read-back |
+| `— minimal` | one decision around a bounded transform |
+| `— opinionated` | recommendation is explicit and human-overridable |
+| `— batched` | compatible decisions share a small number of gates |
 
-Anything the suffix can't say goes in the section body. New topologies extend
-the enum in `authoring_check.py` **and** this table in the same change.
+A gate exists only for an actual choice, consent, exception, or authority-owned
+judgment. Deterministic PASS, read-only work, generated projections, and clean
+negative findings proceed without re-attestation. A deterministic failure
+stops or routes; a human may not relabel it PASS inside the workflow.
 
-## 4. Gate labeling
+Material architecture selection remains human-owned. The workflow must render
+the evidence, alternatives, criteria, trade-offs, unknowns, recommendation,
+confidence, and sensitivity, then support question/inspect, adjust, select, or
+park at the same locator.
 
-Per [HITL-GATE-STANDARD.md](HITL-GATE-STANDARD.md) rule 5, interactive gates
-are located and labeled. When a skill numbers a gate **sequence**, the label is
-`Gate N of M` (with `1 ≤ N ≤ M` — `authoring_check.py` A2 rejects impossible
-labels; `ce-probe-infra` computes M after its sweep and is the exemplar).
-**Alternative** gates — where a module selects one of several, as in
-`ce-probe-sec`'s remote-target vs local-sandbox attestations — are lettered
-(`Gate A`, `Gate B`), never numbered, so a letter signals "one of these
-applies" and a number signals "you will pass them all."
+## 4. Gate mechanics
 
-## 5. One vocabulary
+Interactive gates print `Gate N of M — <name>`, where M is the gates that
+actually fire. Each option says what happens next. A call supports at most four
+questions and four options per question; split a larger interaction under the
+same locator and say why.
 
-- **Dates in artifact paths** are the `<date>` placeholder, which resolves to
-  the run date in `YYYY-MM-DD` form. Never spell the pattern into the path
-  template (A3 rejects the two historical drift spellings). For a dated artifact
-  promised as never-overwritten, `<date>` names the first run that day. Resolve
-  all companion paths before writing; a same-day collision uses a shared `-2`,
-  then `-3`, suffix (for example `<date>-<slug>-2`) across the report, machine
-  companion, and evidence directory. A12 requires the collision rule in the
-  skill's shipped runtime docs; this contributor guide alone is not sufficient.
-- **One name per concept.** The loop-back summary between spine stages is the
-  `Back-Edge Summary` — the reversed long form is retired (A4; the canon table
-  lives in `authoring_check.py`, extend it on the next rename).
-- **Shared cross-cutting rules keep their exact headings and invariant cores**
-  (A5); the examples around the core stay skill-specific:
-  - `## Cross-cutting rule — Findings, Not Verdicts` — core: **the human
-    triages**. Disposition vocabulary (Escalate / Defer / Dismiss for the
-    probe genre) lives in each skill's triage table or artifact template.
-  - `## Cross-cutting rule — Stuck or Ambiguous → Ask, Don't Guess` — core:
-    stop, ask one short direct question, record in **Open Questions / Stops**.
-- **One evidence meta-scale.** Every genre that reports findings by evidence strength
-  keeps its own domain tag strings — `/core-engineering:ce-probe-sec`'s `confirmed`/`suspected`/`passive`,
-  `/core-engineering:ce-probe-perf`'s `measured`/`observed`/`inferred`, `/core-engineering:ce-probe-infra`'s
-  `scanner-confirmed`/`manifest-read`/`inferred`, `/product-discovery:ce-market-scan`'s
-  `confirmed`/`suspected`/`unknown`, `/core-engineering:ce-domain`'s `recorded`/`enforced`/`inferred`
-  (a deliberate two-to-one source split within `read`: human-authored artifact vs
-  enforcing code) — because lint scripts (`scan-lint.py`) and the
-  reports parse those exact strings and the epistemic distinctions are load-bearing.
-  They all specialize **one shared shape**: the evidence meta-scale in the shared
-  consequence-glossary ([HITL-GATE-STANDARD.md](HITL-GATE-STANDARD.md)) —
-  `demonstrated` (a run/scan/source proved it) / `read` (taken directly from an artifact,
-  manifest, or single observation) / `inferred` (model reasoning). A skill that declares a
-  `Three-State Evidence` rule states its one-line mapping on first use — the literal
-  `shared evidence scale` clause (e.g. `measured→demonstrated, observed→read,
-  inferred→inferred`) — instead of name-checking every *other* skill's vocabulary (that
-  N×N disambiguation scaled quadratically and was the tax). **A11** enforces the
-  mechanical half: any `SKILL.md` matching `Three-State Evidence` must carry the mapping
-  clause, and the meta-scale itself must stay in the glossary.
+Material product, scope, architecture, security, destructive, contract,
+accepted-risk, and release choices name their decision owner. If evidence or
+authority is missing, offer gather evidence, route to owner, or park. Silence
+is not approval.
 
-### Week-one terms — the bounded operating vocabulary
+## 5. Shared vocabulary
 
-A reader should be able to operate the whole framework in week one on a **small, closed**
-set of branded terms. Keep this list at **≤ 12**: a new skill may not mint a new *branded*
-term without either mapping it to a term already here (the evidence-scale pattern above)
-or adding it to the shared consequence-glossary through the **A9** mechanism (both homes,
-anchored). This is contributor discipline; its two mechanical halves — A9 term-set parity
-and A11's mapping clause — are lint-backed.
+- Artifact dates use `<date>`. Never-overwritten workflows use one shared
+  same-day `-2`, then `-3`, key across report and companions.
+- The loop-back summary is `Back-Edge Summary`.
+- A stage boundary is the `Scope Lock`; widening routes upward.
+- `## Cross-cutting rule — Findings, Not Verdicts` retains “the human
+  triages.”
+- `## Cross-cutting rule — Stuck or Ambiguous → Ask, Don't Guess` records the
+  issue in `Open Questions / Stops`.
+- Evidence genres retain their domain tags but map them to the shared evidence
+  scale: `demonstrated`, `read`, or `inferred`.
 
-The current operating vocabulary (10 of 12 — two slots held open on purpose):
+The shared consequence glossary lives in
+[HITL-GATE-STANDARD.md](HITL-GATE-STANDARD.md) and the ce-plan runtime legend.
+`authoring_check.py` checks their invariant anchors.
 
-1. **the scope lock** — a run's frozen boundary; widen only by escalating up a layer,
-   never through it (each spine genre brands its own scope; see each skill's lock section).
-2. **write lease** — the per-skill declared write scope the write guard enforces.
-3. **material vs routine** — a gate's weight; material gates get their own prompt.
-4. **findings, not verdicts** — the agent reports, the human triages.
-5. **EARS** — the acceptance-criteria grammar specs are written in.
-6. **Gate N of M** — the located-and-labeled gate locator (HITL R5).
-7. **the evidence scale** — `demonstrated` / `read` / `inferred` (per-genre tags map onto it).
-8. **the spine artifacts** — brief → plan → spec → patch (the one thing each layer emits).
-9. **escalate up** — a stuck or out-of-scope call routes up a layer, never sideways.
-10. **Back-Edge Summary** — the loop-back summary between spine stages.
+## 6. Routing descriptions
 
-Mint the next term only when a real recurring concept has no home in this list or the
-glossary — then document it here (or in the glossary) in the same change.
+The frontmatter description is a router input, not documentation. State the
+output, the distinctive trigger, and the nearest “use X instead” boundary.
+Keep it under the 1,536-character platform ceiling.
 
-## 6. Descriptions and router clusters
+Mutual contrast is required for registered overlap clusters:
 
-The frontmatter `description:` is the routing surface: first sentence = what
-it produces and its lock/discipline; then a `Triggers:` sentence with the verbs
-a user would say; hard cap **1536 characters** (A8 — the live-verified platform
-truncation limit).
+- architecture / plan / spec;
+- architecture / decide;
+- review / verify;
+- infra probe / dependency probe;
+- doc audit / doc generation;
+- onboarding / domain learning;
+- idea scoring / scouting / market scan.
 
-Three further mechanical rules guard the HITL trust layer: **A9** — the shared
-consequence-glossary's contributor mirror
-(`docs/contributing/HITL-GATE-STANDARD.md`) and
-runtime Legend (ce-plan `stage-4-7-gates.md` §6.6.1) keep term-set parity and
-each term's anchor phrase in both copies (the copies are deliberately
-format-divergent, so the check is anchor-based, not byte identity); **A10** —
-a skill that marks any `[material` gate must state the R5 gate-locator
-discipline (a literal `Gate N of M` instruction) somewhere in its files; and
-**A13** — a decision-option table may contain at most four rows, while prose may
-not direct more than four questions into one `AskUserQuestion` round. Larger
-gates split under the same locator and state why.
+Update the `CLUSTERS` registry in `scripts/authoring_check.py` when an adjacent
+intent is added.
 
-Skills with adjacent intents stay routable only through **mutual contrastive
-clauses** ("For X use /ce-…", naming the sibling). The overlap clusters are registered in
-`authoring_check.py` (A6): review↔verify,
-architecture↔plan↔spec, architecture↔decide,
-probe-infra↔probe-deps, doc-audit↔ship-document, onboard↔domain, and
-idea-score↔idea-scout↔market-scan (this last cluster lives
-in the companion `product-discovery` plugin — a cluster may span plugins, and
-the check resolves members across the plugin union; the `CLUSTERS` tuple in
-`authoring_check.py` is the authoritative registry when this list drifts). Every member's
-description must name each sibling. Adding a skill with adjacent intent means
-adding it to the cluster registry in the same change.
+## 7. Shared scripts
 
-## 7. Forked gate scripts
+Portable skill scripts are addressed through `${CLAUDE_SKILL_DIR}`. When the
+same gate is required beside multiple skills, register one canonical file and
+its copies in `plugins/core-engineering/fork-manifest.json`, edit the canonical,
+and run:
 
-A gate script needed by more than one skill is **forked, never
-share-referenced**: `${CLAUDE_SKILL_DIR}` is the path guarantee in skill Bash
-calls, so a cross-skill path is not portable. Every fork is registered in
-`plugins/core-engineering/fork-manifest.json` (canonical → copies). Edit the
-**canonical**, run `python3 scripts/fork_sync.py --write`, never hand-edit a
-copy; `check.py` §5 and `supply_chain_check.py` assert byte-identity from the
-manifest.
+```bash
+python3 scripts/fork_sync.py --write
+```
 
-## 8. What the lint does not check
+Do not hand-edit a registered copy.
 
-Honesty about the floor: `authoring_check.py` locks vocabulary and structure,
-not judgment. A13 can reject an oversized dialog, but it cannot prove that a
-split is useful or that the person answering has the named authority. Still
-reviewer-owned: HITL-GATE-STANDARD rules R1–R4 (consequence rendering,
-evidence-first attestations, authority routing, isolation, triage), section
-order, stage-file seam quality, and whether prose is actually good. A green
-lint means "consistent," not "well-authored."
+## 8. Review standard
+
+A green lint proves structural consistency, not workflow quality. Reviewers
+still verify:
+
+- the workflow solves one clear developer job;
+- its input, output, failure, and degraded modes are predictable;
+- loaded context is proportional to the task;
+- deterministic work is not restated as model prose;
+- only real human decisions block progress;
+- permissions and write scope are minimal;
+- an eval or fixture exercises the changed behavior.

@@ -107,8 +107,44 @@
       "skill": "ce-plan",
       "fixture": "minimal-service",
       "profile": "full",
-      "recommended_budget_usd": 3.0,
-      "prompt": "Add team invitations with role-based access.",
+      "recommended_budget_usd": 8.0,
+      "timeout_seconds": 1800,
+      "prompt": "Plan team invitations with role-based access in this repository. Use the existing auth.py identity and authentication boundary. Scope administrators creating, resending, and revoking invitations; invitees accepting a single-use 24-hour token; and acceptance atomically creating one team membership with an admin or member role. Every invitation and membership write must be authorized before persistence and must retain audit timestamps. Treat outbound email as an adapter boundary. Orders, building an email-delivery platform, SSO, billing, and production deployment are out of scope. Preserve the current runtime topology unless a compared direction justifies changing it. For this isolated evaluation, record the decision owner identity_or_role exactly as Repository Product and Architecture Owner and the authority basis exactly as This repository owner may bind product scope, the planning architecture direction, and final plan publication for this isolated evaluation. I am acting in that role, but this establishes authority only; it is not an architecture selection or final plan approval. Inspect the repository, run the normal adaptive planning workflow, and stop at Architecture Direction Selection with a linted architecture-options.md comparing at least two complete directions, including eliminated or unresolved directions when appropriate. Do not select a direction, approve a candidate, publish a plan, implement, release, or deploy.",
+      "scripted_turns": [
+        {
+          "event_id": "EVAL-004-D01",
+          "answer": "Use Ask questions / inspect evidence. What evidence or changed constraint would make A02 preferable to A01? Compare their migration, operability, failure, and reversibility costs. Record this exact question and the evidence-qualified answer as a new workbench revision, preserve the prior report hash in Decision Workbench Audit, lint the revised architecture-options.md, and return to the same Architecture Direction Selection gate. Do not select a direction or advance planning.",
+          "required_previous_output": [
+            "Architecture Direction Selection",
+            "architecture-options.md",
+            "A01",
+            "A02",
+            "Ask questions / inspect evidence"
+          ]
+        },
+        {
+          "event_id": "EVAL-004-D02",
+          "answer": "Acting as Repository Product and Architecture Owner, select exact eligible direction A01 as displayed. Rationale: it keeps authorization ahead of every invitation or membership write, fits the existing single-runtime repository, preserves transactional single-use acceptance, and avoids the migration and operability cost of a new runtime; the trade-off is deliberate in-process coupling with a future extraction seam. I accept no material exception or security waiver. Bind only this architecture direction, continue decomposition and deterministic candidate validation, and, if no genuinely unresolved material exception appears, render Final Plan Approval and stop without approving or publishing.",
+          "required_previous_output": [
+            "Architecture Direction Selection",
+            "architecture-options.md",
+            "Workbench revision",
+            "A01",
+            "A02"
+          ]
+        },
+        {
+          "event_id": "EVAL-004-D03",
+          "answer": "Acting as Repository Product and Architecture Owner, choose Approve exact candidate and publish for the exact candidate revision, validated byte manifest, and registry delta displayed above. This authorizes only publication of those unchanged plan artifacts; it does not authorize implementation, release, deployment, security acceptance, destructive operations, or shared-history changes. Re-read the approved bytes, publish them, run both required post-publication validators with current-schema architecture-direction enforcement, verify that final hashes equal the approved manifest, and then report Plan written with the written paths and next command.",
+          "required_previous_output": [
+            "Final Plan Approval",
+            "architecture-selection PASS",
+            "plan PASS",
+            "Approve exact candidate and publish",
+            "Binding:"
+          ]
+        }
+      ],
       "expected_files": [
         "app.py",
         "auth.py",
@@ -123,10 +159,16 @@
       "output_checks": {
         "required_substrings": [
           "Plan written",
+          "Architecture Direction Selection",
+          "Scripted decision event EVAL-004-D01",
+          "Scripted decision event EVAL-004-D02",
+          "Scripted decision event EVAL-004-D03",
+          "Final Plan Approval",
           "team-invitations-rbac",
           "feature-plan.md",
           "threat-model.md",
           "interaction-contract.md",
+          "architecture-options.md",
           "architecture-selection.json",
           "plan.json",
           "01-roles-authz-foundation",
@@ -161,7 +203,7 @@
             "architecture_disposition.decided_by": "human",
             "architecture_disposition.convergence.status": "converged",
             "architecture_disposition.convergence.iteration_count": 1,
-            "architecture_disposition.direction.status": "adopted-existing",
+            "architecture_disposition.direction.status": "direction-selected",
             "architecture_disposition.direction.selected_option_id": "A01",
             "architecture_disposition.direction.decided_by": "human",
             "features.0.id": "01-roles-authz-foundation",
@@ -171,28 +213,52 @@
             "features.1.dependencies.hard.0.id": "01-roles-authz-foundation"
           },
           "min_lengths": {
-            "features": 2
+            "features": 2,
+            "architecture_disposition.direction.artifact_sha256": 64
           }
         },
         {
           "type": "json_fields",
           "path": "docs/plans/team-invitations-rbac/architecture-selection.json",
           "equals": {
-            "schema_version": 1,
+            "schema_version": 2,
             "project_slug": "team-invitations-rbac",
             "evaluation_frame.architecture_applicability": "required",
+            "evaluation_frame.decision_owner.identity_or_role": "Repository Product and Architecture Owner",
             "blocking_decision": null,
-            "selection.status": "adopted-existing",
+            "selection.status": "direction-selected",
             "selection.option_id": "A01",
             "selection.decided_by": "human",
+            "selection.approved_by": "Repository Product and Architecture Owner",
+            "architecture_options_report.schema_version": 1,
+            "architecture_options_report.status": "present",
+            "architecture_options_report.path": "architecture-options.md",
+            "architecture_options_report.reason": null,
             "next_owner": "ce-plan"
           },
           "min_lengths": {
             "evaluation_frame.driver_screen": 12,
             "criteria": 6,
             "hard_constraints": 1,
-            "options": 1
+            "options": 2,
+            "selection.rationale": 20,
+            "architecture_options_report.sha256": 64
           }
+        },
+        {
+          "type": "file_contains",
+          "path": "docs/plans/team-invitations-rbac/architecture-options.md",
+          "substrings": [
+            "# Solution Architecture Options",
+            "> Decision status: awaiting-selection",
+            "> Workbench revision: 2",
+            "What evidence or changed constraint would make A02 preferable to A01?",
+            "## Decision Workbench Audit",
+            "## Machine-Readable Comparison Projection",
+            "## Human Decision",
+            "A01",
+            "A02"
+          ]
         },
         {
           "type": "file_contains",
@@ -259,6 +325,7 @@
       "prompt": "Spec feature 01-invite-user from the team-invitations plan.",
       "expected_files": [
         "docs/plans/team-invitations/plan.json",
+        "docs/plans/team-invitations/architecture-selection.json",
         "docs/plans/team-invitations/shared-context.md",
         "docs/plans/team-invitations/threat-model.md",
         "docs/plans/team-invitations/features/01-invite-user.md"
@@ -329,6 +396,7 @@
         "src/invitations.py",
         "checks/invitations_check.py",
         "docs/plans/team-invitations/plan.json",
+        "docs/plans/team-invitations/architecture-selection.json",
         "docs/plans/team-invitations/shared-context.md",
         "docs/plans/team-invitations/specs/01-invite-user/ce-spec.md",
         "docs/plans/team-invitations/specs/01-invite-user/tasks.json"
@@ -1031,6 +1099,7 @@
       "prompt": "Build the entire snippet-vault plan (features 01..03) end-to-end with /core-engineering:ce-auto-build's fixed sequential workflow. This is a NON-INTERACTIVE headless evaluation. Treat the following as the human's Gate 1 Proceed response: exact scope 01..03 in ship order; clean fixture baseline; no required capability gaps; token/compute budget 2000000; per-feature failure-attempt cap 2 (`--retry-cap 2`, so one repair is authorized after the first failure); consecutive-park cap 3. Run one feature at a time through specification, implementation, deterministic gates, and independent review. Never invent the unresolved sharing decision: park 02-share-snippet as product. Never weaken or delete the seeded export acceptance test: record one correlated repair-attempt ledger entry for 03-export-snippets, then let the second failure mark it failed. Produce the status board, schema-version-2 run state, decision ledger, and feature evidence, then stop at Gate 2 for human review without inventing a human disposition or writing the post-decision Stage-3 run report. Perform no version-control, release, deployment, credential, destructive, or external-write action.",
       "expected_files": [
         "docs/plans/snippet-vault/plan.json",
+        "docs/plans/snippet-vault/architecture-selection.json",
         "docs/plans/snippet-vault/feature-plan.md",
         "docs/plans/snippet-vault/features/01-create-snippet.md",
         "docs/plans/snippet-vault/features/02-share-snippet.md",
@@ -1251,11 +1320,12 @@
       "fixture": "architecture-ready-plan",
       "profile": "full",
       "recommended_budget_usd": 3.0,
-      "prompt": "Prepare the repository-grounded solution-architecture workflow for the registered team-invitations-rbac plan. Inspect and lint the evidence, render the first Scope Confirmation gate with its choices, then stop for my decision. Do not infer approval, publish architecture artifacts, implement, release, or deploy anything.",
+      "prompt": "Prepare the repository-grounded solution-architecture workflow for the registered team-invitations-rbac plan. Inspect and lint the canonical plan. I want to decide whether the accepted ADR and deployment files belong in the architecture evidence boundary, so render the conditional Evidence Boundary Resolution gate with its choices, then stop for my decision. Do not infer approval, publish architecture artifacts, implement, release, or deploy anything.",
       "expected_files": [
         "docs/briefs/team-invitations-rbac.md",
         "docs/plans/plans.json",
         "docs/plans/team-invitations-rbac/plan.json",
+        "docs/plans/team-invitations-rbac/architecture-options.md",
         "docs/plans/team-invitations-rbac/architecture-selection.json",
         "docs/plans/team-invitations-rbac/feature-plan.md",
         "docs/plans/team-invitations-rbac/shared-context.md",
@@ -1274,7 +1344,7 @@
       "output_checks": {
         "required_substrings": [
           "Gate 1 of",
-          "Scope Confirmation",
+          "Evidence Boundary Resolution",
           "team-invitations-rbac",
           "architecture-selection.json",
           "Proceed with this evidence set",
@@ -1315,16 +1385,17 @@
       "fixture": "minimal-service",
       "profile": "full",
       "recommended_budget_usd": 3.0,
-      "prompt": "Plan team invitations with role-based access. Run the repository-grounded workflow normally, render the Project Understanding gate with its inferred facts, remaining ambiguities, decomposition impact, and consequence-labelled questions, then wait for my answer. Never infer a response, skip a human gate, write a final plan, implement, release, or deploy.",
+      "prompt": "Plan team invitations with role-based access. Run the repository-grounded workflow normally, inspect the repository first, then render the conditional Intent and Scope gate with its evidence, consequential ambiguities, recommendation, and cost if wrong, and wait for my answer. Never infer a response, skip a human gate, write a final plan, implement, release, or deploy.",
       "scripted_turns": [
         {
           "event_id": "EVAL-021-D01",
-          "answer": "Use the existing auth.py identity boundary. Scope invitation creation, resend, revoke, single-use acceptance, and admin/member roles; orders are out of scope. Persist invitations with inviter, invitee email, role, status, expiry, and audit timestamps. Acceptance links expire after 24 hours and must not be reusable. Treat outbound email as an adapter boundary, not a new delivery platform. There are no additional reference documents or known pitfalls. Record these answers, continue to the Architecture Evaluation Frame, render its evidence and choices, then stop there without answering it or writing a final plan.",
+          "answer": "Use the existing auth.py identity boundary. Scope invitation creation, resend, revoke, single-use acceptance, and admin/member roles; orders are out of scope. Persist invitations with inviter, invitee email, role, status, expiry, and audit timestamps. Acceptance links expire after 24 hours and must not be reusable. Treat outbound email as an adapter boundary, not a new delivery platform. There are no additional reference documents or known pitfalls. Record the decision owner identity_or_role exactly as Repository Product and Architecture Owner and the authority basis exactly as This repository owner may bind product scope and the planning architecture direction for this isolated evaluation. I am acting in that role, but this is not an architecture selection. Continue to the Architecture Direction Selection workbench, render its decision-ready summary and choices, then stop without selecting a direction or writing a final plan.",
           "required_previous_output": [
             "Gate",
-            "Project Understanding",
-            "Inferred facts",
-            "Remaining ambiguities"
+            "Intent and Scope",
+            "Evidence",
+            "Assumptions and unknowns",
+            "If wrong"
           ]
         }
       ],
@@ -1335,13 +1406,14 @@
       ],
       "output_checks": {
         "required_substrings": [
-          "Project Understanding",
+          "Intent and Scope",
           "Scripted decision event EVAL-021-D01",
-          "Architecture Evaluation Frame",
+          "Architecture Direction Selection",
+          "architecture-options.md",
           "Decision owner",
-          "cost-if-wrong",
-          "Confirm and explore",
-          "Park"
+          "Cost if wrong",
+          "Ask questions / inspect evidence",
+          "park, or abort"
         ],
         "forbidden_substrings": [
           "Plan written",

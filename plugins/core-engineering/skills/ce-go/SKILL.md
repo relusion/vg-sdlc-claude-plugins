@@ -7,94 +7,51 @@ argument-hint: "[what you want, in plain language]"
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, Skill
 ---
 
-# Go — the front-door router
+# Go — front-door router
 
-**Invocation input:** Request: $ARGUMENTS
+**Invocation input:** $ARGUMENTS
 
-You are the single entry point a week-one user reaches for instead of learning
-~30 skill names and the plan-existence splits between them. Your whole job is to
-**read the request and the repo, decide which one `/ce-*` skill owns it, show the
-evidence for that call, and hand off or hand back the direct command**. You are a
-router, **never an executor**: start one model-invocable skill through the `Skill`
-tool or return one direct-only command, and write nothing to disk yourself.
+Choose one owning workflow from a plain-language request. Inspect only the
+signals needed to disambiguate, explain the route briefly, and either invoke one
+model-invocable skill or return one exact human-only command. Write nothing.
 
 ## Runtime Inputs
 
-- **Request (required):** a plain-language statement of what the user wants —
-  a symptom ("the export job silently stops"), a question ("how does auth
-  work"), a change ("add CSV export"), an idea ("a tool that does X"), or a
-  review ask ("is this feature safe to ship"). If it is empty or too vague to
-  classify, ask **one** clarifying question before routing.
-- **The repository:** the current working directory. You inspect it read-only to
-  resolve the plan-existence splits (below) — you never assume its shape.
+- A plain-language request; ask once only when it cannot be classified safely.
+- The current repository, inspected read-only for the smallest routing signal.
 
-## Repo-state signals you resolve yourself
+## Resolve only decision-relevant state
 
-Route on evidence you gather, not on what the user already knows:
+Classify the request as question, symptom, change, discovery, review, probe, or
+delivery. Ask one short question only when that classification would choose a
+materially different route.
 
-- **Is a plan on disk?** `docs/plans/plans.json` present, and does it register a
-  plan whose slug/feature the request names? (`Read`/`Glob` — never write.)
-- **Does the named feature have a spec?** a `docs/plans/<slug>/specs/<id>/`
-  directory for the feature the request is about. Its presence is the fork
-  between the plan-tied skill and its plan-free sibling.
-- **What is the plan's architecture prerequisite?** Before routing a full-plan
-  request to `/core-engineering:ce-spec`, `/core-engineering:ce-implement`, or
-  `/core-engineering:ce-auto-build`,
-  read `plan.json`'s `architecture_disposition`, verify its direction binding,
-  and lstat-check the sibling `architecture` namespace. A missing/malformed
-  legacy disposition/direction or unfinished required convergence routes to
-  plan revision; a required, converged
-  disposition with an absent package routes to architecture publication first.
-  Do not treat a merely present package as validated — the destination runs the
-  consumer lint. Reproduce the full plan H9/H10 check here; a partial pairing check
-  is not enough for routing:
-  - the disposition has exactly `decision`, `triggers`, `rationale`,
-    `decided_by`, `direction`, and `convergence`; convergence has exactly `status`,
-    `iteration_count`, `summary`, and `decision_refs`;
-  - direction has exactly `status`, `artifact`, `artifact_sha256`,
-    `exploration_id`, `selected_option_id`, `selected_option_sha256`,
-    `decided_by`, and `summary`; `artifact` is exactly
-    `architecture-selection.json`, its artifact hash is lowercase SHA-256,
-    `decided_by: human` and summary are non-empty, and its status/ids agree with
-    the artifact; selected/adopted statuses require a selected id plus lowercase
-    SHA-256 option hash, while every unselected status requires both fields null;
-  - `decision` is `required | recommended | not-required | waived`,
-    `rationale` and `summary` are non-empty strings, `decided_by: human` is
-    exact, both list fields contain only non-empty strings, and a non-negative
-    integer `iteration_count` must also be a non-boolean integer >= 0;
-  - triggers are unique, and every trigger is one of
-    `explicit-architecture-deliverable`,
-    `multi-runtime-or-deployment-boundary`,
-    `cross-feature-durable-or-async-flow`,
-    `shared-data-ownership-or-migration`,
-    `trust-residency-or-sensitive-boundary`, `shared-protocol-or-schema`,
-    `platform-or-topology-choice`, `architecture-determining-nfr`,
-    `contested-cross-feature-owner`, `team-policy-recommendation`,
-    `planned-reuse-recommendation`, or `baseline-preference`;
-  - `required` uses only the first nine load-bearing trigger ids and pairs only
-    with `converged`, at least one trigger, and `iteration_count >= 1`;
-    `recommended` uses only the final three recommendation ids and pairs with
-    `converged` and at least one iteration, or `deferred` and zero iterations,
-    and always has a trigger;
-    `not-required` pairs with `not-applicable`, no triggers, and zero
-    iterations; direction status is selected/adopted for `required`,
-    selected/adopted/deferred for `recommended`, and `not-applicable` for
-    `not-required`; `waived` convergence has at least one trigger and iteration
-    and preserves a prior `direction-selected`/`adopted-existing` binding, or
-    uses a human-reaffirmed legacy `waived` direction with null selected fields; and
-  - `plan_tier`, when present, is exactly `standard` or `light`, and a `light`
-    plan cannot have decision `required`.
+For a named plan/feature, inspect:
 
-  An absent `plan_tier` reads as `standard`. Any missing key, extra key,
-  mistyped value, duplicate/unknown/cross-category trigger, invalid
-  pairing/count, or plan-tier
-  contradiction is malformed and routes to Stage R; never repair it in this
-  read-only router.
-- **Is the request a symptom, a question, or a change?** a symptom describes
-  something misbehaving; a question asks how/where/why; a change asks to build,
-  fix, or modify.
-- **Is a running target named?** a URL, host, port, or "the running app" points
-  at the dynamic-probe family; its absence keeps you on static/read-only skills.
+- `docs/plans/plans.json` and `docs/plans/<slug>/plan.json`;
+- `features/<id>.md`, including `Specification route: compact|explicit`;
+- `specs/<id>/` when deciding whether an implementation-ready spec exists;
+- a named running target for dynamic probes;
+- the architecture prerequisite before spec, implement, or auto-build.
+
+For that prerequisite, run the plan's deterministic floor rather than
+reproducing its schema in this router:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/../ce-plan/scripts/plan-lint.py" \
+  docs/plans/<slug> --require-architecture-direction --json
+```
+
+- exit 1 or 2 routes to `/core-engineering:ce-plan` Stage R with the lint result;
+- exit 0 plus `required`/selected/converged and an lstat-confirmed absent
+  `docs/plans/<slug>/architecture/` routes to
+  `/core-engineering:ce-architecture <slug>`;
+- otherwise continue to the requested downstream workflow and let that workflow
+  validate any present architecture package as a consumer.
+
+Never claim namespace presence means current. An unfinished architecture
+publication transaction or ambiguous filesystem state routes to its recovery
+owner rather than being treated as absence.
 
 ## Routing table
 
@@ -127,15 +84,15 @@ outside the markers — the parity lint reads only what is between them.
 
 | The request is… | Route to | Because |
 |---|---|---|
-| a genuinely small change (≤ 2 files, no reviewer-trigger surface) | `/core-engineering:ce-patch` | one express-only gate; any failed or uncertain screen routes to `/core-engineering:ce-plan` |
-| a raw idea that needs shaping before planning | `/core-engineering:ce-brief` | persona-lens interview → a planning-ready brief |
-| a real project/feature to architect and decompose | `/core-engineering:ce-plan` | repository-grounded capability frame → conditional scored solution directions + human selection → ordered feature plan |
+| a genuinely small, bounded change with no reviewer-trigger surface | `/core-engineering:ce-patch` | conservative direct patch workflow; uncertainty routes to planning |
+| a raw idea whose problem, users, scope, or outcome still need discovery | `/core-engineering:ce-brief` | optional intent brief with a bounded interview |
+| a clear project/feature outcome to decompose | `/core-engineering:ce-plan` | adaptive repository-grounded planning; architecture only when load-bearing |
 | complete solution-architecture alternatives must be generated from requirements before planning | `/core-engineering:ce-plan` | it prepares the pre-decomposition frame and composes `/core-engineering:ce-architecture explore:<slug>` safely |
-| a written full plan has no valid `architecture_disposition` or direction binding, or says architecture is `required` but convergence is not `converged` | `/core-engineering:ce-plan` | Stage R must establish or finish the human-owned direction/disposition before downstream work |
+| a written plan fails its architecture disposition/direction lint, or says architecture is `required` but convergence is incomplete | `/core-engineering:ce-plan` | Stage R owns the plan correction before downstream work |
 | a request would specify or implement a planned feature, or auto-build a whole plan, and that plan says architecture is `required` + `converged` but its `architecture` namespace is absent | `/core-engineering:ce-architecture` | publish the required, governed, current solution baseline before specification or implementation starts |
-| a written multi-feature plan that needs system context, runtime/container, deployment, data/integration, and quality views | `/core-engineering:ce-architecture` | plan-backed cross-feature solution baseline with source hashes, traceability, gaps, and human approval |
-| ONE already-planned feature to detail | `/core-engineering:ce-spec` | EARS acceptance criteria, design, ordered `tasks.json` |
-| a specified feature's task list to build | `/core-engineering:ce-implement` | test-first execution to done under Scope Lock |
+| a plan with a selected direction that needs system/runtime/deployment/data/integration views | `/core-engineering:ce-architecture` | plan-backed solution baseline with source hashes, traceability, gaps, and human approval |
+| a planned feature marked `Specification route: explicit` to detail | `/core-engineering:ce-spec` | reviewed acceptance/design contract plus ordered `tasks.json` |
+| a compact-route feature, or a feature with a linted spec, to build | `/core-engineering:ce-implement` | composes compact spec when allowed, then executes under Scope Lock |
 | a whole plan to run unattended | `/core-engineering:ce-auto-build` | bounded sequential spec/implement/verify/review orchestration |
 | a first run in a repo with no `repo-profile.json` | `/core-engineering:ce-init` | profiles commands/CI/surfaces, writes starter policy artifacts |
 
@@ -179,103 +136,57 @@ outside the markers — the parity lint reads only what is between them.
 
 <!-- routing-table:end -->
 
-When two rows plausibly fit, prefer the one whose repo-state signal is confirmed
-(a resolved spec dir beats a guessed one); if a fork stays genuinely ambiguous,
-name both in the gate and let the human pick.
-
 ## Execution Contract
 
-0. **Read-only, always.** You never write, commit, or edit. Your only durable
-   effect is invoking one downstream skill; that skill owns its own writes and
-   its own write lease. If you find yourself wanting to change a file, you have
-   mis-scoped — route to the skill that owns the change instead.
-1. **Classify the request.** Determine symptom vs question vs change vs idea vs
-   review ask. If it is empty or unclassifiable, ask one clarifying question.
-2. **Resolve the repo-state signals** for any fork the request touches — read
-   `docs/plans/plans.json`, look for the `specs/<id>/` dir, check whether a
-   running target is named, and, before a full-plan spec, implement, or
-   whole-plan auto-build route, read that plan's `architecture_disposition`
-   plus lstat-check its
-   `architecture` namespace. Gather only what the routing decision needs; do
-   not bulk-read.
-3. **Pick exactly one route** from the table using the request class + the
-   resolved signals. Hold the evidence that decided it (the file you found or
-   did not find, the signal that tipped a fork). Apply the architecture
-   prerequisite before the ordinary spec/implement/auto-build row, using every
-   structural and cross-field rule in the H9 reproduction above:
-   - missing or malformed disposition, or `required` without `converged` →
-     `/core-engineering:ce-plan` Stage R;
-   - `required` + `converged` + lstat-confirmed package absence →
-     `/core-engineering:ce-architecture <slug>`;
-   - `recommended`, `not-required`, or `waived` + absence → preserve that
-     disposition in the routing evidence and continue to the requested
-     spec/implement/auto-build route. `recommended` is a visible coverage gap and
-     `waived` carries its human rationale/residual risk;
-   - any occupied package namespace → continue to the requested destination,
-     which must validate it before use. Never claim presence means current.
-   A registry-backed single-feature minimal plan records the prerequisite
-   `N/A by construction`; do not manufacture a full-plan disposition for it.
-4. **Render the single routing gate** (below), then act on the choice.
-5. **Hand off — the mechanism depends on the destination's invocation mode.**
-   - **Model-invocable route** (the default) → invoke the chosen `/ce-*` skill
-     via the `Skill` tool, passing the user's request through as its argument.
-     You do not do the downstream skill's work yourself; you start it.
-   - **Human-initiated route** — `/core-engineering:ce-patch`, `/core-engineering:ce-auto-build`, `/core-engineering:ce-probe-sec`,
-     `/core-engineering:ce-probe-perf`, `/core-engineering:ce-ship-release`, and `/core-engineering:ce-doc-audit`
-     carry `disable-model-invocation: true`, so the `Skill` tool cannot start them by
-     design (these lanes write code, act on live targets, or cut releases, and
-     must be human-pulled). Do **not** attempt a `Skill` handoff, and do **not**
-     report them as "not installed" — they are installed, just human-only. Hand
-     *back*: print the exact command for the user to run —
-     `Run:  /core-engineering:ce-patch <request>` — with the one-line reason from the table.
-   - **Not-installed route** (e.g. the `product-discovery` trio when that plugin
-     is absent) → tell the user the `claude plugin install …` command.
-6. **Never chain.** Route to one skill and stop. The routed skill (or the user)
-   decides what comes next.
+1. Pick exactly one row using the request and verified repository state.
+2. Print one compact read-back:
 
-## Human-in-the-Loop — light
+   ```text
+   Route: /<skill>
+   Why: <request signal + repository evidence>
+   Coverage gap: <none or exact ambiguity>
+   ```
 
-One consent gate, with the routing decision read back and its evidence shown, so
-the call is decidable in the dialog. Routing is reversible and low-stakes (the
-user can pick another route or abort before any skill runs), so this is not a
-material-class gate — but it is still located and labeled (Gate 1 of 1).
+3. When the route is unambiguous and model-invocable, invoke it immediately
+   through `Skill` with the user's request. A reversible routing choice does not
+   need a consent gate.
+4. For human-initiated skills—`ce-patch`, `ce-auto-build`, `ce-probe-sec`,
+   `ce-probe-perf`, `ce-ship-release`, and `ce-doc-audit`—do not attempt model
+   invocation. Return:
 
-**Gate 1 of 1 — confirm the route**
+   ```text
+   Run: /<namespace:skill> <request>
+   ```
 
-```
-Routing to /<skill> because <the evidence that decided it — e.g. "docs/plans/
-checkout/specs/03-export/ exists, so the failing export is a planned feature">.
+5. If a routed product-discovery skill is not installed, return its documented
+   plugin-install command.
+6. Never chain or fan out. The destination owns its gates and writes.
 
-  • Proceed        → I hand off to /<skill> now with your request (or, for a
-                     human-initiated lane, I hand you the exact command to run).
-  • Pick another   → choose a different route from the table (I show the fits).
-  • Abort          → I stop and route nowhere; nothing runs.
+## Human-in-the-Loop — adaptive
+
+Only a genuinely ambiguous fork opens:
+
+```text
+Gate 1 of 1 — Choose route
+Evidence: <why two routes remain plausible>
 ```
 
-Never skip this gate, even when the route feels obvious — the read-back is how
-the user catches a mis-read repo signal before a skill starts. If the user picks
-another route, re-render the gate for the new choice.
+Offer the two or three plausible routes with consequences, plus **Park**. Do not
+offer irrelevant skills. Partial filesystem state, conflicting user intent, or
+an unclassifiable mixed request is ambiguity; an ordinary clear route is not.
 
 ## Escalation
 
-- **Ambiguous fork:** if the plan-existence signal is genuinely unresolvable
-  (e.g. a partial `specs/` dir), present both candidate routes in the gate with
-  the evidence for each and let the human decide — do not guess silently.
-- **No good route:** if the request matches nothing in the table (it is not a
-  coding, product, probe, review, or delivery task), say so plainly and stop;
-  do not force a route. Routing nowhere is a valid outcome.
-- **Request is really several tasks:** route the first/blocking one and tell the
-  user the others exist; you never fan out into multiple skills from one call.
+- No matching row → explain the coverage gap and route nowhere.
+- Several independent tasks → route the first blocking task and name the later
+  tasks without starting them.
+- Deterministic plan lint unavailable/failing → Stage R, not a guessed
+  downstream route.
+- Missing or unsafe filesystem evidence → ask once or park.
 
 ## Honest Limitations
 
-- **Not an executor** — it does the work of no skill. Every real action happens
-  in the routed skill, under that skill's own gates, locks, and write lease.
-- **Only as good as the repo signals** — if `plans.json` is missing or a spec
-  dir is half-written, the fork it informs degrades to the ambiguity path (the
-  gate shows both routes), never to a silent wrong guess.
-- **One hop, no orchestration** — it is not `/core-engineering:ce-auto-build`; it starts a single
-  skill and stops. It does not sequence a pipeline or resume a run.
-- **Writes nothing** — no artifact, no ledger line; its `allowed-tools`
-  deliberately exclude `Write` and `Edit`. The only trace it leaves is the
-  downstream skill it started.
+- This router validates routing prerequisites, not the destination's complete
+  inputs.
+- It writes nothing and performs no downstream work.
+- It is one-hop routing, not pipeline orchestration.

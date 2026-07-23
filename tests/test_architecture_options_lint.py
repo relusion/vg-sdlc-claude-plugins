@@ -47,6 +47,11 @@ def _decision_ready_report(data: dict) -> str:
             f"- **Recommendation:** {selected['option_id']} — {selected['title']}",
             f"- **Recommendation basis:** {recommendation['basis']}",
             "- **Confidence / sensitivity:** high / stable",
+            (
+                "- **Decision owner / authority:** "
+                f"{data['evaluation_frame']['decision_owner']['identity_or_role']} — "
+                f"{data['evaluation_frame']['decision_owner']['authority_basis']}"
+            ),
             "- **Cost if wrong:** Rework boundaries, migration, and operational ownership.",
             "- **Material gaps and inferences:** None — all score evidence is recorded.",
             "",
@@ -70,6 +75,7 @@ def _write_valid_report(root: Path) -> tuple[Path, dict]:
         "parent_gate_total": 8,
         "project_intent": frame["project_intent"],
         "non_goals": frame["non_goals"],
+        "decision_owner": frame["decision_owner"],
         "architecture_applicability": frame["architecture_applicability"],
         "driver_screen": frame["driver_screen"],
         "accepted_decisions": frame["accepted_decisions"],
@@ -113,6 +119,7 @@ class ArchitectureOptionsLintContract(unittest.TestCase):
         self.assertEqual([], failures)
         self.assertNotIn("selection", projection)
         self.assertNotIn("decided_by", projection)
+        self.assertNotIn("approved_by", projection)
 
     def test_cli_json_contract_and_exit_codes(self):
         passed = subprocess.run(
@@ -173,6 +180,46 @@ class ArchitectureOptionsLintContract(unittest.TestCase):
         self.report.write_text(text, encoding="utf-8")
         _, failures = ol.validate_file(self.report, repo_root=self.root)
         self.assertTrue(any("'Cost if wrong'" in failure for failure in failures))
+
+    def test_decision_owner_and_authority_are_exactly_visible_before_selection(self):
+        owner = self.data["evaluation_frame"]["decision_owner"]
+        exact = (
+            "- **Decision owner / authority:** "
+            f"{owner['identity_or_role']} — {owner['authority_basis']}"
+        )
+        text = self.report.read_text(encoding="utf-8").replace(
+            exact,
+            "- **Decision owner / authority:** A participant — attendance in this review",
+            1,
+        )
+        self.report.write_text(text, encoding="utf-8")
+        _, failures = ol.validate_file(self.report, repo_root=self.root)
+        joined = " ".join(failures)
+        self.assertIn("decision_owner.identity_or_role", joined)
+        self.assertIn("decision_owner.authority_basis", joined)
+
+    def test_each_score_basis_is_visible_in_the_weighted_comparison(self):
+        basis = self.data["options"][0]["scores"][0]["basis"]
+        text = self.report.read_text(encoding="utf-8")
+        start = text.index("## Weighted Comparison")
+        end = text.index("## Direction A01")
+        weighted = text[start:end]
+        self.assertIn(basis, weighted)
+        weighted = weighted.replace(basis, "redacted score basis", 1)
+        self.report.write_text(
+            text[:start] + weighted + text[end:],
+            encoding="utf-8",
+        )
+        _, failures = ol.validate_file(self.report, repo_root=self.root)
+        self.assertTrue(
+            any(
+                "## Weighted Comparison" in item
+                and "omits comparison value" in item
+                and basis in item
+                for item in failures
+            ),
+            failures,
+        )
 
     def test_gate_locator_must_match_current_exploration_input(self):
         text = self.report.read_text(encoding="utf-8").replace(
@@ -235,6 +282,26 @@ class ArchitectureOptionsLintContract(unittest.TestCase):
         _, failures = ol.validate_file(self.report, repo_root=self.root)
         self.assertTrue(
             any("does not match current architecture-exploration.json" in row for row in failures)
+        )
+
+    def test_current_decision_owner_drift_invalidates_the_report(self):
+        exploration_path = self.report.with_name("architecture-exploration.json")
+        exploration = json.loads(exploration_path.read_text(encoding="utf-8"))
+        exploration["decision_owner"]["identity_or_role"] = (
+            "Replacement Architecture Council"
+        )
+        exploration_path.write_text(
+            json.dumps(exploration, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _, failures = ol.validate_file(self.report, repo_root=self.root)
+        self.assertTrue(
+            any(
+                "source_input_sha256 does not match current "
+                "architecture-exploration.json" in row
+                for row in failures
+            ),
+            failures,
         )
 
     def test_unsafe_exploration_input_is_an_error(self):

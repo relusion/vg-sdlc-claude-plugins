@@ -249,9 +249,9 @@ COMPONENT_KINDS = {
 DISPOSITIONS = {"cross-feature", "feature-local"}
 EVIDENCE_STATES = {"recorded", "observed", "inferred", "unknown"}
 LIFECYCLE_KEYS = {"retain", "export", "erase"}
-ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required", "waived"}
+ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required"}
 ARCHITECTURE_CONVERGENCE_STATES = {
-    "converged", "deferred", "not-applicable", "waived",
+    "converged", "deferred", "not-applicable",
 }
 ARCHITECTURE_DISPOSITION_KEYS = {
     "decision", "triggers", "rationale", "decided_by", "direction", "convergence",
@@ -891,19 +891,6 @@ def _validate_source_architecture_disposition(
         if triggers_valid and triggers:
             hard.append(
                 "H9 source plan decision `not-required` requires an empty triggers list"
-            )
-    elif decision == "waived":
-        if convergence_status != "waived":
-            hard.append(
-                "H9 source plan decision `waived` requires convergence status `waived`"
-            )
-        if triggers_valid and not triggers:
-            hard.append(
-                "H9 source plan decision `waived` requires at least one trigger"
-            )
-        if iteration_valid and iteration_count < 1:
-            hard.append(
-                "H9 source plan decision `waived` requires iteration_count >= 1"
             )
 
 

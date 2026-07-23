@@ -1,19 +1,20 @@
 # Documentation
 
-Start with the page that matches what you are trying to do. You do not need to
-read this directory in filename order.
+Start with the page that matches the job. The default workflow is adaptive; a
+brief, architecture package, explicit specification, and documentation audit
+are conditional rather than mandatory stages.
 
 ## Use the plugins
 
 - [Getting Started](GETTING-STARTED.md) — install the marketplace and get a
   useful result in the first session.
 - [Usage Matrix](USAGE-MATRIX.md) — choose the right `/ce-*` skill for the job.
-- [Workflow Recipes](WORKFLOW-RECIPES.md) — choose an outcome, follow the
-  matching multi-skill path, and adopt higher-autonomy workflows in stages.
+- [Workflow Recipes](WORKFLOW-RECIPES.md) — follow one concise outcome path
+  with its artifacts and stop conditions.
 - [How It Works](HOW-IT-WORKS.md) — understand the architecture, artifacts,
   gates, and safety model.
 - [Compatibility and Upgrades](COMPATIBILITY.md) — check the supported runtime
-  floor, migration notes, and team-safe update sequence.
+  floor and team-safe update sequence.
 - [Real Outputs](EXAMPLES.md) — inspect captured examples with provenance.
 
 If you are unsure where to begin, use [Getting Started](GETTING-STARTED.md). If

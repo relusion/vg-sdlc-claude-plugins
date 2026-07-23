@@ -1,5 +1,7 @@
 # 01-invite-user — Invite a user to a team
 
+**Specification route:** explicit
+
 ## Scope
 
 - Admin can create a pending invitation for an email address.
@@ -10,4 +12,3 @@
 
 - Email delivery.
 - Invitation acceptance.
-

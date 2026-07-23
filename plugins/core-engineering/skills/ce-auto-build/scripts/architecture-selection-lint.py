@@ -34,6 +34,11 @@ that stopped before selection (requires-evidence / requires-decision / blocked /
 human-aborted).  Those transient results may omit evaluation sections and can
 never claim a selected option or human decision.
 
+Legacy schemas and the one-option reportless adoption shape remain readable only
+for explicit migration diagnostics. Active plan and consumer paths use
+``--require-current-schema``, which requires schema v2 and a present hash-bound
+comparison report for every selected direction.
+
 Exit codes:
   0  PASS  — the artifact is structurally valid and fresh
   1  FAIL  — the artifact loaded but violates the contract
@@ -93,7 +98,7 @@ CONFIDENCE_STATES = {"high", "medium", "low"}
 OPTION_CONFIDENCE_STATES = CONFIDENCE_STATES | {"not-applicable"}
 SENSITIVITY_STATES = {"stable", "unstable", "not-applicable"}
 SELECTED_STATUSES = {"direction-selected", "adopted-existing"}
-UNSELECTED_STATUSES = {"not-applicable", "deferred", "waived"}
+UNSELECTED_STATUSES = {"not-applicable", "deferred"}
 FINAL_STATUSES = SELECTED_STATUSES | UNSELECTED_STATUSES
 TRANSIENT_STATUSES = {
     "requires-evidence", "requires-decision", "blocked", "human-aborted",
@@ -138,6 +143,7 @@ SOURCE_KINDS = {"brief", "brief-sidecar", "adr", "repository", "planning-input"}
 EVALUATION_FRAME_KEYS = {
     "project_intent",
     "non_goals",
+    "decision_owner",
     "architecture_applicability",
     "driver_screen",
     "accepted_decisions",
@@ -146,6 +152,7 @@ EVALUATION_FRAME_KEYS = {
     "journeys",
     "quality_attribute_scenarios",
 }
+DECISION_OWNER_KEYS = {"identity_or_role", "authority_basis"}
 DRIVER_KEYS = {"id", "verdict", "basis", "evidence"}
 ACCEPTED_DECISION_KEYS = {"ref", "summary"}
 MATERIAL_GAP_KEYS = {"id", "statement", "cost_if_wrong", "next_check"}
@@ -193,7 +200,7 @@ OPTION_KEYS = {
     "option_sha256",
 }
 CONSTRAINT_VERDICT_KEYS = {"constraint_id", "verdict", "basis"}
-SCORE_KEYS = {"criterion_id", "score", "evidence_state", "evidence"}
+SCORE_KEYS = {"criterion_id", "score", "basis", "evidence_state", "evidence"}
 ELIMINATED_KEYS = {"option_id", "constraint_ids", "reason"}
 RECOMMENDATION_KEYS = {
     "option_id", "confidence", "sensitivity", "sensitivity_witness", "basis",
@@ -208,7 +215,8 @@ SENSITIVITY_WITNESS_SCENARIOS = {
 SENSITIVITY_EVIDENCE_BOUND_KEYS = {"recommended", "challenger"}
 SENSITIVITY_EVIDENCE_BOUNDS = {"exact", "lower", "upper"}
 SELECTION_KEYS = {
-    "status", "option_id", "option_sha256", "decided_by", "rationale",
+    "status", "option_id", "option_sha256", "decided_by", "approved_by",
+    "rationale",
 }
 REPORT_BINDING_KEYS = {"schema_version", "status", "path", "sha256", "reason"}
 REPORT_BINDING_STATUSES = {"present", "not-produced"}
@@ -219,6 +227,7 @@ REPORT_REQUIRED_HEADINGS = (
     "## Weighted Comparison",
     "## Eliminated, Unresolved, and Uncarried Directions",
     "## Evidence Sources",
+    "## Decision Workbench Audit",
     "## Machine-Readable Comparison Projection",
     "## Human Decision",
     "## Integrity",
@@ -229,9 +238,24 @@ REPORT_DECISION_FIELDS = (
     "Recommendation",
     "Recommendation basis",
     "Confidence / sensitivity",
+    "Decision owner / authority",
     "Cost if wrong",
     "Material gaps and inferences",
 )
+REPORT_AUDIT_HEADER = (
+    "Revision",
+    "Event",
+    "Human input / question",
+    "Response or resulting change",
+    "Prior report SHA-256",
+)
+REPORT_AUDIT_EVENTS = {
+    "question",
+    "frame-change-requested",
+    "frame-change",
+    "option-change",
+    "alternative-added",
+}
 REPORT_HIDDEN_HTML_PATTERNS = (
     (
         "collapsed or non-rendered HTML container",
@@ -328,6 +352,7 @@ def source_input_payload(data: dict) -> dict:
         "exploration_attempt": data.get("source_exploration_attempt"),
         "project_intent": frame.get("project_intent"),
         "non_goals": frame.get("non_goals"),
+        "decision_owner": frame.get("decision_owner"),
         "architecture_applicability": frame.get("architecture_applicability"),
         "driver_screen": frame.get("driver_screen"),
         "accepted_decisions": frame.get("accepted_decisions"),
@@ -430,6 +455,45 @@ def _decimal(value: object) -> Decimal | None:
 
 def _nonempty(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+PLACEHOLDER_VALUES = {
+    "-",
+    "authority",
+    "authority basis",
+    "decision maker",
+    "decision-maker",
+    "human",
+    "identity or role",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "pending",
+    "person or role",
+    "someone",
+    "tbc",
+    "tbd",
+    "to be confirmed",
+    "to be determined",
+    "todo",
+    "unknown",
+    "unspecified",
+}
+PLACEHOLDER_PATTERN = re.compile(
+    r"(?:<[^>\n]+>|\{\{[^}\n]+\}\}|\$\{[^}\n]+\})"
+)
+
+
+def _substantive(value: object) -> bool:
+    """Return whether an authority field is populated beyond a placeholder."""
+    if not _nonempty(value):
+        return False
+    text = value.strip()
+    return (
+        text.casefold() not in PLACEHOLDER_VALUES
+        and PLACEHOLDER_PATTERN.search(text) is None
+    )
 
 
 def _sha(value: object) -> bool:
@@ -556,6 +620,22 @@ def _validate_evaluation_frame(
         failures,
         nonempty=False,
     )
+    decision_owner = value.get("decision_owner")
+    if not isinstance(decision_owner, dict):
+        failures.append("evaluation_frame.decision_owner must be an object")
+    else:
+        _exact_keys(
+            decision_owner,
+            DECISION_OWNER_KEYS,
+            "evaluation_frame.decision_owner",
+            failures,
+        )
+        for key in ("identity_or_role", "authority_basis"):
+            if not _substantive(decision_owner.get(key)):
+                failures.append(
+                    f"evaluation_frame.decision_owner.{key} must be a "
+                    "non-placeholder value"
+                )
 
     applicability = value.get("architecture_applicability")
     if applicability not in ARCHITECTURE_APPLICABILITY:
@@ -934,6 +1014,8 @@ def _validate_scores(
                     f"{label}.evidence references path(s) absent from top-level "
                     "sources: " + ", ".join(missing)
                 )
+        if not _nonempty(row.get("basis")):
+            failures.append(f"{label}.basis must be non-empty")
     if tuple(ids) != CRITERIA:
         failures.append(
             f"{option_label}.scores must contain all six criteria once in canonical order"
@@ -1572,6 +1654,7 @@ def _validate_selection(
     failures: list[str],
     *,
     allow_incomplete: bool,
+    decision_owner: dict | None = None,
 ) -> tuple[str | None, bool]:
     if not isinstance(value, dict):
         failures.append("selection must be an object")
@@ -1582,7 +1665,7 @@ def _validate_selection(
         extra = sorted(set(value) - SELECTION_KEYS)
         if extra:
             failures.append("selection has unknown key(s): " + ", ".join(extra))
-        for key in ("option_id", "option_sha256"):
+        for key in ("option_id", "option_sha256", "approved_by"):
             if value.get(key) is not None:
                 failures.append(f"transient selection.{key} must be null")
         if value.get("decided_by") is not None:
@@ -1615,10 +1698,32 @@ def _validate_selection(
     else:
         if oid is not None or selected_hash is not None:
             failures.append(
-                "not-applicable/deferred/waived selections require null option_id and option_sha256"
+                "not-applicable/deferred selections require null option_id and option_sha256"
             )
     if value.get("decided_by") != "human":
         failures.append("final selection.decided_by must be 'human'")
+    approved_by = value.get("approved_by")
+    if selected:
+        owner_identity = (
+            decision_owner.get("identity_or_role")
+            if isinstance(decision_owner, dict)
+            else None
+        )
+        if not _substantive(approved_by):
+            failures.append(
+                "selected selection.approved_by must be a non-placeholder "
+                "human identity or role"
+            )
+        elif isinstance(owner_identity, str) and approved_by != owner_identity:
+            failures.append(
+                "selected selection.approved_by must exactly match "
+                "evaluation_frame.decision_owner.identity_or_role; delegation "
+                "requires revising the decision owner before selection"
+            )
+    elif approved_by is not None:
+        failures.append(
+            "not-applicable/deferred selections require selection.approved_by null"
+        )
     if not _nonempty(value.get("rationale")):
         failures.append("selection.rationale must be non-empty")
     return status if isinstance(status, str) else None, False
@@ -1663,6 +1768,146 @@ def _report_section_body(text: str, heading: str) -> str | None:
         flags=re.DOTALL | re.MULTILINE,
     )
     return matches[0] if len(matches) == 1 else None
+
+
+def _markdown_table_cells(line: str) -> list[str] | None:
+    """Split one Markdown table row while preserving escaped pipe characters."""
+    stripped = line.strip()
+    if len(stripped) < 2 or not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    cells: list[str] = []
+    current: list[str] = []
+    index = 1
+    while index < len(stripped) - 1:
+        char = stripped[index]
+        if char == "\\" and index + 1 < len(stripped) - 1:
+            following = stripped[index + 1]
+            if following == "|":
+                current.append("|")
+                index += 2
+                continue
+        if char == "|":
+            cells.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    cells.append("".join(current).strip())
+    return cells
+
+
+def _validate_workbench_audit(
+    text: str,
+    *,
+    workbench_revision: int | None,
+    failures: list[str],
+) -> None:
+    """Validate the durable question/adjustment history in the review report."""
+    body = _report_section_body(text, "## Decision Workbench Audit")
+    if body is None:
+        return  # the exact-heading check emits the structural failure
+    lines = body.splitlines()
+    header_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if tuple(_markdown_table_cells(line) or ()) == REPORT_AUDIT_HEADER
+    ]
+    if len(header_indexes) != 1:
+        failures.append(
+            "architecture options report Decision Workbench Audit must contain "
+            "exactly one canonical audit table header"
+        )
+        return
+
+    header_index = header_indexes[0]
+    separator_index = header_index + 1
+    while separator_index < len(lines) and not lines[separator_index].strip():
+        separator_index += 1
+    separator = (
+        _markdown_table_cells(lines[separator_index])
+        if separator_index < len(lines)
+        else None
+    )
+    if (
+        separator is None
+        or len(separator) != len(REPORT_AUDIT_HEADER)
+        or any(re.fullmatch(r":?-{3,}:?", cell) is None for cell in separator)
+    ):
+        failures.append(
+            "architecture options report Decision Workbench Audit must use a "
+            "five-column Markdown separator row"
+        )
+        return
+
+    raw_rows: list[list[str]] = []
+    for line in lines[separator_index + 1 :]:
+        if not line.strip():
+            if raw_rows:
+                break
+            continue
+        cells = _markdown_table_cells(line)
+        if cells is None:
+            if raw_rows:
+                break
+            continue
+        raw_rows.append(cells)
+    if not raw_rows:
+        failures.append(
+            "architecture options report Decision Workbench Audit must contain "
+            "at least the initial-synthesis row"
+        )
+        return
+
+    revisions: list[int] = []
+    for row_index, row in enumerate(raw_rows, start=1):
+        label = f"Decision Workbench Audit row {row_index}"
+        if len(row) != len(REPORT_AUDIT_HEADER):
+            failures.append(f"{label} must contain exactly five cells")
+            continue
+        revision_text, event, human_input, response, prior_hash = row
+        if re.fullmatch(r"[1-9][0-9]*", revision_text) is None:
+            failures.append(f"{label} Revision must be a positive integer")
+        else:
+            revisions.append(int(revision_text))
+        event = event.strip("` ")
+        if row_index == 1:
+            if event != "initial-synthesis":
+                failures.append(
+                    "Decision Workbench Audit row 1 Event must equal "
+                    "`initial-synthesis`"
+                )
+            if _normalized_report_text(prior_hash) != "None — initial revision":
+                failures.append(
+                    "Decision Workbench Audit row 1 Prior report SHA-256 must "
+                    "equal `None — initial revision`"
+                )
+        else:
+            if event not in REPORT_AUDIT_EVENTS:
+                failures.append(
+                    f"{label} Event must be one of "
+                    f"{sorted(REPORT_AUDIT_EVENTS)}"
+                )
+            normalized_hash = prior_hash.strip("` ")
+            if not _sha(normalized_hash):
+                failures.append(
+                    f"{label} Prior report SHA-256 must be 64 lowercase hex "
+                    "characters"
+                )
+        if not _substantive(human_input):
+            failures.append(f"{label} Human input / question must be substantive")
+        if not _substantive(response):
+            failures.append(
+                f"{label} Response or resulting change must be substantive"
+            )
+
+    if workbench_revision is not None:
+        expected_revisions = list(range(1, workbench_revision + 1))
+        if revisions != expected_revisions:
+            failures.append(
+                "architecture options report Decision Workbench Audit revisions "
+                f"must be contiguous 1..{workbench_revision} and end at the "
+                "declared Workbench revision"
+            )
 
 
 def _require_section_projection(
@@ -1800,6 +2045,7 @@ def _validate_options_report_binding(
     artifact_path: Path,
     repo_root: Path,
     selection_status: object,
+    allow_reportless_legacy: bool,
     failures: list[str],
 ) -> None:
     """Validate schema-v2's exact human-readable sibling report binding."""
@@ -1840,12 +2086,19 @@ def _validate_options_report_binding(
             failures.append(
                 "schema-v2 direction-selected requires a present architecture options report"
             )
-        elif selection_status == "adopted-existing" and not _is_one_option_legacy_adoption(data):
-            failures.append(
-                "schema-v2 adopted-existing without a report is limited to the "
-                "one-option legacy migration shape: the sole option must be selected "
-                "and recommended with matching hashes and no eliminated directions"
-            )
+        elif selection_status == "adopted-existing":
+            if not allow_reportless_legacy:
+                failures.append(
+                    "current selected architecture requires a present, hash-bound "
+                    "architecture options report; reportless legacy adoption is "
+                    "diagnostic-only"
+                )
+            elif not _is_one_option_legacy_adoption(data):
+                failures.append(
+                    "schema-v2 adopted-existing without a report is limited to the "
+                    "one-option legacy migration shape: the sole option must be selected "
+                    "and recommended with matching hashes and no eliminated directions"
+                )
         return
 
     if report_path_value != "architecture-options.md":
@@ -1920,12 +2173,32 @@ def _validate_options_report_binding(
                 f"architecture options report must contain heading exactly once: {heading}"
             )
 
+    workbench_revision: int | None = None
+    workbench_matches = re.findall(
+        r"^>\s*Workbench revision:\s*([1-9][0-9]*)\s*$",
+        visible_report,
+        flags=re.MULTILINE,
+    )
+    if len(workbench_matches) != 1:
+        failures.append(
+            "architecture options report must declare one positive Workbench "
+            "revision in its visible header"
+        )
+    else:
+        workbench_revision = int(workbench_matches[0])
+    _validate_workbench_audit(
+        visible_report,
+        workbench_revision=workbench_revision,
+        failures=failures,
+    )
+
     decision_section_match = re.search(
         r"^## What Needs Your Decision\s*$\n(.*?)(?=^##\s)",
         visible_report,
         flags=re.DOTALL | re.MULTILINE,
     )
     decision_section = decision_section_match.group(1) if decision_section_match else ""
+    decision_values: dict[str, str] = {}
     for label in REPORT_DECISION_FIELDS:
         field_pattern = re.compile(
             rf"^[ \t]*-[ \t]+\*\*{re.escape(label)}:\*\*[ \t]*(.*?)[ \t]*$",
@@ -1945,6 +2218,29 @@ def _validate_options_report_binding(
                 "architecture options report What Needs Your Decision field "
                 f"{label!r} must have a non-empty visible value"
             )
+        else:
+            decision_values[label] = rendered_value
+
+    report_frame = data.get("evaluation_frame")
+    decision_owner = (
+        report_frame.get("decision_owner")
+        if isinstance(report_frame, dict)
+        else None
+    )
+    owner_summary = decision_values.get("Decision owner / authority", "")
+    if isinstance(decision_owner, dict):
+        normalized_owner_summary = _normalized_report_text(owner_summary)
+        for key in ("identity_or_role", "authority_basis"):
+            owner_value = decision_owner.get(key)
+            if (
+                isinstance(owner_value, str)
+                and _normalized_report_text(owner_value)
+                not in normalized_owner_summary
+            ):
+                failures.append(
+                    "architecture options report Decision owner / authority "
+                    f"must visibly include evaluation_frame.decision_owner.{key}"
+                )
 
     projection_matches = re.findall(
         r"## Machine-Readable Comparison Projection\s+```json\s*\n(.*?)\n```",
@@ -2140,6 +2436,11 @@ def _validate_options_report_binding(
 
     integrity_values = {
         "Report schema": str(REPORT_SCHEMA_VERSION),
+        "Workbench revision": (
+            f"`{workbench_revision}`"
+            if workbench_revision is not None
+            else None
+        ),
         "Project slug": f"`{data.get('project_slug')}`",
         "Capability revision": f"`{data.get('source_capability_revision')}`",
         "Exploration attempt": f"`{data.get('source_exploration_attempt')}`",
@@ -2149,6 +2450,8 @@ def _validate_options_report_binding(
         "Option-set SHA-256": f"`{data.get('option_set_sha256')}`",
     }
     for label, expected in integrity_values.items():
+        if expected is None:
+            continue
         if _report_table_value(visible_report, label) != expected:
             failures.append(
                 f"architecture options report integrity row {label!r} must equal {expected}"
@@ -2159,6 +2462,7 @@ def _validate_options_report_binding(
         "Selected direction": "Not selected",
         "Selected option hash": "Not selected",
         "Decided by": "Not selected",
+        "Approved by": "Not selected",
     }
     for label, expected in awaiting_rows.items():
         if _report_table_value(visible_report, label) != expected:
@@ -2175,6 +2479,7 @@ def validate_document(
     repo_root: Path,
     allow_incomplete: bool = False,
     expected_project_slug: str | None = None,
+    require_current_schema: bool = False,
 ) -> list[str]:
     failures: list[str] = []
     selection_value = data.get("selection")
@@ -2238,12 +2543,17 @@ def validate_document(
             artifact_path=artifact_path,
             repo_root=repo_root,
             selection_status=raw_status,
+            allow_reportless_legacy=not require_current_schema,
             failures=failures,
         )
 
     if transient:
         _validate_selection(
-            selection_value, {}, {}, failures, allow_incomplete=allow_incomplete
+            selection_value,
+            {},
+            {},
+            failures,
+            allow_incomplete=allow_incomplete,
         )
         return failures
 
@@ -2341,6 +2651,7 @@ def validate_document(
         verdicts_by_id,
         failures,
         allow_incomplete=allow_incomplete,
+        decision_owner=evaluation_frame.get("decision_owner"),
     )
 
     supplied_set_hash = data.get("option_set_sha256")
@@ -2387,6 +2698,7 @@ def validate_file(
         repo_root=root,
         allow_incomplete=allow_incomplete,
         expected_project_slug=expected_project_slug,
+        require_current_schema=require_current_schema,
     )
     if require_current_schema and data.get("schema_version") != CURRENT_SCHEMA_VERSION:
         failures.insert(
@@ -2419,7 +2731,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require-current-schema",
         action="store_true",
-        help="reject legacy schema versions (use for fresh exploration output)",
+        help=(
+            "require schema v2 and a present hash-bound comparison report for "
+            "selected directions (fresh output and active consumers)"
+        ),
     )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args(argv)

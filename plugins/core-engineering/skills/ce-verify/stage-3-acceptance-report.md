@@ -52,6 +52,30 @@ verified rule**: `/core-engineering:ce-ship-release` and `/core-engineering:ce-s
 their own range / audience) instead of re-deriving feature state — so write it to be
 read that way.
 
+### 3.4 Derive the Current Verification Receipt
+
+After the report bytes are final, derive—not hand-author—the compact release
+receipt:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/verification-gate.py" create \
+  docs/plans/<slug> --repo-root . --evaluated-commit HEAD --json
+```
+
+The script writes `docs/plans/<slug>/verification-summary.json`. It binds the
+exact report hash, evaluated commit and reviewable repository state, plan
+revision/hash, every reported feature authority/spec/tasks/implementation
+verification file, task-declared implementation files, and the per-feature
+verification/acceptance roll-up. The repository-state digest excludes only
+peer review and workflow evidence expected to be written after verification;
+those artifacts have their own receipts.
+
+Exit 0 means the receipt was written and re-read successfully. Exit 2, malformed
+output, or a missing command is a coverage failure: retain the report, stop the
+verified handoff, and report the exact error. A failed behavioral verdict may
+still have a valid receipt—the receipt proves what was evaluated, not that it
+passed. Never edit JSON to convert a failed or partial verdict.
+
 **Metrics (best-effort, optional).** After writing, append a `stage-complete` line
 (`stage: "verify"`), one `attestation` line for each interactive gate that
 actually fired, and any `escalation` lines to

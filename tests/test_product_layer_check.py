@@ -415,6 +415,48 @@ class DocLinkIntegrity(unittest.TestCase):
             self.assertIn("scripts/not-a-real-check.py", res.stderr)
 
 
+class LeanWorkflowDocs(unittest.TestCase):
+    """The concise public route must keep the breaking workflow semantics."""
+
+    def test_canonical_docs_keep_the_adaptive_path_and_final_release_order(self):
+        readme = (REPO / "README.md").read_text(encoding="utf-8")
+        how = (REPO / "docs" / "HOW-IT-WORKS.md").read_text(encoding="utf-8")
+        matrix = (REPO / "docs" / "USAGE-MATRIX.md").read_text(encoding="utf-8")
+        recipes = (REPO / "docs" / "WORKFLOW-RECIPES.md").read_text(encoding="utf-8")
+
+        for text in (readme, how, matrix, recipes):
+            self.assertIn("compact", text)
+            self.assertIn("explicit", text)
+            self.assertNotIn("single-feature-minimal", text)
+
+        self.assertIn("optional specialist", readme)
+        self.assertIn("Architecture only when load-bearing", how)
+        self.assertIn("question / inspect / adjust", how)
+        self.assertIn("Independent assurance, one handoff", how)
+        self.assertIn("ce-ship-release` is the final workflow", how)
+
+        release = recipes.index("## Recipe 9: Prepare A Release Handoff")
+        next_recipe = recipes.index("\n## Recipe 10:", release)
+        release_recipe = recipes[release:next_recipe]
+        self.assertLess(
+            release_recipe.index("/core-engineering:ce-ship-document"),
+            release_recipe.index("/core-engineering:ce-ship-release"),
+        )
+        self.assertLess(
+            release_recipe.index("/core-engineering:ce-doc-audit"),
+            release_recipe.index("/core-engineering:ce-ship-release"),
+        )
+
+    def test_hitl_docs_do_not_gate_clean_deterministic_results(self):
+        hitl = (
+            REPO / "docs" / "contributing" / "HITL-GATE-STANDARD.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("A gate is for a real human decision", hitl)
+        self.assertIn("a deterministic validator returned PASS", hitl)
+        self.assertIn("inspect or ask a question", hitl)
+        self.assertIn("adjust the frame or an option", hitl)
+
+
 class LiveEvalProvenance(unittest.TestCase):
     def test_ci_summary_top_level_run_id_backs_scenario(self):
         # eval-live's distiller writes one run_id at the summary root and omits

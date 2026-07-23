@@ -31,7 +31,8 @@ Before resolving the run baseline, run:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/<slug>/architecture-selection.json --json
+  docs/plans/<slug>/architecture-selection.json \
+  --require-current-schema --json
 ```
 
 Exit 1 or 2 stops at `/core-engineering:ce-plan` Stage R. Never spawn from a
@@ -47,12 +48,12 @@ from this preflight. Read the lint-validated object exactly as written:
 
 ```text
 architecture_disposition:
-  decision: required | recommended | not-required | waived
+  decision: required | recommended | not-required
   triggers: [<stable trigger ids>]
   rationale: <non-empty>
   decided_by: human
   convergence:
-    status: converged | deferred | not-applicable | waived
+    status: converged | deferred | not-applicable
     iteration_count: <non-negative integer>
     summary: <non-empty>
     decision_refs: [<repo-relative accepted ADR paths>]
@@ -63,6 +64,10 @@ out-of-repository reference is a plan defect: stop and route to Stage R.
 `decision: required` with any convergence status other than `converged` is also
 a Stage-R stop; auto-build cannot finish architecture shaping inside an
 unattended implementation run.
+The only valid combinations are required with a selected direction and
+`converged`; recommended with a selected direction and `converged`, or with
+both direction and convergence explicitly `deferred`; and not-required with
+both direction and convergence `not-applicable`.
 
 Before classifying the canonical package as present or absent, inventory direct
 children of the plan directory whose names start with
@@ -96,14 +101,14 @@ Only lstat-confirmed namespace absence uses this matrix:
 | Plan decision | Auto-build disposition |
 |---|---|
 | `required` + convergence `converged` | Stop and route to `/core-engineering:ce-architecture <slug>`; the required governed package has not been published. |
-| `recommended` | Continue, but add `recommended architecture package absent` plus triggers, rationale, convergence summary, and decision refs to kickoff coverage and the final report. |
+| `recommended` + selected direction + convergence `converged` | Stop and route to `/core-engineering:ce-architecture <slug>`; the selected direction requires its governed package. |
+| `recommended` + direction/convergence `deferred` | Continue, but add `recommended architecture package explicitly deferred` plus triggers, rationale, convergence summary, and decision refs to kickoff coverage and the final report. |
 | `not-required` | Record `Architecture: N/A — plan disposition not-required` and its rationale. |
-| `waived` | Continue, but show the human waiver rationale, triggers, convergence summary, and residual risk in kickoff coverage and the final report. The waiver does not authorize workers to invent architecture. |
 
 An unknown decision/status combination is a plan defect to Stage R. Product,
 security-acceptance, architecture, and boundary decisions discovered later still
-park under the normal worker contract; neither a recommendation gap nor a waiver
-widens worker authority.
+park under the normal worker contract; a recommendation gap does not widen
+worker authority.
 
 Resolve the optional feature range to an explicit ship-ordered list. Reject unknown,
 duplicate, non-contiguous, or dependency-invalid ranges.
@@ -133,9 +138,9 @@ Gate 1 of 2 — Auto-Build Kickoff
 Plan: <slug>
 Features: <explicit ids in ship order>
 Baseline: <commit>
-Architecture: <decision + convergence status + package status/revision, explicit N/A, or waiver>
+Architecture: <decision + convergence status + package status/revision, explicit deferral, or N/A>
 Required checks: <commands/capabilities>
-Coverage gaps: <none or exact gaps, including recommended/waived architecture absence>
+Coverage gaps: <none or exact gaps, including explicitly deferred recommended architecture>
 Token/compute budget: <positive estimate>
 Per-feature failure-attempt cap (`--retry-cap`): <positive integer; recommend 3>
 Consecutive-park cap: <positive integer; recommend 3>

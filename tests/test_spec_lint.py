@@ -17,6 +17,7 @@ threat_ids keyword keeps working (patch-lint calls exactly that).
 """
 
 import importlib.util
+import hashlib
 import json
 import subprocess
 import sys
@@ -260,6 +261,10 @@ class ArchitectureContextH7(unittest.TestCase):
     def write_bound_spec(self, root: Path) -> tuple[Path, Path]:
         spec_dir = write_plan(root, None)
         plan_dir = root / "docs/plans/demo"
+        selection_bytes = json.dumps(
+            {"schema_version": 2, "fixture": True},
+            sort_keys=True,
+        ).encode("utf-8")
         (plan_dir / "plan.json").write_text(
             json.dumps(
                 {
@@ -269,6 +274,7 @@ class ArchitectureContextH7(unittest.TestCase):
                         {
                             "id": "feat-1",
                             "file": "features/feat-1.md",
+                            "specification_route": "explicit",
                         }
                     ],
                     "architecture_disposition": {
@@ -276,6 +282,18 @@ class ArchitectureContextH7(unittest.TestCase):
                         "rationale": "bounded feature-local fixture",
                         "triggers": [],
                         "decided_by": "human",
+                        "direction": {
+                            "status": "not-applicable",
+                            "artifact": "architecture-selection.json",
+                            "artifact_sha256": hashlib.sha256(
+                                selection_bytes
+                            ).hexdigest(),
+                            "exploration_id": "AEX-fixture",
+                            "selected_option_id": None,
+                            "selected_option_sha256": None,
+                            "decided_by": "human",
+                            "summary": "Architecture is not applicable.",
+                        },
                         "convergence": {
                             "status": "not-applicable",
                             "iteration_count": 0,
@@ -289,12 +307,9 @@ class ArchitectureContextH7(unittest.TestCase):
         )
         (plan_dir / "features").mkdir(exist_ok=True)
         (plan_dir / "features/feat-1.md").write_text(
-            "# Feature\n", encoding="utf-8"
+            "# Feature\n\n**Specification route:** explicit\n", encoding="utf-8"
         )
-        (plan_dir / "architecture-selection.json").write_text(
-            json.dumps({"schema_version": 2, "fixture": True}),
-            encoding="utf-8",
-        )
+        (plan_dir / "architecture-selection.json").write_bytes(selection_bytes)
         context = ac.derive_context(plan_dir, "feat-1", repo_root=root)
         tasks = {
             "feature_id": "feat-1",

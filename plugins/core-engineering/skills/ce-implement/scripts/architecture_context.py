@@ -9,7 +9,7 @@ schema records a typed absence without dropping source authority or identity.
 
 Commands:
 
-  architecture_context.py derive <plan-dir> <feature-id> [--plan-mode ...] --json
+  architecture_context.py derive <plan-dir> <feature-id> --json
   architecture_context.py check <spec-dir> [--plan-dir ...] [--feature ...] --json
   architecture_context.py review-binding <spec-dir> [...] --json
 
@@ -78,10 +78,8 @@ V2_MAPPING_ID_FIELDS = (
 )
 CONTEXT_MODES = {
     "package",
-    "single-feature-minimal",
     "not-required",
     "recommended-absent",
-    "waived",
 }
 CONTEXT_KEYS = {
     "schema_version",
@@ -109,6 +107,7 @@ BINDING_KEYS = {
     "commit_sha",
 }
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+SELECTED_DIRECTION_STATUSES = {"direction-selected", "adopted-existing"}
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 PROJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MARKDOWN_CONTEXT_RE = re.compile(
@@ -116,16 +115,6 @@ MARKDOWN_CONTEXT_RE = re.compile(
     r"```json[ \t]+architecture-context[ \t]*\n"
     r"(.*?)\n```[ \t]*$"
 )
-MINIMAL_FORBIDDEN_NAMES = {
-    "plan.json",
-    "architecture-selection.json",
-    "architecture-options.md",
-    "shared-context.md",
-    "threat-model.md",
-    "interaction-contract.md",
-    "features",
-    "architecture",
-}
 class ContextError(Exception):
     """The architecture context could not be derived or checked."""
 
@@ -280,58 +269,6 @@ def _full_plan_contract_sha256(
     return object_sha256(contract)
 
 
-def _minimal_plan_contract_sha256(
-    *,
-    plan_dir: Path,
-    repo_root: Path,
-    project_slug: str,
-    feature_id: str,
-) -> str:
-    """Validate the minimal namespace and bind its sole plan authority."""
-    try:
-        children = list(plan_dir.iterdir())
-    except OSError as exc:
-        raise ContextError(f"minimal plan directory is unreadable: {exc}") from exc
-    transactions = sorted(
-        child.name
-        for child in children
-        if child.name.startswith(".architecture-publish-")
-    )
-    if transactions:
-        raise ContextError(
-            "single-feature-minimal plan has architecture publication state: "
-            + ", ".join(transactions)
-        )
-    occupants = sorted(
-        name
-        for name in MINIMAL_FORBIDDEN_NAMES
-        if _occupies(plan_dir / name)
-    )
-    if occupants:
-        raise ContextError(
-            "single-feature-minimal plan has forbidden full-plan/architecture "
-            "namespace occupant(s): " + ", ".join(occupants)
-        )
-    feature_plan = _regular_file(
-        plan_dir / "feature-plan.md", "single-feature minimal feature-plan.md"
-    )
-    return object_sha256(
-        {
-            "project_slug": project_slug,
-            "feature_id": feature_id,
-            "plan_mode": "single-feature-minimal",
-            "plan": {
-                "path": _repo_relative(repo_root, feature_plan),
-                "sha256": file_sha256(feature_plan),
-            },
-            "feature": {
-                "path": _repo_relative(repo_root, feature_plan),
-                "sha256": file_sha256(feature_plan),
-            },
-        }
-    )
-
-
 def feature_mapping(data: dict, feature_id: str) -> dict:
     """Return the exact canonical schema-v2 feature mapping row."""
     if data.get("schema_version") != 2:
@@ -479,12 +416,66 @@ def _no_package_context(
     }
 
 
+def _architecture_outcome(plan: dict) -> tuple[str, str]:
+    """Return the only valid disposition outcome for downstream consumption.
+
+    Required and converged recommendations must carry a selected direction and
+    therefore require a governed package. A recommendation may omit the package
+    only when both convergence and direction are explicitly deferred.
+    """
+    posture = plan.get("architecture_disposition")
+    if not isinstance(posture, dict):
+        raise ContextError("full plan requires architecture_disposition")
+    decision = posture.get("decision")
+    if decision not in {"required", "recommended", "not-required"}:
+        raise ContextError(f"unknown architecture disposition: {decision!r}")
+    convergence = posture.get("convergence")
+    if not isinstance(convergence, dict):
+        raise ContextError("architecture_disposition.convergence must be an object")
+    convergence_status = convergence.get("status")
+    direction = posture.get("direction")
+    if not isinstance(direction, dict):
+        raise ContextError("architecture_disposition.direction must be an object")
+    direction_status = direction.get("status")
+
+    if decision == "required":
+        if (
+            convergence_status != "converged"
+            or direction_status not in SELECTED_DIRECTION_STATUSES
+        ):
+            raise ContextError(
+                "required architecture must have a selected direction and "
+                "convergence status `converged`"
+            )
+        return decision, "selected"
+    if decision == "recommended":
+        if (
+            convergence_status == "converged"
+            and direction_status in SELECTED_DIRECTION_STATUSES
+        ):
+            return decision, "selected"
+        if convergence_status == "deferred" and direction_status == "deferred":
+            return decision, "deferred"
+        raise ContextError(
+            "recommended architecture must be selected and converged or "
+            "explicitly deferred"
+        )
+    if (
+        convergence_status != "not-applicable"
+        or direction_status != "not-applicable"
+    ):
+        raise ContextError(
+            "not-required architecture must have convergence and direction "
+            "status `not-applicable`"
+        )
+    return decision, "not-applicable"
+
+
 def derive_context(
     plan_dir: Path,
     feature_id: str,
     *,
     repo_root: Path,
-    plan_mode: str = "auto",
     script_dir: Path | None = None,
     lint_package: bool = True,
 ) -> dict:
@@ -505,28 +496,6 @@ def derive_context(
     if PROJECT_SLUG_RE.fullmatch(project_slug) is None:
         raise ContextError("plan-directory name must be lowercase kebab-case")
     plan_path = plan_dir / "plan.json"
-    plan_occupies = _occupies(plan_path)
-    minimal = plan_mode == "single-feature-minimal" or (
-        plan_mode == "auto" and not plan_occupies
-    )
-    if minimal:
-        if plan_occupies:
-            raise ContextError("single-feature-minimal context cannot coexist with plan.json")
-        contract_sha256 = _minimal_plan_contract_sha256(
-            plan_dir=plan_dir,
-            repo_root=repo_root,
-            project_slug=project_slug,
-            feature_id=feature_id,
-        )
-        return _no_package_context(
-            project_slug=project_slug,
-            feature_id=feature_id,
-            plan_contract_sha256=contract_sha256,
-            mode="single-feature-minimal",
-            plan_revision=None,
-            reason="single-feature minimal plan; architecture N/A by construction",
-        )
-
     plan = _load_json(plan_path, "plan.json")
     project_slug = plan.get("project_slug")
     if (
@@ -549,8 +518,14 @@ def derive_context(
         project_slug=project_slug,
         feature_id=feature_id,
     )
+    decision, outcome = _architecture_outcome(plan)
     architecture_dir = plan_dir / "architecture"
     if architecture_dir.exists() or architecture_dir.is_symlink():
+        if outcome != "selected":
+            raise ContextError(
+                f"architecture package is incompatible with {decision} "
+                f"outcome {outcome}"
+            )
         lint_identity = None
         if lint_package:
             lint_identity = _run_architecture_consumer_lint(
@@ -616,21 +591,17 @@ def derive_context(
             "reason": None,
         }
 
-    posture = plan.get("architecture_disposition")
-    if not isinstance(posture, dict):
-        raise ContextError(
-            "full plan without a package requires architecture_disposition"
-        )
-    decision = posture.get("decision")
+    posture = plan["architecture_disposition"]
     rationale = posture.get("rationale")
     if not isinstance(rationale, str) or not rationale.strip():
         raise ContextError("architecture_disposition.rationale must be non-empty")
-    if decision == "required":
-        raise ContextError("required architecture package is absent")
+    if outcome == "selected":
+        raise ContextError(
+            f"{decision} selected and converged architecture package is absent"
+        )
     mode_by_decision = {
         "recommended": "recommended-absent",
         "not-required": "not-required",
-        "waived": "waived",
     }
     mode = mode_by_decision.get(decision)
     if mode is None:
@@ -706,10 +677,7 @@ def validate_context_shape(value: object) -> list[str]:
                 )
 
     plan_revision = value.get("plan_revision")
-    if mode == "single-feature-minimal":
-        if plan_revision is not None:
-            errors.append("single-feature-minimal plan_revision must be null")
-    elif type(plan_revision) is not int or plan_revision < 1:
+    if type(plan_revision) is not int or plan_revision < 1:
         errors.append("full-plan architecture_context.plan_revision must be >= 1")
 
     package_fields = (
@@ -822,11 +790,6 @@ def validate_spec_context(
             resolved_plan,
             resolved_feature,
             repo_root=repo_root,
-            plan_mode=(
-                "single-feature-minimal"
-                if context.get("mode") == "single-feature-minimal"
-                else "auto"
-            ),
             script_dir=script_dir,
         )
     except ContextError as exc:
@@ -875,12 +838,8 @@ def review_binding(
         raise ContextError("; ".join(hard))
 
     plan_path = resolved_plan / "plan.json"
-    if plan_path.is_file():
-        plan_authority = plan_path
-        feature_path = resolved_plan / "features" / f"{resolved_feature}.md"
-    else:
-        plan_authority = resolved_plan / "feature-plan.md"
-        feature_path = plan_authority
+    plan_authority = plan_path
+    feature_path = resolved_plan / "features" / f"{resolved_feature}.md"
     if (
         plan_authority.is_symlink()
         or not plan_authority.is_file()
@@ -1003,6 +962,9 @@ def _review_state_excluded(relative: str) -> bool:
         (".metrics.jsonl",),
         ("STATUS.md",),
         ("code-review.md",),
+        ("review-learnings.md",),
+        ("verification-report.md",),
+        ("verification-summary.json",),
     }:
         return True
     if plan_relative and plan_relative[0] in {"ce-auto-build", "evidence"}:
@@ -1113,6 +1075,80 @@ def repository_state_records(repo_root: Path) -> list[dict]:
     return records
 
 
+def worktree_commit_differences(
+    repo_root: Path, evaluated_commit: str
+) -> list[str]:
+    """Return non-evidence paths that do not materialize evaluated_commit.
+
+    Review receipts intentionally hash the worktree so the producer can write
+    uncommitted review evidence. A release consumer must separately prove that
+    all other worktree bytes are the bytes in the explicitly evaluated commit.
+    """
+    repo_root = repo_root.resolve()
+    commands = (
+        (
+            "tracked",
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-renames",
+                "--ignore-submodules=none",
+                "--name-only",
+                "-z",
+                evaluated_commit,
+                "--",
+            ],
+        ),
+        (
+            "untracked",
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+        ),
+    )
+    differences: set[str] = set()
+    for label, command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ContextError(
+                f"could not compare {label} worktree state to evaluated commit: "
+                f"{exc}"
+            ) from exc
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            raise ContextError(
+                f"could not compare {label} worktree state to evaluated commit: "
+                f"{detail or result.returncode}"
+            )
+        try:
+            decoded = result.stdout.decode("utf-8")
+        except UnicodeError as exc:
+            raise ContextError(
+                f"{label} worktree path listing is not valid UTF-8: {exc}"
+            ) from exc
+        differences.update(
+            relative
+            for relative in decoded.split("\0")
+            if relative and not _review_state_excluded(relative)
+        )
+    return sorted(differences)
+
+
 def validate_binding_shape(value: object) -> list[str]:
     if not isinstance(value, dict):
         return ["binding must be an object"]
@@ -1165,11 +1201,6 @@ def main(argv: list[str] | None = None) -> int:
     derive = sub.add_parser("derive")
     derive.add_argument("plan_dir", type=Path)
     derive.add_argument("feature_id")
-    derive.add_argument(
-        "--plan-mode",
-        choices=("auto", "full", "single-feature-minimal"),
-        default="auto",
-    )
     derive.add_argument("--json", action="store_true")
 
     check = sub.add_parser("check")
@@ -1194,7 +1225,6 @@ def main(argv: list[str] | None = None) -> int:
                 args.plan_dir,
                 args.feature_id,
                 repo_root=repo_root,
-                plan_mode=args.plan_mode,
                 script_dir=Path(__file__).resolve().parent,
             )
             payload = _payload("pass", architecture_context=context)

@@ -3,10 +3,9 @@ name: main-health-canary
 # The 2026-07-03 audit found plugin-validate had been RED on main for ten days —
 # across an entire six-item ship batch — and nobody noticed, because a red
 # required check produces no fresh signal once you stop looking at the runs list.
-# This canary manufactures that signal: it runs on a schedule, reads the latest
-# completed run of each required workflow on main, and FAILS LOUDLY (a new red
-# run + the usual failure notification) if any of them is not green. A red canary
-# is the alarm; the fix is still to green the underlying workflow.
+# This canary manufactures that signal. Ordinary required workflows must be
+# green. eval-live must also publish a fresh evidence-produced receipt; a green
+# run that skipped model execution is not behavioral evidence.
 
 on:
   schedule:
@@ -24,14 +23,17 @@ jobs:
       - name: Assert the required workflows are green on main
         env:
           GH_TOKEN: ${{ github.token }}
-          # The push-required checks whose red state must never go unnoticed,
-          # plus the scheduled live-eval run (dispatch/schedule-only, so only
-          # this canary would ever notice it going red or missing).
+          # Keep the complete inventory on one line: supply_chain_check.py
+          # drift-guards all three names.
           REQUIRED_WORKFLOWS: "plugin-validate.yml secret-scan.yml eval-live.yml"
+          EVAL_EVIDENCE_MAX_AGE_HOURS: "240"
         run: |
           set -euo pipefail
           fail=0
           for wf in $REQUIRED_WORKFLOWS; do
+            if [ "$wf" = "eval-live.yml" ]; then
+              continue
+            fi
             concl=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$wf" \
                       --branch main --status completed --limit 1 \
                       --json conclusion --jq '.[0].conclusion // "missing"')
@@ -41,7 +43,100 @@ jobs:
               fail=1
             fi
           done
+
+          eval_run=$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow eval-live.yml --branch main --status completed --limit 1 \
+            --json databaseId,conclusion,headSha \
+            --jq 'if length == 0 then "0\tmissing\tmissing" else (.[0] | [.databaseId, .conclusion, .headSha] | @tsv) end')
+          IFS=$'\t' read -r eval_run_id eval_conclusion eval_head_sha <<< "$eval_run"
+          echo "eval-live.yml: latest completed run on main = $eval_conclusion (run $eval_run_id)"
+
+          if [ "$eval_conclusion" != "success" ] || [ "$eval_run_id" = "0" ]; then
+            echo "::error title=live eval is not green::eval-live.yml is '$eval_conclusion' on main."
+            fail=1
+          else
+            receipt_dir="$RUNNER_TEMP/eval-live-evidence-$eval_run_id"
+            mkdir -p "$receipt_dir"
+            if ! gh run download "$eval_run_id" --repo "$GITHUB_REPOSITORY" \
+              --name eval-live-evidence --dir "$receipt_dir"; then
+              echo "::error title=live evidence missing::Run $eval_run_id has no eval-live-evidence artifact."
+              fail=1
+            else
+              receipt_path="$receipt_dir/evidence-receipt.json"
+              if RECEIPT_PATH="$receipt_path" \
+                 EXPECTED_RUN_ID="$eval_run_id" \
+                 EXPECTED_SHA="$eval_head_sha" \
+                 MAX_AGE_HOURS="$EVAL_EVIDENCE_MAX_AGE_HOURS" \
+                 python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          path = Path(os.environ["RECEIPT_PATH"])
+          if not path.is_file():
+              raise SystemExit(f"receipt missing: {path}")
+          try:
+              receipt = json.loads(path.read_text(encoding="utf-8"))
+          except (OSError, ValueError) as exc:
+              raise SystemExit(f"receipt unreadable: {exc}")
+
+          expected_run_id = int(os.environ["EXPECTED_RUN_ID"])
+          expected_sha = os.environ["EXPECTED_SHA"]
+          required = {
+              "schema_version": receipt.get("schema_version") == 1,
+              "run_identity": receipt.get("github_run_id") == expected_run_id,
+              "run_sha": receipt.get("workflow_sha") == expected_sha,
+              "evaluated_sha": receipt.get("evaluated_sha") == expected_sha,
+              "evidence_produced": receipt.get("evidence_produced") is True,
+              "produced_status": receipt.get("status") == "produced",
+              "grade_passed": receipt.get("grade_status") == "pass",
+              "scenario_count": (
+                  isinstance(receipt.get("scenario_count"), int)
+                  and receipt["scenario_count"] > 0
+              ),
+              "summary_digest": bool(
+                  re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("summary_sha256", "")))
+              ),
+          }
+          failed = [name for name, passed in required.items() if not passed]
+          if failed:
+              raise SystemExit("receipt failed: " + ", ".join(failed))
+
+          stamp = receipt.get("summary_completed_at")
+          if not isinstance(stamp, str):
+              raise SystemExit("receipt failed: summary_completed_at missing")
+          try:
+              completed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+          except ValueError as exc:
+              raise SystemExit(f"receipt failed: invalid completion time: {exc}")
+          if completed.tzinfo is None:
+              raise SystemExit("receipt failed: completion time has no timezone")
+
+          age_hours = (datetime.now(timezone.utc) - completed).total_seconds() / 3600
+          max_age = float(os.environ["MAX_AGE_HOURS"])
+          if age_hours < -1 or age_hours > max_age:
+              raise SystemExit(
+                  f"receipt failed: evidence is {age_hours:.1f}h old (max {max_age:.1f}h)"
+              )
+          print(
+              f"eval-live.yml: fresh behavioral evidence from run {expected_run_id}, "
+              f"{age_hours:.1f}h old"
+          )
+          PY
+              then
+                :
+              else
+                echo "::error title=live evidence invalid::Run $eval_run_id did not produce a fresh, SHA-bound behavioral-evidence receipt."
+                fail=1
+              fi
+            fi
+          fi
+
           if [ "$fail" -ne 0 ]; then
             exit 1
           fi
-          echo "All required workflows are green on main."
+          echo "Required checks are green and live behavioral evidence is fresh."

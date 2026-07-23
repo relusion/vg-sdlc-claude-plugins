@@ -1,85 +1,54 @@
-# HITL Gate Standard — every decision decidable in place
+# HITL Gate Standard
 
-A presentation discipline for **every interactive Human-in-the-Loop (HITL) gate**
-in the framework. One rule governs it: *a human standing at a gate must have enough
-context and the right authority, in the place the decision is made, to choose well —
-without scrolling back, already knowing framework jargon, guessing outside their
-role, or rubber-stamping.*
+A gate is for a real human decision, not a progress acknowledgement. The person
+at a gate must see enough evidence, alternatives, consequences, and authority
+context to decide without reconstructing the workflow from scrollback.
 
-This is primarily a **contributor discipline** — like the skill-naming rule and
-the doc-currency rule (CLAUDE.md). Prose quality and decision sufficiency cannot be
-mechanically proved, so review and this document remain authoritative. Structural
-backstops in `authoring_check.py` protect the shared glossary, gate-locator
-discipline, and the four-question/four-option harness limit. When you add or edit any
-gate that asks the human to choose, make it conform.
-
-> **This doc is authoring infrastructure — it does not ship with either plugin and no
-> skill reads it at runtime.** This file lives outside the plugin packages in the
-> development repo's `docs/contributing/` directory, so
-> a path like `docs/contributing/HITL-GATE-STANDARD.md` would not resolve in a user's project. Every
-> gate is therefore **self-sufficient**: its behavior, and every gloss it prints, live
-> **inline in the skill text**. Skills cite the standard by name ("HITL Gate Standard
-> R4"), never by a runtime file path. The **runtime home of the shared glossary** below
-> is `/core-engineering:ce-plan` §6.6, which prints it; this doc mirrors it for contributors.
-
-> **The two in-repo exemplars** — the target UX already exists; copy these shapes:
-> - **R1 (decidable-in-the-dialog):** `spec/SKILL.md` → *Human-in-the-Loop*
->   → the **Decision prompt format** block (the `A. <option> — <consequence>` +
->   `Recommendation:` shape) and the **Two-Surface Rendering Rule**
->   (`plan/stage-4-7-gates.md` §5.3).
-> - **R2 (evidence-first verdict):** `implement/SKILL.md` Stage 2 manual
->   verdicts — *"Do the legwork first … so the human renders only the judgment."*
-> - **R3 (material vs routine):** `spec/SKILL.md` → *Human-in-the-Loop — tiered*.
-
----
+This is contributor infrastructure. Installed skills carry the runtime behavior
+inline; `scripts/authoring_check.py` protects locators, dialog limits, and the
+shared glossary.
 
 ## The five rules
 
-**R1 — Decidable-in-the-dialog.** Render the analysis as Markdown first (the
-Two-Surface Rendering Rule), then ask with `AskUserQuestion`. **Every option carries
-its consequence *in the option text*** — what happens if you pick it — so the compact
-dialog is sufficient on its own. Never leave a load-bearing consequence only in
-scrollback.
+**R1 — Gate decisions, not work.** Ask only for a choice, consent, exception,
+or authority-owned judgment. These are not gates:
 
-**R2 — Evidence-first verdict.** For any attestation, **do the legwork and present
-the evidence the human is judging; ask only for the judgment.** Never ask a human to
-*confirm a model-derived assertion* (a security obligation, a data-class, an
-additive-vs-breaking call, a foundation exception) **without showing its basis and
-the concrete cost if it's wrong**, in plain terms the human can weigh. A bare
-"confirm the threat-ids?" restated under a new heading does **not** satisfy R2 — the
-basis and cost-if-wrong must be *rendered*.
+- a deterministic validator returned PASS;
+- a read-only inspection completed;
+- a projection was generated from validated data;
+- a probe or review found no issue;
+- the workflow is moving to its next already-authorized stage.
 
-**R3 — Isolate material attestations and route authority.** A *material* judgment
-(security model, data-class, destructive/irreversible op, scope/boundary, a contract
-break) gets its **own** question — never a bullet inside an informational dump that
-rides through on a single "Approve"/"Write". Up to four independent material
-questions may share one `AskUserQuestion` call, but each keeps its own evidence,
-owner, answer, and checkpointed disposition. A negative assertion is still material;
-"nothing detected" is not an exception. Routine items bulk-approve-with-veto.
+Report those outcomes and continue. A deterministic failure stops or routes;
+the dialog may not reinterpret it as PASS. A clean negative needs a human
+decision only when it depends on a material human-owned classification, such as
+accepting that inferred data is non-personal.
 
-Every material question names the **decision owner or required expertise**. If the
-person at the gate lacks that authority, or the evidence is insufficient, the dialog
-must provide a safe **gather evidence / route to owner / park** path. `Abort` is not a
-substitute for escalation, and silence is never approval. (Material vs routine: see
-the `spec` tiering exemplar.)
+**R2 — Make the decision decidable in place.** Render concise Markdown before
+the dialog. Show the evidence, assumptions, unknowns, cost of being wrong, and
+recommendation. Every option says what happens next.
 
-**R4 — Triage dense gates.** When a gate prints many rows, **lead with "What needs
-your decision"** — only the rows that need a human call (undispositioned, escalated,
-or a non-default override). Collapse the auto-resolved rows to a count — **but never
-collapse a no-silent-caps signal** (e.g. a bulk-`excluded` run; see the glossary).
-**Gloss internal vocabulary on first use**, by *consequence* not by name, reusing the
-shared glossary below.
+**R3 — Keep material authority human-owned.** Product scope, architecture,
+security acceptance, destructive or irreversible operations, contract breaks,
+accepted risk, and release are material. Give each independent decision its own
+question, owner, evidence, and disposition. If the current person lacks evidence
+or authority, offer gather evidence, route to owner, or park. Silence is never
+approval.
 
-**R5 — Locate & label.** Print a locator — **"Gate N of M — \<name\>"** — at each
-interactive gate, where **M is the gates that will actually fire this run** (compute
-it; conditional gates change it — say so, never a hardcoded constant). Label every
-option by its consequence/what-happens-next, not a bare verb. A round that needs more
-than the harness allows per `AskUserQuestion` call (≤ 4 questions, ≤ 4 options each)
-**splits with a stated reason** — no silent cap. **The locator doubles as the
-telemetry key:** the same `Gate N of M — <name>` string a gate prints is what its
-`attestation` metrics line records in `gate_index` (the metrics-stream schema in
-`/core-engineering:ce-retro`'s `SKILL.md`) — one vocabulary for the human *and* the audit trail,
-never a second one to drift.
+Architecture selection is the exemplar: retain two to four complete options
+when viable, explicit criteria and weights, repository evidence, trade-offs,
+unknowns, recommendation, confidence, and sensitivity. At the same locator the
+human can select, inspect or ask a question, adjust the frame or an option, or
+park. Recompute after an adjustment; bind only the selected final snapshot.
+
+**R4 — Show only what needs a decision.** Lead dense gates with “What needs your
+decision.” Summarize deterministic passes and clean routine rows. Preserve any
+signal whose aggregation would hide material scope or risk.
+
+**R5 — Locate and constrain the interaction.** Print `Gate N of M — <name>` for
+each gate that actually fires. Use at most four questions and four options per
+question. Split a larger interaction under the same locator and state why. The
+locator is also the `gate_index` telemetry key.
 
 ---
 
@@ -167,31 +136,31 @@ registered in `GLOSSARY_ANCHORS` — A11, not A9, keeps it and its per-skill map
 
 ## Templates
 
-**Decision-prompt (R1/R3)** — Markdown analysis first, then the dialog:
+**Decision prompt** — render evidence first, then ask:
 
 ```text
 Gate N of M — <name>
 
-Decision [D-n] — <short title>   [material | routine]
+Decision [D-n] — <short title> [material]
 Decision owner: <role or required expertise; say who may accept the risk>
-Context:    <1–3 sentences, jargon glossed>
+Evidence:   <repository facts and deterministic results>
+Unknowns:   <material uncertainty>
+If wrong:   <concrete consequence>
 Question:   <the question>
 Options:
   A. <option> — <what happens if you pick this>
   B. <option> — <what happens if you pick this>
-  C. Need evidence / route to <owner> / park — no decision is recorded
+  C. Inspect or gather evidence — return to this locator
+  D. Route to <owner> or park — no decision is recorded
 Recommendation: <A/B> — <reasoning>
 Confidence: <high/medium/low> — <basis and material unknowns>
 ```
 
-**Evidence-first attestation (R2)** — for a model-derived assertion:
+**No-gate result** — report and continue:
 
 ```text
-<Assertion>, because: <the concrete basis — the boundary crossed / the noun's
-attribute / the consumers enumerated>.
-If this is wrong: <one concrete sentence — what ships unguarded / what breaks>.
-
-Confirm  /  Override (state the reason)  /  Need evidence or route to owner
+<check>: PASS — <short evidence reference>
+Next: <already-authorized stage>
 ```
 
 **Triage lead for a dense gate (R4):**
@@ -220,8 +189,9 @@ glossary). The spine's gates and their load-bearing terms:
 | `/core-engineering:ce-plan` §8.2 threat-id confirm | TZ-NNN, trust boundary, surface-don't-force |
 | `/core-engineering:ce-plan` §8.2.2 interaction-contract confirm | IC-NNN/[CONTRACT], idempotency, at-least-once, per-key ordering |
 | `/core-engineering:ce-spec` §3.5 shared-shape | additive vs breaking, consumer, Boundary Conflict |
-| `/core-engineering:ce-auto-build` end-review (shared-shape attestation) | additive vs breaking, consumer, Boundary Conflict, provisional |
+| `/core-engineering:ce-auto-build` end review | additive vs breaking, consumer, Boundary Conflict, provisional |
 
-This standard is applied across the `/core-engineering:ce-brief → /core-engineering:ce-plan → /core-engineering:ce-spec → /core-engineering:ce-implement` spine; see
-`docs/HOW-IT-WORKS.md` §6 (*Human owns judgment*). `/core-engineering:ce-spec`'s resolve-unknowns and
-`/core-engineering:ce-implement`'s manual-verdict gates are the **exemplars** the rest conform to.
+This standard applies across the adaptive plan and build path. A brief is
+optional; explicit specification is conditional; compact work may let
+implementation compose and lint the canonical spec artifacts. Material
+decisions never disappear with the shorter route.

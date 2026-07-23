@@ -1,5 +1,7 @@
 # 02-share-snippet — Share a snippet by link
 
+**Specification route:** explicit
+
 **Type:** user-facing · **Depends on:** 01-create-snippet · **Engineered path:** PARK
 
 This feature carries an **unresolved blocking product decision**. A spawned spec agent

@@ -47,10 +47,13 @@ class WriteLease(unittest.TestCase):
         contract = VERIFY_SKILL.read_text(encoding="utf-8")
         self.assertIn("--set --skill ce-verify", contract)
         self.assertIn("docs/plans/**/verification-report.md", contract)
+        self.assertIn("docs/plans/**/verification-summary.json", contract)
         self.assertIn("docs/plans/**/.metrics.jsonl", contract)
         self.assertIn("--restore-baseline", contract)
 
         reporting = VERIFY_REPORT_STAGE.read_text(encoding="utf-8")
+        self.assertIn("scripts/verification-gate.py", reporting)
+        self.assertIn("verification-summary.json", reporting)
         self.assertIn("one `attestation` line for each interactive gate", reporting)
         self.assertIn("exactly one best-effort `run-terminal`", reporting)
         self.assertIn("resolved model, Claude CLI, and plugin versions", reporting)

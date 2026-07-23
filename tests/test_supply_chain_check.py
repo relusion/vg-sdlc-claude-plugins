@@ -1,11 +1,14 @@
 """Tests for scripts/supply_chain_check.py, the enterprise hardening drift gate."""
 
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -26,6 +29,15 @@ def copy_repo(tmp: Path) -> Path:
     for sub in (".github", "action", "docs", "evals", "plugins", "scripts", "templates"):
         shutil.copytree(REPO / sub, dst / sub, ignore=shutil.ignore_patterns("__pycache__"))
     return dst
+
+
+def workflow_python(name: str) -> str:
+    """Extract the first quoted-PY heredoc body from a workflow."""
+    text = (REPO / ".github" / "workflows" / name).read_text(encoding="utf-8")
+    marker = "python3 - <<'PY'\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\n          PY", start)
+    return textwrap.dedent(text[start:end])
 
 
 class SupplyChainCheck(unittest.TestCase):
@@ -96,13 +108,146 @@ class SupplyChainCheck(unittest.TestCase):
             workflow.write_text(
                 workflow.read_text(encoding="utf-8")
                 .replace("summary.json", "receipt.json")
-                .replace("timeout-minutes: 225", "timeout-minutes: 90"),
+                .replace("timeout-minutes: 240", "timeout-minutes: 90"),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
             self.assertIn("summary.json", res.stderr)
             self.assertIn("timeout-minutes must be at least", res.stderr)
+
+    def test_eval_live_receipt_distinguishes_produced_from_skipped(self):
+        script = workflow_python("eval-live.yml")
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            run_dir.mkdir()
+            summary_file = Path(tmp) / "step-summary.md"
+            sha = "a" * 40
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            (run_dir / "summary.json").write_text(
+                json.dumps({
+                    "run_id": "live-1",
+                    "completed_at": now,
+                    "git_head": sha,
+                    "source_clean": True,
+                    "dry_run": False,
+                    "grade_status": "pass",
+                    "grade_returncode": 0,
+                    "graded_scenarios": ["EVAL-001"],
+                    "scenarios": [{
+                        "id": "EVAL-001",
+                        "status": "pass",
+                        "returncode": 0,
+                    }],
+                }),
+                encoding="utf-8",
+            )
+            env = {
+                **os.environ,
+                "EVAL_RUN_DIR": str(run_dir),
+                "GITHUB_SHA": sha,
+                "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_REPOSITORY": "org/repo",
+                "GITHUB_STEP_SUMMARY": str(summary_file),
+                "PROFILE": "smoke",
+                "HAVE_KEY": "true",
+                "LIVE_RUN_OUTCOME": "success",
+            }
+            produced = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            self.assertEqual(produced.returncode, 0, produced.stderr)
+            receipt = json.loads(
+                (run_dir / "evidence-receipt.json").read_text(encoding="utf-8")
+            )
+            self.assertIs(receipt["evidence_produced"], True)
+            self.assertEqual(receipt["status"], "produced")
+            self.assertEqual(receipt["evaluated_sha"], sha)
+
+            (run_dir / "summary.json").unlink()
+            env["HAVE_KEY"] = "false"
+            skipped = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            self.assertEqual(skipped.returncode, 0, skipped.stderr)
+            receipt = json.loads(
+                (run_dir / "evidence-receipt.json").read_text(encoding="utf-8")
+            )
+            self.assertIs(receipt["evidence_produced"], False)
+            self.assertEqual(receipt["status"], "skipped")
+
+    def test_main_health_receipt_validator_requires_fresh_produced_evidence(self):
+        script = workflow_python("main-health-canary.yml")
+        with tempfile.TemporaryDirectory() as tmp:
+            receipt_path = Path(tmp) / "evidence-receipt.json"
+            sha = "b" * 40
+            receipt = {
+                "schema_version": 1,
+                "github_run_id": 456,
+                "workflow_sha": sha,
+                "evaluated_sha": sha,
+                "evidence_produced": True,
+                "status": "produced",
+                "grade_status": "pass",
+                "scenario_count": 1,
+                "summary_sha256": "c" * 64,
+                "summary_completed_at": (
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                ),
+            }
+            env = {
+                **os.environ,
+                "RECEIPT_PATH": str(receipt_path),
+                "EXPECTED_RUN_ID": "456",
+                "EXPECTED_SHA": sha,
+                "MAX_AGE_HOURS": "240",
+            }
+
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            fresh = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            self.assertEqual(fresh.returncode, 0, fresh.stderr)
+
+            receipt["evidence_produced"] = False
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            skipped = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            self.assertNotEqual(skipped.returncode, 0)
+            self.assertIn("evidence_produced", skipped.stderr)
+
+            receipt["evidence_produced"] = True
+            receipt["summary_completed_at"] = (
+                datetime.now(timezone.utc) - timedelta(days=11)
+            ).isoformat().replace("+00:00", "Z")
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            stale = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            self.assertNotEqual(stale.returncode, 0)
+            self.assertIn("old", stale.stderr)
 
     def test_eval_live_workflow_trigger_allowlist_rejects_extra_triggers(self):
         for trigger in ("pull_request", "push", "workflow_call", "issues"):
@@ -181,7 +326,9 @@ class SupplyChainCheck(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             canary = repo / ".github" / "workflows" / "main-health-canary.yml"
             canary.write_text(
-                canary.read_text(encoding="utf-8").replace(" eval-live.yml", ""),
+                canary.read_text(encoding="utf-8").replace(
+                    "eval-live.yml", "eval-disabled.yml"
+                ),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))

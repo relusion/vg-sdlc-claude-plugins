@@ -35,6 +35,7 @@ SELECTION_SCRIPT = (
     REPO
     / "plugins/core-engineering/skills/ce-plan-audit/scripts/architecture-selection-lint.py"
 )
+SELECTION_TEST_SUPPORT = REPO / "tests/test_architecture_selection_lint.py"
 
 _spec = importlib.util.spec_from_file_location("plan_lint_mod", SCRIPT)
 pl = importlib.util.module_from_spec(_spec)
@@ -45,6 +46,12 @@ _selection_spec = importlib.util.spec_from_file_location(
 )
 sl = importlib.util.module_from_spec(_selection_spec)
 _selection_spec.loader.exec_module(sl)
+
+_selection_support_spec = importlib.util.spec_from_file_location(
+    "architecture_selection_test_support", SELECTION_TEST_SUPPORT
+)
+selection_support = importlib.util.module_from_spec(_selection_support_spec)
+_selection_support_spec.loader.exec_module(selection_support)
 
 
 # --- Golden-shaped legacy three-feature plan (H1–H10 green; A13 expected) -----
@@ -69,6 +76,7 @@ GOLDEN_MANIFEST = {
     "features": [
         {
             "id": "01-auth", "title": "Auth", "type": "foundation",
+            "specification_route": "explicit",
             "final_complexity": "Moderate", "risk_profile": "low", "ship_order": 1,
             "file": "features/01-auth.md",
             "dependencies": {"hard": [], "soft": []},
@@ -77,12 +85,14 @@ GOLDEN_MANIFEST = {
         },
         {
             "id": "02-orders", "title": "Orders", "type": "user-facing",
+            "specification_route": "explicit",
             "final_complexity": "Complex", "risk_profile": "medium", "ship_order": 2,
             "file": "features/02-orders.md",
             "dependencies": {"hard": [{"id": "01-auth"}], "soft": []},
         },
         {
             "id": "03-history", "title": "History", "type": "user-facing",
+            "specification_route": "compact",
             "final_complexity": "Simple", "risk_profile": "low", "ship_order": 3,
             "file": "features/03-history.md",
             "dependencies": {"hard": [{"id": "02-orders"}], "soft": []},
@@ -118,7 +128,10 @@ def build_plan(root: Path, manifest: dict, *,
         rel = f.get("file")
         if isinstance(rel, str) and rel:
             (plan_dir / rel).write_text(
-                f"## {f['id']}\n\n### Structured Metadata\n\n```yaml\nid: {f['id']}\n```\n",
+                f"## {f['id']}\n\n"
+                f"**Specification route:** "
+                f"{f.get('specification_route', 'explicit')}\n\n"
+                f"### Structured Metadata\n\n```yaml\nid: {f['id']}\n```\n",
                 encoding="utf-8",
             )
     if feature_plan is not None:
@@ -188,6 +201,7 @@ def attach_valid_direction(plan_dir: Path) -> dict:
             {
                 "criterion_id": cid,
                 "score": 4,
+                "basis": f"Selected direction fit against {cid}.",
                 "evidence_state": "recorded",
                 "evidence": [source_rel],
             }
@@ -211,6 +225,13 @@ def attach_valid_direction(plan_dir: Path) -> dict:
     evaluation_frame = {
         "project_intent": "Validate the smoke plan without widening scope.",
         "non_goals": ["Replace the existing runtime."],
+        "decision_owner": {
+            "identity_or_role": "Smoke Architecture Owner",
+            "authority_basis": (
+                "The repository test plan assigns solution-direction approval "
+                "to the Smoke Architecture Owner."
+            ),
+        },
         "architecture_applicability": "required",
         "driver_screen": [
             {
@@ -257,7 +278,7 @@ def attach_valid_direction(plan_dir: Path) -> dict:
         ],
     }
     selection = {
-        "schema_version": 1,
+        "schema_version": 2,
         "project_slug": "smoke",
         "exploration_id": f"AEX-{option_set_sha256[:12]}",
         "source_capability_revision": 1,
@@ -284,11 +305,24 @@ def attach_valid_direction(plan_dir: Path) -> dict:
             "option_id": "A01",
             "option_sha256": option["option_sha256"],
             "decided_by": "human",
+            "approved_by": "Smoke Architecture Owner",
             "rationale": "Human selected the viable direction.",
         },
         "next_owner": "ce-plan",
     }
     selection["source_input_sha256"] = sl.source_input_hash(selection)
+    report = plan_dir / "architecture-options.md"
+    report.write_text(
+        selection_support.render_options_report(selection),
+        encoding="utf-8",
+    )
+    selection["architecture_options_report"] = {
+        "schema_version": 1,
+        "status": "present",
+        "path": "architecture-options.md",
+        "sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+        "reason": None,
+    }
     artifact = plan_dir / "architecture-selection.json"
     artifact.write_text(json.dumps(selection, indent=2) + "\n", encoding="utf-8")
     manifest = json.loads((plan_dir / "plan.json").read_text(encoding="utf-8"))
@@ -338,6 +372,73 @@ class GoldenAndRegression(unittest.TestCase):
         pdir = build_plan(self.root, m)
         hard, _ = lint(pdir)
         self.assertTrue(has(hard, "H1"), hard)
+
+
+class SpecificationRouteH11(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_manifest_authority_and_single_matching_projection_pass(self):
+        pdir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
+        hard, _ = lint(pdir)
+        self.assertEqual(has(hard, "H11"), [], hard)
+
+    def test_missing_or_unknown_manifest_route_fails(self):
+        for case, value in (("missing", None), ("unknown", "auto")):
+            with self.subTest(case=case):
+                case_root = self.root / case
+                manifest = copy.deepcopy(GOLDEN_MANIFEST)
+                if value is None:
+                    manifest["features"][0].pop("specification_route")
+                else:
+                    manifest["features"][0]["specification_route"] = value
+                hard, _ = lint(build_plan(case_root, manifest))
+                self.assertTrue(has(hard, "H11"), hard)
+
+    def test_missing_duplicate_or_mismatched_projection_fails(self):
+        for case in ("missing", "duplicate", "mismatch"):
+            with self.subTest(case=case):
+                case_root = self.root / case
+                pdir = build_plan(case_root, copy.deepcopy(GOLDEN_MANIFEST))
+                feature = pdir / "features/01-auth.md"
+                text = feature.read_text(encoding="utf-8")
+                if case == "missing":
+                    text = text.replace("**Specification route:** explicit\n\n", "")
+                elif case == "duplicate":
+                    text += "\n**Specification route:** explicit\n"
+                else:
+                    text = text.replace(
+                        "**Specification route:** explicit",
+                        "**Specification route:** compact",
+                    )
+                feature.write_text(text, encoding="utf-8")
+                hard, _ = lint(pdir)
+                self.assertTrue(has(hard, "H11"), hard)
+
+    def test_complex_feature_cannot_take_compact_route(self):
+        manifest = copy.deepcopy(GOLDEN_MANIFEST)
+        manifest["features"][1]["specification_route"] = "compact"
+        pdir = build_plan(self.root, manifest)
+        feature = pdir / manifest["features"][1]["file"]
+        feature.write_text(
+            feature.read_text(encoding="utf-8").replace(
+                "**Specification route:** explicit",
+                "**Specification route:** compact",
+            ),
+            encoding="utf-8",
+        )
+
+        hard, _ = lint(pdir)
+
+        self.assertTrue(has(hard, "H11"), hard)
+        self.assertTrue(
+            any("`final_complexity` is `Complex`" in item for item in hard),
+            hard,
+        )
 
 
 class BridgeResolutionH7(unittest.TestCase):
@@ -494,6 +595,7 @@ class ArchitectureDispositionH9(unittest.TestCase):
         posture["convergence"]["status"] = "waived"
         hard, _ = self._lint_posture(posture)
         joined = " ".join(has(hard, "H9"))
+        self.assertIn("convergence.status", joined)
         self.assertIn("`converged` or `deferred`", joined)
         self.assertIn("at least one trigger", joined)
 
@@ -529,31 +631,16 @@ class ArchitectureDispositionH9(unittest.TestCase):
         self.assertIn("iteration_count 0", joined)
         self.assertIn("empty triggers", joined)
 
-    def test_waiver_needs_trigger_and_explicit_human_evidence(self):
+    def test_retired_waiver_is_rejected_as_unknown(self):
         posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
         posture["decision"] = "waived"
         posture["convergence"]["status"] = "waived"
-        hard, _ = self._lint_posture(posture)
-        self.assertEqual(has(hard, "H9"), [], hard)
-
-        posture["triggers"] = []
-        posture["rationale"] = ""
-        posture["decided_by"] = "agent"
-        posture["convergence"]["summary"] = ""
         hard, _ = self._lint_posture(posture)
         joined = " ".join(has(hard, "H9"))
-        self.assertIn("rationale", joined)
-        self.assertIn("decided_by", joined)
-        self.assertIn("summary", joined)
-        self.assertIn("at least one trigger", joined)
-
-    def test_waiver_requires_a_recorded_iteration(self):
-        posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
-        posture["decision"] = "waived"
-        posture["convergence"]["status"] = "waived"
-        posture["convergence"]["iteration_count"] = 0
-        hard, _ = self._lint_posture(posture)
-        self.assertIn("iteration_count >= 1", " ".join(has(hard, "H9")))
+        self.assertIn("architecture_disposition.decision", joined)
+        self.assertIn("architecture_disposition.convergence.status", joined)
+        self.assertNotIn("'waived'", str(sorted(pl.ARCHITECTURE_DECISIONS)))
+        self.assertNotIn("'waived'", str(sorted(pl.ARCHITECTURE_CONVERGENCE_STATES)))
 
     def test_unknown_and_duplicate_triggers_are_hard_failures(self):
         posture = copy.deepcopy(ARCHITECTURE_DISPOSITION)
@@ -636,6 +723,34 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
         self.assertEqual(has(hard, "H10"), [], hard)
         self.assertEqual(has(advisory, "A13"), [], advisory)
 
+    def test_active_direction_consumer_rejects_legacy_selection_schema(self):
+        plan_dir, _ = self._plan_with_direction()
+        artifact = plan_dir / "architecture-selection.json"
+        selection = json.loads(artifact.read_text(encoding="utf-8"))
+        selection["schema_version"] = 1
+        selection.pop("architecture_options_report")
+        artifact.write_text(json.dumps(selection, indent=2) + "\n", encoding="utf-8")
+        manifest = self._manifest(plan_dir)
+        manifest["architecture_disposition"]["direction"]["artifact_sha256"] = (
+            hashlib.sha256(artifact.read_bytes()).hexdigest()
+        )
+        self._write_manifest(plan_dir, manifest)
+
+        diagnostic_hard, _ = lint(plan_dir)
+        self.assertEqual(has(diagnostic_hard, "H10"), [], diagnostic_hard)
+
+        consumer_hard, _ = lint(
+            plan_dir,
+            require_architecture_direction=True,
+        )
+        self.assertTrue(
+            any(
+                "fresh exploration output must use current schema_version 2" in item
+                for item in has(consumer_hard, "H10")
+            ),
+            consumer_hard,
+        )
+
     def test_missing_direction_is_advisory_by_default_and_hard_when_required(self):
         plan_dir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
         hard, advisory = lint(plan_dir)
@@ -691,7 +806,7 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
             " ".join(has(hard, "H10")),
         )
 
-    def test_post_decomposition_waiver_preserves_selected_direction(self):
+    def test_retired_waiver_cannot_preserve_a_selected_direction(self):
         plan_dir, _ = self._plan_with_direction()
         manifest = self._manifest(plan_dir)
         posture = manifest["architecture_disposition"]
@@ -699,7 +814,9 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
         posture["convergence"]["status"] = "waived"
         self._write_manifest(plan_dir, manifest)
         hard, _ = lint(plan_dir)
-        self.assertEqual(has(hard, "H10"), [], hard)
+        joined = " ".join(has(hard, "H9"))
+        self.assertIn("architecture_disposition.decision", joined)
+        self.assertIn("architecture_disposition.convergence.status", joined)
 
     def test_selection_artifact_must_not_be_a_symlink(self):
         plan_dir, _ = self._plan_with_direction()

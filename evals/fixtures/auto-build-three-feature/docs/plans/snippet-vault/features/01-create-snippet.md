@@ -1,5 +1,7 @@
 # 01-create-snippet — Create a snippet
 
+**Specification route:** explicit
+
 **Type:** foundation · **Depends on:** none · **Engineered path:** clean build
 
 Fully specified, no open questions. This is the clean-build feature: a spawned

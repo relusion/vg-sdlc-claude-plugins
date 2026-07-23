@@ -4,10 +4,11 @@ name: eval-live
 # a hard per-scenario budget cap. Triggers are manual dispatch + a weekly
 # schedule ONLY, so the API-key secret is never exposed to code arriving from
 # external contributions. Without the ANTHROPIC_API_KEY Actions secret the job
-# skips with an explicit notice — never a green run that implies live evidence
-# was produced. Run records persist as CI artifacts; nothing is committed back
-# to the repository by CI (curated summaries are copied into evals/results/ by
-# a human when refreshing docs/BENCHMARKS.md).
+# skips with an explicit notice. Every run writes an evidence receipt, including
+# skips; only a clean, graded, SHA-bound live summary sets
+# evidence_produced=true. Run records persist as CI artifacts; nothing is
+# committed back to the repository by CI (curated summaries are copied into
+# evals/results/ by a human when refreshing docs/BENCHMARKS.md).
 
 on:
   workflow_dispatch:
@@ -41,9 +42,9 @@ env:
 jobs:
   live-evals:
     runs-on: ubuntu-latest
-    # The full profile's sequential scenario deadlines total 195 minutes.
-    # Leave setup/artifact headroom so the runner can write timeout receipts.
-    timeout-minutes: 225
+    # The full profile runs scenarios sequentially. Keep enough headroom for the
+    # interactive architecture workbench, setup, and timeout-receipt uploads.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -76,6 +77,7 @@ jobs:
         run: curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_VERSION"
 
       - name: Run live evals (hard budget cap)
+        id: live_run
         if: steps.gate.outputs.have-key == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -101,10 +103,112 @@ jobs:
           fi
           python3 -m json.tool "$EVAL_RUN_DIR/summary.json"
 
-      - name: Upload run records
-        if: always() && steps.gate.outputs.have-key == 'true'
+      - name: Write behavioral-evidence receipt
+        if: always()
+        env:
+          HAVE_KEY: ${{ steps.gate.outputs.have-key }}
+          LIVE_RUN_OUTCOME: ${{ steps.live_run.outcome }}
+          PROFILE: ${{ inputs.profile || 'smoke' }}
+        run: |
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          out_dir = Path(os.environ["EVAL_RUN_DIR"])
+          out_dir.mkdir(parents=True, exist_ok=True)
+          summary_path = out_dir / "summary.json"
+          receipt_path = out_dir / "evidence-receipt.json"
+          expected_sha = os.environ["GITHUB_SHA"]
+
+          receipt = {
+              "schema_version": 1,
+              "github_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "github_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_sha": expected_sha,
+              "profile": os.environ["PROFILE"],
+              "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "live_run_outcome": os.environ.get("LIVE_RUN_OUTCOME", "unknown"),
+              "evidence_produced": False,
+              "status": "invalid",
+              "reason": "runner summary was not validated",
+          }
+
+          if os.environ.get("HAVE_KEY") != "true":
+              receipt.update(status="skipped", reason="ANTHROPIC_API_KEY is not configured")
+          elif not summary_path.is_file():
+              receipt.update(reason="summary.json is missing")
+          else:
+              try:
+                  raw = summary_path.read_bytes()
+                  summary = json.loads(raw)
+                  scenarios = summary.get("scenarios")
+                  scenario_ids = {
+                      item.get("id")
+                      for item in scenarios
+                      if isinstance(item, dict) and isinstance(item.get("id"), str)
+                  } if isinstance(scenarios, list) else set()
+                  all_scenarios_passed = bool(scenarios) and all(
+                      isinstance(item, dict)
+                      and item.get("status") == "pass"
+                      and item.get("returncode") == 0
+                      for item in scenarios
+                  )
+                  graded = summary.get("graded_scenarios")
+                  graded_ids = {
+                      item for item in graded if isinstance(item, str)
+                  } if isinstance(graded, list) else set()
+                  checks = {
+                      "non_dry_run": summary.get("dry_run") is False,
+                      "clean_source": summary.get("source_clean") is True,
+                      "sha_bound": summary.get("git_head") == expected_sha,
+                      "grade_passed": (
+                          summary.get("grade_status") == "pass"
+                          and summary.get("grade_returncode") == 0
+                      ),
+                      "scenarios_passed": all_scenarios_passed,
+                      "all_scenarios_graded": bool(scenario_ids)
+                      and scenario_ids.issubset(graded_ids),
+                  }
+                  produced = all(checks.values())
+                  failed = [name for name, passed in checks.items() if not passed]
+                  receipt.update({
+                      "evidence_produced": produced,
+                      "status": "produced" if produced else "invalid",
+                      "reason": "validated live summary" if produced else (
+                          "summary failed: " + ", ".join(failed)
+                      ),
+                      "summary_sha256": hashlib.sha256(raw).hexdigest(),
+                      "summary_run_id": summary.get("run_id"),
+                      "summary_completed_at": summary.get("completed_at"),
+                      "evaluated_sha": summary.get("git_head"),
+                      "grade_status": summary.get("grade_status"),
+                      "scenario_count": len(scenarios) if isinstance(scenarios, list) else 0,
+                  })
+              except (OSError, ValueError, TypeError) as exc:
+                  receipt.update(reason=f"summary.json is unreadable: {type(exc).__name__}")
+
+          receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps(receipt, indent=2))
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as summary_out:
+              summary_out.write(
+                  "## Live-eval evidence\n\n"
+                  f"- status: `{receipt['status']}`\n"
+                  f"- evidence produced: `{str(receipt['evidence_produced']).lower()}`\n"
+                  f"- reason: {receipt['reason']}\n"
+              )
+          PY
+
+      - name: Upload evidence receipt and run records
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: eval-live-${{ github.run_id }}-${{ github.run_attempt }}
+          name: eval-live-evidence
           path: ${{ env.EVAL_RUN_DIR }}
           retention-days: 90
+          if-no-files-found: error

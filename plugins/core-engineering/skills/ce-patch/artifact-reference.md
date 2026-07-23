@@ -11,7 +11,7 @@ directory outside the repository:
 
 ```json
 {
-  "files": ["path/to/implementation", "path/to/test"],
+  "files": ["path/to/target", "path/to/test-if-behavior"],
   "desc": "one-line requested change"
 }
 ```
@@ -19,8 +19,9 @@ directory outside the repository:
 Rules:
 
 - `files` contains one or two unique, repository-relative paths.
-- The array is the frozen Scope Lock and includes every code/test file the change may
-  touch. Do not mutate it after admission.
+- The array is the frozen Scope Lock and includes every edited file. Behavior
+  mode includes its focused test; content mode may contain only the target when
+  its deterministic check is external. Do not mutate it after admission.
 - `desc` is the user's request, kept on one line so the safety screen can inspect it.
 - Delete the temporary stub when the run accepts, discards, or routes to `/core-engineering:ce-plan`.
 
@@ -39,12 +40,18 @@ explicit **Accept** choice:
 {
   "ts": "<ISO-8601 timestamp>",
   "desc": "<one-line requested change>",
-  "files": ["path/to/implementation", "path/to/test"],
+  "files": ["path/to/target", "path/to/test-if-behavior"],
   "base_ref": "<git commit captured before editing>",
-  "tests": {
-    "command": "<exact focused test command>",
-    "red": true,
-    "green": true
+  "evidence": {
+    "mode": "behavior | content",
+    "before": {
+      "command": "<exact read-only command>",
+      "result": "<expected failure or demonstrated old state>"
+    },
+    "after": {
+      "command": "<exact verification command>",
+      "result": "<green result or demonstrated requested state>"
+    }
   },
   "checks": {
     "admission": "pass",
@@ -57,6 +64,10 @@ explicit **Accept** choice:
 
 The line must be valid single-line JSON. Preserve existing lines byte-for-byte and
 append; never rewrite the ledger to format or sort it.
+
+For behavior mode, `before` and `after` are the focused red/green test. For
+content mode, they are the predefined deterministic state checks; do not add a
+fictional test result.
 
 No line is written for a refused, inconclusive, revised-in-progress, discarded, or
 routed change. The ledger records accepted usage; it is not proof of review quality,

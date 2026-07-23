@@ -40,8 +40,8 @@ Auto-build provides supervised autonomy, not release authority.
 - A full plan must pass `plan-lint.py` and carry a valid
   `architecture_disposition`. Every present architecture package is consumer-linted.
   A `required` + `converged` disposition needs a current published
-  `accepted-for-specification` package before kickoff; recommended absence and a
-  human waiver are explicit kickoff coverage, never silent defaults.
+  `accepted-for-specification` package before kickoff; explicitly deferred
+  recommended absence is kickoff coverage, never a silent default.
 - Product, security-acceptance, destructive, architectural, and scope decisions are
   parked for the human. They are never guessed to keep the batch moving.
 - The run never creates branches or commits, pushes, opens or merges pull requests,

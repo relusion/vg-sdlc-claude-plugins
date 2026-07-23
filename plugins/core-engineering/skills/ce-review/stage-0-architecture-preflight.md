@@ -5,23 +5,20 @@ autonomous review. It is read-only and precedes findings.
 
 ## 1. Validate the plan and selected direction
 
-For a full plan, before trusting the spec, run:
+Before trusting the spec, require the canonical plan authorities and run:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
   docs/plans/<slug> --require-architecture-direction --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/<slug>/architecture-selection.json --json
+  docs/plans/<slug>/architecture-selection.json \
+  --require-current-schema --json
 ```
 
 Exit 1 routes plan/selection defects to `/core-engineering:ce-plan`. Exit 2
 stops as an integrity/tooling gap. Load each validated
 `architecture_disposition.convergence.decision_refs` path and require one
 regular in-repository ADR with `Status: accepted`.
-
-For `single-feature-minimal`, require the exact valid minimal shape from
-`SKILL.md`; plan/selection/package checks are N/A by construction, but the
-spec's typed minimal architecture context remains mandatory.
 
 ## 2. Validate publication state and package
 
@@ -44,9 +41,9 @@ Only confirmed absence uses:
 | Plan decision | Review disposition |
 |---|---|
 | `required` + `converged` | Stop; the governed package must exist. |
-| `recommended` | Continue with the typed `recommended-absent` gap visible. |
+| `recommended` + selected direction + `converged` | Stop; the governed package must exist. |
+| `recommended` + direction/convergence `deferred` | Continue with the typed `recommended-absent` gap visible. |
 | `not-required` | Continue with typed N/A. |
-| `waived` | Continue with the exact human waiver and residual risk visible. |
 
 ## 3. Verify the spec binding
 
@@ -59,7 +56,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/architecture_context.py" --repo-root . \
 Exit 0 proves tasks/Markdown parity and freshness against the current
 consumer-linted package receipt/feature mapping or typed no-package state.
 Exit 1 routes to `/core-engineering:ce-spec <slug>/<id>` before findings: a
-review against a stale or legacy-unbound spec is not conformance evidence.
+review against a stale or unbound spec is not conformance evidence.
 Exit 2 stops as a tooling/integrity gap.
 
 ## 4. Bind the review result

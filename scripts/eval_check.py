@@ -711,7 +711,13 @@ def run_plan_lint(root: Path, sid: str, path: Path, label: str) -> list[str]:
     """
     script = root / "plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py"
     proc = subprocess.run(
-        [sys.executable, str(script), str(path), "--json"],
+        [
+            sys.executable,
+            str(script),
+            str(path),
+            "--require-architecture-direction",
+            "--json",
+        ],
         capture_output=True,
         text=True,
         cwd=root,

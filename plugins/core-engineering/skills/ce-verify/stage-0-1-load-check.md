@@ -14,7 +14,25 @@ Find the plan directory containing the target. If multiple
 `docs/plans/*/` directories exist, ask the user. Load all read-only
 inputs listed above.
 
-### 0.2 Derive Feature State
+### 0.2 Validate Current Plan Authority
+
+Before interpreting feature state, run both validators against the resolved plan:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
+  docs/plans/<slug> --repo-root . --require-current-schema --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
+  docs/plans/<slug> --require-architecture-direction --json
+```
+
+Both commands must return valid JSON and exit 0. Exit 1 means the current plan
+or architecture direction is semantically invalid; exit 2 means it could not be
+validated safely. Stop either way and route to `/core-engineering:ce-plan`.
+Legacy or reportless architecture authority, a selected direction without its
+hash-bound comparison report, and a missing/malformed `plan.json` all block
+verification.
+
+### 0.3 Derive Feature State
 
 For each feature in `plan.json`, derive its current state from the artifacts. A `done`
 flag is trusted only after its evidence is re-verified against this checkout — run the
@@ -39,7 +57,7 @@ Verify operates on the **implemented subset** at this moment in time — a `stal
 feature is excluded from it (reported, then routed to `/core-engineering:ce-implement`), never verified
 over evidence this checkout can't stand behind.
 
-### 0.3 Determine Scope
+### 0.4 Determine Scope
 
 - **Milestone mode** (`<journey>` argument): the target journey. Every feature
   composing it must be `implemented` — else stop and report which are not.
@@ -47,7 +65,9 @@ over evidence this checkout can't stand behind.
   `implemented`, report them and ask the human: proceed in *partial* mode
   (verify what is there), or abort and finish them first.
 
-Confirm scope with the human before proceeding.
+When the selected journey or complete pre-handover scope resolves
+unambiguously, announce it and continue. Ask only for multiple matching plans/
+journeys or the material choice to accept partial coverage.
 
 ---
 

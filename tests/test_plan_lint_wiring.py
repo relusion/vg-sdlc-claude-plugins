@@ -4,8 +4,8 @@ Behaviour of plan-lint.py itself is covered by test_plan_lint.py; this suite loc
 the *wiring* so a future edit cannot silently unhook the gate or let a fork drift:
 
   * the fork entry is registered with every consumer copy, byte-identical;
-  * ce-plan Stage 9 invokes plan-lint over the written dir with exit-code disposition,
-    and runs it BEFORE the resume scratch is deleted (a FAIL must stay resumable);
+  * ce-plan validates exact scratch bytes before Final Plan Approval, publishes
+    them unchanged, then reruns plan-lint as a post-publication drift check;
   * ce-auto-build Stage 0 plan-lints the resolved plan before any spawn;
   * ce-plan's Honest Limitations no longer claims dependency direction is unproven.
 """
@@ -24,6 +24,8 @@ ARCHITECTURE_COPY = "plugins/core-engineering/skills/ce-architecture/scripts/pla
 SPEC_COPY = "plugins/core-engineering/skills/ce-spec/scripts/plan-lint.py"
 IMPLEMENT_COPY = "plugins/core-engineering/skills/ce-implement/scripts/plan-lint.py"
 REVIEW_COPY = "plugins/core-engineering/skills/ce-review/scripts/plan-lint.py"
+VERIFY_COPY = "plugins/core-engineering/skills/ce-verify/scripts/plan-lint.py"
+RELEASE_COPY = "plugins/core-engineering/skills/ce-ship-release/scripts/plan-lint.py"
 
 SELECTION_CANONICAL = (
     "plugins/core-engineering/skills/ce-plan-audit/scripts/architecture-selection-lint.py"
@@ -35,11 +37,15 @@ SELECTION_COPIES = [
     "plugins/core-engineering/skills/ce-spec/scripts/architecture-selection-lint.py",
     "plugins/core-engineering/skills/ce-implement/scripts/architecture-selection-lint.py",
     "plugins/core-engineering/skills/ce-review/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-verify/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-selection-lint.py",
 ]
 
 PLAN_STAGE = REPO / "plugins/core-engineering/skills/ce-plan/stage-8-9-write.md"
 PLAN_SKILL = REPO / "plugins/core-engineering/skills/ce-plan/SKILL.md"
 AUTOBUILD_STAGE0 = REPO / "plugins/core-engineering/skills/ce-auto-build/stage-0-kickoff.md"
+VERIFY_STAGE0 = REPO / "plugins/core-engineering/skills/ce-verify/stage-0-1-load-check.md"
+RELEASE_STAGES = REPO / "plugins/core-engineering/skills/ce-ship-release/stages.md"
 
 PLAN_LINT_COMMAND = 'scripts/plan-lint.py"'
 REQUIRED_DIRECTION_FLAG = "--require-architecture-direction"
@@ -61,6 +67,8 @@ class PlanLintForkRegistration(unittest.TestCase):
         self.assertIn(SPEC_COPY, entry["copies"])
         self.assertIn(IMPLEMENT_COPY, entry["copies"])
         self.assertIn(REVIEW_COPY, entry["copies"])
+        self.assertIn(VERIFY_COPY, entry["copies"])
+        self.assertIn(RELEASE_COPY, entry["copies"])
 
     def test_copies_are_byte_identical_to_canonical(self):
         canon = (REPO / CANONICAL).read_bytes()
@@ -87,6 +95,14 @@ class PlanLintForkRegistration(unittest.TestCase):
         self.assertEqual(
             (REPO / REVIEW_COPY).read_bytes(), canon,
             "ce-review plan-lint copy drifted from canonical",
+        )
+        self.assertEqual(
+            (REPO / VERIFY_COPY).read_bytes(), canon,
+            "ce-verify plan-lint copy drifted from canonical",
+        )
+        self.assertEqual(
+            (REPO / RELEASE_COPY).read_bytes(), canon,
+            "ce-ship-release plan-lint copy drifted from canonical",
         )
 
     def test_selection_lint_registered_for_every_plan_lint_consumer(self):
@@ -120,26 +136,34 @@ class PlanLintForkRegistration(unittest.TestCase):
 
 
 class PlanWriteTimeGateWiring(unittest.TestCase):
-    def test_stage9_invokes_plan_lint_over_written_dir(self):
+    def test_stage8_lints_scratch_before_approval_and_stage9_rechecks_publication(self):
         text = PLAN_STAGE.read_text(encoding="utf-8")
-        lint = text.index(PLAN_LINT_COMMAND)
-        self.assertIn("docs/plans/<slug>", text[lint:])
-        self.assertIn(REQUIRED_DIRECTION_FLAG, text[lint:])
+        scratch = text.index("docs/plans/.plan-candidate-<slug>-<run-id>")
+        first_lint = text.index(PLAN_LINT_COMMAND, scratch)
+        approval = text.index("## 8.3 Final Plan Approval")
+        publication = text.index("## 9. Publish the approved bytes")
+        second_lint = text.index("post-publication runs", publication)
+        self.assertLess(scratch, first_lint)
+        self.assertLess(first_lint, approval)
+        self.assertLess(approval, publication)
+        self.assertLess(publication, second_lint)
+        self.assertIn(REQUIRED_DIRECTION_FLAG, text[first_lint:approval])
+        self.assertIn("docs/plans/<slug>", text[publication:])
+        self.assertGreaterEqual(text.count(PLAN_LINT_COMMAND), 2)
 
     def test_stage9_states_exit_code_disposition(self):
         text = PLAN_STAGE.read_text(encoding="utf-8")
-        for needle in ("exit 0", "exit 1", "exit 2",
-                       "N/A — single-feature minimal plan"):
+        for needle in ("exit 0", "exit 1", "exit 2", "non-waivable"):
             self.assertIn(needle, text,
                           f"Stage 9 gate must state disposition: {needle!r}")
 
-    def test_stage9_gate_runs_before_scratch_deletion(self):
-        # A FAIL keeps the run resumable: the lint must run BEFORE the
-        # "Delete the gate-checkpoint scratch on success" step, never after.
+    def test_validation_runs_before_candidate_scratch_deletion(self):
+        # A FAIL keeps the run inspectable: validation and publication checks
+        # precede deletion of the exact candidate.
         text = PLAN_STAGE.read_text(encoding="utf-8")
         self.assertLess(
             text.index("plan-lint.py"),
-            text.index("Delete the gate-checkpoint scratch on success"),
+            text.index("Delete only the exact candidate scratch"),
         )
 
     def test_honest_limitation_no_longer_claims_direction_unproven(self):
@@ -160,6 +184,32 @@ class AutoBuildKickoffWiring(unittest.TestCase):
         text = AUTOBUILD_STAGE0.read_text(encoding="utf-8")
         for needle in ("exit 0", "exit 1", "exit 2"):
             self.assertIn(needle, text)
+
+
+class AssuranceEntryPreflightWiring(unittest.TestCase):
+    def _assert_current_authority_preflight(self, text, before):
+        selection = text.index("scripts/architecture-selection-lint.py")
+        plan = text.index("scripts/plan-lint.py", selection)
+        consumer = text.index(before, plan)
+        self.assertLess(selection, plan)
+        self.assertLess(plan, consumer)
+        self.assertIn("--require-current-schema", text[selection:plan])
+        self.assertIn("--require-architecture-direction", text[plan:consumer])
+        for needle in ("exit 0", "Exit 1", "exit 2"):
+            self.assertIn(needle, text[selection:consumer])
+        self.assertIn("Legacy", text[selection:consumer])
+
+    def test_verify_rejects_legacy_authority_before_feature_state(self):
+        self._assert_current_authority_preflight(
+            VERIFY_STAGE0.read_text(encoding="utf-8"),
+            "### 0.3 Derive Feature State",
+        )
+
+    def test_release_rejects_legacy_authority_before_feature_gates(self):
+        self._assert_current_authority_preflight(
+            RELEASE_STAGES.read_text(encoding="utf-8"),
+            "For each in-range feature",
+        )
 
 
 if __name__ == "__main__":

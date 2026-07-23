@@ -54,6 +54,7 @@ def _option(option_id: str, constraints: list[dict], score: int) -> dict:
             {
                 "criterion_id": criterion,
                 "score": score,
+                "basis": f"{option_id} fit against {criterion}.",
                 "evidence_state": "recorded",
                 "evidence": ["docs/briefs/smoke.md"],
             }
@@ -94,6 +95,13 @@ def build_artifact(root: Path, *, option_count: int = 2) -> tuple[Path, dict]:
     evaluation_frame = {
         "project_intent": "Add team invitations without widening product scope.",
         "non_goals": ["Replace the identity provider."],
+        "decision_owner": {
+            "identity_or_role": "Product Architecture Council",
+            "authority_basis": (
+                "Repository governance assigns whole-solution direction "
+                "approval to the Product Architecture Council."
+            ),
+        },
         "architecture_applicability": "required",
         "driver_screen": [
             {
@@ -167,6 +175,7 @@ def build_artifact(root: Path, *, option_count: int = 2) -> tuple[Path, dict]:
             "option_id": selected["option_id"] if selected else None,
             "option_sha256": selected["option_sha256"] if selected else None,
             "decided_by": "human",
+            "approved_by": "Product Architecture Council",
             "rationale": "Select the strongest eligible direction.",
         },
         "next_owner": "ce-plan",
@@ -187,6 +196,7 @@ def render_options_report(data: dict) -> str:
         f"# Solution Architecture Options — {data['project_slug']}",
         "",
         "> Decision status: awaiting-selection",
+        "> Workbench revision: 1",
         "",
         "## What Needs Your Decision",
         "",
@@ -198,6 +208,11 @@ def render_options_report(data: dict) -> str:
             "- **Confidence / sensitivity:** "
             f"{data['recommendation']['confidence']} / "
             f"{data['recommendation']['sensitivity']}"
+        ),
+        (
+            "- **Decision owner / authority:** "
+            f"{data['evaluation_frame']['decision_owner']['identity_or_role']} — "
+            f"{data['evaluation_frame']['decision_owner']['authority_basis']}"
         ),
         "- **Cost if wrong:** Rework boundaries, migration tasks, and operational controls.",
         "- **Material gaps and inferences:** None — the approved evidence covers this comparison.",
@@ -307,6 +322,19 @@ def render_options_report(data: dict) -> str:
             "",
             json.dumps(data["sources"], ensure_ascii=False, sort_keys=True),
             "",
+            "## Decision Workbench Audit",
+            "",
+            (
+                "| Revision | Event | Human input / question | "
+                "Response or resulting change | Prior report SHA-256 |"
+            ),
+            "|---:|---|---|---|---|",
+            (
+                "| 1 | initial-synthesis | Initial comparison requested | "
+                "Initial option set and recommendation synthesized | "
+                "None — initial revision |"
+            ),
+            "",
             "## Machine-Readable Comparison Projection",
             "",
             "```json",
@@ -326,6 +354,7 @@ def render_options_report(data: dict) -> str:
             "| Selected direction | Not selected |",
             "| Selected option hash | Not selected |",
             "| Decided by | Not selected |",
+            "| Approved by | Not selected |",
             "| Rationale | Review the comparison above before choosing. |",
             "",
             "## Integrity",
@@ -333,6 +362,7 @@ def render_options_report(data: dict) -> str:
             "| Field | Value |",
             "|---|---|",
             "| Report schema | 1 |",
+            "| Workbench revision | `1` |",
             f"| Project slug | `{data['project_slug']}` |",
             f"| Capability revision | `{data['source_capability_revision']}` |",
             f"| Exploration attempt | `{data['source_exploration_attempt']}` |",
@@ -419,6 +449,66 @@ class SelectionContract(unittest.TestCase):
         report.write_text(report.read_text(encoding="utf-8") + "mutated\n", encoding="utf-8")
         failures = self.lint(artifact)
         self.assertTrue(any("sha256 is stale" in item for item in failures), failures)
+
+    def test_schema_v2_requires_a_contiguous_workbench_audit_chain(self):
+        artifact, data = build_artifact(self.root)
+        report = upgrade_to_v2(artifact, data)
+        original = report.read_text(encoding="utf-8")
+
+        without_audit = re.sub(
+            r"^## Decision Workbench Audit\s*$\n.*?(?=^##\s)",
+            "",
+            original,
+            count=1,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+        refresh_report_binding(artifact, data, report, without_audit)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any("Decision Workbench Audit" in item for item in failures),
+            failures,
+        )
+
+        without_revision = original.replace("> Workbench revision: 1\n", "", 1)
+        refresh_report_binding(artifact, data, report, without_revision)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any("declare one positive Workbench revision" in item for item in failures),
+            failures,
+        )
+
+        prior_hash = "a" * 64
+        revision_two = original.replace(
+            "> Workbench revision: 1",
+            "> Workbench revision: 2",
+        ).replace(
+            "| Workbench revision | `1` |",
+            "| Workbench revision | `2` |",
+        ).replace(
+            "| 1 | initial-synthesis | Initial comparison requested | "
+            "Initial option set and recommendation synthesized | "
+            "None — initial revision |",
+            "| 1 | initial-synthesis | Initial comparison requested | "
+            "Initial option set and recommendation synthesized | "
+            "None — initial revision |\n"
+            "| 2 | question | Why does A01 lead? | "
+            "Explained the requirements-fit evidence | "
+            f"`{prior_hash}` |",
+        )
+        refresh_report_binding(artifact, data, report, revision_two)
+        self.assertEqual(self.lint(artifact), [])
+
+        broken_chain = revision_two.replace(
+            f"`{prior_hash}`",
+            "`not-a-hash`",
+            1,
+        )
+        refresh_report_binding(artifact, data, report, broken_chain)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any("Prior report SHA-256" in item for item in failures),
+            failures,
+        )
 
     def test_schema_v2_requires_a_safe_complete_report_for_selected_direction(self):
         artifact, data = build_artifact(self.root)
@@ -638,6 +728,7 @@ class SelectionContract(unittest.TestCase):
             "option_id": None,
             "option_sha256": None,
             "decided_by": None,
+            "approved_by": None,
             "rationale": "Unsafe input prevented a reviewable comparison.",
         }
         data["architecture_options_report"] = {
@@ -681,7 +772,7 @@ class SelectionContract(unittest.TestCase):
             failures,
         )
 
-    def test_schema_v2_report_omission_only_allows_exact_one_option_legacy_adoption(self):
+    def test_reportless_legacy_adoption_is_diagnostic_only(self):
         legacy_root = self.root / "legacy"
         artifact, data = build_artifact(legacy_root, option_count=1)
         data["selection"]["status"] = "adopted-existing"
@@ -696,10 +787,15 @@ class SelectionContract(unittest.TestCase):
         rehash(data)
         write_artifact(artifact, data)
         self.assertEqual(
-            sl.validate_file(
-                artifact, repo_root=legacy_root, require_current_schema=True
-            )[1],
+            sl.validate_file(artifact, repo_root=legacy_root)[1],
             [],
+        )
+        failures = sl.validate_file(
+            artifact, repo_root=legacy_root, require_current_schema=True
+        )[1]
+        self.assertTrue(
+            any("reportless legacy adoption is diagnostic-only" in item for item in failures),
+            failures,
         )
 
         original = copy.deepcopy(data)
@@ -846,6 +942,7 @@ class SelectionContract(unittest.TestCase):
             "option_id": None,
             "option_sha256": None,
             "decided_by": "human",
+            "approved_by": None,
             "rationale": "Defer recommended exploration with the coverage gap visible.",
         }
         rehash(data)
@@ -893,6 +990,28 @@ class SelectionContract(unittest.TestCase):
         self.assertIn("evidence_state", joined)
         self.assertIn("evidence must not be empty", joined)
 
+    def test_score_basis_is_required_and_covered_by_the_option_hash(self):
+        artifact, data = build_artifact(self.root)
+        data["options"][0]["scores"][0]["basis"] = ""
+        rehash(data)
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any(".scores[0].basis must be non-empty" in item for item in failures),
+            failures,
+        )
+
+        artifact, data = build_artifact(self.root)
+        data["options"][0]["scores"][0]["basis"] = (
+            "Tampered score reasoning without refreshing the option hash."
+        )
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any("option_sha256 mismatch" in item for item in failures),
+            failures,
+        )
+
     def test_score_evidence_is_bound_to_the_source_inventory(self):
         artifact, data = build_artifact(self.root)
         data["options"][0]["scores"][0]["evidence"] = ["missing.md"]
@@ -909,6 +1028,63 @@ class SelectionContract(unittest.TestCase):
         write_artifact(artifact, data)
         failures = self.lint(artifact)
         self.assertTrue(any("canonical decision-relevant" in item for item in failures), failures)
+
+    def test_decision_owner_is_substantive_hash_bound_and_matches_approver(self):
+        artifact, data = build_artifact(self.root)
+        data["evaluation_frame"]["decision_owner"]["authority_basis"] = "TBD"
+        rehash(data)
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any(
+                "decision_owner.authority_basis must be a non-placeholder value"
+                in item
+                for item in failures
+            ),
+            failures,
+        )
+
+        artifact, data = build_artifact(self.root)
+        data["evaluation_frame"]["decision_owner"]["identity_or_role"] = (
+            "Platform Architecture Council"
+        )
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any("canonical decision-relevant exploration input" in item for item in failures),
+            failures,
+        )
+
+        artifact, data = build_artifact(self.root)
+        data["selection"]["approved_by"] = "Delegated Reviewer"
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any(
+                "approved_by must exactly match "
+                "evaluation_frame.decision_owner.identity_or_role" in item
+                for item in failures
+            ),
+            failures,
+        )
+
+    def test_waived_is_not_an_architecture_selection_status(self):
+        artifact, data = build_artifact(self.root)
+        data["selection"].update(
+            {
+                "status": "waived",
+                "option_id": None,
+                "option_sha256": None,
+                "approved_by": None,
+            }
+        )
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        status_failures = [
+            item for item in failures if item.startswith("selection.status must be")
+        ]
+        self.assertTrue(status_failures, failures)
+        self.assertNotIn("waived", " ".join(status_failures))
 
     def test_fail_constraint_is_eliminated_and_cannot_be_selected(self):
         artifact, data = build_artifact(self.root)
@@ -1233,6 +1409,7 @@ class SelectionContract(unittest.TestCase):
             "option_id": None,
             "option_sha256": None,
             "decided_by": "human",
+            "approved_by": None,
             "rationale": "Architecture exploration is not applicable.",
         }
         data["evaluation_frame"]["architecture_applicability"] = "not-required"
@@ -1263,6 +1440,7 @@ class SelectionContract(unittest.TestCase):
             "option_id": None,
             "option_sha256": None,
             "decided_by": None,
+            "approved_by": None,
             "rationale": "Required repository evidence is unavailable.",
         }
         write_artifact(artifact, data)
@@ -1283,6 +1461,7 @@ class SelectionContract(unittest.TestCase):
             "option_id": None,
             "option_sha256": None,
             "decided_by": None,
+            "approved_by": None,
             "rationale": "One bounded transport fork changes option eligibility.",
         }
         data["blocking_decision"] = {

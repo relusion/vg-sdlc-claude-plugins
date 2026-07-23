@@ -7,6 +7,33 @@ that version and this file.
 
 ## Unreleased
 
+- **Breaking lean-core workflow redesign (`core-engineering` 0.11.0).** The default path is now adaptive:
+  `/core-engineering:ce-brief` is optional; plan uses one canonical
+  plan-directory shape, invokes an iterative evidence/question/adjust
+  architecture workbench only when shared design is load-bearing, and records
+  `Specification route: compact|explicit` per feature. Compact implementation
+  composes and lints the same canonical spec artifacts before code; material or
+  unresolved design forces explicit `/core-engineering:ce-spec`. Review and
+  verification remain independent but may be orchestrated into one handoff.
+  Documentation is generated from verified behavior and audited when reader or
+  operational risk warrants it before `/core-engineering:ce-ship-release`,
+  which is the final decision workflow. HITL guidance now gates only actual
+  choices, consent, exceptions, and authority-owned judgments: deterministic
+  PASS, read-only work, projections, and clean negatives no longer ask for
+  re-attestation, while material architecture selection remains evidence-rich
+  and human-owned. Selected directions require the current schema, a hash-bound
+  human-readable options report, and a contiguous question/adjustment audit;
+  active delivery consumers reject legacy reportless selections. Release GO
+  proves review and verification evidence against the materialized candidate
+  commit, requires current plan and architecture-selection schemas plus current
+  review routing fields, and fails closed on stale post-documentation receipts;
+  standalone verification applies the same current-authority preflight, and
+  verification receipt replacement is atomic.
+  Authoring validation adds deterministic token-proxy ceilings for always-loaded
+  entrypoints and companion files. Live-eval CI now emits an
+  explicit evidence-produced receipt on every run, and main-health validates
+  its identity and freshness so a successful skip cannot masquerade as current
+  behavioral evidence.
 - **Composable solution architecture (`core-engineering` 0.10.3).** Added
   `/core-engineering:ce-architecture` as an optional seam between a written
   multi-feature plan and feature specification. It produces a human-approved,
@@ -14,9 +41,7 @@ that version and this file.
   structural validation, explicit evidence and coverage gaps, a plan-owned
   Scope Lock, transactional publication, and no code, deployment,
   security-acceptance, or release authority. Downstream specification validates
-  any present package; valid single-feature minimal plans retain their shorter
-  spec/implement path, including token-bound retirement of an obsolete package.
-  Planning and single-option decisions remain owned by
+  every required package. Planning and bounded technical decisions remain owned by
   `/core-engineering:ce-plan` and `/core-engineering:ce-decide`.
 - **Developer experience and output-quality hardening (`core-engineering`
   0.10.2, `product-discovery` 0.1.5).** Added a three-tier capability map,

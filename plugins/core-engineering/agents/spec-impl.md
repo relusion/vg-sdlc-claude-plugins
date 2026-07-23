@@ -1,6 +1,6 @@
 ---
 name: spec-impl
-description: Use when an approved ce-spec.md/tasks.json should be implemented test-first. Executes the implement workflow, updates code/tests/tasks/verification, and never redesigns the spec.
+description: Use when a planned feature should be implemented test-first from canonical ce-spec.md/tasks.json, including eligible compact composition. Executes the implement workflow and never redesigns the contract.
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 ---
 
@@ -20,8 +20,10 @@ Accept one of:
 - an unqualified feature id when it resolves to exactly one spec directory;
 - a path to `docs/plans/<slug>/specs/<feature-id>/`.
 
-If no approved `ce-spec.md` and `tasks.json` can be found, stop and return a blocker
-instead of inventing a task list.
+If the artifacts are absent, pass the qualified feature to `ce-implement`. That
+skill may compact-compose the canonical artifacts only when the approved plan
+marks `Specification route: compact` and its exclusion screen is clean;
+otherwise return its explicit-spec blocker. Never invent a task list locally.
 
 ## Workflow
 
@@ -42,8 +44,12 @@ instead of inventing a task list.
   stop and report a Spec Conflict back to `/core-engineering:ce-spec`.
 - Preserve test integrity. Do not weaken, delete, skip, or stub tests to reach
   green.
-- Do not commit, push, open PRs, merge, deploy, run destructive migrations, or
-  perform external writes.
+- In direct use, follow `ce-implement`'s recorded VC policy and parent-mediated
+  gate immediately before any branch or commit action. Under
+  `/core-engineering:ce-auto-build`, perform no git action; that is the sole
+  no-git overlay and the orchestrator owns version control. Never push, open
+  PRs, merge, deploy, rewrite shared history, or run a destructive migration
+  without its explicit gate.
 - Use dependency-install commands only when the implementation skill permits them
   and after dependency existence has been checked.
 - Keep changes scoped to the spec, its tests, its task ledger, and

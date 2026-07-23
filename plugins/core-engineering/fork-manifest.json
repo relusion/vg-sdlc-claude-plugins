@@ -7,9 +7,10 @@
         "plugins/core-engineering/skills/ce-spec/scripts/architecture-lint.py",
         "plugins/core-engineering/skills/ce-auto-build/scripts/architecture-lint.py",
         "plugins/core-engineering/skills/ce-implement/scripts/architecture-lint.py",
-        "plugins/core-engineering/skills/ce-review/scripts/architecture-lint.py"
+        "plugins/core-engineering/skills/ce-review/scripts/architecture-lint.py",
+        "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-lint.py"
       ],
-      "why": "architecture package integrity and stale-source gate: /core-engineering:ce-architecture validates before publishing; /core-engineering:ce-spec, /core-engineering:ce-implement, and /core-engineering:ce-review validate the producer receipt and current package before trusting downstream evidence; and /core-engineering:ce-auto-build validates a required current baseline before spawning. Each consumer bundles its own copy because CLAUDE_SKILL_DIR is the only portable path available to skill Bash calls."
+      "why": "architecture package integrity and stale-source gate: producer and implementation consumers validate the package; /core-engineering:ce-auto-build validates before spawning; and /core-engineering:ce-ship-release bundles it as review-gate's transitive freshness dependency. Each consumer bundles its own copy because CLAUDE_SKILL_DIR is the only portable path available to skill Bash calls."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-architecture/scripts/architecture-render.py",
@@ -17,9 +18,10 @@
         "plugins/core-engineering/skills/ce-spec/scripts/architecture-render.py",
         "plugins/core-engineering/skills/ce-auto-build/scripts/architecture-render.py",
         "plugins/core-engineering/skills/ce-implement/scripts/architecture-render.py",
-        "plugins/core-engineering/skills/ce-review/scripts/architecture-render.py"
+        "plugins/core-engineering/skills/ce-review/scripts/architecture-render.py",
+        "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-render.py"
       ],
-      "why": "architecture-lint schema v2 dynamically imports the colocated deterministic renderer to verify every Markdown projection against architecture.json. Every producer and downstream consumer-lint copy therefore needs the same supply-chain-checked sibling renderer."
+      "why": "architecture-lint schema v2 dynamically imports the colocated deterministic renderer to verify every Markdown projection against architecture.json. Every producer and downstream consumer-lint copy, including release's review-gate dependency, therefore needs the same supply-chain-checked sibling renderer."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py",
@@ -33,9 +35,10 @@
       "copies": [
         "plugins/core-engineering/skills/ce-implement/scripts/architecture_context.py",
         "plugins/core-engineering/skills/ce-review/scripts/architecture_context.py",
-        "plugins/core-engineering/skills/ce-auto-build/scripts/architecture_context.py"
+        "plugins/core-engineering/skills/ce-auto-build/scripts/architecture_context.py",
+        "plugins/core-engineering/skills/ce-ship-release/scripts/architecture_context.py"
       ],
-      "why": "one strict architecture provenance contract is derived by /core-engineering:ce-spec, rejected when stale by /core-engineering:ce-implement, bound into /core-engineering:ce-review evidence, and enforced in-loop by /core-engineering:ce-auto-build. Every consumer needs a colocated byte-identical helper because CLAUDE_SKILL_DIR is the only portable skill path."
+      "why": "one strict architecture provenance contract is derived by /core-engineering:ce-spec, rejected when stale by implementation, bound into review evidence, enforced by auto-build, and re-derived by /core-engineering:ce-ship-release's review gate. Every consumer needs a colocated byte-identical helper because CLAUDE_SKILL_DIR is the only portable skill path."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-implement/scripts/test-guard.py",
@@ -113,9 +116,17 @@
     {
       "canonical": "plugins/core-engineering/skills/ce-review/scripts/review-gate.py",
       "copies": [
-        "plugins/core-engineering/skills/ce-auto-build/scripts/review-gate.py"
+        "plugins/core-engineering/skills/ce-auto-build/scripts/review-gate.py",
+        "plugins/core-engineering/skills/ce-ship-release/scripts/review-gate.py"
       ],
-      "why": "review-summary schema and blocking gate: /core-engineering:ce-review owns the artifact contract and /core-engineering:ce-auto-build validates each worker result in-loop; the orchestrator bundles a synchronized copy because CLAUDE_SKILL_DIR is the only portable path available to skill Bash calls"
+      "why": "review-summary schema and blocking gate: /core-engineering:ce-review owns the artifact contract, /core-engineering:ce-auto-build validates each worker result in-loop, and /core-engineering:ce-ship-release proves every in-range review is current before GO. Consumers bundle synchronized copies because CLAUDE_SKILL_DIR is the only portable path available to skill Bash calls"
+    },
+    {
+      "canonical": "plugins/core-engineering/skills/ce-verify/scripts/verification-gate.py",
+      "copies": [
+        "plugins/core-engineering/skills/ce-ship-release/scripts/verification-gate.py"
+      ],
+      "why": "verification-summary producer and release freshness gate: /core-engineering:ce-verify derives the receipt from exact report, plan, feature/spec/tasks, implementation, repository, and acceptance evidence; /core-engineering:ce-ship-release re-derives and gates its in-range feature set using a byte-identical local copy"
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py",
@@ -125,9 +136,11 @@
         "plugins/core-engineering/skills/ce-auto-build/scripts/plan-lint.py",
         "plugins/core-engineering/skills/ce-spec/scripts/plan-lint.py",
         "plugins/core-engineering/skills/ce-implement/scripts/plan-lint.py",
-        "plugins/core-engineering/skills/ce-review/scripts/plan-lint.py"
+        "plugins/core-engineering/skills/ce-review/scripts/plan-lint.py",
+        "plugins/core-engineering/skills/ce-verify/scripts/plan-lint.py",
+        "plugins/core-engineering/skills/ce-ship-release/scripts/plan-lint.py"
       ],
-      "why": "plan structural-integrity lint (H1-H10 + advisories), including the plan-root architecture-direction artifact binding: /core-engineering:ce-plan-audit runs it as its hard-lint floor; /core-engineering:ce-plan runs it as a Stage-9 write-time gate; /core-engineering:ce-spec, /core-engineering:ce-implement, and /core-engineering:ce-review validate the resolved plan before consuming its architecture posture; and /core-engineering:ce-auto-build plan-lints at Stage-0 kickoff before any spawn. Each consumer bundles its own copy plus the colocated architecture-selection-lint.py dependency because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls. Also the merge-bar's plan-lint advisory gate."
+      "why": "plan structural-integrity lint (H1-H10 + advisories), including the plan-root architecture-direction artifact binding: /core-engineering:ce-plan-audit runs it as its hard-lint floor; /core-engineering:ce-plan runs it as a Stage-9 write-time gate; /core-engineering:ce-spec, /core-engineering:ce-implement, /core-engineering:ce-review, /core-engineering:ce-verify, and /core-engineering:ce-ship-release reject malformed or legacy plan authority before consuming it; and /core-engineering:ce-auto-build plan-lints at Stage-0 kickoff before any spawn. Each consumer bundles its own copy plus the colocated architecture-selection-lint.py dependency because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls. Also the merge-bar's plan-lint advisory gate."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-plan-audit/scripts/architecture-selection-lint.py",
@@ -137,9 +150,11 @@
         "plugins/core-engineering/skills/ce-auto-build/scripts/architecture-selection-lint.py",
         "plugins/core-engineering/skills/ce-spec/scripts/architecture-selection-lint.py",
         "plugins/core-engineering/skills/ce-implement/scripts/architecture-selection-lint.py",
-        "plugins/core-engineering/skills/ce-review/scripts/architecture-selection-lint.py"
+        "plugins/core-engineering/skills/ce-review/scripts/architecture-selection-lint.py",
+        "plugins/core-engineering/skills/ce-verify/scripts/architecture-selection-lint.py",
+        "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-selection-lint.py"
       ],
-      "why": "architecture-direction selection integrity and freshness gate: /core-engineering:ce-plan validates transient exploration results and the final plan-root architecture-selection.json; plan-lint dynamically loads the colocated validator in /core-engineering:ce-plan-audit, /core-engineering:ce-architecture, /core-engineering:ce-spec, /core-engineering:ce-implement, /core-engineering:ce-review, and /core-engineering:ce-auto-build. Each consumer bundles a byte-identical copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls."
+      "why": "architecture-direction selection integrity and freshness gate: /core-engineering:ce-plan validates transient exploration results and the final plan-root architecture-selection.json; plan-lint dynamically loads the colocated validator in /core-engineering:ce-plan-audit, /core-engineering:ce-architecture, /core-engineering:ce-spec, /core-engineering:ce-implement, /core-engineering:ce-review, /core-engineering:ce-verify, /core-engineering:ce-ship-release, and /core-engineering:ce-auto-build. Each consumer bundles a byte-identical copy because CLAUDE_SKILL_DIR is the only path guarantee in skill Bash calls."
     },
     {
       "canonical": "plugins/core-engineering/skills/ce-brief/scripts/brief-lint.py",

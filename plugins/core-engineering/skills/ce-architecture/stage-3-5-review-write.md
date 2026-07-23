@@ -70,7 +70,7 @@ One named gate fires for each material choice that remains but does not change
 the plan boundary. Lead with **What needs your decision**. Show the evidence,
 options with consequences, recommendation, reversibility, and cost-if-wrong.
 Never bundle unrelated choices into one approval; if a candidate splits,
-recompute the manifest through Scope Confirmation first.
+refresh the remaining gate manifest and present each choice separately.
 
 | Option | Consequence |
 |---|---|
@@ -134,7 +134,7 @@ Set:
 - `$schema: urn:vg-sdlc:ce-architecture:architecture:v2`,
   `schema_version: 2`, and the exact generator identity/version;
 - `architecture_revision: 1`, or prior revision + 1;
-- `source_plan_revision` from `plan.json` (legacy missing value is `1`);
+- `source_plan_revision` from the required current `plan.json`;
 - `lifecycle_status: proposed`;
 - `baseline_status: accepted-for-specification` when no gap remains, otherwise
   `accepted-for-specification-with-gaps` only for non-material,

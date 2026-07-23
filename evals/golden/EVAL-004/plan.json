@@ -18,14 +18,14 @@
       "decision_refs": []
     },
     "direction": {
-      "status": "adopted-existing",
+      "status": "direction-selected",
       "artifact": "architecture-selection.json",
-      "artifact_sha256": "8a3173dac4b5e538e2800786bd9b547496c2d8ba6e1de50bab805a7006d3ed2d",
-      "exploration_id": "AEX-d2b4e7550fad",
+      "artifact_sha256": "d4ca3029761e959db4625db2f4833095f98666c4fd356019f0cdf9c0ff5b8eeb",
+      "exploration_id": "AEX-56c261bc2c2f",
       "selected_option_id": "A01",
-      "selected_option_sha256": "5c41b7af183374a9fe180f3054a4ca597bb8081fe3babc9f42498d8bacb93afe",
+      "selected_option_sha256": "8b0bd10b27be9ea1424298521d9317d8e1dc5ab8e1ae2c6c0f1214e92e8434ab",
       "decided_by": "human",
-      "summary": "Adopted the existing application runtime with authorization before invitation and membership persistence."
+      "summary": "Selected one application runtime with explicit authorization, invitation, and persistence boundaries after comparing and questioning a separate-runtime direction."
     }
   },
   "relates_to": [],
@@ -34,23 +34,31 @@
       "id": "01-roles-authz-foundation",
       "title": "Roles & authorization foundation",
       "type": "foundation",
+      "specification_route": "explicit",
       "final_complexity": "Moderate",
       "risk_profile": "medium",
       "ship_order": 1,
       "file": "features/01-roles-authz-foundation.md",
-      "dependencies": { "hard": [], "soft": [] }
+      "dependencies": {
+        "hard": [],
+        "soft": []
+      }
     },
     {
       "id": "02-team-invitations",
       "title": "Team invitations",
       "type": "user-facing",
+      "specification_route": "explicit",
       "final_complexity": "Moderate",
       "risk_profile": "low",
       "ship_order": 2,
       "file": "features/02-team-invitations.md",
       "dependencies": {
         "hard": [
-          { "id": "01-roles-authz-foundation", "reason": "Needs roles, add_member, and authorize() to gate the invite action." }
+          {
+            "id": "01-roles-authz-foundation",
+            "reason": "Needs roles, add_member, and authorize() to gate the invite action."
+          }
         ],
         "soft": []
       }

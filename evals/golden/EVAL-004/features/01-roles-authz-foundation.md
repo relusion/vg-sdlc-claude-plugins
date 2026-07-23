@@ -1,5 +1,7 @@
 # 01-roles-authz-foundation — Roles & authorization foundation
 
+**Specification route:** explicit
+
 ### Structured Metadata
 
 ```yaml

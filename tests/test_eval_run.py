@@ -248,7 +248,7 @@ class EvalRun(unittest.TestCase):
                 "answer": "Proceed with the supplied project facts, then stop at the next gate.",
                 "required_previous_output": [
                     "Gate 1 of 2",
-                    "Project Understanding",
+                    "Intent and Scope",
                 ],
             }]
             scenarios.write_text(json.dumps(data), encoding="utf-8")
@@ -261,9 +261,9 @@ class EvalRun(unittest.TestCase):
                 "resume=0\n"
                 "for arg in \"$@\"; do [ \"$arg\" = \"--resume\" ] && resume=1; done\n"
                 "if [ \"$resume\" -eq 1 ]; then\n"
-                "  printf '%s\\n' '{\"result\":\"Gate 2 of 2 — Architecture Evaluation Frame\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n"
+                "  printf '%s\\n' '{\"result\":\"Gate 2 of 2 — Architecture Direction Selection\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n"
                 "else\n"
-                "  printf '%s\\n' '{\"result\":\"Gate 1 of 2 — Project Understanding\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n"
+                "  printf '%s\\n' '{\"result\":\"Gate 1 of 2 — Intent and Scope\",\"session_id\":\"sess-scripted\",\"total_cost_usd\":0.1}'\n"
                 "fi\n",
                 encoding="utf-8",
             )
@@ -280,9 +280,9 @@ class EvalRun(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
             output = (out / "EVAL-003.md").read_text(encoding="utf-8")
-            self.assertIn("Gate 1 of 2 — Project Understanding", output)
+            self.assertIn("Gate 1 of 2 — Intent and Scope", output)
             self.assertIn("Scripted decision event EVAL-003-D01", output)
-            self.assertIn("Gate 2 of 2 — Architecture Evaluation Frame", output)
+            self.assertIn("Gate 2 of 2 — Architecture Direction Selection", output)
 
             record = json.loads((out / "metadata.json").read_text())["records"][0]
             self.assertEqual(record["status"], "pass")

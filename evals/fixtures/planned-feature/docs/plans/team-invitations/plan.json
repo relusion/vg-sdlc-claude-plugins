@@ -17,7 +17,7 @@
     "direction": {
       "status": "not-applicable",
       "artifact": "architecture-selection.json",
-      "artifact_sha256": "bb0a4867a1d9056979d2dd97ea181f4d1333e378cde4d0980b7d30a78ed20fb4",
+      "artifact_sha256": "dda8ea646b1824950252a6b953eb20cb56e8d4dce3428e1d3de96e9efd36b132",
       "exploration_id": "AEX-not-applicable-r1",
       "selected_option_id": null,
       "selected_option_sha256": null,
@@ -31,11 +31,15 @@
       "id": "01-invite-user",
       "title": "Invite a user to a team",
       "type": "user-facing",
+      "specification_route": "explicit",
       "final_complexity": "Simple",
       "risk_profile": "medium",
       "ship_order": 1,
       "file": "features/01-invite-user.md",
-      "dependencies": {"hard": [], "soft": []}
+      "dependencies": {
+        "hard": [],
+        "soft": []
+      }
     }
   ]
 }

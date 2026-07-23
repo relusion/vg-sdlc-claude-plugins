@@ -45,6 +45,9 @@ reviewer diligence guarded it:
   * A13 decision-option tables contain at most four choices, and prose never
         instructs a single `AskUserQuestion` round to carry more than four
         questions. Larger gates must use an explicit same-locator split.
+  * A14 always-loaded entrypoints and individually loaded companion Markdown
+        files stay below deterministic token-proxy ceilings. The proxy is a
+        stable byte estimate, not a claim about any model's tokenizer.
 
 Stdlib-only, exit 0 clean / 1 findings, same contract as corpus_lint.py.
 """
@@ -127,6 +130,15 @@ CLUSTERS = (
 
 SKILL_LINE_CAP = 400       # A7 — externalize stages past this (see ce-plan)
 DESCRIPTION_CHAR_CAP = 1536  # A8 — live-verified platform truncation limit
+
+# A14 — line counts miss dense prose and minified tables. ``ceil(utf8_bytes/4)``
+# is intentionally simple, deterministic, tokenizer-independent, and cheap to
+# reproduce in CI. These are migration ceilings, not authoring targets: they
+# leave every untouched file in the current corpus green while preventing
+# unlimited growth. The authoring guide sets lower design targets.
+TOKEN_PROXY_BYTES_PER_UNIT = 4
+SKILL_TOKEN_PROXY_CAP = 10_000
+COMPANION_TOKEN_PROXY_CAP = 20_000
 
 # A9 — the shared consequence-glossary's two homes and, per term, the anchor
 # phrase that must survive (normalized) in BOTH copies. Changing a gloss's
@@ -436,6 +448,49 @@ def check_description_length(root: Path, errors: list[str]) -> int:
     return checked
 
 
+def token_proxy(text: str) -> int:
+    """Return a deterministic upper-level context-size proxy.
+
+    This is deliberately not named ``tokens``: tokenization depends on the
+    selected model. UTF-8 bytes divided by four is a stable review and CI budget
+    that catches dense one-line prose the line cap cannot see.
+    """
+    byte_count = len(text.encode("utf-8"))
+    return (byte_count + TOKEN_PROXY_BYTES_PER_UNIT - 1) // TOKEN_PROXY_BYTES_PER_UNIT
+
+
+def check_token_proxy_budgets(root: Path, errors: list[str]) -> int:
+    """A14 — bound always-loaded and single-load Markdown context."""
+    checked = 0
+    for entrypoint in skill_md_files(root):
+        text = entrypoint.read_text(encoding="utf-8")
+        estimate = token_proxy(text)
+        checked += 1
+        if estimate > SKILL_TOKEN_PROXY_CAP:
+            errors.append(
+                f"{rel(root, entrypoint)}: token proxy {estimate} > "
+                f"{SKILL_TOKEN_PROXY_CAP} entrypoint ceiling — keep only the "
+                "routing and execution contract in SKILL.md; deduplicate or "
+                "load stage detail on demand (A14; "
+                "docs/contributing/SKILL-AUTHORING.md §2)"
+            )
+
+        for companion in sorted(entrypoint.parent.glob("**/*.md")):
+            if companion == entrypoint:
+                continue
+            companion_text = companion.read_text(encoding="utf-8")
+            companion_estimate = token_proxy(companion_text)
+            checked += 1
+            if companion_estimate > COMPANION_TOKEN_PROXY_CAP:
+                errors.append(
+                    f"{rel(root, companion)}: token proxy {companion_estimate} > "
+                    f"{COMPANION_TOKEN_PROXY_CAP} companion-file ceiling — split "
+                    "by the stage that consumes the content or remove duplicated "
+                    "contracts (A14; docs/contributing/SKILL-AUTHORING.md §2)"
+                )
+    return checked
+
+
 def normalize_gloss(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("*", "").replace("`", "")).lower()
 
@@ -665,6 +720,7 @@ def main(argv: list[str] | None = None) -> int:
     checked += check_router_clusters(root, errors)
     checked += check_skill_size(root, errors)
     checked += check_description_length(root, errors)
+    checked += check_token_proxy_budgets(root, errors)
     checked += check_glossary_sync(root, errors)
     checked += check_material_gate_locators(root, errors)
     checked += check_evidence_meta_scale(root, errors)

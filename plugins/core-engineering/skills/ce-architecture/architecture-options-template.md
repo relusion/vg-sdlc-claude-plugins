@@ -1,26 +1,29 @@
 # Solution Architecture Options Report
 
-Use this template only in `explore:<draft-slug>` mode. Write the populated
-report to `docs/plans/.drafts/<slug>/architecture-options.md` before asking the
-Architecture Direction Selection gate. It is the human-readable decision
-surface; the canonical JSON returned to `/core-engineering:ce-plan` remains the
-machine authority.
+Use this template only in `explore:<draft-slug>` mode. Write each complete
+workbench revision to
+`docs/plans/.drafts/<slug>/architecture-options.md` before returning to the
+Architecture Direction Selection gate. The report is the human-readable
+decision surface; the canonical JSON returned to `/core-engineering:ce-plan`
+remains the machine authority.
 
 Do not omit a section because its answer is inconvenient. Use `None — <basis>`
 or `Unknown — <cost and next check>` when that is the truthful result. Render
 all generated directions, including eliminated and unresolved comparators.
-Escape all source-derived Markdown control characters; never copy raw HTML,
-fence markers, headings, or link targets from untrusted evidence into the
-rendered decision surface.
+Escape all source-derived and human-provided Markdown control characters;
+never copy raw HTML, fence markers, headings, or link targets from untrusted
+content into the rendered decision surface.
 
 ````markdown
 # Solution Architecture Options — <project_slug>
 
 > Decision status: awaiting-selection
 >
-> Purpose: compare complete solution directions before detailed work decomposition.
+> Workbench revision: <positive integer>
+>
+> Purpose: compare and iteratively refine complete solution directions before detailed work decomposition.
 > Authority: decision support only. This report does not approve a final architecture baseline, security/compliance posture, implementation, release, or deployment.
-> Snapshot rule: this file intentionally remains `awaiting-selection`; after the gate, the sibling `architecture-selection.json` records the human choice and binds these exact bytes.
+> Snapshot rule: before selection, a revised report replaces this file and carries the prior hash and change ledger below. After selection, the sibling `architecture-selection.json` binds the final bytes.
 
 Review this report before answering **Architecture Direction Selection**.
 
@@ -31,6 +34,8 @@ Review this report before answering **Architecture Direction Selection**.
 - **Recommendation:** <Axx — title, or no defensible recommendation>
 - **Recommendation basis:** <requirements-fit trade-off and leader-changing condition, or none>
 - **Confidence / sensitivity:** <confidence> / <stable, unstable, or not-applicable>
+- **Decision owner / authority:** <person or role and why this actor may bind the planning direction>
+- **Current constraints:** <concise hard-constraint summary, including unknowns>
 - **Cost if wrong:** <specific delivery, operational, security, migration, or reversibility consequence>
 - **Material gaps and inferences:** <gap/inference, impact, and next check, or explicit none>
 
@@ -38,7 +43,13 @@ Review this report before answering **Architecture Direction Selection**.
 
 **Intent:** <locked project intent>
 
-**Architecture applicability:** required | recommended | not-required
+**Architecture applicability:** required | recommended
+
+### Decision Owner
+
+| Identity or role | Authority basis |
+|---|---|
+| <exact decision_owner.identity_or_role> | <exact decision_owner.authority_basis> |
 
 **Non-goals:**
 
@@ -86,17 +97,18 @@ selected; a weighted strength never compensates for `fail` or `unknown`.
 ## Weighted Comparison
 
 Weights are planning judgments, not facts. Show all six criteria, their bases,
-every eligible option's full vector, the composite, evidence state, confidence,
-and the leader-changing sensitivity condition when one exists.
+every eligible option's full vector, the option-specific basis for every score,
+the composite, evidence state, confidence, and the leader-changing sensitivity
+condition when one exists.
 
 | Criterion | Weight | Basis | A01 score / evidence | A02 score / evidence | A03 | A04 |
 |---|---:|---|---|---|---|---|
-| requirements-fit | <weight> | <basis> | <score / state / source> | <score / state / source> | N/A | N/A |
-| quality-attribute-fit | <weight> | <basis> | <score / state / source> | <score / state / source> | N/A | N/A |
-| repository-fit | <weight> | <basis> | <score / state / source> | <score / state / source> | N/A | N/A |
-| evolvability | <weight> | <basis> | <score / state / source> | <score / state / source> | N/A | N/A |
-| operability | <weight> | <basis> | <score / state / source> | <score / state / source> | N/A | N/A |
-| delivery-feasibility | <weight> | <basis> | <score / state / source> | <score / state / source> | N/A | N/A |
+| requirements-fit | <weight> | <criterion basis> | <score / score basis / state / source> | <score / score basis / state / source> | N/A | N/A |
+| quality-attribute-fit | <weight> | <criterion basis> | <score / score basis / state / source> | <score / score basis / state / source> | N/A | N/A |
+| repository-fit | <weight> | <criterion basis> | <score / score basis / state / source> | <score / score basis / state / source> | N/A | N/A |
+| evolvability | <weight> | <criterion basis> | <score / score basis / state / source> | <score / score basis / state / source> | N/A | N/A |
+| operability | <weight> | <criterion basis> | <score / score basis / state / source> | <score / score basis / state / source> | N/A | N/A |
+| delivery-feasibility | <weight> | <criterion basis> | <score / score basis / state / source> | <score / score basis / state / source> | N/A | N/A |
 | **Composite** | **1.0** |  | **<score>** | **<score>** | N/A | N/A |
 
 **Sensitivity:** <stable/unstable/not-applicable and exact witness or basis>
@@ -141,7 +153,7 @@ authority.
 
 - **Capabilities / journeys:** <every Cnn and Jnn>
 - **Constraint verdicts:** <every HCnn verdict and basis>
-- **Score vector:** <all six criterion scores and evidence states, or ineligibility basis>
+- **Score vector:** <all six criterion scores, option-specific bases, and evidence states, or ineligibility basis>
 
 <Repeat the complete direction section for every Axx in id order.>
 
@@ -157,11 +169,25 @@ authority.
 |---|---|---|
 | <repository-relative path> | <kind> | `<sha256>` |
 
+## Decision Workbench Audit
+
+Carry every prior row forward. Record questions even when they do not change
+the comparison. A frame-change request records the exact
+`decision-frame-delta`; the next revision records how the refreshed planning
+input changed the analysis. For a changed or superseded option, include its
+prior option hash, concise direction summary, and disposition reason in the
+response/change cell.
+
+| Revision | Event | Human input / question | Response or resulting change | Prior report SHA-256 |
+|---:|---|---|---|---|
+| 1 | initial-synthesis | Initial comparison requested | <initial option-set and recommendation summary> | None — initial revision |
+| <n> | question / frame-change / option-change / alternative-added | <exact human input> | <answer and recomputed disposition> | `<previous report sha256>` |
+
 ## Machine-Readable Comparison Projection
 
 Include the exact selection-independent projection below in addition to the
-human-readable tables. Populate every array/object fully from the same fixed
-option set; never summarize or omit rows here. The schema-v2 selection linter
+human-readable tables. Populate every array/object fully from the current
+revision's option set; never summarize or omit rows here. The schema-v2 selection linter
 parses this visible JSON and requires exact equality before decomposition. The
 workflow separately recomputes the displayed Commitment Index from those
 canonical arrays before the gate; the table is not a second selection
@@ -196,6 +222,7 @@ authority.
 | Selected direction | Not selected |
 | Selected option hash | Not selected |
 | Decided by | Not selected |
+| Approved by | Not selected |
 | Rationale | Review the comparison above before choosing. |
 
 ## Integrity
@@ -203,6 +230,7 @@ authority.
 | Field | Value |
 |---|---|
 | Report schema | 1 |
+| Workbench revision | `<positive integer>` |
 | Project slug | `<project_slug>` |
 | Capability revision | `<source_capability_revision>` |
 | Exploration attempt | `<source_exploration_attempt>` |
@@ -214,7 +242,8 @@ authority.
 | Report file SHA-256 | Printed beside the path after the workflow re-reads this file; excluded from this self-referential table. |
 ````
 
-`Human Decision` is exactly `awaiting-selection`. After the human answers, do
-not rewrite this report: it is the immutable decision surface that was actually
-reviewed. The schema-v2 `architecture-selection.json` records the later human
-choice and binds this file's exact SHA-256.
+`Human Decision` remains exactly `awaiting-selection` in every workbench
+revision. Before selection, rewrites must increment the revision, preserve the
+audit rows, and bind the prior report hash. After the human selects, do not
+rewrite the final report: schema-v2 `architecture-selection.json` records the
+choice and binds that exact SHA-256.

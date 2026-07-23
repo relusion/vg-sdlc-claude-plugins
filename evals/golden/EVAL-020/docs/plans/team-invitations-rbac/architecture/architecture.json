@@ -3,7 +3,7 @@
   "schema_version": 2,
   "generator": {
     "name": "/core-engineering:ce-architecture",
-    "version": "0.10.7"
+    "version": "0.11.0"
   },
   "project_slug": "team-invitations-rbac",
   "lifecycle_status": "published",
@@ -34,7 +34,7 @@
     },
     {
       "path": "docs/plans/team-invitations-rbac/architecture-selection.json",
-      "sha256": "b42a05aa3127f1ce26f368a040628a7e43c864481d51d14c5eed109530b1d80b",
+      "sha256": "888ecbc6000c511eafdea7bd036828868498cbe0b368dfec01297fb4461945a2",
       "kind": "plan"
     },
     {
@@ -44,12 +44,12 @@
     },
     {
       "path": "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md",
-      "sha256": "f9eea14208ed41134e32f021f71d36a5fcea008e32f630ab0daea4e2c6506bf4",
+      "sha256": "0c862278005f359018c90145e13232b4647a2f96729e0c12ae50a3b9adb5f9ff",
       "kind": "plan"
     },
     {
       "path": "docs/plans/team-invitations-rbac/features/02-team-invitations.md",
-      "sha256": "1ad7b0a72a508928c863efeabbc453afe2e849a79f130fc01997e48470de271e",
+      "sha256": "5a1edfbbcc91fba279eb4babe58909a5c152e55d0a35fa83a0bdc68369ee2c3e",
       "kind": "plan"
     },
     {
@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/plans/team-invitations-rbac/plan.json",
-      "sha256": "cb97726c179115879a3a4f6b150dac2e183d9f95aca821200d507ab6e4351a2f",
+      "sha256": "bb1b13a38653a3c248d4a6ccf79a65a7788e578fc4c818bea9bc412985624be2",
       "kind": "plan"
     },
     {
@@ -89,7 +89,7 @@
       "projection_type": "solution-architecture",
       "path": "solution-architecture.md",
       "required": true,
-      "sha256": "6a580a8ebde8097a6c6be1fcdca096a5f584bd10688708aa905f35ea601633f2"
+      "sha256": "5eec2ace55c7cbbb5bc0692310b86b2508510e8370205a79d557ceca425fdd20"
     },
     {
       "id": "PROJ-002",
@@ -1532,9 +1532,9 @@
   "direction_realizations": [
     {
       "id": "DR-001",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "responsibilities_and_boundaries",
       "ordinal": 1,
       "statement": "Authorization owns capability checks; invitations owns invitation lifecycle.",
@@ -1562,9 +1562,9 @@
     },
     {
       "id": "DR-002",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "runtime_and_deployment",
       "ordinal": 1,
       "statement": "One application runtime with the existing PostgreSQL data store.",
@@ -1592,9 +1592,9 @@
     },
     {
       "id": "DR-003",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "data_ownership",
       "ordinal": 1,
       "statement": "Invitation and membership writes remain explicit and transactionally coordinated.",
@@ -1622,9 +1622,9 @@
     },
     {
       "id": "DR-004",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "integrations_and_failure",
       "ordinal": 1,
       "statement": "In-process authorization failure stops before persistence.",
@@ -1648,9 +1648,9 @@
     },
     {
       "id": "DR-005",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "trust_residency_and_security",
       "ordinal": 1,
       "statement": "Every protected write crosses the authorization boundary first.",
@@ -1678,9 +1678,9 @@
     },
     {
       "id": "DR-006",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "quality_tactics",
       "ordinal": 1,
       "statement": "Transactional acceptance provides idempotent membership creation.",
@@ -1704,9 +1704,9 @@
     },
     {
       "id": "DR-007",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "migration_and_evolution",
       "ordinal": 1,
       "statement": "No runtime migration; logical boundaries can later be extracted if evidence requires it.",
@@ -1721,9 +1721,9 @@
     },
     {
       "id": "DR-008",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "capability_implications",
       "ordinal": 1,
       "statement": "C01 decomposes into authorization foundation followed by invitation delivery.",
@@ -1747,9 +1747,9 @@
     },
     {
       "id": "DR-009",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "assumptions",
       "ordinal": 1,
       "statement": "The existing runtime and database remain adequate for the recorded load.",
@@ -1769,9 +1769,9 @@
     },
     {
       "id": "DR-010",
-      "exploration_id": "AEX-daee7bdc72fb",
+      "exploration_id": "AEX-18cb57213ed7",
       "selected_option_id": "A01",
-      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "selected_option_sha256": "5244376e42b49a22815fc86d460a1d826cedbd62b355875e3c15955783c22879",
       "dimension": "irreversible_commitments",
       "ordinal": 1,
       "statement": "No irreversible infrastructure commitment is introduced.",
@@ -2380,8 +2380,8 @@
     "authority": "Core Engineering evaluation fixture owner",
     "reference": "EVAL-020 schema-v2 corrective review revision 3",
     "gate": "Final Architecture Approval",
-    "review_payload_sha256": "e3134b5aae9e2aca26ba11c2131256b0260a76c8064c5d0f3aa3c1760b397aa4",
-    "receipt_sha256": "cb299778ddef5c7b62a1f2cf25e718d120cb2da879fd54410fab7103bdb98297"
+    "review_payload_sha256": "78b12fd5a3d84fb60a858f4e0171527b89509164a99d956f22582b6fbdf79aa3",
+    "receipt_sha256": "7b1d28a6f9eed3d75fc568be092b1eb3e7e0f0f1c47180d2b0671f80e853d1ee"
   },
   "extensions": {}
 }

@@ -391,9 +391,8 @@ class Scan:
         plan_dir = plans_root / slug
         self.plans_scanned += 1
 
-        # plan-lint over the plan dir (hard when it FAILs; a plan dir with no
-        # plan.json is a single-feature minimal plan — plan-lint exits 2 "not
-        # found" and we skip it, never a false FAIL).
+        # plan-lint over the canonical plan directory. Missing or unreadable
+        # plan.json is an unevaluable authority and therefore a hard drift.
         code, data = run_lint(self.plan_lint, plan_dir, [], self.tree_root)
         if code == 1:
             detail = ""
@@ -406,16 +405,11 @@ class Scan:
                 plan=slug))
         elif code == 2:
             msg = data.get("message", "") if isinstance(data, dict) else ""
-            if "not found" in msg.lower():
-                self.notes.append(
-                    f"{slug}: no plan.json (single-feature minimal plan) — "
-                    f"plan-lint skipped")
-            else:
-                self.hard.append(_finding(
-                    "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
-                    f"{PLAN_SCOPE_LOCK} drift: plan-lint could not evaluate "
-                    f"docs/plans/{slug}/ ({msg or 'unparseable inputs'}) — route "
-                    f"to /core-engineering:ce-plan revision", plan=slug))
+            self.hard.append(_finding(
+                "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
+                f"{PLAN_SCOPE_LOCK} drift: plan-lint could not evaluate "
+                f"docs/plans/{slug}/ ({msg or 'unparseable inputs'}) — route "
+                f"to /core-engineering:ce-plan revision", plan=slug))
         elif code is None:
             self.hard.append(_finding(
                 "hard", "plan_lint_fail", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",
@@ -458,8 +452,8 @@ class Scan:
         spec_id = spec_dir.name
         label = f"{slug}/{spec_id}"
 
-        # orphan spec — id resolves to no plan.json feature (only when a
-        # plan.json exists; a single-feature minimal plan has none).
+        # orphan spec — id resolves to no plan.json feature. A missing plan.json
+        # is already a hard plan-lint failure above.
         if feature_ids is not None and spec_id not in feature_ids:
             self.hard.append(_finding(
                 "hard", "orphan_spec", PLAN_SCOPE_LOCK, "/core-engineering:ce-plan",

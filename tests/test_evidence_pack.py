@@ -88,6 +88,16 @@ def make_fixture(root: Path) -> tuple:
     # review summary drives the dismissal_records section
     (s1 / "review-summary.json").write_text(json.dumps(
         {"blocking_high": 1, "findings_total": 4, "suppressed": 2}))
+    (plan / "verification-summary.json").write_text(json.dumps({
+        "schema_version": 1,
+        "evaluated_commit": "a" * 40,
+        "repository_state_sha256": "b" * 64,
+        "features": [{
+            "feature_id": "01-core",
+            "verdict": "failed",
+            "acceptance": "deferred",
+        }],
+    }))
 
     # metrics: gate + attestation lines carry model ids; one below-tier (haiku),
     # one strong (opus), one unattested (sonnet), one null-model gate.
@@ -196,6 +206,17 @@ class EvidencePack(unittest.TestCase):
             self.assertTrue(hum["verification_report"]["present"])
             self.assertTrue(any("NO-GO" in ln for ln in
                                 hum["verification_report"]["verdict_lines"]))
+            self.assertTrue(hum["verification_summary"]["present"])
+            self.assertEqual(
+                hum["verification_summary"]["repository_state_sha256"], "b" * 64
+            )
+            self.assertEqual(hum["verification_summary"]["feature_count"], 1)
+            self.assertEqual(
+                [row["feature_id"] for row in hum["review_summaries"]],
+                ["01-core"],
+            )
+            self.assertTrue(hum["review_summaries"][0]["present"])
+            self.assertTrue(hum["review_summaries"][0]["readable"])
             self.assertEqual(len(hum["end_review_reports"]), 1)
             att = hum["attestation_telemetry"]
             self.assertEqual(att["confirms"], 1)
@@ -250,6 +271,69 @@ class EvidencePack(unittest.TestCase):
             self.assertTrue(any("CHAIN BROKEN" in gap for gap in pack["gaps"]),
                             pack["gaps"])
 
+    def test_review_receipt_coverage_gaps_per_feature_and_malformed_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan, guard_log, mv = make_fixture(Path(tmp))
+            manifest = json.loads((plan / "plan.json").read_text(encoding="utf-8"))
+            manifest["features"].append({
+                "id": "02-extra",
+                "title": "Extra",
+                "ship_order": 2,
+                "final_complexity": "Small",
+            })
+            (plan / "plan.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+            (plan / "specs" / "02-extra").mkdir()
+
+            partial = run(
+                str(plan),
+                "--guard-log",
+                str(guard_log),
+                "--merge-verdict",
+                str(mv),
+            )
+            self.assertEqual(partial.returncode, 0, partial.stderr)
+            partial_pack = json.loads(partial.stdout)
+            rows = {
+                row["feature_id"]: row
+                for row in partial_pack["sections"]["human_attestations"][
+                    "review_summaries"
+                ]
+            }
+            self.assertFalse(rows["02-extra"]["present"])
+            self.assertFalse(rows["02-extra"]["readable"])
+            self.assertTrue(any(
+                "no review-summary.json for plan feature 02-extra" in gap
+                for gap in partial_pack["gaps"]
+            ))
+
+            (plan / "specs" / "01-core" / "review-summary.json").write_text(
+                "{not-json", encoding="utf-8"
+            )
+            malformed = run(
+                str(plan),
+                "--guard-log",
+                str(guard_log),
+                "--merge-verdict",
+                str(mv),
+            )
+            self.assertEqual(malformed.returncode, 0, malformed.stderr)
+            malformed_pack = json.loads(malformed.stdout)
+            rows = {
+                row["feature_id"]: row
+                for row in malformed_pack["sections"]["human_attestations"][
+                    "review_summaries"
+                ]
+            }
+            self.assertTrue(rows["01-core"]["present"])
+            self.assertFalse(rows["01-core"]["readable"])
+            self.assertTrue(any(
+                "review-summary.json for feature 01-core is unreadable or malformed"
+                in gap
+                for gap in malformed_pack["gaps"]
+            ))
+
     def test_out_writes_pack_and_sha256_copies(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan, guard_log, mv = make_fixture(Path(tmp))
@@ -271,6 +355,9 @@ class EvidencePack(unittest.TestCase):
                 self.assertEqual(h, a["sha256"], a["role"])
             # the embedded audit-export is written as a first-class artifact
             self.assertTrue((out / "artifacts" / "audit-export.json").is_file())
+            roles = {entry["role"] for entry in pack["artifacts"]}
+            self.assertIn("verification-summary", roles)
+            self.assertIn("review-summary", roles)
 
     def test_out_refuses_to_clobber_plan_root(self):
         with tempfile.TemporaryDirectory() as tmp:

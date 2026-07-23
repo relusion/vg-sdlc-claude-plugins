@@ -72,3 +72,45 @@ Write-time template for the `verify` skill (orchestrator: `SKILL.md`). Load it a
 
 <one or two sentences: verified | failed | partial — with the path forward>
 ````
+
+## Derived Release Receipt (`verification-summary.json`)
+
+After the report is final, `verification-gate.py create` writes this sibling
+receipt. Do not reconstruct or edit it manually:
+
+```json
+{
+  "schema_version": 1,
+  "plan_slug": "<slug>",
+  "plan_revision": 1,
+  "plan_sha256": "<64 lowercase hex>",
+  "evaluated_commit": "<40-64 lowercase hex>",
+  "repository_state_sha256": "<64 lowercase hex>",
+  "verification_report": {
+    "path": "verification-report.md",
+    "sha256": "<64 lowercase hex>"
+  },
+  "features": [
+    {
+      "feature_id": "01-feature",
+      "feature_path": "features/01-feature.md",
+      "feature_sha256": "<64 lowercase hex>",
+      "spec_path": "specs/01-feature/ce-spec.md",
+      "spec_revision": 1,
+      "spec_sha256": "<64 lowercase hex>",
+      "tasks_path": "specs/01-feature/tasks.json",
+      "tasks_sha256": "<64 lowercase hex>",
+      "implementation_verification_path": "specs/01-feature/verification.md",
+      "implementation_verification_sha256": "<64 lowercase hex>",
+      "implementation_files_sha256": "<64 lowercase hex>",
+      "implementation_status": "implemented | in-progress",
+      "verdict": "verified | partial | failed",
+      "acceptance": "accepted | not-required | rejected | deferred | unknown"
+    }
+  ]
+}
+```
+
+`/core-engineering:ce-ship-release` selects its in-range feature ids and runs
+the same gate in `check` mode. A current receipt returns exit 1 for a genuine
+failed predicate and exit 2 for missing, malformed, unsafe, or stale evidence.

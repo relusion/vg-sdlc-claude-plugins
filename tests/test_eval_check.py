@@ -210,6 +210,53 @@ class EvalCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("scripted_turns.0 has unknown key(s): invented", res.stderr)
 
+    def test_eval004_exercises_workbench_question_selection_and_final_approval(self):
+        catalog = json.loads((REPO / "evals" / "scenarios.json").read_text())
+        scenario = next(
+            item for item in catalog["scenarios"] if item["id"] == "EVAL-004"
+        )
+        turns = scenario["scripted_turns"]
+        self.assertEqual(
+            [turn["event_id"] for turn in turns],
+            ["EVAL-004-D01", "EVAL-004-D02", "EVAL-004-D03"],
+        )
+        self.assertIn(
+            "What evidence or changed constraint would make A02 preferable to A01?",
+            turns[0]["answer"],
+        )
+        self.assertIn(
+            "Architecture Direction Selection",
+            turns[0]["required_previous_output"],
+        )
+        self.assertIn("select exact eligible direction A01", turns[1]["answer"])
+        self.assertIn("Final Plan Approval", turns[2]["required_previous_output"])
+        self.assertIn("Approve exact candidate and publish", turns[2]["answer"])
+
+        selection_check = next(
+            check
+            for check in scenario["artifact_checks"]
+            if check.get("path", "").endswith("architecture-selection.json")
+        )
+        self.assertEqual(selection_check["equals"]["schema_version"], 2)
+        self.assertEqual(
+            selection_check["equals"]["selection.status"],
+            "direction-selected",
+        )
+        self.assertEqual(selection_check["min_lengths"]["options"], 2)
+
+    def test_eval021_uses_current_intake_and_architecture_workbench_surfaces(self):
+        catalog = json.loads((REPO / "evals" / "scenarios.json").read_text())
+        scenario = next(
+            item for item in catalog["scenarios"] if item["id"] == "EVAL-021"
+        )
+        serialized = json.dumps(scenario)
+        self.assertIn("Intent and Scope", serialized)
+        self.assertIn("Architecture Direction Selection", serialized)
+        self.assertIn("Ask questions / inspect evidence", serialized)
+        self.assertIn("architecture-options.md", serialized)
+        self.assertNotIn("Project Understanding", serialized)
+        self.assertNotIn("Architecture Evaluation Frame", serialized)
+
     def test_missing_expected_fixture_file_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_eval_repo(Path(tmp))
@@ -325,13 +372,13 @@ class EvalCheck(unittest.TestCase):
             )
         )
 
-    def test_ce_architecture_scenario_stops_at_scope_gate_without_publication(self):
+    def test_ce_architecture_scenario_stops_at_evidence_gate_without_publication(self):
         catalog = json.loads((REPO / "evals/scenarios.json").read_text())
         scenario = next(
             item for item in catalog["scenarios"] if item["id"] == "EVAL-020"
         )
         required = scenario["output_checks"]["required_substrings"]
-        self.assertIn("Scope Confirmation", required)
+        self.assertIn("Evidence Boundary Resolution", required)
         self.assertIn("Proceed with this evidence set", required)
         self.assertIn(
             "Architecture written:",
@@ -957,6 +1004,39 @@ class GoldenGates(unittest.TestCase):
             self.assertEqual(res.returncode, 1, res.stdout)
             self.assertIn("plan_lint failed", res.stderr)
             self.assertIn("99-does-not-exist", res.stderr)
+
+    def test_legacy_golden_architecture_selection_fails_current_plan_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            selection = (
+                repo
+                / "evals"
+                / "golden"
+                / "EVAL-004"
+                / "architecture-selection.json"
+            )
+            selection_data = json.loads(selection.read_text(encoding="utf-8"))
+            selection_data["schema_version"] = 1
+            selection_data.pop("architecture_options_report")
+            selection.write_text(
+                json.dumps(selection_data, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            plan = selection.with_name("plan.json")
+            plan_data = json.loads(plan.read_text(encoding="utf-8"))
+            plan_data["architecture_disposition"]["direction"][
+                "artifact_sha256"
+            ] = hashlib.sha256(selection.read_bytes()).hexdigest()
+            plan.write_text(json.dumps(plan_data, indent=2) + "\n", encoding="utf-8")
+
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1, res.stdout)
+            self.assertIn("plan_lint failed", res.stderr)
+            self.assertIn(
+                "fresh exploration output must use current schema_version 2",
+                res.stderr,
+            )
 
     def test_dangling_golden_architecture_endpoint_fails_architecture_lint_gate(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -44,36 +44,49 @@ clause or cited blocked use), not this skill.
 - **The plan directory:** locate `docs/plans/[slug]/`. If more than
   one matches, ask the user which to verify.
 - **Loaded (read-only):** `feature-plan.md` (traced journeys, bridges, execution
-  checklist), `plan.json` (features, ship order, dependencies, file paths),
-  `shared-context.md` (codebase profile, project docs, pitfalls, ledger), and
+  checklist), `plan.json` plus `architecture-selection.json` (current plan and
+  architecture authority), `shared-context.md` (codebase profile, project docs,
+  pitfalls, ledger), and
   each feature's `specs/<id>/ce-spec.md`, `tasks.json`, and `verification.md` where
   they exist.
 
 This workflow never modifies source, specs, task state, or any loaded planning
-artifact. It owns two bounded writes in the plan directory: create or update the
-cumulative `verification-report.md`, and append optional telemetry to
+artifact. It owns three bounded writes in the plan directory: create or update
+the cumulative `verification-report.md`, replace its derived
+`verification-summary.json` freshness receipt, and append optional telemetry to
 `.metrics.jsonl`.
 
 ## Execution Contract
 
 *Gate locator (HITL R5):* print `Gate N of M — <name>` at every interactive gate; compute M from the gates that actually fire this run, never a hardcoded constant.
 
-0. **Session write lease (structural, first act).** `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill ce-verify --allow 'docs/plans/**/verification-report.md' --allow 'docs/plans/**/.metrics.jsonl'` — the write guard limits this run to the cumulative report and optional telemetry. Last act, on success, failure, or early exit: `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --restore-baseline`. A denied write means this contract and the attempted action disagree — reconcile them; never edit or delete the lease to proceed.
+0. **Session write lease (structural, first act).** `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --set --skill ce-verify --allow 'docs/plans/**/verification-report.md' --allow 'docs/plans/**/verification-summary.json' --allow 'docs/plans/**/.metrics.jsonl'` — the write guard limits this run to the cumulative report, its derived receipt, and optional telemetry. Last act, on success, failure, or early exit: `python3 "${CLAUDE_SKILL_DIR}/scripts/write-lease.py" --restore-baseline`. A denied write means this contract and the attempted action disagree — reconcile them; never edit or delete the lease to proceed.
 1. **Verify, do not fix.** Find defects and escalate; never patch code, never edit specs, never edit feature files.
-2. **Bounded artifact writes.** Create or update only `verification-report.md`; append only to `.metrics.jsonl`. All source, plan, spec, task, and verification inputs remain read-only.
+2. **Bounded artifact writes.** Create or update only `verification-report.md`
+   and its script-derived `verification-summary.json`; append only to
+   `.metrics.jsonl`. All source, plan, spec, task, and implementation
+   verification inputs remain read-only. Never hand-compose the summary.
 3. **Grounded.** Scenarios come from the plan's traced journeys and the specs' EARS criteria and test cases — never from-scratch tests. The Stage 2.5 revisit walk is the reciprocal of the plan's Stage 6.3 closure rows, scripted off the feature's built write surfaces — not an invented test.
 4. **Derive state, don't trust claims.** A feature is `implemented` only if its `tasks.json` exists and every task is `done` and `verification.md` exists; anything less is in progress.
-5. **Batched HITL.** Automated checks autonomous; each journey is driven end-to-end first, then presented in **one pre-triaged gate per journey** (agent-suggested Pass/Fail/uncertain — flagged rows isolated, suggested-Pass rows bulk-confirmed, the human owning every verdict); the durable-noun revisit walk batches to **one gate per noun**; stakeholder acceptance a material gate. The interactive gate count M ≈ journeys + durable nouns + surface-removal + acceptance, never per step.
-6. **Honest scope.** Local end-to-end verification and acceptance facilitation. UAT in a real staging environment is a deployment concern, out of scope.
-7. **Never commit, push, or deploy.** Those remain the human's responsibility.
+5. **Current authority only.** Before deriving feature state, require the
+   current plan and architecture-selection schemas. Legacy/reportless
+   architecture selections are diagnostic inputs, never verification
+   authority.
+6. **Evidence-first HITL.** Automated and tool-demonstrated Pass rows are
+   reported without confirmation. Prompt only for a Fail needing disposition,
+   uncertain evidence, `manual:judgment`, or stakeholder acceptance. Group
+   related flagged rows without mixing their decisions.
+7. **Honest scope.** Local end-to-end verification and acceptance facilitation. UAT in a real staging environment is a deployment concern, out of scope.
+8. **Never commit, push, or deploy.** Those remain the human's responsibility.
 
 ## Human-in-the-Loop — batched
 
-Verify is mostly autonomous. Human judgment batches to a few named gates — **one per journey, one per durable noun, and stakeholder acceptance** — never one prompt per step. The agent does the legwork (drives every step, captures evidence, forms a *suggested* verdict); the human still owns every verdict — only the render is batched.
-
-- **Journey verdicts** (Stage 2) — the whole journey is driven first, then **one gate per journey** (`Gate N of M — Journey <name>`): a pre-triaged table (step · expected observable · evidence ref · agent-suggested Pass/Fail/uncertain) that **leads with what needs your decision**. Agent-flagged `Fail`/`uncertain` rows are isolated to their own follow-up question with basis + cost-if-wrong (R2/R3); agent-suggested-`Pass` rows are confirmed-or-overridden in bulk (approve-with-veto). Per-step evidence stays individually cited; the human confirms or overrides every row.
-- **Revisit verdicts** (Stage 2.5) — **one gate per durable noun** covering revisit / switch / amend **and** the governance reciprocals (retain / export / erase), same triaged shape. The mechanical re-projection equality checks (threat-model + interaction-contract data-class consistency) are **reported as pre-flagged rows, never asked** — a detected mismatch surfaces in *what needs your decision*, not as a separate question.
-- **Stakeholder acceptance** (Stage 3, pre-handover only) — a material gate; each journey presented as a walkable scenario, sign-off captured.
+Drive and capture evidence before asking. A clean journey or noun produces no
+gate. When one has flagged rows, print `Gate N of M — <journey|noun>` and ask
+only about Fail disposition, uncertain evidence, or `manual:judgment`; keep each
+decision independently answerable. Deterministic mismatches are reported as
+failures and routed, not re-litigated as human verdicts. Pre-handover
+stakeholder acceptance remains a material gate.
 
 Never patch code; never modify artifacts outside the two bounded write paths.
 
@@ -89,8 +102,8 @@ Execute the stages in order. Load each stage file when you reach it — not befo
 
 | Stages | Load this file | Purpose |
 |---|---|---|
-| 0–1 | `${CLAUDE_SKILL_DIR}/stage-0-1-load-check.md` | Locate the plan, derive feature state, confirm scope; automated system check — whole-suite regression, build/lint/type-check, criteria re-confirmation, bridge retirement, dep-guard |
-| 2–2.6 | `${CLAUDE_SKILL_DIR}/stage-2-2.6-walks.md` | Journey walks with human verdicts; durable-noun revisit walk + governance reciprocals; surface-removal confirmation walk |
+| 0–1 | `${CLAUDE_SKILL_DIR}/stage-0-1-load-check.md` | Locate the plan, derive scope, and run system checks |
+| 2–2.6 | `${CLAUDE_SKILL_DIR}/stage-2-2.6-walks.md` | Journey, durable-noun/governance, and surface-removal evidence walks |
 | 3 | `${CLAUDE_SKILL_DIR}/stage-3-acceptance-report.md` | Present the result, stakeholder acceptance (pre-handover only), write `verification-report.md` |
 
 At the write step, `${CLAUDE_SKILL_DIR}/stage-3-acceptance-report.md` directs you to **`${CLAUDE_SKILL_DIR}/artifact-template.md`** for the Report Template. Do not reconstruct the report format from memory.
@@ -141,8 +154,12 @@ passed, the project is ready for handover.
 
 - **Local end-to-end, not UAT.** Verifies against a local / dev environment; user-acceptance testing in a real staging or production environment is a deployment concern, out of scope.
 - **Shares the model's blind spots.** Journey walks and evidence interpretation run on the same model that built the feature — an error baked into both the implementation and the reading of the evidence can pass. Independent ≠ omniscient.
-- **Verdicts are interpretation.** A `Pass` means the captured evidence matched the expected observable *as judged here* — not a proof of correctness under inputs not walked. Acceptance is the stakeholder's sign-off, not this tool's.
-- **On a rendered surface, the human's verdict on the presented image is authoritative.** The Surface Critique step (Stage 2.4) is the agent's job to *present the surface and its functional findings* (overlap, clipping, illegible density, unreachable affordance, goal-service) — fallible vision that raises the floor, shares the model's blind spots, and renders no aesthetic verdict. The human owns the call on the presented image; taste is never a Fail.
+- **Evidence is bounded.** A demonstrated `Pass` means the captured evidence
+  matched the named observable; it proves nothing about inputs not walked.
+  Stakeholder acceptance is a separate sign-off.
+- **Surface critique is fallible.** Objective contract failures are reported
+  from evidence; aesthetic taste remains `manual:judgment` and is never
+  converted into a functional Fail.
 - **Behavior, not code quality.** Checks that the software *behaves* as specified; it does not review *how the code is written* — run `/core-engineering:ce-review` as well before handover.
 - **As complete as the harness.** A step whose modality can't be driven here falls back to a human-run observable and is recorded as degraded — never silently skipped, but not machine-proven either.
 - **Closes named writes, not unnamed state.** The revisit walk fires off durable writes that actually shipped (a `db`/`event` step, a write criterion, a `tasks.json` write verb) — the only check keyed to built evidence rather than planned scope, so it can catch a noun the plan never named. But state persisted by a path nothing names as a write (an implicit autosave row, a server session assumed transient) emits no detectable signal and is not walked.

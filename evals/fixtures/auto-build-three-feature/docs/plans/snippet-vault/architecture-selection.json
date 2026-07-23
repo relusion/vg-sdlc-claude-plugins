@@ -1,56 +1,221 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project_slug": "snippet-vault",
-  "exploration_id": "AEX-waived-r1",
+  "exploration_id": "AEX-not-required-r1",
   "source_capability_revision": 1,
   "source_exploration_attempt": 1,
-  "source_input_sha256": "5a0830ed611194147931d1880aae5e521a80e43ab5b454bcc596625c8e7754a4",
+  "source_input_sha256": "f08e3451557b1dc7a8721250d50bb15e614c6da500e391e38aa885b2fd7a6357",
   "evaluation_frame": {
     "project_intent": "Create, share, and export snippets in the bounded evaluation application.",
-    "non_goals": ["Production topology and external storage migration"],
-    "architecture_applicability": "required",
+    "non_goals": [
+      "Production topology and external storage migration"
+    ],
+    "architecture_applicability": "not-required",
     "driver_screen": [
-      {"id": "explicit-architecture-deliverable", "verdict": "negative", "basis": "No separate architecture package is requested for this fixture.", "evidence": ["README.md"]},
-      {"id": "multi-runtime-or-deployment-boundary", "verdict": "negative", "basis": "All capabilities remain in one evaluation runtime.", "evidence": ["README.md"]},
-      {"id": "cross-feature-durable-or-async-flow", "verdict": "negative", "basis": "No asynchronous flow is introduced.", "evidence": ["README.md"]},
-      {"id": "shared-data-ownership-or-migration", "verdict": "positive", "basis": "Create, share, and export all consume the same snippet state.", "evidence": ["README.md"]},
-      {"id": "trust-residency-or-sensitive-boundary", "verdict": "negative", "basis": "The controlled fixture records no new trust or residency boundary.", "evidence": ["README.md"]},
-      {"id": "shared-protocol-or-schema", "verdict": "negative", "basis": "No cross-runtime protocol is introduced.", "evidence": ["README.md"]},
-      {"id": "platform-or-topology-choice", "verdict": "negative", "basis": "The existing evaluation topology is retained.", "evidence": ["README.md"]},
-      {"id": "architecture-determining-nfr", "verdict": "negative", "basis": "No quality target forces another topology.", "evidence": ["README.md"]},
-      {"id": "contested-cross-feature-owner", "verdict": "negative", "basis": "The feature plan records a shared foundation owner.", "evidence": ["README.md"]},
-      {"id": "team-policy-recommendation", "verdict": "negative", "basis": "No team-policy recommendation applies.", "evidence": ["README.md"]},
-      {"id": "planned-reuse-recommendation", "verdict": "negative", "basis": "The fixture is not a reuse baseline.", "evidence": ["README.md"]},
-      {"id": "baseline-preference", "verdict": "negative", "basis": "Required ownership evidence already determines applicability.", "evidence": ["README.md"]}
+      {
+        "id": "explicit-architecture-deliverable",
+        "verdict": "negative",
+        "basis": "No separate architecture package is requested for this fixture.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "multi-runtime-or-deployment-boundary",
+        "verdict": "negative",
+        "basis": "All capabilities remain in one evaluation runtime.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "cross-feature-durable-or-async-flow",
+        "verdict": "negative",
+        "basis": "No asynchronous flow is introduced.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "shared-data-ownership-or-migration",
+        "verdict": "negative",
+        "basis": "The existing in-memory snippet store has one fixed owner; no ownership or migration choice shapes decomposition.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "trust-residency-or-sensitive-boundary",
+        "verdict": "negative",
+        "basis": "The controlled fixture records no new trust or residency boundary.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "shared-protocol-or-schema",
+        "verdict": "negative",
+        "basis": "No cross-runtime protocol is introduced.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "platform-or-topology-choice",
+        "verdict": "negative",
+        "basis": "The existing evaluation topology is retained.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "architecture-determining-nfr",
+        "verdict": "negative",
+        "basis": "No quality target forces another topology.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "contested-cross-feature-owner",
+        "verdict": "negative",
+        "basis": "The feature plan records a shared foundation owner.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "team-policy-recommendation",
+        "verdict": "negative",
+        "basis": "No team-policy recommendation applies.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "planned-reuse-recommendation",
+        "verdict": "negative",
+        "basis": "The fixture is not a reuse baseline.",
+        "evidence": [
+          "README.md"
+        ]
+      },
+      {
+        "id": "baseline-preference",
+        "verdict": "negative",
+        "basis": "Required ownership evidence already determines applicability.",
+        "evidence": [
+          "README.md"
+        ]
+      }
     ],
     "accepted_decisions": [],
     "material_gaps": [],
     "capabilities": [
-      {"id": "C01", "outcome": "Users create, share, and export snippets.", "actors": ["snippet user"], "data": ["snippet"], "integrations": ["local application storage"], "observable": "Created snippets can be shared and exported."}
+      {
+        "id": "C01",
+        "outcome": "Users create, share, and export snippets.",
+        "actors": [
+          "snippet user"
+        ],
+        "data": [
+          "snippet"
+        ],
+        "integrations": [
+          "local application storage"
+        ],
+        "observable": "Created snippets can be shared and exported."
+      }
     ],
     "journeys": [
-      {"id": "J01", "outcome": "A stored snippet is consumed through independent workflows.", "actors": ["snippet user"], "capability_refs": ["C01"], "steps": ["Create snippet", "Share or export snippet"], "observable": "Each workflow uses the stored snippet."}
+      {
+        "id": "J01",
+        "outcome": "A stored snippet is consumed through independent workflows.",
+        "actors": [
+          "snippet user"
+        ],
+        "capability_refs": [
+          "C01"
+        ],
+        "steps": [
+          "Create snippet",
+          "Share or export snippet"
+        ],
+        "observable": "Each workflow uses the stored snippet."
+      }
     ],
-    "quality_attribute_scenarios": []
+    "quality_attribute_scenarios": [],
+    "decision_owner": {
+      "identity_or_role": "Repository Architecture Owner",
+      "authority_basis": "This evaluation fixture assigns architecture applicability and direction approval to the repository architecture owner."
+    }
   },
   "blocking_decision": null,
   "sources": [
-    {"path": "README.md", "sha256": "a1f01b00b2cba0b8937f164a14a9405f974b9c78919a4fa981dc814f6155fbf7", "kind": "repository"}
+    {
+      "path": "README.md",
+      "sha256": "a1f01b00b2cba0b8937f164a14a9405f974b9c78919a4fa981dc814f6155fbf7",
+      "kind": "repository"
+    }
   ],
   "evidence_fingerprint": "037c1d46862f9a47a27c7dad9d6a8704f8e5de71da997bb330aab3d941e55ae1",
   "criteria": [
-    {"id": "requirements-fit", "weight": 0.25, "basis": "Preserve create, share, and export outcomes when evaluating any future direction."},
-    {"id": "quality-attribute-fit", "weight": 0.2, "basis": "Retain the fixture's recorded workflow behavior and failure constraints."},
-    {"id": "repository-fit", "weight": 0.15, "basis": "Prefer compatibility with the existing bounded evaluation application."},
-    {"id": "evolvability", "weight": 0.15, "basis": "Keep the shared snippet foundation independently extensible."},
-    {"id": "operability", "weight": 0.1, "basis": "Avoid adding operational surface without evidence."},
-    {"id": "delivery-feasibility", "weight": 0.15, "basis": "Keep delivery risk proportionate to the controlled fixture."}
+    {
+      "id": "requirements-fit",
+      "weight": 0.25,
+      "basis": "Preserve create, share, and export outcomes when evaluating any future direction."
+    },
+    {
+      "id": "quality-attribute-fit",
+      "weight": 0.2,
+      "basis": "Retain the fixture's recorded workflow behavior and failure constraints."
+    },
+    {
+      "id": "repository-fit",
+      "weight": 0.15,
+      "basis": "Prefer compatibility with the existing bounded evaluation application."
+    },
+    {
+      "id": "evolvability",
+      "weight": 0.15,
+      "basis": "Keep the shared snippet foundation independently extensible."
+    },
+    {
+      "id": "operability",
+      "weight": 0.1,
+      "basis": "Avoid adding operational surface without evidence."
+    },
+    {
+      "id": "delivery-feasibility",
+      "weight": 0.15,
+      "basis": "Keep delivery risk proportionate to the controlled fixture."
+    }
   ],
   "hard_constraints": [],
   "options": [],
   "eliminated_options": [],
   "option_set_sha256": "3b2eeb937512071b67d5d4d8bf1bffa6c4f1946ebd979c5ab9ad0abf94db437c",
-  "recommendation": {"option_id": null, "confidence": "low", "sensitivity": "not-applicable", "sensitivity_witness": null, "basis": "The fixture records an explicit human waiver instead of selecting a direction."},
-  "selection": {"status": "waived", "option_id": null, "option_sha256": null, "decided_by": "human", "rationale": "The human accepted architecture rework risk for this controlled legacy fixture."},
+  "recommendation": {
+    "option_id": null,
+    "confidence": "high",
+    "sensitivity": "not-applicable",
+    "sensitivity_witness": null,
+    "basis": "Architecture direction selection is not applicable."
+  },
+  "architecture_options_report": {
+    "schema_version": 1,
+    "status": "not-produced",
+    "path": null,
+    "sha256": null,
+    "reason": "Architecture applicability is not-required, so no options workbench was produced."
+  },
+  "selection": {
+    "status": "not-applicable",
+    "option_id": null,
+    "option_sha256": null,
+    "decided_by": "human",
+    "approved_by": null,
+    "rationale": "The recorded negative driver screen shows no load-bearing solution-architecture decision for this bounded fixture."
+  },
   "next_owner": "ce-plan"
 }

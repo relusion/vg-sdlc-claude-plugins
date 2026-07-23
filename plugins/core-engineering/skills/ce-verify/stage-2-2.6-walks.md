@@ -10,9 +10,8 @@ Stage file for the `ce-verify` skill (orchestrator: `SKILL.md` — read it first
 
 For each in-scope journey, walk it end-to-end, grounded in the plan's
 Reachability / Consumability Trace. The plan's journey table maps journey
-steps → owning features. **Drive the whole journey first, then present one gate
-for it** — never a prompt per step (HITL R4). The human still owns every verdict;
-only the render is batched.
+steps → owning features. Drive the whole journey and capture evidence before
+any prompt.
 
 Read each step's **verification modality** from the plan's Journey Map — the journey's primary modality, or a step's own modality where it differs (`browser · http · cli · sdk · event · iac · db · manual`). The spec's test cases carry the same modality on each case (the `modality:` tag), so a journey step and its proving test case agree on the tool. It tells you which tool to drive with; don't guess it. If a step's modality can't be driven here (its harness is unavailable), fall back to the documented observable as a human-run check and record the degradation — never silently skip it.
 
@@ -36,12 +35,12 @@ For each step, in order:
    Surface Critique discipline — rubric, classifier, and canvas-vs-DOM evidence
    model in `spec/surface-critique.md`; on a `<canvas>` surface the critique
    reads the screenshot pixels, since the DOM exposes no per-object children.)*
-4. Form an **agent-suggested verdict** for the step: `Pass` (evidence matched the
+4. Derive an **evidence result** for the step: `Pass` (evidence matched the
    expected observable), `Fail` (it did not — including a functional-readability
    Fail from the Surface Critique), or `uncertain` (evidence ambiguous, a degraded
    modality, or a `manual:judgment`/taste call only the human can make). This is
-   the agent's *suggestion* — it pre-triages the gate at 2.b; it is **not** the
-   human's verdict, which is rendered there. Capture no prompt yet.
+   a demonstrated result for objective checks; only uncertainty and
+   `manual:judgment` need a human verdict.
 
 Per-feature `manual` verdicts already in each `verification.md` are **read, not
 re-run** — the journey walk is the system-level manual check. **Exception under
@@ -57,37 +56,21 @@ the human's, gathered at the end-review).
 Skip steps owned by features that are not yet `implemented`; mark the journey
 `partial` if any step is missing its feature.
 
-### 2.b The journey gate  [one per journey]
+### 2.b Journey disposition
 
-After every step is driven, present **one** `AskUserQuestion` gate for the journey
-— the single interactive moment for it. Render it under the dense-gate discipline
-(HITL R3/R4/R5):
+Render the full step/evidence table. Demonstrated Pass rows are final for this
+run and are not questions. If every row passes, record the journey Pass and
+continue.
 
-1. **Gate locator** — `Gate N of M — Journey <name>` (N/M per the SKILL.md locator
-   discipline; M ≈ journeys + durable nouns + surface-removal + acceptance, **not
-   steps**).
-2. **What needs your decision** — lead with ONLY the steps the agent flagged `Fail`
-   or `uncertain`, each numbered `R1, R2, …`, each with its **evidence ref + basis +
-   plain-language cost-if-wrong** (R2). Each flagged row becomes **its own question**
-   in this gate (`Pass` / `Fail` / `Blocked`) — isolated per R3, never bundled into
-   the bulk confirm.
-3. **Agent-suggested Pass (count)** — collapse the `Pass`-suggested steps into one
-   count with a `[details ↓]` pointer to the full table, offered as a single
-   **confirm-or-override** question (approve-with-veto: *Confirm all* accepts them, or
-   the human pulls any row out to re-verdict it).
-4. **Full step table** — for reference, so per-step evidence stays individually cited:
-   step · owning feature · expected observable · evidence ref · agent-suggested verdict.
+If any row is `Fail`, `uncertain`, or `manual:judgment`, print
+`Gate N of M — Journey <name>` and lead with only those rows. Include evidence,
+basis, and cost-if-wrong; give each flagged row its own `Pass` / `Fail` /
+`Blocked` question. A deterministic Fail is already a failure—the question is
+its disposition/route, not permission to call it Pass without contrary
+evidence. Split calls over four questions with a stated reason.
 
-One `AskUserQuestion` call carries the bulk-confirm question **plus** one question per
-flagged row (so a whole clean journey is a single prompt, and a seeded failing step
-still gets its own isolated question). A round that would exceed the harness cap
-(> 4 questions per call) **splits with a stated reason** — no silent cap (R5). If the
-human picks *override* on the bulk-confirm, a follow-up round lists the Pass rows to
-re-verdict individually.
-
-The journey's verdict is the **AND** of every step verdict the human confirmed or
-set. A `Fail` on any step → the journey fails → escalate. A `Blocked` leaves the
-journey not-verified; record and continue.
+The journey result is the AND of demonstrated Pass rows and human-resolved
+flagged rows. Any Fail escalates; Blocked remains not verified.
 
 ---
 
@@ -153,9 +136,8 @@ table against the §6.3 closure for each noun walked above. The threat model is 
 means the read-only contract was violated (a data-class was downgraded in the threat
 model to dodge a governance reciprocal — the §6.3.4 risk made real): record it as a
 `Fail` and escalate to `/core-engineering:ce-plan` (the closure owns the data-class;
-`/core-engineering:ce-verify` never resets it). This is a mechanical equality check, not a judgment
-call — a detected mismatch is **reported as a pre-flagged row in the noun gate below,
-never asked as a question**.
+`/core-engineering:ce-verify` never resets it). This is a mechanical equality
+check: report and route a mismatch; never ask for a verdict on it.
 
 **Interaction-contract consistency (re-projection drift).** Where the plan wrote a
 `docs/plans/<slug>/interaction-contract.md`, cross-check its rows against the upstreams
@@ -167,33 +149,22 @@ re-cuts a boundary means the read-only contract was violated: record it as a `Fa
 escalate to `/core-engineering:ce-plan` (the plan owns the edges and the closure;
 `/core-engineering:ce-verify` detects drift, never re-binds the contract). This is a mechanical consistency
 check, not a judgment call — whether a built feature *honours* its `[CONTRACT: IC-NNN]`
-obligation is that feature's own EARS / test-case coverage, walked above. Like the
-threat-model check, a detected mismatch is **reported as a pre-flagged row in the noun
-gate below, never asked as a question**.
+obligation is that feature's own EARS / test-case coverage, walked above. Like
+the threat-model check, report and route a mismatch without a verdict prompt.
 
-### The noun gate  [one per durable noun]
+### Noun disposition
 
-After the revisit walk, the governance reciprocals, and the two mechanical
-re-projection checks are all done, present **one** `AskUserQuestion` gate for the
-noun — the single interactive moment for it, in the same triaged shape as the journey
-gate (HITL R3/R4/R5):
+Render the full edge/evidence table. Demonstrated clean edges are recorded
+without confirmation. Mechanical re-projection mismatches are recorded as Fail
+and routed directly.
 
-1. **Gate locator** — `Gate N of M — Noun <name>` (N/M per the SKILL.md locator
-   discipline).
-2. **What needs your decision** — lead with ONLY the flagged rows: a reciprocal
-   surface missing / unreachable / silently duplicating (revisit / switch / amend), a
-   fake-consumer governance reciprocal (retain / export / erase), or a **mechanical
-   re-projection mismatch already detected** (threat-model or interaction-contract
-   data-class drift — reported here, not re-asked). Each carries its evidence ref +
-   basis + cost-if-wrong (R2) and is **its own question** (`Pass` / `Fail` / `Blocked`)
-   isolated per R3.
-3. **Clean edges (count)** — collapse the reciprocals that passed cleanly into one
-   confirm-or-override count (approve-with-veto), with a `[details ↓]` pointer to the
-   captured evidence (screenshots, response bodies, re-list output).
+If an observed edge is `Fail`, `uncertain`, or `manual:judgment`, print
+`Gate N of M — Noun <name>` and ask only about those rows, each independently,
+with evidence, basis, and cost-if-wrong. If no such row exists, the noun passes
+without a gate.
 
-The noun's verdict is the **AND** of every edge verdict. A `Fail` (a reciprocal
-surface missing, unreachable, or silently duplicating, or a reported re-projection
-mismatch the human confirms) fails the stage and escalates.
+The noun result is the AND of demonstrated edges and human-resolved flagged
+rows. Any Fail escalates; Blocked remains not verified.
 
 **Escalation.** A missing or duplicating revisit/amend surface is not a code bug
 to patch here — a reciprocal obligation was never owned by any feature. Escalate
@@ -224,7 +195,8 @@ closure row and confirm the continuity disposition actually shipped:
 - **`hard-break:`** — confirm the break is the consented one recorded in §13 Notes,
   not an undisclosed extra break.
 
-Present evidence and capture the human verdict via `AskUserQuestion`:
-`Pass` / `Fail` / `Blocked`. A `Fail` (an old surface gone with no shipped window or
-shim, or a `hard-break` the plan never consented) escalates **up** to
-`/core-engineering:ce-plan` — a continuity obligation was never owned by a feature.
+Record a demonstrated Pass without a question. For `Fail`, `uncertain`, or
+`manual:judgment`, print `Gate N of M — Surface removal <name>` with evidence
+and ask only for disposition (`Fail` / `Blocked`, or `Pass` when contrary
+evidence is supplied). A Fail—an old surface gone without its window/shim, or
+an unconsented hard break—escalates to `/core-engineering:ce-plan`.

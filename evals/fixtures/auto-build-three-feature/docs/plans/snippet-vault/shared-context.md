@@ -34,7 +34,7 @@ There is no separate lint tool configured; the parse-floor above stands in.
 
 | Decision | Triggers | Convergence | Iterations | Basis | Accepted decisions | Downstream consequence |
 |---|---|---|---:|---|---|---|
-| waived | shared-data-ownership-or-migration | waived | 1 | The human accepted architecture-rework risk for this bounded single-runtime fixture. | None | Continue with the waiver and residual risk visible; workers may not invent missing cross-feature design. |
+| not-required | none | not-applicable | 0 | The existing in-memory snippet store has one fixed owner; no load-bearing architecture choice shapes decomposition. | None | Continue from the complete negative driver screen; workers may not invent cross-feature design. |
 
 ## Resolved Project Decisions
 

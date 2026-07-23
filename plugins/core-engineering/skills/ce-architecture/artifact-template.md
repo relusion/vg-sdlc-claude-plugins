@@ -115,7 +115,7 @@ Use this exact shape:
   "schema_version": 2,
   "generator": {
     "name": "/core-engineering:ce-architecture",
-    "version": "0.10.7"
+    "version": "0.11.0"
   },
   "project_slug": "customer-portal",
   "lifecycle_status": "proposed",
@@ -694,7 +694,7 @@ schemas, fields, payloads, endpoint definitions, and implementation tests.
     {
       "id": "TR-001",
       "name": "Invitation ownership cutover",
-      "from_state": "Invitation records owned by the legacy portal path.",
+      "from_state": "Invitation records owned by the prior portal path.",
       "to_state": "Invitation records owned by the selected portal component.",
       "strategy": "Additive transition with explicit ownership transfer.",
       "coexistence": "Old reads remain available during the bounded migration window.",

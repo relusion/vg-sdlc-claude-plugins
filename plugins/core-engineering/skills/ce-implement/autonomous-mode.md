@@ -10,7 +10,10 @@ apply it for the whole run.
 When invoked by `/core-engineering:ce-auto-build`, run without interactive gates, applying auto-build's **Decision Classification**:
 
 - **Auto-resolve** routine implementation choices (record notable ones in the run ledger).
-- **Working tree + version control are the orchestrator's.** Do not check, acknowledge, or stop on a dirty working tree, and do not establish a VC policy or branch — auto-build owns the **clean-tree gate** (its Stage 0) and all git (Spawn Contract). Stage 0's working-tree ack and VC-policy prompts are suppressed here.
+- **Auto-build is the sole no-git overlay.** The orchestrator owns the working
+  tree baseline and every version-control action. This worker does not establish
+  a VC policy, create/switch branches, commit, or run a separate dirty-tree
+  decision.
 - **Park** (return control to the orchestrator) on any **destructive operation** — never auto-run migrations, deletes, or schema changes — and on a **Spec Conflict** (do not escalate interactively).
 - **Run verification normally** — `auto` tests must pass per task and per feature; this is never skipped.
 - **Do not delete the red-test snapshots.** The per-task gate's PASS step deletes `.test-guard/<id>/<task-id>/` *in interactive mode only*; under autonomous mode **leave every snapshot on disk** for the whole run — the orchestrator re-runs test-guard over them as an external gate and owns their cleanup. Deleting them would blind the orchestrator's independent within-task-genie check (its `--snapshot` re-run would hit an empty dir → degrade). This is the snapshot half of the Spawn Contract.

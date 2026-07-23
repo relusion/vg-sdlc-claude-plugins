@@ -39,11 +39,15 @@ HARD checks (a FAIL -> exit 1; facts derivable from plan.json + the filesystem):
       (a real projection, or its attested negative `## No Security Surface` /
       `## No Cross-Feature Protocol` written *in place of* the sections). A missing
       or empty file is the silent omission the re-projection discipline forbids.
-      (A single-feature minimal plan has no plan.json and never reaches the lint.)
+      Single-feature plans use the same manifest shape; H8 is simply not
+      applicable when no cross-feature re-projection exists.
   H9  A present `architecture_disposition` records a structurally valid applicability
       decision and internally consistent architecture-plan convergence evidence.
   H10 A present architecture-direction summary is human-bound, status-consistent,
       and matches a fresh, fully valid plan-root `architecture-selection.json`.
+  H11 Every feature declares exactly one `specification_route` machine authority
+      (`compact` or `explicit`), its Markdown carries one matching projection,
+      and a feature already classified `Complex` cannot take the compact route.
 
 ADVISORY checks (warnings only; never change the exit code — completeness or
 markdown-derived, best-effort):
@@ -95,9 +99,10 @@ from pathlib import Path
 TYPES = {"foundation", "user-facing", "integration", "infrastructure", "refactor", "enabling"}
 RISKS = {"low", "medium", "high"}
 COMPLEXITIES = {"Simple", "Moderate", "Complex"}
-ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required", "waived"}
+SPECIFICATION_ROUTES = {"compact", "explicit"}
+ARCHITECTURE_DECISIONS = {"required", "recommended", "not-required"}
 ARCHITECTURE_CONVERGENCE_STATES = {
-    "converged", "deferred", "not-applicable", "waived",
+    "converged", "deferred", "not-applicable",
 }
 ARCHITECTURE_DISPOSITION_REQUIRED_KEYS = {
     "decision", "triggers", "rationale", "decided_by", "convergence",
@@ -136,7 +141,7 @@ ARCHITECTURE_DIRECTION_KEYS = {
     "summary",
 }
 ARCHITECTURE_DIRECTION_SELECTED = {"direction-selected", "adopted-existing"}
-ARCHITECTURE_DIRECTION_UNSELECTED = {"not-applicable", "deferred", "waived"}
+ARCHITECTURE_DIRECTION_UNSELECTED = {"not-applicable", "deferred"}
 ARCHITECTURE_DIRECTION_STATUSES = (
     ARCHITECTURE_DIRECTION_SELECTED | ARCHITECTURE_DIRECTION_UNSELECTED
 )
@@ -144,10 +149,6 @@ ARCHITECTURE_DIRECTION_BY_DECISION = {
     "required": ARCHITECTURE_DIRECTION_SELECTED,
     "recommended": ARCHITECTURE_DIRECTION_SELECTED | {"deferred"},
     "not-required": {"not-applicable"},
-    # A post-decomposition shaping/baseline waiver does not erase an immutable
-    # direction that already shaped decomposition. `waived` is also valid when
-    # the human waived direction selection itself.
-    "waived": ARCHITECTURE_DIRECTION_SELECTED | {"waived"},
 }
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -156,6 +157,10 @@ EMPTY_VALUES = {"", "-", "none", "null", "n/a", "na", "tbd", "~"}
 
 META_BLOCK = re.compile(r"###\s+Structured Metadata\s*\n+```ya?ml\n(.*?)\n```", re.DOTALL)
 ID_LINE = re.compile(r"^id:\s*(\S.*?)\s*$", re.MULTILINE)
+SPECIFICATION_ROUTE_LINE = re.compile(
+    r"^\*\*Specification route:\*\*\s*(compact|explicit)\s*$",
+    re.MULTILINE,
+)
 
 
 class PlanLintError(Exception):
@@ -500,6 +505,7 @@ def validate_architecture_direction(
             artifact,
             repo_root=repo_root,
             allow_incomplete=False,
+            require_current_schema=require_direction,
             expected_project_slug=(
                 manifest.get("project_slug")
                 if isinstance(manifest.get("project_slug"), str)
@@ -751,13 +757,6 @@ def validate_architecture_disposition(
             hard.append("H9: decision `not-required` requires iteration_count 0")
         if triggers_valid and triggers:
             hard.append("H9: decision `not-required` requires an empty triggers list")
-    elif decision == "waived":
-        if convergence_status != "waived":
-            hard.append("H9: decision `waived` requires convergence status `waived`")
-        if triggers_valid and not triggers:
-            hard.append("H9: decision `waived` requires at least one trigger")
-        if iteration_valid and iteration_count < 1:
-            hard.append("H9: decision `waived` requires iteration_count >= 1")
 
 
 # ---------------------------------------------------------------------------
@@ -834,17 +833,43 @@ def run_checks(
         else:
             seen.add(fid)
 
-    # H1 file resolution + A3 orphan files
+    # H1 file resolution + H11 route authority/projection + A3 orphan files
     referenced: set[str] = set()
     for _idx, f in norm:
         fid = f.get("id") or "<no-id>"
+        route = f.get("specification_route")
+        if route not in SPECIFICATION_ROUTES:
+            hard.append(
+                f"H11 {fid}: `specification_route` must be exactly "
+                f"`compact` or `explicit` (found {route!r})"
+            )
+        elif route == "compact" and f.get("final_complexity") == "Complex":
+            hard.append(
+                f"H11 {fid}: `final_complexity` is `Complex`, so "
+                "`specification_route` must be `explicit`"
+            )
         rel = f.get("file")
         if not isinstance(rel, str) or not rel.strip():
             hard.append(f"H1 {fid}: missing `file` path in manifest")
             continue
         referenced.add(rel)
-        if not (plan_dir / rel).is_file():
+        feature_path = plan_dir / rel
+        if not feature_path.is_file():
             hard.append(f"H1 {fid}: `file` -> {rel} does not exist in the plan directory")
+            continue
+        feature_text = feature_path.read_text(encoding="utf-8", errors="replace")
+        route_projections = SPECIFICATION_ROUTE_LINE.findall(feature_text)
+        if len(route_projections) != 1:
+            hard.append(
+                f"H11 {fid}: `{rel}` must contain exactly one "
+                "`**Specification route:** compact|explicit` projection "
+                f"(found {len(route_projections)})"
+            )
+        elif route in SPECIFICATION_ROUTES and route_projections[0] != route:
+            hard.append(
+                f"H11 {fid}: Markdown specification route "
+                f"`{route_projections[0]}` does not match manifest `{route}`"
+            )
     feat_dir = plan_dir / "features"
     if feat_dir.is_dir():
         for md in sorted(feat_dir.glob("*.md")):
@@ -1076,7 +1101,10 @@ def main(argv=None) -> int:
     p.add_argument(
         "--require-architecture-direction",
         action="store_true",
-        help="hard-fail legacy plans without architecture_disposition.direction",
+        help=(
+            "require a direction and its current-schema, report-bound selection "
+            "artifact for active consumption"
+        ),
     )
     args = p.parse_args(argv)
 
@@ -1127,7 +1155,7 @@ def main(argv=None) -> int:
         for f in hard:
             print(f"    x {f}")
     else:
-        print("\n  PASS — hard structural-integrity checks (H1-H10) hold.")
+        print("\n  PASS — hard structural-integrity checks (H1-H11) hold.")
         print("         (checks STRUCTURE, not soundness — well-formed, not necessarily good.)")
     if advisory:
         print(f"\n  advisory ({len(advisory)} — review, non-blocking):")

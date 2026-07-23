@@ -30,8 +30,9 @@ internal dependencies; a behavior's tests land with or before that behavior.
 
 ### 4.4 Review  [tiered]
 
-Ordering or granularity that affects risk is material; mechanical splits are
-routine. The human approves the task list.
+Derive mechanical ordering and task splits without a gate. Ask only when
+granularity changes delivery risk, ownership, an irreversible sequence, or the
+Scope Lock. Compact composition stops on such a decision.
 
 ---
 
@@ -46,27 +47,25 @@ already validated Stage-0 state:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture_context.py" --repo-root . \
-  derive docs/plans/<slug> <id> --plan-mode <full|single-feature-minimal> --json
+  derive docs/plans/<slug> <id> --json
 ```
 
 Exit 0 returns one `architecture_context`. Copy that exact object into
 `tasks.json` and the `ce-spec.md` `## Architecture Context` JSON block. Never
 hand-calculate the producer receipt or feature-mapping digest. Exit 1/2 parks
 assembly and returns to Stage 0's owning plan/architecture route; a typed
-`recommended-absent`, `not-required`, `waived`, or `single-feature-minimal`
-result is valid context, not permission to omit the block.
+`recommended-absent` or `not-required` result is valid context, not permission
+to omit the block.
 
-### 5.1.5 Mechanical Lint  *(supplement — does not replace 5.3)*
+### 5.1.5 Mechanical Lint
 
-Before the human checklist, run the **Mechanical Lint Gate** (defined in
-`SKILL.md` → *Mechanical Lint Gate*). The final artifact is not written until
-Stage 5.5 (Execution Contract item 1), so write the assembled `ce-spec.md` +
-`tasks.json` to a **scratch** directory and lint that. Honor the gate's
-disposition:
+Run the **Mechanical Lint Gate** from `SKILL.md` over the assembled scratch
+artifacts:
 
-- **PASS** → annotate the items it covers in 5.3 as **`[machine-verified]`** (they stay in the checklist).
-- **FAIL** → a **material finding**; do not reach Final Approval (5.4) on an unacknowledged FAIL.
-- **Could-not-run** → fall back to full manual self-attestation in 5.3 and **say so loudly**.
+- **PASS** → report H1–H7 with the command/result. Do not put those rows into a
+  human checklist.
+- **FAIL** → repair and re-run, or stop. No acknowledgement waives it.
+- **Could-not-run** → stop with the tooling/integrity gap. No manual substitute.
 
 ### 5.2 Propagation Triage
 
@@ -82,72 +81,62 @@ route it:
 
 Appending to the ledger **mutates a shared artifact** — present each proposed
 ledger entry as a *material* decision and let the human approve the wording.
-Never sync silently, and never push a feature-local choice into shared context.
-
-For `plan_mode: single-feature-minimal`, only the Feature-local bucket may
-complete here. There is no `shared-context.md` ledger to append to, and this
-workflow must not create one. Any cross-feature or plan-error bucket disproves
-the minimal shape: route to `/core-engineering:ce-plan` and stop; an ADR does not
-bypass that structural escalation.
+Queue approved rows in scratch for the final transaction. Never sync silently,
+and never push a feature-local choice into shared context.
 
 ### 5.3 Validation Checklist Before Writing
 
-The **consolidated final gate**, run on the **assembled, frozen `ce-spec.md`** — not a restatement of earlier gates. Stage 5.1 assembles the artifact *after* propagation triage (5.2), and the Stage 3.3 / 4.3 back-edges can mutate the spec after Stages 2–4 validated it, so several checks below are a deliberate **re-verification on the frozen artifact** (re-confirming Stages 2.3, 3.1/3.3, and 4.3 against what will be written). Do not rubber-stamp: if any item fails, return to the stage that owns it. All must pass. Items (or clauses) marked **`[machine-verified: H#]`** are *also* mechanically enforced by `spec-lint.py` at 5.1.5 (the named hard check) — the marker means the lint **supplements** that item; it stays a checklist item and the human still owns the surrounding judgment.
+Run this adequacy review on the assembled, frozen artifact after propagation.
+Mechanical H1–H7 results are evidence above, not questions. Ask only about an
+unresolved row:
 
-- [ ] Feature framed; frozen boundary recorded.
-- [ ] Every hard dependency is specced or built; minimal mode records
-  `N/A — sizing-attested single feature` and has escalated any discovered
-  dependency to planning.
-- [ ] Every Open Unknown is resolved, or recorded as a signed-off Assumption.
-- [ ] Every Scope item → ≥ 1 acceptance criterion → ≥ 1 test case → ≥ 1 task.
-- [ ] No orphan task **[machine-verified: H3]**; no criterion or test case outside the boundary — boundary judgment stays the human's.
-- [ ] Every reviewer-trigger is addressed by a criterion.
-- [ ] A feature exposing a surface with an Interface Foundation carries conformance criteria binding it to the foundation's ADR (`auto` / `manual:harness-gap`); only genuine taste is left `manual:judgment`.
-- [ ] The design names real files and real dependency interfaces.
-- [ ] The design conforms to every applicable accepted ADR (or an ADR conflict was escalated).
-- [ ] Every Boundary Conflict is either fixed-and-logged or escalated.
-- [ ] Every judgment call is logged with `decided_by: human`.
-- [ ] Architecturally-significant, cross-feature decisions are promoted to ADRs (or confirmed feature-local).
-- [ ] Every resolved decision is triaged for propagation; approved ledger entries are queued.
-- [ ] Every test case is tagged `auto`, `manual:harness-gap`, or `manual:judgment` **[machine-verified: H2]**; each `manual` case has a reason and a usable check script (human).
-- [ ] Every test case carries a `modality`; `manual` modality pairs with `manual:judgment`. **[machine-verified: H2]**
-- [ ] Every journey step this feature owns is covered by ≥ 1 test case carrying that step's modality; minimal mode records Journey Map coverage `N/A by construction`.
-- [ ] Every SHARED shape this feature modifies carries a `shared-shape-modify` block (consumers enumerated, each `additive`/`breaking`); every `breaking` one is escalated as a Boundary Conflict, or the spec records `Shared-Shape Reconciliation: N/A` (§3.5).
-- [ ] Every cross-feature flow this design realizes is traced by a plan Journey Map row, or a new untraced flow was escalated as a Boundary Conflict, or the spec records `Cross-Feature Flow: N/A` (§3.6) — flow judgment stays the human's; minimal mode must record `N/A by construction` or escalate.
-- [ ] Every governance reciprocal the plan's Stage 6.3 closure dispositions `owned-by:` this feature (`retain` / `export` / `erase`) is bound by ≥ 1 acceptance criterion and ≥ 1 test case (§2.1); minimal mode records this row `N/A by construction`.
-- [ ] Every `TZ-NNN` the full plan's `threat-model.md` or minimal plan's inline Security Projection assigns this feature is bound by ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` **[machine-verified: H5]** (H5 checks the marker; an N/A feature has no threat-ids) **and** proven by ≥ 1 test case (human — the per-AC test-case rule, only advisorily A2) — or the obligation is consent-excluded in the plan (autonomous: parked). Minimal mode may record an explicit empty assessed negative; it never infers N/A from one-feature shape. Whether the security criterion is *substantively adequate* stays the human's.
-- [ ] Every `IC-NNN` the plan's `interaction-contract.md` assigns this feature is bound by ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** proven by ≥ 1 test case (**human/agent-attested — no lint**; behavioural-protocol invariants and NFRs are un-derivable from markdown, like §3.5/§3.6) — or the obligation is consent-excluded in the plan (autonomous: parked). Minimal mode records plan-owned interaction obligations `N/A by construction`. Whether the interaction criterion is *substantively adequate* stays the human's.
-- [ ] `tasks.json.architecture_context` and the Markdown Architecture Context
-  projection are exact peers and still match the current consumer-linted
-  package/feature mapping or typed no-package disposition
-  **[machine-verified: H7]**.
+- the Scope/Excluded boundary is substantively correct and every Boundary
+  Conflict is fixed or escalated;
+- acceptance criteria adequately express reviewer triggers, assigned
+  `TZ-NNN`/`IC-NNN` obligations, governance reciprocals, and any interface or
+  surface-quality contract;
+- `manual:judgment` is limited to genuinely subjective residue;
+- design paths and dependency interfaces match the real repository;
+- shared-shape and cross-feature-flow classifications are complete and any
+  breaking/new path was escalated;
+- material decisions have the right human owner and propagation route.
+
+If repository evidence demonstrates a row cleanly, report it as derived. If a
+row remains uncertain, ask with evidence and cost-if-wrong. Compact composition
+requires every adequacy row to be demonstrably clean; otherwise it stops.
 
 ### 5.4 Final Approval  [material]
 
-Present the full spec, plus any queued ledger entries and new ADRs. Minimal mode
-must show `Ledger entries: N/A — no shared-context.md` rather than inventing a
-queue. Ask:
+For an explicit route, present the full spec, decision delta, queued feature
+corrections, ledger entries, ADR candidates/supersession edits, and the machine
+lint result. Approval binds those exact bytes. Ask:
 
 | Option | Result |
 |---|---|
-| Write | Write the spec and append approved ledger entries |
+| Write | Publish the exact spec transaction and approved shared changes |
 | Adjust | Loop back to the relevant stage |
 | Abort | Exit without writing |
 
+For compact composition, this gate does not fire: the approved
+manifest `specification_route: compact`, matching Markdown projection, clean
+adequacy screen, and lint exit 0 authorize the derived write. Report the
+artifact diff and that no material decision was made.
+
 ### 5.5 Write
 
-Write `docs/plans/[slug]/specs/<id>/ce-spec.md` and `tasks.json`. For a full
-plan, append each approved entry to the **Resolved Project Decisions** ledger
-in `shared-context.md`, citing this spec as the origin. For
-`plan_mode: single-feature-minimal`, write the same normal spec outputs and no
-ledger file; any approved local Boundary Conflict is already recorded in the
-sole `feature-plan.md` authority.
+Write `docs/plans/[slug]/specs/<id>/ce-spec.md` and `tasks.json`, then publish
+the exact approved feature correction, **Resolved Project Decisions** rows, ADR
+candidates, and supersession edits from scratch. Cite this spec as each shared
+ledger row's origin. If any target changed after approval, stop and reassemble;
+never merge unreviewed bytes into the approved transaction.
 
 **Metrics (best-effort, optional).** After writing, append a `stage-complete` line (`stage: "spec"`) — plus any `escalation` raised this run — to `docs/plans/<slug>/.metrics.jsonl` per the `retro` skill's schema. Derive every field from data already produced, label any token figure an estimate, and **never** let this block or fail the spec. It powers `/core-engineering:ce-retro`.
 
 ### 5.6 Closing
 
-Confirm the created paths (`ce-spec.md`, `tasks.json` under `docs/plans/[slug]/specs/<id>/`) and any ledger or ADR updates — and, if a Boundary Conflict edited `features/<id>.md` or the minimal plan's Single Feature block, or ADRs were created, note those too. Then point to the next step:
+Confirm the created paths (`ce-spec.md`, `tasks.json` under
+`docs/plans/[slug]/specs/<id>/`) and any feature, ledger, or ADR updates. Then
+point to the next step:
 
 ```text
 Implement:  /core-engineering:ce-implement <id>

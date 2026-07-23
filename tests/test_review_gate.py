@@ -1,6 +1,7 @@
 """Behavioral contract tests for current, provenance-bound review evidence."""
 
 import importlib.util
+import hashlib
 import json
 import shutil
 import subprocess
@@ -20,6 +21,26 @@ AUTO_COPY = REPO / "plugins/core-engineering/skills/ce-auto-build/scripts/review
 AUTO_HELPER = (
     REPO
     / "plugins/core-engineering/skills/ce-auto-build/scripts/architecture_context.py"
+)
+RELEASE_COPY = (
+    REPO
+    / "plugins/core-engineering/skills/ce-ship-release/scripts/review-gate.py"
+)
+RELEASE_HELPER = (
+    REPO
+    / "plugins/core-engineering/skills/ce-ship-release/scripts/architecture_context.py"
+)
+ARCHITECTURE_LINT = (
+    REPO / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-lint.py"
+)
+RELEASE_ARCHITECTURE_LINT = (
+    REPO / "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-lint.py"
+)
+ARCHITECTURE_RENDER = (
+    REPO / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-render.py"
+)
+RELEASE_ARCHITECTURE_RENDER = (
+    REPO / "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-render.py"
 )
 FORK_MANIFEST = REPO / "plugins/core-engineering/fork-manifest.json"
 
@@ -74,10 +95,10 @@ class ReviewGate(unittest.TestCase):
         (plan_dir / "features/04-checkout.md").write_text(
             "# Checkout\n", encoding="utf-8"
         )
-        (plan_dir / "architecture-selection.json").write_text(
-            json.dumps({"schema_version": 2, "fixture": True}),
-            encoding="utf-8",
-        )
+        selection_bytes = json.dumps(
+            {"schema_version": 2, "fixture": True}, sort_keys=True
+        ).encode("utf-8")
+        (plan_dir / "architecture-selection.json").write_bytes(selection_bytes)
         (plan_dir / "plan.json").write_text(
             json.dumps(
                 {
@@ -94,6 +115,18 @@ class ReviewGate(unittest.TestCase):
                         "rationale": "bounded feature-local fixture",
                         "triggers": [],
                         "decided_by": "human",
+                        "direction": {
+                            "status": "not-applicable",
+                            "artifact": "architecture-selection.json",
+                            "artifact_sha256": hashlib.sha256(
+                                selection_bytes
+                            ).hexdigest(),
+                            "exploration_id": "AEX-fixture",
+                            "selected_option_id": None,
+                            "selected_option_sha256": None,
+                            "decided_by": "human",
+                            "summary": "fixture direction is not applicable",
+                        },
                         "convergence": {
                             "status": "not-applicable",
                             "iteration_count": 0,
@@ -234,6 +267,65 @@ class ReviewGate(unittest.TestCase):
         self.assertIn(
             "implementation_files_sha256", json.loads(result.stdout)["message"]
         )
+
+    def test_worktree_must_materialize_the_evaluated_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plan_dir, spec_dir = self.make_repo(tmp)
+            reviewed_commit = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            ).stdout.strip()
+            (spec_dir / "review-summary.json").write_text(
+                json.dumps(self.summary(root, plan_dir, spec_dir)),
+                encoding="utf-8",
+            )
+            _git(root, "add", str(spec_dir / "review-summary.json"))
+            _git(root, "commit", "-m", "record review evidence")
+
+            source = root / "src/checkout.py"
+            source.write_text("total = 999\n", encoding="utf-8")
+            _git(root, "add", "src/checkout.py")
+            _git(root, "commit", "-m", "unreviewed source change")
+            evaluated_head = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            ).stdout.strip()
+
+            # Restore only the index/worktree bytes. The evaluated commit still
+            # contains the unreviewed implementation and must not pass.
+            _git(root, "checkout", reviewed_commit, "--", "src/checkout.py")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    str(spec_dir),
+                    "--repo-root",
+                    str(root),
+                    "--plan-dir",
+                    str(plan_dir),
+                    "--feature",
+                    "04-checkout",
+                    "--git-repo",
+                    str(root),
+                    "--evaluated-commit",
+                    evaluated_head,
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn(
+                "worktree does not materialize evaluated commit",
+                json.loads(result.stdout)["message"],
+            )
 
     def test_undeclared_post_review_mutation_is_stale(self):
         def mutate_and_commit(root, _plan, _spec):
@@ -497,7 +589,7 @@ class ReviewGate(unittest.TestCase):
 
 
 class ReviewGateFork(unittest.TestCase):
-    def test_auto_build_copies_are_registered_and_identical(self):
+    def test_consumer_copies_are_registered_and_identical(self):
         manifest = json.loads(FORK_MANIFEST.read_text(encoding="utf-8"))
         gate_entry = next(
             item
@@ -506,6 +598,10 @@ class ReviewGateFork(unittest.TestCase):
         )
         self.assertIn(
             "plugins/core-engineering/skills/ce-auto-build/scripts/review-gate.py",
+            gate_entry["copies"],
+        )
+        self.assertIn(
+            "plugins/core-engineering/skills/ce-ship-release/scripts/review-gate.py",
             gate_entry["copies"],
         )
         context_entry = next(
@@ -517,8 +613,43 @@ class ReviewGateFork(unittest.TestCase):
             "plugins/core-engineering/skills/ce-auto-build/scripts/architecture_context.py",
             context_entry["copies"],
         )
+        self.assertIn(
+            "plugins/core-engineering/skills/ce-ship-release/scripts/architecture_context.py",
+            context_entry["copies"],
+        )
+        lint_entry = next(
+            item
+            for item in manifest["forks"]
+            if item["canonical"].endswith(
+                "ce-architecture/scripts/architecture-lint.py"
+            )
+        )
+        render_entry = next(
+            item
+            for item in manifest["forks"]
+            if item["canonical"].endswith(
+                "ce-architecture/scripts/architecture-render.py"
+            )
+        )
+        self.assertIn(
+            "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-lint.py",
+            lint_entry["copies"],
+        )
+        self.assertIn(
+            "plugins/core-engineering/skills/ce-ship-release/scripts/architecture-render.py",
+            render_entry["copies"],
+        )
         self.assertEqual(SCRIPT.read_bytes(), AUTO_COPY.read_bytes())
         self.assertEqual(HELPER.read_bytes(), AUTO_HELPER.read_bytes())
+        self.assertEqual(SCRIPT.read_bytes(), RELEASE_COPY.read_bytes())
+        self.assertEqual(HELPER.read_bytes(), RELEASE_HELPER.read_bytes())
+        self.assertEqual(
+            ARCHITECTURE_LINT.read_bytes(), RELEASE_ARCHITECTURE_LINT.read_bytes()
+        )
+        self.assertEqual(
+            ARCHITECTURE_RENDER.read_bytes(),
+            RELEASE_ARCHITECTURE_RENDER.read_bytes(),
+        )
 
 
 if __name__ == "__main__":
