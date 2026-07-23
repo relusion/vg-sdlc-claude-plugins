@@ -115,9 +115,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" \
   affected claim against the current code; expected implementation drift does
   not by itself invalidate the plan-owned baseline. If current code contradicts
   a cross-feature boundary, route to `/core-engineering:ce-architecture`; a
-  feature-local implementation delta stays in this spec. If status is
-  `approved-with-gaps`, surface every gap relevant to this feature and keep it
-  unknown; never silently complete it in the spec. The package is design
+  feature-local implementation delta stays in this spec. If `baseline_status`
+  is `accepted-for-specification-with-gaps`, surface every gap relevant to this
+  feature and keep it unknown; never silently complete it in the spec. The package is design
   context; accepted ADRs remain the binding technical decisions.
 - **exit 1:** the package is invalid or stale against the current plan. Stop
   and run `/core-engineering:ce-architecture <slug>` to revise it; never

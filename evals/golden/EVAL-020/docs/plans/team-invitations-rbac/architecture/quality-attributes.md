@@ -2,54 +2,46 @@
 
 ## Quality Scenarios
 
-| ID | Attribute | Evidence state | Source | Stimulus | Environment | Response | Target | Tactic | Verification | Features |
-|---|---|---|---|---|---|---|---|---|---|---|
-| QA-001 | latency | inferred | `docs/briefs/team-invitations-rbac.md` | An administrator submits an invitation | normal load | The API confirms invitation creation | p95 under 500 ms | Keep the synchronous path bounded and use indexed PostgreSQL access | `/core-engineering:ce-probe-perf after implementation` | 02-team-invitations |
-| QA-002 | security | inferred | `docs/plans/team-invitations-rbac/threat-model.md` | An unauthorized caller submits an invitation | any supported load | The request is denied without an invitation write | Unauthorized invitation attempts return HTTP 403 and create no invitation. | Invoke C-003 before C-004 persistence | Automated HTTP response and persistence assertion | 01-roles-authz-foundation, 02-team-invitations |
-| QA-003 | reliability | inferred | `docs/plans/team-invitations-rbac/interaction-contract.md` | A recipient replays invitation acceptance | normal operation or client retry | The existing membership is returned without duplication | Invitation acceptance is idempotent per invitation token. | Consume the token and create membership transactionally with uniqueness | Automated replay and concurrency tests | 01-roles-authz-foundation, 02-team-invitations |
+| Quality | Name | Attribute | Source | Stimulus | Environment | Response | Target | Tactic | Verification | Operations | Features | Evidence state | Evidence |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| QA-001 | Invitation creation latency | latency | docs/briefs/team-invitations-rbac.md | A team administrator submits a valid invitation. | normal load | The API confirms invitation creation. | p95 under 500 ms | Keep authorization and persistence in a bounded synchronous path and use indexed PostgreSQL access. | /core-engineering:ce-probe-perf against the accepted criterion after implementation. | OP-001 | 02-team-invitations | inferred | `docs/briefs/team-invitations-rbac.md` |
+| QA-002 | Unauthorized invitation denial | security | docs/briefs/team-invitations-rbac.md | An unauthorized caller submits an invitation. | any supported load | The request is denied before invitation persistence. | Unauthorized invitation attempts return HTTP 403 and create no invitation. | Cross SR-001 before the PostgreSQL invitation write. | Automated HTTP response and no-persistence assertions. | OP-001 | 01-roles-authz-foundation, 02-team-invitations | inferred | `docs/briefs/team-invitations-rbac.md`, `docs/plans/team-invitations-rbac/threat-model.md` |
+| QA-003 | Idempotent invitation acceptance | reliability | docs/briefs/team-invitations-rbac.md | A recipient or client retries invitation acceptance. | normal operation, timeout recovery, or concurrent retry | The existing membership is returned without duplication. | Invitation acceptance is idempotent per invitation token. | Consume the token and create membership transactionally with a uniqueness invariant. | Automated replay, rollback, uniqueness, and concurrency tests. | OP-001, OP-002 | 01-roles-authz-foundation, 02-team-invitations | inferred | `docs/briefs/team-invitations-rbac.md`, `docs/plans/team-invitations-rbac/interaction-contract.md` |
 
 ## QA-001 — Invitation creation latency
 
-**Evidence state:** inferred — the target is recorded, while the tactic and verification
-route are architecture synthesis.
+The target is a written requirement, not measured performance evidence.
 
-The target is a stated requirement, not a measurement. Specification should preserve a
-measurable HTTP criterion; runtime proof belongs to a consented performance profile.
+## QA-002 — Unauthorized invitation denial
 
-## QA-002 — Authorization before persistence
+The scenario binds the threat obligation to an observable no-write result.
 
-**Evidence state:** inferred — the security target is recorded, while its realization
-through C-003 before C-004 is architecture synthesis.
+## QA-003 — Idempotent invitation acceptance
 
-The HTTP response and absence of a new invitation row make this security obligation
-deterministically testable without asking a reviewer to judge whether it is secure.
+IC-001 supplies the architecture-level invariant; specification owns concrete schema and test cases.
 
-## QA-003 — Idempotent acceptance
+## Operations
 
-**Evidence state:** inferred — IC-001 is recorded, while the transactional tactic and
-verification route are architecture synthesis.
-
-Replay and concurrent acceptance tests verify the IC-001 behavior against the shared
-PostgreSQL source of truth.
+| Operation | Name | Category | Responsibility | Owner | Signals | Failure domain | Target | Tactic | Runbook | Verification | Components / nodes | Quality | Features | Evidence state | Evidence |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| OP-001 | Invitation and authorization path health | observability | Detect invitation latency, authorization denials, persistence failures, and unsafe token exposure. | unknown | request latency; HTTP outcome count; authorization denial count; transaction rollback count; redacted correlation identifier | single application request and PostgreSQL transaction path | Use QA-001, QA-002, and QA-003 as architecture thresholds and behavioral outcomes. | Emit correlated metrics and structured failures without invitation-token values. | unknown | Review the telemetry contract during specification and probe the implemented path during verification. | component=C-002, C-003, C-004; deployment_node=N-002, N-003 | QA-001, QA-002, QA-003 | 01-roles-authz-foundation, 02-team-invitations | inferred | `docs/briefs/team-invitations-rbac.md`, `docs/plans/team-invitations-rbac/threat-model.md`, `docs/plans/team-invitations-rbac/interaction-contract.md` |
+| OP-002 | Invitation and membership recovery | recovery | Recover invitation and membership state without violating authorization or idempotency invariants. | unknown | database availability; transaction rollback count; acceptance replay outcome | PostgreSQL durable state and the shared application runtime | unknown | Preserve transactional rollback and uniqueness; define production recovery objectives before deployment. | unknown | Exercise rollback and replay behavior after implementation, then verify the accepted recovery target before deployment. | component=C-002, C-003, C-004; deployment_node=N-002, N-003 | QA-003 | 01-roles-authz-foundation, 02-team-invitations | inferred | `docs/plans/team-invitations-rbac/shared-context.md`, `docs/plans/team-invitations-rbac/interaction-contract.md` |
 
 ## Operability and Observability
 
-The application must expose explicit HTTP failures and preserve enough structured event
-metadata to correlate invitation requests without logging invitation tokens. Exact metric
-and alert names remain feature-level design inputs for `/core-engineering:ce-spec`.
+The request path exposes latency, denial, persistence-failure, and replay signals, while production signal ownership and runbook ownership remain GAP-003.
 
 ## Capacity, Resilience, and Recovery
 
-No infrastructure size or recovery-time target is invented. The recorded topology keeps
-application and database failure domains visible, while QA-001 and QA-003 provide the
-source-backed latency and retry behaviors that downstream verification owns.
+The brief records a p95 latency requirement and the fixture records one local application and database. Production capacity, topology, availability, and recovery targets remain explicit downstream gaps.
 
 ## Cost and Complexity Trade-Offs
 
-One application deployment avoids a new network hop and operational unit. The trade-off is
-a shared deployment blast radius for authorization and invitations, accepted in ADR-0001.
+The selected single-runtime direction avoids a new service boundary and migration while retaining logical seams for a later evidence-backed extraction.
 
-## Quality Coverage Gaps
+## Quality and Operations Gaps
 
-None relative to the written requirements. Unstated cloud sizing, RTO/RPO, and alert-owner
-targets are not architecture claims and must be planned before they become binding.
+| Gap | Dimension | Type | Statement | Status |
+|---|---|---|---|---|
+| GAP-002 | operability | quality-target | Production backup policy, recovery point objective, and recovery time objective are not recorded. | open |
+| GAP-003 | operability | ownership | Production operations ownership and runbook ownership are not recorded. | open |

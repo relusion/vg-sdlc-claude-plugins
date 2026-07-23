@@ -38,6 +38,58 @@ empty, never because the thinking was skipped.*
 > Source feature: `../../features/<id>.md`
 > Spec revision: 1 · Status: ready-for-implementation
 
+## Architecture Context
+
+Exact human-readable projection of `tasks.json.architecture_context`. Generate
+the object with `scripts/architecture_context.py derive`; never calculate,
+summarize, or hand-edit its digests. `spec-lint` H7 requires byte-independent
+JSON equality with the tasks object and freshness against the current
+consumer-linted plan/package.
+
+```json architecture-context
+{
+  "schema_version": 2,
+  "project_slug": "<slug>",
+  "feature_id": "<id>",
+  "plan_contract_sha256": "<64 lowercase hex over plan + feature + selection + accepted ADR authorities>",
+  "mode": "package",
+  "package_path": "docs/plans/<slug>/architecture",
+  "plan_revision": 1,
+  "architecture_revision": 1,
+  "package_receipt_sha256": "<64 lowercase hex from architecture.json approval.receipt_sha256>",
+  "feature_mapping_sha256": "<64 lowercase hex over the canonical feature_mappings row>",
+  "mapped_ids": {
+    "drivers": ["DRV-001"],
+    "actors": ["A-001"],
+    "components": ["C-001"],
+    "relationships": ["R-001"],
+    "deployments": ["N-001"],
+    "data": ["DATA-001"],
+    "flows": ["IF-001"],
+    "dynamic": ["DS-001"],
+    "transitions": ["TR-001"],
+    "security": ["SR-001", "TB-001"],
+    "contracts": ["CTR-001"],
+    "quality": ["QA-001"],
+    "operations": ["OP-001"],
+    "decisions": ["D-001"],
+    "questions": [],
+    "risks": ["AR-001"],
+    "gaps": []
+  },
+  "reason": null
+}
+```
+
+For `single-feature-minimal`, `not-required`, `recommended-absent`, or `waived`,
+keep the same exact keys. `project_slug`, `feature_id`, and
+`plan_contract_sha256` remain mandatory: the contract digest seals the minimal
+`feature-plan.md`, or the full plan, feature authority, selected direction,
+complete disposition, and accepted ADR bytes. Package path/revision/digests are
+`null`, every mapped ID list is empty, and `reason` is the exact typed
+N/A/gap/waiver basis produced by the helper. A full plan keeps its integer
+`plan_revision`; minimal mode uses `null`.
+
 ## 1. Feature & Frozen Boundary
 
 **Type:** <type>
@@ -179,6 +231,38 @@ Implement the task list in order. Each task is complete when its test cases pass
 {
   "feature_id": "<id>",
   "spec_revision": 1,
+  "architecture_context": {
+    "schema_version": 2,
+    "project_slug": "<slug>",
+    "feature_id": "<id>",
+    "plan_contract_sha256": "<64 lowercase hex>",
+    "mode": "package",
+    "package_path": "docs/plans/<slug>/architecture",
+    "plan_revision": 1,
+    "architecture_revision": 1,
+    "package_receipt_sha256": "<64 lowercase hex>",
+    "feature_mapping_sha256": "<64 lowercase hex>",
+    "mapped_ids": {
+      "drivers": ["DRV-001"],
+      "actors": ["A-001"],
+      "components": ["C-001"],
+      "relationships": ["R-001"],
+      "deployments": ["N-001"],
+      "data": ["DATA-001"],
+      "flows": ["IF-001"],
+      "dynamic": ["DS-001"],
+      "transitions": ["TR-001"],
+      "security": ["SR-001", "TB-001"],
+      "contracts": ["CTR-001"],
+      "quality": ["QA-001"],
+      "operations": ["OP-001"],
+      "decisions": ["D-001"],
+      "questions": [],
+      "risks": ["AR-001"],
+      "gaps": []
+    },
+    "reason": null
+  },
   "tasks": [
     {
       "id": "T-1",

@@ -6,9 +6,10 @@
       "script": "skills/ce-spec/scripts/spec-lint.py",
       "args": [
         "{spec_dir}",
+        "--require-architecture-context",
         "--json"
       ],
-      "proves": "spec traceability holds: every task verifies a real test case, every AC is proven, assigned TZ-NNN threats carry [SECURITY] coverage (H1-H5)"
+      "proves": "spec traceability and architecture provenance hold: every task verifies a real test case, every AC is proven, assigned TZ-NNN threats carry [SECURITY] coverage, and tasks/Markdown bind the current typed architecture context (H1-H7)"
     },
     "test-guard": {
       "script": "skills/ce-implement/scripts/test-guard.py",
@@ -67,9 +68,13 @@
       "script": "skills/ce-review/scripts/review-gate.py",
       "args": [
         "{spec_dir}",
+        "--git-repo",
+        "{repo}",
+        "--evaluated-commit",
+        "{head}",
         "--json"
       ],
-      "proves": "no confirmed-High correctness/security review finding is unresolved for this spec (review-summary.json blocking_high == 0), judged from the review artifact /core-engineering:ce-review writes (advisory: missing review evidence reports, never blocks, until promoted to required)"
+      "proves": "current review evidence for the exact evaluated head has no confirmed-High correctness/security finding: the gate re-derives blocking_high from structured findings and verifies the plan/spec/architecture/repository-state binding (advisory: missing, stale, malformed, or blocked review evidence reports but never blocks until promoted to required)"
     },
     "plan-lint": {
       "script": "skills/ce-plan-audit/scripts/plan-lint.py",

@@ -137,10 +137,13 @@ nothing itself.
    read-only shaping pass checks that the feature cut realizes that direction,
    and `plan.json` records the human-owned `architecture_disposition`. A required
    disposition blocks specification until the normal architecture command
-   writes an approved five-file package under
-   `docs/plans/<slug>/architecture/`; a recommended baseline may be deferred as
-   an explicit coverage gap. Architecture does not silently change the plan or
-   code.
+   writes a schema-v2 five-file package under
+   `docs/plans/<slug>/architecture/`. Its JSON is strict, its Markdown/Mermaid
+   views are deterministic projections, and final human approval seals an
+   accepted-for-specification package digest. A recommended baseline may be
+   deferred as an explicit typed coverage gap. Architecture does not silently
+   change the plan or code, and the receipt does not claim security, deployment,
+   or production readiness.
 
 5. If the work is genuinely small:
 
@@ -162,8 +165,8 @@ nothing itself.
 | I need to understand code | `/core-engineering:ce-ask` | Cited answer, no writes |
 | I need to refine a work item | `/core-engineering:ce-impact` | Blast-radius read and open questions |
 | I have a raw feature idea | `/core-engineering:ce-brief` -> `/core-engineering:ce-plan` | Brief, conditional scored architecture directions + human selection, then feature plan |
-| I have a written plan whose disposition requires or recommends a shared solution design | `/core-engineering:ce-architecture <plan-slug>` | Human-approved system, deployment, data/integration, quality, and traceability views |
-| I have an approved plan feature whose architecture prerequisite is satisfied | `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` | `ce-spec.md`, `tasks.json`, code, tests, verification |
+| I have a written plan whose disposition requires or recommends a shared solution design | `/core-engineering:ce-architecture <plan-slug>` | Digest-sealed, accepted-for-specification schema-v2 baseline with generated context, dynamic, trust, deployment, transition, data/integration, quality, operations, and traceability views or typed gaps |
+| I have an approved plan feature whose architecture prerequisite is satisfied | `/core-engineering:ce-spec` -> `/core-engineering:ce-implement` | `ce-spec.md` and `tasks.json` bound to the exact architecture revision/package/feature slice, then code, tests, and verification |
 | I need confidence before handoff | `/core-engineering:ce-review` + `/core-engineering:ce-verify` | Review findings and behavior-verification evidence |
 | I need release readiness | `/core-engineering:ce-ship-release` | Release decision package and changelog proposal |
 | I need a risk probe | `/core-engineering:ce-probe-infra`, `/core-engineering:ce-probe-sec`, `/core-engineering:ce-probe-perf`, or `/core-engineering:ce-ux-audit` (UX) | Evidence-backed findings within each probe boundary |

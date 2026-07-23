@@ -12,7 +12,16 @@ SPEC = REPO / "plugins/core-engineering/skills/ce-spec"
 AUTO_BUILD = REPO / "plugins/core-engineering/skills/ce-auto-build"
 GO = REPO / "plugins/core-engineering/skills/ce-go/SKILL.md"
 IMPLEMENT = REPO / "plugins/core-engineering/skills/ce-implement/SKILL.md"
+IMPLEMENT_PREFLIGHT = (
+    REPO
+    / "plugins/core-engineering/skills/ce-implement/stage-0-architecture-preflight.md"
+)
 REVIEW = REPO / "plugins/core-engineering/skills/ce-review/SKILL.md"
+REVIEW_PREFLIGHT = (
+    REPO
+    / "plugins/core-engineering/skills/ce-review/stage-0-architecture-preflight.md"
+)
+AUTO_PIPELINE = AUTO_BUILD / "stage-1-2-pipeline.md"
 PLAN_R = REPO / "plugins/core-engineering/skills/ce-plan/stage-R-revision.md"
 PLAN_TEMPLATE = REPO / "plugins/core-engineering/skills/ce-plan/artifact-template.md"
 MINIMAL = REPO / "tests/fixtures/single-feature-minimal/docs/plans"
@@ -37,7 +46,14 @@ class ArchitectureLintWiring(unittest.TestCase):
     def test_publish_is_bound_to_reviewed_scratch_and_human_status(self):
         stage = (ARCH / "stage-3-5-review-write.md").read_text(encoding="utf-8")
         self.assertIn("scripts/architecture-publish.py", stage)
-        self.assertIn("--publish-status <approved|approved-with-gaps>", stage)
+        self.assertRegex(
+            stage,
+            r"--publish-status\s+\\?\n?\s*"
+            r"<accepted-for-specification\\?\|accepted-for-specification-with-gaps>",
+        )
+        self.assertIn("--recorded-by", stage)
+        self.assertIn("--approval-authority", stage)
+        self.assertIn("--approval-reference", stage)
         self.assertIn("Do not edit the scratch package or destination after approval", stage)
         self.assertIn("Markdown bytes must remain identical to review", stage)
         self.assertIn("not crash-atomic", stage)
@@ -144,43 +160,46 @@ class ArchitectureLintWiring(unittest.TestCase):
 
     def test_implement_preflights_plan_and_architecture_before_spec_trust(self):
         skill = IMPLEMENT.read_text(encoding="utf-8")
-        preflight = skill.index("Complete the architecture preflight")
-        lint = skill.index('scripts/plan-lint.py')
-        selection_lint = skill.index("scripts/architecture-selection-lint.py")
-        architecture_lint = skill.index("scripts/architecture-lint.py")
+        companion = IMPLEMENT_PREFLIGHT.read_text(encoding="utf-8")
+        preflight = skill.index("stage-0-architecture-preflight.md")
         trust = skill.index("After that preflight, load the spec")
         mutation = skill.index("Ensure `.test-guard/` is ignored")
-        self.assertLess(preflight, lint)
+        self.assertLess(preflight, trust)
+        self.assertLess(trust, mutation)
+        lint = companion.index("scripts/plan-lint.py")
+        selection_lint = companion.index("scripts/architecture-selection-lint.py")
+        architecture_lint = companion.index("scripts/architecture-lint.py")
+        context_check = companion.index("scripts/architecture_context.py")
         self.assertLess(lint, selection_lint)
         self.assertLess(selection_lint, architecture_lint)
-        self.assertLess(architecture_lint, trust)
-        self.assertLess(trust, mutation)
-        self.assertIn("legacy missing disposition/direction (`A12`/`A13`)", skill)
-        self.assertIn("Exit 1 or 2 routes to Stage R before the spec is trusted", skill)
-        self.assertIn("--require-architecture-direction --json", skill)
-        self.assertIn("scripts/architecture-selection-lint.py", skill)
-        self.assertIn("scripts/architecture-lint.py", skill)
-        self.assertIn("--consumer --json", skill)
-        self.assertIn("`convergence.decision_refs` entry", skill)
-        self.assertIn("readable, regular ADR recorded as\n**accepted**", skill)
+        self.assertLess(architecture_lint, context_check)
+        self.assertIn("legacy missing\ndisposition/direction (`A12`/`A13`)", companion)
+        self.assertIn("--require-architecture-direction --json", companion)
+        self.assertIn("--consumer --json", companion)
+        self.assertIn("`convergence.decision_refs` entry", companion)
+        self.assertIn("readable regular ADR recorded as\n`Status: accepted`", companion)
+        self.assertIn("refuse implementation", companion)
 
     def test_implement_inventory_and_absence_matrix_precede_code_mutation(self):
         skill = IMPLEMENT.read_text(encoding="utf-8")
-        transaction = skill.index(".architecture-publish-")
-        occupied_lint = skill.index("scripts/architecture-lint.py")
-        absence = skill.index("Missing-package implementation disposition")
+        companion = IMPLEMENT_PREFLIGHT.read_text(encoding="utf-8")
+        transaction = companion.index(".architecture-publish-")
+        occupied_lint = companion.index("scripts/architecture-lint.py")
+        absence = companion.index("Missing-package implementation disposition")
         mutation = skill.index("Ensure `.test-guard/` is ignored")
         self.assertLess(transaction, occupied_lint)
         self.assertLess(occupied_lint, absence)
-        self.assertLess(absence, mutation)
+        self.assertLess(
+            skill.index("stage-0-architecture-preflight.md"), mutation
+        )
         for transaction_kind in ("lock", "stage", "backup", "rejected"):
-            self.assertIn(transaction_kind, skill)
-        self.assertIn("`required` + convergence `converged`", skill)
-        self.assertIn("coverage gap — recommended package absent", skill)
-        self.assertIn("N/A — plan disposition not-required", skill)
-        self.assertIn("Architecture: waived by human", skill)
+            self.assertIn(transaction_kind, companion)
+        self.assertIn("`required` + convergence `converged`", companion)
+        self.assertIn("coverage gap — recommended package absent", companion)
+        self.assertIn("N/A — plan disposition not-required", companion)
+        self.assertIn("Architecture: waived by human", companion)
         self.assertIn("visible at this\n**Proceed** gate", skill)
-        self.assertIn("N/A by construction", skill)
+        self.assertIn("single-feature minimal plan", companion)
 
     def test_plan_floor_precedes_single_feature_retirement(self):
         stage = (ARCH / "stage-0-2-evidence-model.md").read_text(encoding="utf-8")
@@ -321,13 +340,99 @@ class ArchitectureLintWiring(unittest.TestCase):
 
     def test_implement_reuses_minimal_plan_authority(self):
         implement = IMPLEMENT.read_text(encoding="utf-8")
+        companion = IMPLEMENT_PREFLIGHT.read_text(encoding="utf-8")
         self.assertIn("plan_mode: single-feature-minimal", implement)
         self.assertIn("architecture-selection.json", implement)
         self.assertIn("feature-plan.md` as the\n  sole plan context", implement)
-        self.assertIn("ce-spec.md` + `tasks.json` remain the implementation authority", implement)
-        self.assertIn("mixed shape", implement)
+        self.assertIn(
+            "`ce-spec.md` +\n`tasks.json` remain implementation authority",
+            companion,
+        )
+        self.assertIn("mixed", companion)
         self.assertIn("match the one checkbox keyed by the exact `Feature ID`", implement)
         self.assertIn("rather than appending or guessing a row", implement)
+
+    def test_review_preflights_and_binds_current_architecture_context(self):
+        review = REVIEW.read_text(encoding="utf-8")
+        companion = REVIEW_PREFLIGHT.read_text(encoding="utf-8")
+        self.assertIn("stage-0-architecture-preflight.md", review)
+        self.assertLess(
+            review.index("stage-0-architecture-preflight.md"),
+            review.index("## Stage 1 — Review"),
+        )
+        plan_lint = companion.index("scripts/plan-lint.py")
+        selection_lint = companion.index("scripts/architecture-selection-lint.py")
+        package_lint = companion.index("scripts/architecture-lint.py")
+        context_check = companion.index("check docs/plans/<slug>/specs/<id>")
+        review_binding = companion.index(
+            "review-binding docs/plans/<slug>/specs/<id>"
+        )
+        self.assertLess(plan_lint, selection_lint)
+        self.assertLess(selection_lint, package_lint)
+        self.assertLess(package_lint, context_check)
+        self.assertLess(context_check, review_binding)
+        self.assertIn("unknown implementation surface", companion)
+        template = (
+            REPO / "plugins/core-engineering/skills/ce-review/artifact-template.md"
+        ).read_text(encoding="utf-8")
+        for field in (
+            '"plan_sha256"',
+            '"feature_sha256"',
+            '"spec_sha256"',
+            '"tasks_sha256"',
+            '"architecture_context_sha256"',
+            '"architecture_package_receipt_sha256"',
+            '"implementation_files_sha256"',
+            '"repository_state_sha256"',
+            '"commit_sha"',
+        ):
+            self.assertIn(field, template)
+
+    def test_auto_build_uses_strict_spec_and_review_provenance_gates(self):
+        pipeline = AUTO_PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("--require-architecture-context --json", pipeline)
+        self.assertIn(
+            "--repo-root . --plan-dir \"docs/plans/<slug>\" --feature <id>",
+            pipeline,
+        )
+        self.assertIn("persisted architecture binding differs", pipeline)
+        self.assertIn("plan/feature/spec/package/commit `binding`", pipeline)
+        review_call = pipeline[pipeline.index(
+            'scripts/review-gate.py'
+        ):pipeline.index(
+            "Every high-severity", pipeline.index("scripts/review-gate.py")
+        )]
+        self.assertIn("--require-blocking-route --json", review_call)
+        sweep = pipeline.index("final review-freshness sweep")
+        integration = pipeline.index("## Integration verification")
+        verification_worker = pipeline.index(
+            "spawn one fresh verification worker"
+        )
+        self.assertLess(integration, verification_worker)
+        self.assertLess(verification_worker, sweep)
+        sweep_end = pipeline.index(
+            "Do not repair integration failures", sweep
+        )
+        self.assertIn("every completed\nfeature", pipeline[sweep:sweep_end])
+        self.assertIn(
+            "stale or mismatched binding", pipeline[sweep:sweep_end]
+        )
+
+    def test_breaking_provenance_upgrades_have_explicit_migration_routes(self):
+        compatibility = (REPO / "docs/COMPATIBILITY.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Schema-v1 `architecture/` package", compatibility)
+        self.assertIn(
+            "Spec without `architecture_context`, or context schema v1",
+            compatibility,
+        )
+        self.assertIn("Schema-v1 `review-summary.json`", compatibility)
+        self.assertIn(
+            "/core-engineering:ce-architecture <slug>", compatibility
+        )
+        self.assertIn("/core-engineering:ce-spec <slug>/<id>", compatibility)
+        self.assertIn("/core-engineering:ce-review <slug>/<id>", compatibility)
 
     def test_validator_is_registered_fork(self):
         manifest = (REPO / "plugins/core-engineering/fork-manifest.json").read_text(
@@ -337,11 +442,19 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("ce-spec/scripts/architecture-lint.py", manifest)
         self.assertIn("ce-auto-build/scripts/architecture-lint.py", manifest)
         self.assertIn("ce-implement/scripts/architecture-lint.py", manifest)
+        self.assertIn("ce-review/scripts/architecture-lint.py", manifest)
+        self.assertIn("ce-architecture/scripts/architecture-render.py", manifest)
+        self.assertIn("ce-spec/scripts/architecture-render.py", manifest)
+        self.assertIn("ce-auto-build/scripts/architecture-render.py", manifest)
+        self.assertIn("ce-implement/scripts/architecture-render.py", manifest)
+        self.assertIn("ce-review/scripts/architecture-render.py", manifest)
         self.assertIn("ce-implement/scripts/plan-lint.py", manifest)
+        self.assertIn("ce-review/scripts/plan-lint.py", manifest)
         self.assertIn("ce-architecture/scripts/architecture-selection-lint.py", manifest)
         self.assertIn("ce-spec/scripts/architecture-selection-lint.py", manifest)
         self.assertIn("ce-auto-build/scripts/architecture-selection-lint.py", manifest)
         self.assertIn("ce-implement/scripts/architecture-selection-lint.py", manifest)
+        self.assertIn("ce-review/scripts/architecture-selection-lint.py", manifest)
         self.assertEqual(
             (ARCH / "scripts/architecture-lint.py").read_bytes(),
             (SPEC / "scripts/architecture-lint.py").read_bytes(),

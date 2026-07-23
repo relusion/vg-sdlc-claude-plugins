@@ -110,7 +110,7 @@ free. Each is a minimized real skill output kept in-repo under `evals/golden/`:
 | EVAL-007 | `evals/golden/EVAL-007/review-summary.json` | `json_fields` schema check | `status: blocked`, integer `blocking_high: 1`, `blocking_route: implement`, and the `CR-1` IDOR finding shape auto-build gates on |
 | EVAL-008 | `evals/golden/EVAL-008/infra-summary.json` | `json_fields` schema check | `status: pass`, `blocking_hard: 0`, all three formats detected, secrets redacted |
 | EVAL-009 | `evals/golden/EVAL-009/express.json` | `json_fields` schema check | the admitted two-file scope and requested label fix stay frozen for the express-only lane |
-| EVAL-020 | `evals/golden/EVAL-020/docs/plans/team-invitations-rbac/architecture/` | `architecture-lint.py --json` | the architecture package is source-current, structurally coherent, and feature/flow/quality references resolve |
+| EVAL-020 | `evals/golden/EVAL-020/docs/plans/team-invitations-rbac/architecture/` | `architecture-lint.py --json` | the strict schema-v2 package is source-current, its deterministic projections and approval receipt match, and trigger-required context/dynamic/trust/transition/operations structures or typed gaps resolve through each feature mapping |
 
 Provenance: committed golden artifacts, each a minimized real skill output
 distilled from the live eval batch of 2026-06-27 (`evals/runs/` originals):

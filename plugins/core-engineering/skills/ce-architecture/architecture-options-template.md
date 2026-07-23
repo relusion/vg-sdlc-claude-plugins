@@ -125,6 +125,18 @@ and the leader-changing sensitivity condition when one exists.
 | Assumptions | <all assumptions> |
 | Irreversible commitments | <all commitments> |
 
+### Commitment Index
+
+| Dimension | Ordinal | Statement SHA-256 | Exact statement |
+|---|---|---|---|
+| responsibilities_and_boundaries | 1 | `<sha256>` | <exact first string in that option array> |
+
+Emit exactly one row for every string in the ten direction arrays. `Ordinal`
+is one-based within its dimension. `Statement SHA-256` is the lowercase SHA-256
+of the exact UTF-8 statement bytes with no added newline. This derived index is
+review support; the canonical arrays and option hash remain the selection
+authority.
+
 ### Trace and Evidence
 
 - **Capabilities / journeys:** <every Cnn and Jnn>
@@ -150,7 +162,10 @@ and the leader-changing sensitivity condition when one exists.
 Include the exact selection-independent projection below in addition to the
 human-readable tables. Populate every array/object fully from the same fixed
 option set; never summarize or omit rows here. The schema-v2 selection linter
-parses this visible JSON and requires exact equality before decomposition.
+parses this visible JSON and requires exact equality before decomposition. The
+workflow separately recomputes the displayed Commitment Index from those
+canonical arrays before the gate; the table is not a second selection
+authority.
 
 ```json
 {

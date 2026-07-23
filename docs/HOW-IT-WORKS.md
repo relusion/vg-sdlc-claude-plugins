@@ -55,13 +55,28 @@ After decomposition, `/core-engineering:ce-architecture shape:<draft-slug>` chec
 that provisional features realize the selected direction; planning alone applies
 any human-approved delta. The written plan records `architecture_disposition` and
 the selection-file hash. A required disposition blocks specification and direct implementation until
-the normal architecture mode projects the stable plan into approved system,
-deployment, data/integration, and quality views. Recommended, not-required, and
-human-waived routes remain explicit rather than treating absence as silently
-optional. A spec then defines acceptance criteria, tests, and tasks for one feature.
-Implementation works against that approved spec. Verification and review
-inspect the result and route defects back to the layer that owns the
-correction.
+the normal architecture mode projects the stable plan into an
+accepted-for-specification baseline. Schema-v2 `architecture.json` is the
+strict structural authority; the four Markdown files and Mermaid diagrams are
+deterministic projections rather than separately authored copies. Its
+plan-relative coverage is distinct from security, deployment, and operational
+readiness. Architecture triggers conditionally require context, dynamic,
+trust/security, transition, topology, and operability realizations, or typed
+owner-routed gaps. Publication seals the reviewed package with an approval
+receipt and package digest. That digest proves byte integrity; it is not a
+cryptographic signature or independent identity attestation.
+
+Recommended, not-required, and human-waived routes remain explicit rather than
+treating absence as silently optional. A spec then binds the exact architecture
+revision, package digest, per-feature mapping, relevant gap ids, and the current
+plan/feature/direction/accepted-ADR authority digest before defining acceptance
+criteria, tests, and tasks. Minimal and no-package dispositions carry the same
+non-downgradable authority binding. Implementation and review revalidate it
+rather than trusting a spec authored against an older baseline. Review evidence
+also binds the non-ignored repository state and the exact evaluated commit; the
+autonomous pipeline rechecks every completed review after later features and
+combined verification evidence settle. Verification and review inspect the
+result and route defects back to the layer that owns the correction.
 
 ### Scope Lock: escalate up, do not widen in place
 
@@ -115,10 +130,10 @@ can invoke it directly.
 |---|---|
 | `/core-engineering:ce-brief` | Turn a raw request into a planning-ready brief through a bounded interview. |
 | `/core-engineering:ce-plan` | Reconcile intent and repository evidence, conditionally obtain a human-selected solution direction, then decompose work into ordered features and verify architecture/plan convergence before the cut freezes. |
-| `/core-engineering:ce-architecture` | In `explore:<draft-slug>` mode, generate and score complete solution directions before decomposition; in `shape:<draft-slug>` mode, assess whether provisional features realize the selected direction; in normal mode, turn one written multi-feature plan into a human-approved repository-grounded baseline. It never applies a re-cut or replaces feature specifications. |
+| `/core-engineering:ce-architecture` | In `explore:<draft-slug>` mode, generate and score complete solution directions before decomposition; in `shape:<draft-slug>` mode, assess whether provisional features realize the selected direction; in normal mode, turn one written multi-feature plan into a digest-sealed, accepted-for-specification schema-v2 baseline with deterministic human projections. It never applies a re-cut, claims production readiness, or replaces feature specifications. |
 | `/core-engineering:ce-plan-audit` | Lint and review an existing plan without rewriting it. |
-| `/core-engineering:ce-spec` | Validate the plan's architecture disposition and any occupied package, then convert one eligible planned feature into EARS acceptance criteria, tests, and `tasks.json`; required missing or stale architecture blocks. |
-| `/core-engineering:ce-implement` | Revalidate the plan's architecture prerequisite before trusting an existing spec, then execute its approved task list test-first and record verification evidence. |
+| `/core-engineering:ce-spec` | Validate the plan's architecture disposition and any occupied package, bind its revision/digest/per-feature slice into the spec, then convert one eligible planned feature into EARS acceptance criteria, tests, and `tasks.json`; required missing or stale architecture blocks, as do legacy-v1 or gap-obscuring contexts. |
+| `/core-engineering:ce-implement` | Revalidate the plan, current architecture receipt, and the spec's persisted architecture binding before executing its approved task list test-first and recording verification evidence. |
 | `/core-engineering:ce-patch` | Handle one change of at most two files through a single approval gate; failed or uncertain admission routes to planning. |
 | `/core-engineering:ce-auto-build` | Run one fixed, sequential spec/implement/verify/review loop across features with budgets, retries, parks, and an end review. |
 
@@ -219,10 +234,21 @@ it is mandatory before spec, direct implementation, or auto-build when
 `plan.json` records `required`, a
 visible coverage gap when `recommended`, N/A when `not-required`, and an
 explicit residual risk when human-waived. It is written as one coherent set
-only after human approval; an approved package is design context for downstream specs, not implementation, security,
-compliance, release, or deployment authority. Review and diagnosis artifacts
-appear only when those workflows run. `STATUS.md` is a generated projection of
-plan and auto-build state, not a second source of truth.
+only after human approval. Schema v2 separates lifecycle, baseline acceptance,
+plan-relative coverage, and readiness; hashes the reviewed package into a
+durable approval receipt; and makes every human table/diagram a deterministic
+projection of strict JSON. Trigger-relevant dynamic, trust, transition,
+deployment, integration, and operational claims must be structured or carried
+as typed gaps with affected ids, owner, next check, and resolution condition.
+The package is specification context, not implementation, security, compliance,
+release, or deployment authority.
+
+Each full-plan `tasks.json` persists the exact architecture package and
+feature-slice binding used to author its spec. Implementation, outbound review,
+and auto-build compare that binding to the current package before trusting the
+spec or a prior review summary. Review and diagnosis artifacts appear only when
+those workflows run. `STATUS.md` is a generated projection of plan and
+auto-build state, not a second source of truth.
 
 Other skills write dated, never-overwritten reports such as
 `docs/dep-audits/<date>-<slug>.md`,
@@ -353,11 +379,13 @@ and reference checks, spec traceability, test-integrity checks, dependency
 declarations, patch-boundary checks, review summaries, and evidence schemas.
 The scripts use a consistent exit shape: pass, finding/failure, or could-not-run.
 Degraded execution is reported instead of being presented as a clean result.
-The review-evidence gate requires a non-negative `blocking_high` count and rejects
-a contradictory `status` before trusting it; malformed review evidence is a
-could-not-run result, never a pass. Auto-build also requires a validated
-`blocking_route`: implementation defects may retry implementation, while a
-`plan-conflict` parks for human-owned planning instead of looping on code.
+The review-evidence gate independently derives `blocking_high` from the
+structured findings, rejects a contradictory `status`, and verifies the exact
+plan/spec/architecture/repository-state binding before trusting the verdict;
+malformed or stale review evidence is a could-not-run result, never a pass.
+Auto-build also requires a validated `blocking_route`: implementation defects
+may retry implementation, while a `plan-conflict` parks for human-owned planning
+instead of looping on code.
 
 ### Two separate merge questions
 

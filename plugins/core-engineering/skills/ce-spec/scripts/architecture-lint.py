@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Deterministic structural lint for /core-engineering:ce-architecture.
+"""Deterministic structural lint for ce-architecture schema v2.
 
-The JSON manifest is the structural source. Markdown is a human projection.
-This script validates references, stale-input hashes, plan/feature coverage,
-id resolution, accepted ADR paths, literal quality targets, and projection
-presence. It deliberately does not judge whether the architecture is good and
-does not parse Mermaid semantics.
+``architecture.json`` is the semantic source and the four Markdown files are
+deterministic projections.  The v2 path strictly validates object shapes,
+plan-relative coverage/readiness, selected-option commitment closure, graph
+and feature references, tracked evidence, projection bytes, and approval
+digests.  Schema v1 is rejected by default; ``--allow-legacy-v1`` exists only
+for explicit migration diagnostics and does not make a package authoritative.
 
-Default publication mode treats every source hash as blocking. `--consumer`
-keeps plan/brief/ADR/reference drift blocking but reports repository-kind drift
-as advisory, so expected implementation changes do not deadlock later specs.
+Default publication mode treats every source hash as blocking. ``--consumer``
+keeps plan/brief/ADR/reference drift blocking while reporting repository-kind
+drift as advisory, so expected implementation changes do not deadlock later
+specification.
 
 Exit codes:
   0  PASS  — no hard structural failures (advisories may remain)
@@ -25,10 +27,186 @@ import importlib.util
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
 SCHEMA_VERSION = 1
+V2_SCHEMA_VERSION = 2
+V2_SCHEMA_URN = "urn:vg-sdlc:ce-architecture:architecture:v2"
+V2_GENERATOR_NAME = "/core-engineering:ce-architecture"
+V2_BASELINE_STATUSES = {
+    "accepted-for-specification",
+    "accepted-for-specification-with-gaps",
+}
+V2_LIFECYCLE_STATUSES = {"proposed", "published"}
+V2_COVERAGE_DIMENSIONS = (
+    "direction_realization",
+    "system_context",
+    "containers",
+    "deployment",
+    "data",
+    "integrations",
+    "dynamic_behavior",
+    "security",
+    "contracts",
+    "transitions",
+    "quality_attributes",
+    "operability",
+    "requirements_traceability",
+)
+V2_COMMITMENT_DIMENSIONS = (
+    "responsibilities_and_boundaries",
+    "runtime_and_deployment",
+    "data_ownership",
+    "integrations_and_failure",
+    "trust_residency_and_security",
+    "quality_tactics",
+    "migration_and_evolution",
+    "capability_implications",
+    "assumptions",
+    "irreversible_commitments",
+)
+V2_CORE_PROJECTIONS = (
+    ("PROJ-001", "solution-architecture", "solution-architecture.md"),
+    ("PROJ-002", "architecture-views", "views.md"),
+    ("PROJ-003", "data-and-integrations", "data-and-integrations.md"),
+    ("PROJ-004", "quality-attributes", "quality-attributes.md"),
+)
+V2_TOP_LEVEL_KEYS = (
+    "$schema",
+    "schema_version",
+    "generator",
+    "project_slug",
+    "lifecycle_status",
+    "baseline_status",
+    "architecture_revision",
+    "source_plan_revision",
+    "source_plan_path",
+    "sources",
+    "projections",
+    "coverage_profile",
+    "coverage",
+    "readiness",
+    "narrative",
+    "drivers",
+    "actors",
+    "system_boundary",
+    "context_relationships",
+    "components",
+    "relationships",
+    "deployment_nodes",
+    "deployments",
+    "deployment_connections",
+    "data_entities",
+    "integration_flows",
+    "dynamic_scenarios",
+    "trust_boundaries",
+    "security_realizations",
+    "contract_realizations",
+    "transitions",
+    "quality_scenarios",
+    "operations",
+    "direction_realizations",
+    "feature_mappings",
+    "decisions",
+    "open_questions",
+    "risks",
+    "gaps",
+    "approval",
+    "extensions",
+)
+V2_TOP_LEVEL_KEYS_WITH_RESET = (
+    *V2_TOP_LEVEL_KEYS[:-2],
+    "revision_reset",
+    *V2_TOP_LEVEL_KEYS[-2:],
+)
+V2_EVIDENCE_STATES = {"recorded", "observed", "inferred", "unknown"}
+V2_COVERAGE_STATES = {"complete", "gap", "not-applicable"}
+V2_GAP_STATUSES = {"open", "resolved"}
+V2_READINESS_STATUSES = {"ready", "ready-with-gaps", "blocked"}
+V2_MAPPING_SCOPES = {"cross-feature", "feature-local"}
+V2_REALIZATION_STATUSES = {"realized", "not-applicable", "gap"}
+V2_COMPONENT_KINDS = COMPONENT_KINDS if "COMPONENT_KINDS" in globals() else {
+    "user-interface",
+    "service",
+    "worker",
+    "data-store",
+    "external-system",
+    "platform",
+}
+V2_ID_PATTERNS = {
+    "drivers": re.compile(r"^DRV-\d{3}$"),
+    "actors": re.compile(r"^A-\d{3}$"),
+    "context_relationships": re.compile(r"^CR-\d{3}$"),
+    "components": re.compile(r"^C-\d{3}$"),
+    "relationships": re.compile(r"^R-\d{3}$"),
+    "deployment_nodes": re.compile(r"^N-\d{3}$"),
+    "deployments": re.compile(r"^DP-\d{3}$"),
+    "deployment_connections": re.compile(r"^DC-\d{3}$"),
+    "data_entities": re.compile(r"^DATA-\d{3}$"),
+    "integration_flows": re.compile(r"^IF-\d{3}$"),
+    "dynamic_scenarios": re.compile(r"^DS-\d{3}$"),
+    "trust_boundaries": re.compile(r"^TB-\d{3}$"),
+    "security_realizations": re.compile(r"^SR-\d{3}$"),
+    "contract_realizations": re.compile(r"^CTR-\d{3}$"),
+    "transitions": re.compile(r"^TR-\d{3}$"),
+    "quality_scenarios": re.compile(r"^QA-\d{3}$"),
+    "operations": re.compile(r"^OP-\d{3}$"),
+    "direction_realizations": re.compile(r"^DR-\d{3}$"),
+    "decisions": re.compile(r"^D-\d{3}$"),
+    "open_questions": re.compile(r"^OQ-\d{3}$"),
+    "risks": re.compile(r"^AR-\d{3}$"),
+    "gaps": re.compile(r"^GAP-\d{3}$"),
+}
+V2_TRIGGER_DIMENSIONS = {
+    # An explicit deliverable makes every ordinary solution-baseline dimension
+    # reviewable, but it cannot manufacture a transition that the exact
+    # selected direction says is absent.  Transition applicability is resolved
+    # separately, fail-closed, from migration_and_evolution commitments.
+    "explicit-architecture-deliverable": (
+        set(V2_COVERAGE_DIMENSIONS) - {"transitions"}
+    ),
+    "multi-runtime-or-deployment-boundary": {
+        "deployment",
+    },
+    "cross-feature-durable-or-async-flow": {
+        "integrations",
+        "dynamic_behavior",
+    },
+    "shared-data-ownership-or-migration": {"data"},
+    "trust-residency-or-sensitive-boundary": {"security"},
+    "shared-protocol-or-schema": {
+        "integrations",
+        "contracts",
+    },
+    "platform-or-topology-choice": {"deployment"},
+    "architecture-determining-nfr": {"quality_attributes", "operability"},
+    "contested-cross-feature-owner": {
+        "containers",
+        "data",
+        "operability",
+        "requirements_traceability",
+    },
+}
+V2_BASE_DIMENSIONS = {
+    "direction_realization",
+    "system_context",
+    "containers",
+    "requirements_traceability",
+}
+SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
+RFC3339_UTC_RE = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+)
+EXTENSION_NAMESPACE_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
+)
+APPROVAL_PLACEHOLDER_RE = re.compile(
+    r"^(?:pending|human|unknown|tbd|todo|placeholder|<[^>]+>)$",
+    re.IGNORECASE,
+)
 REQUIRED_FILES = {
     "solution-architecture.md",
     "views.md",
@@ -192,6 +370,227 @@ REQUIRED_TABLES = {
             "features",
         },
     ],
+}
+
+V2_SOURCE_FIELDS = ("path", "sha256", "kind")
+V2_PROJECTION_FIELDS = ("id", "projection_type", "path", "required", "sha256")
+V2_COVERAGE_PROFILE_FIELDS = ("profile_id", "trigger_ids", "required_dimensions")
+V2_COVERAGE_FIELDS = ("status", "gap_ids", "evidence")
+V2_READINESS_FIELDS = (
+    "status",
+    "blocking_gap_ids",
+    "non_blocking_gap_ids",
+    "summary",
+)
+V2_NARRATIVE_FIELDS = (
+    "executive_summary",
+    "scope",
+    "non_goals",
+    "architecture_overview",
+    "assumptions",
+    "validation_strategy",
+    "evidence_boundary",
+    "consistency_model",
+    "security_privacy_summary",
+    "operability_summary",
+    "capacity_resilience_recovery_summary",
+    "cost_complexity_summary",
+)
+V2_ASSUMPTION_FIELDS = ("id", "statement", "evidence_state", "evidence")
+V2_VALIDATION_FIELDS = (
+    "id",
+    "statement",
+    "owner",
+    "evidence_state",
+    "evidence",
+)
+V2_COLLECTION_FIELDS = {
+    "drivers": (
+        "id", "name", "statement", "source", "consequence", "feature_ids",
+        "evidence_state", "evidence",
+    ),
+    "actors": (
+        "id", "name", "kind", "roles", "feature_ids", "evidence_state",
+        "evidence",
+    ),
+    "context_relationships": (
+        "id", "from", "to", "interaction", "feature_ids", "evidence_state",
+        "evidence",
+    ),
+    "components": (
+        "id", "name", "kind", "responsibilities", "owner", "feature_ids",
+        "evidence_state", "evidence",
+    ),
+    "relationships": (
+        "id", "from", "to", "interaction", "protocol", "communication_mode",
+        "contract_realization_ids", "feature_ids", "evidence_state", "evidence",
+    ),
+    "deployment_nodes": (
+        "id", "name", "environment", "provider", "runtime", "region", "zones",
+        "network_zone", "residency", "scaling", "availability",
+        "trust_boundary_ids", "feature_ids", "evidence_state", "evidence",
+        "evidence_claims",
+    ),
+    "deployments": (
+        "id", "component_id", "node_ids", "replica_strategy", "scaling",
+        "failover", "feature_ids", "evidence_state", "evidence",
+    ),
+    "deployment_connections": (
+        "id", "from_node", "to_node", "direction", "protocol", "purpose",
+        "network_boundary", "feature_ids", "evidence_state", "evidence",
+    ),
+    "data_entities": (
+        "id", "name", "data_class", "source_of_truth", "writers", "readers",
+        "lifecycle", "consistency", "storage", "region_residency",
+        "backup_recovery", "transition_ids", "plan_trace", "feature_ids",
+        "evidence_state", "evidence",
+    ),
+    "integration_flows": (
+        "id", "name", "producer", "consumer", "protocol",
+        "communication_mode", "data", "data_entity_ids", "source_of_truth",
+        "failure_behavior", "timeout_retry", "contract_realization_ids",
+        "security_realization_ids", "plan_trace", "feature_ids", "details",
+        "evidence_state", "evidence",
+    ),
+    "dynamic_scenarios": (
+        "id", "name", "journey_ref", "trigger", "success_outcome", "steps",
+        "alternate_paths", "feature_ids", "evidence_state", "evidence",
+    ),
+    "trust_boundaries": (
+        "id", "name", "boundary_type", "description", "inside_ids",
+        "outside_ids", "crossing_integration_ids", "residency", "feature_ids",
+        "evidence_state", "evidence",
+    ),
+    "security_realizations": (
+        "id", "obligation_id", "boundary_ids", "actor_ids", "component_ids",
+        "integration_ids", "data_ids", "tactics", "verification",
+        "feature_ids", "evidence_state", "evidence",
+    ),
+    "contract_realizations": (
+        "id", "obligation_id", "relationship_ids", "integration_ids",
+        "dynamic_scenario_ids", "data_ids", "behavior", "failure_behavior",
+        "compatibility", "verification", "feature_ids", "evidence_state",
+        "evidence",
+    ),
+    "transitions": (
+        "id", "name", "from_state", "to_state", "strategy", "coexistence",
+        "compatibility", "cutover", "rollback", "data_migration", "owner",
+        "component_ids", "data_ids", "deployment_ids", "decision_ids",
+        "feature_ids", "evidence_state", "evidence",
+    ),
+    "quality_scenarios": (
+        "id", "name", "attribute", "source", "stimulus", "environment",
+        "response", "target", "tactic", "verification", "operation_ids",
+        "feature_ids", "details", "evidence_state", "evidence",
+    ),
+    "operations": (
+        "id", "name", "category", "responsibility", "owner", "signals",
+        "failure_domain", "target", "tactic", "runbook", "verification",
+        "component_ids", "deployment_node_ids", "quality_ids", "feature_ids",
+        "evidence_state", "evidence",
+    ),
+    "direction_realizations": (
+        "id", "exploration_id", "selected_option_id",
+        "selected_option_sha256", "dimension", "ordinal", "statement",
+        "statement_sha256", "realization_status", "realized_by", "gap_ids",
+        "evidence_state", "evidence",
+    ),
+    "decisions": (
+        "id", "title", "status", "context", "decision", "rationale",
+        "alternatives", "consequences", "reversibility", "cost_if_wrong",
+        "owner", "decided_by", "decided_at", "adr_path", "feature_ids",
+        "evidence_state", "evidence",
+    ),
+    "open_questions": (
+        "id", "status", "question", "material", "owner", "needed_by",
+        "options", "related_refs", "feature_ids", "evidence_state", "evidence",
+    ),
+    "risks": (
+        "id", "title", "statement", "likelihood", "impact", "severity",
+        "owner", "mitigation", "contingency", "trigger", "related_refs",
+        "feature_ids", "evidence_state", "evidence",
+    ),
+    "gaps": (
+        "id", "dimension", "gap_type", "statement", "impact", "material",
+        "owner", "next_action", "closure_criteria", "blocking_stage", "status",
+        "related_refs", "evidence_state", "evidence",
+    ),
+}
+V2_SYSTEM_BOUNDARY_FIELDS = (
+    "id", "name", "responsibility", "in_scope", "out_of_scope",
+    "evidence_state", "evidence",
+)
+V2_EVIDENCE_CLAIM_FIELDS = ("field", "path", "literal", "derivation")
+V2_DYNAMIC_STEP_FIELDS = (
+    "ordinal", "from", "to", "interaction", "communication_mode",
+    "integration_id", "contract_realization_ids", "security_realization_ids",
+    "failure_behavior",
+)
+V2_ALTERNATE_PATH_FIELDS = ("name", "condition", "outcome", "step_ordinals")
+V2_RELATED_REF_FIELDS = ("kind", "id")
+V2_REALIZED_BY_FIELDS = ("kind", "id")
+V2_DECISION_ALTERNATIVE_FIELDS = ("option", "consequence", "rejection_reason")
+V2_LIFECYCLE_FIELDS = ("retain", "export", "erase")
+V2_FEATURE_MAPPING_FIELDS = (
+    "feature_id", "mapping_scope", "evidence_state", "evidence",
+    "direction_realization_ids", "driver_ids", "actor_ids",
+    "context_relationship_ids", "component_ids", "relationship_ids",
+    "deployment_node_ids", "deployment_ids", "deployment_connection_ids",
+    "data_ids", "integration_ids", "dynamic_scenario_ids",
+    "trust_boundary_ids", "security_realization_ids",
+    "contract_realization_ids", "transition_ids", "quality_ids",
+    "operation_ids", "decision_ids", "open_question_ids", "risk_ids",
+    "gap_ids",
+)
+V2_APPROVAL_FIELDS = (
+    "decision", "recorded_by", "recorded_at", "authority", "reference",
+    "gate", "review_payload_sha256", "receipt_sha256",
+)
+V2_REVISION_RESET_FIELDS = ("reason", "recorded_by", "gate")
+V2_MAPPING_COLLECTIONS = {
+    "direction_realization_ids": "direction_realizations",
+    "driver_ids": "drivers",
+    "actor_ids": "actors",
+    "context_relationship_ids": "context_relationships",
+    "component_ids": "components",
+    "relationship_ids": "relationships",
+    "deployment_node_ids": "deployment_nodes",
+    "deployment_ids": "deployments",
+    "deployment_connection_ids": "deployment_connections",
+    "data_ids": "data_entities",
+    "integration_ids": "integration_flows",
+    "dynamic_scenario_ids": "dynamic_scenarios",
+    "trust_boundary_ids": "trust_boundaries",
+    "security_realization_ids": "security_realizations",
+    "contract_realization_ids": "contract_realizations",
+    "transition_ids": "transitions",
+    "quality_ids": "quality_scenarios",
+    "operation_ids": "operations",
+    "decision_ids": "decisions",
+    "open_question_ids": "open_questions",
+    "risk_ids": "risks",
+    "gap_ids": "gaps",
+}
+V2_REALIZED_BY_KINDS = {
+    "actor": "actors",
+    "system-boundary": None,
+    "context-relationship": "context_relationships",
+    "component": "components",
+    "relationship": "relationships",
+    "deployment-node": "deployment_nodes",
+    "deployment": "deployments",
+    "deployment-connection": "deployment_connections",
+    "data-entity": "data_entities",
+    "integration-flow": "integration_flows",
+    "dynamic-scenario": "dynamic_scenarios",
+    "trust-boundary": "trust_boundaries",
+    "security-realization": "security_realizations",
+    "contract-realization": "contract_realizations",
+    "transition": "transitions",
+    "quality-scenario": "quality_scenarios",
+    "operation": "operations",
+    "decision": "decisions",
+    "risk": "risks",
 }
 
 
@@ -1111,6 +1510,19 @@ def _plan_trace_resolves(plan_dir: Path, trace: object) -> bool:
     return fragment in heading_slugs
 
 
+def _strict_object_pairs(pairs: list[tuple[str, object]]) -> dict:
+    result: dict = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
+def _strict_json_loads(payload: str) -> object:
+    return json.loads(payload, object_pairs_hook=_strict_object_pairs)
+
+
 def load_package(arch_dir: Path) -> dict:
     if not arch_dir.is_dir():
         raise ArchitectureLintError(f"architecture directory not found: {arch_dir}")
@@ -1118,15 +1530,15 @@ def load_package(arch_dir: Path) -> dict:
     if not manifest_path.is_file():
         raise ArchitectureLintError(f"architecture.json not found: {manifest_path}")
     try:
-        data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        data = _strict_json_loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise ArchitectureLintError(f"architecture.json is unreadable or invalid JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise ArchitectureLintError("architecture.json must contain a JSON object")
     return data
 
 
-def check_package(
+def _check_package_v1(
     arch_dir: Path,
     repo_root: Path,
     data: dict,
@@ -2488,14 +2900,2083 @@ def check_package(
     return hard, advisory
 
 
-def result_payload(hard: list[str], advisory: list[str]) -> dict:
-    return {
+def _v2_exact(
+    value: object,
+    label: str,
+    fields: tuple[str, ...],
+    hard: list[str],
+) -> dict:
+    if not isinstance(value, dict):
+        hard.append(f"H2 {label} must be an object")
+        return {}
+    missing = [field for field in fields if field not in value]
+    extra = sorted(set(value) - set(fields))
+    if missing:
+        hard.append(f"H2 {label} is missing key(s): {', '.join(missing)}")
+    if extra:
+        hard.append(f"H2 {label} has unknown key(s): {', '.join(extra)}")
+    return value
+
+
+def _v2_nonempty_string(value: object, label: str, hard: list[str]) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        hard.append(f"H2 {label} must be a non-empty string")
+        return None
+    return value
+
+
+def _v2_string_list(
+    value: object,
+    label: str,
+    hard: list[str],
+    *,
+    nonempty: bool = False,
+) -> list[str]:
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        hard.append(f"H2 {label} must be a list of non-empty strings")
+        return []
+    if nonempty and not value:
+        hard.append(f"H2 {label} must not be empty")
+    duplicates = sorted({item for item in value if value.count(item) > 1})
+    if duplicates:
+        hard.append(f"H2 {label} contains duplicate value(s): {', '.join(duplicates)}")
+    return value
+
+
+def _v2_int(
+    value: object,
+    label: str,
+    hard: list[str],
+    *,
+    minimum: int = 1,
+) -> int | None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        hard.append(f"H2 {label} must be an integer >= {minimum}")
+        return None
+    return value
+
+
+def _v2_load_renderer():
+    sibling = Path(__file__).with_name("architecture-render.py")
+    spec = importlib.util.spec_from_file_location("ce_architecture_v2_renderer", sibling)
+    if spec is None or spec.loader is None:
+        raise ArchitectureLintError(f"could not load deterministic renderer: {sibling}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _v2_plugin_version(hard: list[str]) -> str | None:
+    manifest = Path(__file__).resolve().parents[3] / ".claude-plugin" / "plugin.json"
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        hard.append(f"H2 cannot read core-engineering plugin manifest version: {exc}")
+        return None
+    version = payload.get("version") if isinstance(payload, dict) else None
+    if not isinstance(version, str) or not SEMVER_RE.fullmatch(version):
+        hard.append("H2 core-engineering plugin manifest version is not canonical semver")
+        return None
+    return version
+
+
+def _v2_collection(
+    data: dict,
+    name: str,
+    source_kinds: dict[str, str],
+    hard: list[str],
+) -> tuple[list[dict], dict[str, dict]]:
+    raw = data.get(name)
+    if not isinstance(raw, list):
+        hard.append(f"H2 {name} must be an array")
+        return [], {}
+    rows: list[dict] = []
+    by_id: dict[str, dict] = {}
+    ids: list[str] = []
+    fields = V2_COLLECTION_FIELDS[name]
+    pattern = V2_ID_PATTERNS[name]
+    for index, value in enumerate(raw):
+        label = f"{name}[{index}]"
+        row = _v2_exact(value, label, fields, hard)
+        if not row:
+            continue
+        rows.append(row)
+        row_id = row.get("id")
+        if not isinstance(row_id, str) or not pattern.fullmatch(row_id):
+            hard.append(f"H2 {label}.id is not a canonical {name} id")
+        elif row_id in by_id:
+            hard.append(f"H2 {name} contains duplicate id {row_id}")
+        else:
+            by_id[row_id] = row
+            ids.append(row_id)
+        state = row.get("evidence_state")
+        if state not in V2_EVIDENCE_STATES:
+            hard.append(
+                f"H2 {label}.evidence_state must be one of "
+                f"{sorted(V2_EVIDENCE_STATES)}"
+            )
+        _evidence_refs(row, label, source_kinds, hard)
+        if "feature_ids" in row:
+            _v2_string_list(
+                row.get("feature_ids"),
+                f"{label}.feature_ids",
+                hard,
+                nonempty=True,
+            )
+    numeric_order = sorted(
+        ids,
+        key=lambda value: int(value.rsplit("-", 1)[1]),
+    )
+    if ids != numeric_order:
+        hard.append(f"H2 {name} must be ordered by numeric id")
+    return rows, by_id
+
+
+def _v2_sources(
+    data: dict,
+    repo_root: Path,
+    plan_dir: Path,
+    *,
+    consumer: bool,
+    hard: list[str],
+    advisory: list[str],
+) -> dict[str, str]:
+    raw = data.get("sources")
+    if not isinstance(raw, list):
+        hard.append("H2 sources must be an array")
+        return {}
+    source_kinds: dict[str, str] = {}
+    ordered_paths: list[str] = []
+    allowed_kinds = {"plan", "brief", "adr", "repository", "reference"}
+    for index, value in enumerate(raw):
+        label = f"sources[{index}]"
+        row = _v2_exact(value, label, V2_SOURCE_FIELDS, hard)
+        if not row:
+            continue
+        path_value = _v2_nonempty_string(row.get("path"), f"{label}.path", hard)
+        digest = row.get("sha256")
+        kind = row.get("kind")
+        if not isinstance(digest, str) or not SHA_RE.fullmatch(digest):
+            hard.append(f"H2 {label}.sha256 must be 64 lowercase hex characters")
+        if kind not in allowed_kinds:
+            hard.append(f"H2 {label}.kind must be one of {sorted(allowed_kinds)}")
+        if path_value is None:
+            continue
+        if path_value in source_kinds:
+            hard.append(f"H2 sources contains duplicate path {path_value}")
+            continue
+        ordered_paths.append(path_value)
+        source_kinds[path_value] = kind if isinstance(kind, str) else ""
+        target = _repo_path(repo_root, path_value)
+        if target is None:
+            hard.append(f"H4 source path is unsafe: {path_value}")
+            continue
+        symlinks = _symlink_components(repo_root, target)
+        if symlinks or target.is_symlink() or not target.is_file():
+            hard.append(f"H4 source is missing, non-regular, or symlinked: {path_value}")
+            continue
+        actual = _sha256(target)
+        if isinstance(digest, str) and actual != digest:
+            message = f"H4 stale source hash for {path_value}"
+            if consumer and kind == "repository":
+                advisory.append("A4 " + message[3:])
+            else:
+                hard.append(message)
+    if ordered_paths != sorted(ordered_paths):
+        hard.append("H2 sources must be ordered by repository-relative path")
+    required = {
+        (plan_dir / filename).relative_to(repo_root).as_posix()
+        for filename in REQUIRED_PLAN_FILES
+    }
+    plan_json = (plan_dir / "plan.json").relative_to(repo_root).as_posix()
+    required.add(plan_json)
+    missing = sorted(required - set(source_kinds))
+    if missing:
+        hard.append("H4 required plan source(s) are not tracked: " + ", ".join(missing))
+    wrong_kind = sorted(
+        path for path in required if source_kinds.get(path) not in {None, "plan"}
+    )
+    if wrong_kind:
+        hard.append(
+            "H4 required plan source(s) must use kind plan: "
+            + ", ".join(wrong_kind)
+        )
+    return source_kinds
+
+
+def _v2_projections(data: dict, source_kinds: dict[str, str], hard: list[str]) -> None:
+    raw = data.get("projections")
+    if not isinstance(raw, list):
+        hard.append("H2 projections must be an array")
+        return
+    if len(raw) != len(V2_CORE_PROJECTIONS):
+        hard.append("H2 projections must contain exactly the four core projections")
+    for index, expected in enumerate(V2_CORE_PROJECTIONS):
+        if index >= len(raw):
+            break
+        label = f"projections[{index}]"
+        row = _v2_exact(raw[index], label, V2_PROJECTION_FIELDS, hard)
+        expected_id, expected_type, expected_path = expected
+        if (
+            row.get("id"),
+            row.get("projection_type"),
+            row.get("path"),
+            row.get("required"),
+        ) != (expected_id, expected_type, expected_path, True):
+            hard.append(
+                f"H2 {label} must be the canonical required projection "
+                f"{expected_id}/{expected_type}/{expected_path}"
+            )
+        digest = row.get("sha256")
+        if not isinstance(digest, str) or not SHA_RE.fullmatch(digest):
+            hard.append(f"H2 {label}.sha256 must be 64 lowercase hex characters")
+
+
+def _v2_narrative(
+    data: dict,
+    source_kinds: dict[str, str],
+    hard: list[str],
+) -> None:
+    narrative = _v2_exact(
+        data.get("narrative"), "narrative", V2_NARRATIVE_FIELDS, hard
+    )
+    if not narrative:
+        return
+    for field in (
+        "executive_summary",
+        "architecture_overview",
+        "evidence_boundary",
+        "consistency_model",
+        "security_privacy_summary",
+        "operability_summary",
+        "capacity_resilience_recovery_summary",
+        "cost_complexity_summary",
+    ):
+        _v2_nonempty_string(narrative.get(field), f"narrative.{field}", hard)
+    _v2_string_list(narrative.get("scope"), "narrative.scope", hard, nonempty=True)
+    _v2_string_list(
+        narrative.get("non_goals"), "narrative.non_goals", hard, nonempty=True
+    )
+    for key, fields, pattern in (
+        ("assumptions", V2_ASSUMPTION_FIELDS, re.compile(r"^AS-\d{3}$")),
+        ("validation_strategy", V2_VALIDATION_FIELDS, re.compile(r"^VAL-\d{3}$")),
+    ):
+        raw = narrative.get(key)
+        if not isinstance(raw, list):
+            hard.append(f"H2 narrative.{key} must be an array")
+            continue
+        ids: list[str] = []
+        for index, value in enumerate(raw):
+            label = f"narrative.{key}[{index}]"
+            row = _v2_exact(value, label, fields, hard)
+            row_id = row.get("id")
+            if not isinstance(row_id, str) or not pattern.fullmatch(row_id):
+                hard.append(f"H2 {label}.id is not canonical")
+            else:
+                ids.append(row_id)
+            _v2_nonempty_string(row.get("statement"), f"{label}.statement", hard)
+            if key == "validation_strategy":
+                _v2_nonempty_string(row.get("owner"), f"{label}.owner", hard)
+            if row.get("evidence_state") not in V2_EVIDENCE_STATES:
+                hard.append(f"H2 {label}.evidence_state is invalid")
+            elif row.get("evidence_state") == "unknown":
+                hard.append(
+                    f"H6 {label}.evidence_state cannot be unknown; route the "
+                    "uncertainty through an open question and typed gap"
+                )
+            _evidence_refs(row, label, source_kinds, hard)
+        if len(ids) != len(set(ids)):
+            hard.append(f"H2 narrative.{key} contains duplicate ids")
+        if ids != sorted(ids, key=lambda value: int(value.rsplit('-', 1)[1])):
+            hard.append(f"H2 narrative.{key} must be ordered by numeric id")
+
+
+def _v2_validate_rows(
+    rows: dict[str, list[dict]],
+    source_kinds: dict[str, str],
+    repo_root: Path,
+    hard: list[str],
+) -> None:
+    string_list_fields = {
+        "roles", "responsibilities", "feature_ids", "contract_realization_ids",
+        "zones", "trust_boundary_ids", "node_ids", "writers", "readers",
+        "transition_ids", "data", "data_entity_ids", "security_realization_ids",
+        "inside_ids", "outside_ids", "crossing_integration_ids", "boundary_ids",
+        "actor_ids", "component_ids", "integration_ids", "data_ids", "tactics",
+        "relationship_ids", "dynamic_scenario_ids", "deployment_ids",
+        "decision_ids", "operation_ids", "signals", "deployment_node_ids",
+        "quality_ids", "gap_ids", "consequences", "options",
+    }
+    nested_fields = {
+        "evidence_claims", "steps", "alternate_paths", "lifecycle",
+        "realized_by", "alternatives", "related_refs",
+    }
+    nullable_string_fields = {"decided_at", "adr_path"}
+    list_nonempty = {
+        "roles", "responsibilities", "feature_ids", "writers", "readers",
+        "data", "tactics", "signals", "consequences", "options",
+    }
+    placeholder = re.compile(r"^(?:tbd|todo|placeholder|<[^>]+>)$", re.IGNORECASE)
+    communication_modes = {
+        "synchronous", "asynchronous", "in-process", "data-access", "human",
+    }
+    for collection, collection_rows in rows.items():
+        for index, row in enumerate(collection_rows):
+            label = f"{collection}[{index}]"
+            for field in V2_COLLECTION_FIELDS[collection]:
+                value = row.get(field)
+                if field in {"id", "evidence_state", "evidence"} | nested_fields:
+                    continue
+                if field == "ordinal":
+                    _v2_int(value, f"{label}.ordinal", hard)
+                elif field == "material":
+                    if not isinstance(value, bool):
+                        hard.append(f"H2 {label}.material must be boolean")
+                elif field in string_list_fields:
+                    _v2_string_list(
+                        value,
+                        f"{label}.{field}",
+                        hard,
+                        nonempty=field in list_nonempty,
+                    )
+                elif field in nullable_string_fields:
+                    if value is not None:
+                        _v2_nonempty_string(value, f"{label}.{field}", hard)
+                else:
+                    text = _v2_nonempty_string(value, f"{label}.{field}", hard)
+                    if text is not None and placeholder.fullmatch(text.strip()):
+                        hard.append(f"H2 {label}.{field} contains a placeholder value")
+
+            if "communication_mode" in row and row.get("communication_mode") not in communication_modes:
+                hard.append(
+                    f"H2 {label}.communication_mode must be one of "
+                    f"{sorted(communication_modes)}"
+                )
+            if collection == "actors" and row.get("kind") not in {
+                "person", "role", "organization", "external-system",
+            }:
+                hard.append(f"H2 {label}.kind is not a canonical actor kind")
+            if collection == "components" and row.get("kind") not in COMPONENT_KINDS:
+                hard.append(f"H2 {label}.kind is not a canonical component kind")
+            if collection == "deployment_connections" and row.get("direction") not in {
+                "one-way", "bidirectional",
+            }:
+                hard.append(f"H2 {label}.direction must be one-way or bidirectional")
+            if collection == "operations" and row.get("category") not in {
+                "observability", "capacity", "resilience", "recovery", "cost",
+                "supportability",
+            }:
+                hard.append(f"H2 {label}.category is not a canonical operation category")
+            if collection == "risks" and row.get("severity") not in {
+                "low", "medium", "high", "critical",
+            }:
+                hard.append(f"H2 {label}.severity must be low, medium, high, or critical")
+            if collection == "open_questions" and row.get("status") not in {
+                "open", "resolved",
+            }:
+                hard.append(f"H2 {label}.status must be open or resolved")
+            if collection == "gaps":
+                if row.get("dimension") not in V2_COVERAGE_DIMENSIONS:
+                    hard.append(f"H2 {label}.dimension is not a coverage dimension")
+                if row.get("gap_type") not in {
+                    "evidence", "ownership", "decision", "topology", "behavior",
+                    "control", "transition", "quality-target", "other",
+                }:
+                    hard.append(f"H2 {label}.gap_type is not canonical")
+                if row.get("blocking_stage") not in {
+                    "specification", "implementation", "verification",
+                    "deployment", "none",
+                }:
+                    hard.append(f"H2 {label}.blocking_stage is not canonical")
+                if row.get("status") not in V2_GAP_STATUSES:
+                    hard.append(f"H2 {label}.status must be open or resolved")
+            if collection == "decisions":
+                if row.get("status") not in {"accepted", "proposed", "superseded"}:
+                    hard.append(f"H2 {label}.status is not canonical")
+                if row.get("decided_by") != "human":
+                    hard.append(f"H2 {label}.decided_by must be 'human'")
+                decided_at = row.get("decided_at")
+                if decided_at is not None and (
+                    not isinstance(decided_at, str)
+                    or not RFC3339_UTC_RE.fullmatch(decided_at)
+                ):
+                    hard.append(f"H2 {label}.decided_at must be null or RFC 3339 UTC")
+                adr_path = row.get("adr_path")
+                if adr_path is not None:
+                    if adr_path not in source_kinds or source_kinds.get(adr_path) != "adr":
+                        hard.append(f"H2 {label}.adr_path must reference a tracked ADR source")
+                    target = _repo_path(repo_root, adr_path)
+                    if target is not None and target.is_file():
+                        try:
+                            text = target.read_text(encoding="utf-8")
+                        except (OSError, UnicodeError):
+                            text = ""
+                        if not re.search(
+                            r"(?im)^\s*(?:status\s*:\s*|##\s*status\s*\n+\s*)accepted\b",
+                            text,
+                        ):
+                            hard.append(f"H2 {label}.adr_path does not resolve to an accepted ADR")
+            if collection == "drivers" and row.get("source") not in source_kinds:
+                hard.append(f"H2 {label}.source must reference a tracked source")
+            if collection == "quality_scenarios" and row.get("source") not in source_kinds:
+                hard.append(f"H2 {label}.source must reference a tracked source")
+
+            if collection == "deployment_nodes":
+                claims = row.get("evidence_claims")
+                if not isinstance(claims, list):
+                    hard.append(f"H2 {label}.evidence_claims must be an array")
+                else:
+                    claim_fields: list[str] = []
+                    canonical_claim_fields = {
+                        "name", "environment", "provider", "runtime", "region",
+                        "zones", "network_zone", "residency", "scaling",
+                        "availability",
+                    }
+                    for claim_index, value in enumerate(claims):
+                        claim_label = f"{label}.evidence_claims[{claim_index}]"
+                        claim = _v2_exact(
+                            value, claim_label, V2_EVIDENCE_CLAIM_FIELDS, hard
+                        )
+                        for field in V2_EVIDENCE_CLAIM_FIELDS:
+                            _v2_nonempty_string(
+                                claim.get(field), f"{claim_label}.{field}", hard
+                            )
+                        path = claim.get("path")
+                        literal = claim.get("literal")
+                        field = claim.get("field")
+                        if field not in canonical_claim_fields:
+                            hard.append(
+                                f"H2 {claim_label}.field is not a canonical "
+                                "deployment-node evidence field"
+                            )
+                        else:
+                            claim_fields.append(field)
+                            if claim.get("derivation") != str(row.get(field)):
+                                hard.append(
+                                    f"H2 {claim_label}.derivation must exactly equal "
+                                    f"str({label}.{field})"
+                                )
+                        if path not in row.get("evidence", []):
+                            hard.append(
+                                f"H2 {claim_label}.path must occur in the node evidence"
+                            )
+                        target = _repo_path(repo_root, path)
+                        if (
+                            isinstance(literal, str)
+                            and target is not None
+                            and target.is_file()
+                        ):
+                            try:
+                                payload = target.read_text(encoding="utf-8")
+                            except (OSError, UnicodeError):
+                                payload = ""
+                            if literal not in payload:
+                                hard.append(
+                                    f"H4 {claim_label}.literal does not occur in {path}"
+                                )
+                    duplicate_claims = sorted(
+                        {
+                            field
+                            for field in claim_fields
+                            if claim_fields.count(field) > 1
+                        }
+                    )
+                    if duplicate_claims:
+                        hard.append(
+                            f"H2 {label}.evidence_claims contains duplicate field(s): "
+                            + ", ".join(duplicate_claims)
+                        )
+                    missing_identity_claims = sorted(
+                        {"name", "environment"} - set(claim_fields)
+                    )
+                    if missing_identity_claims:
+                        hard.append(
+                            f"H2 {label}.evidence_claims must select source-backed "
+                            "identity field(s): " + ", ".join(missing_identity_claims)
+                        )
+            elif collection == "data_entities":
+                lifecycle = _v2_exact(
+                    row.get("lifecycle"), f"{label}.lifecycle",
+                    V2_LIFECYCLE_FIELDS, hard,
+                )
+                for field in V2_LIFECYCLE_FIELDS:
+                    _v2_nonempty_string(
+                        lifecycle.get(field), f"{label}.lifecycle.{field}", hard
+                    )
+            elif collection == "dynamic_scenarios":
+                steps = row.get("steps")
+                if not isinstance(steps, list) or not steps:
+                    hard.append(f"H2 {label}.steps must be a non-empty array")
+                    steps = []
+                ordinals: list[int] = []
+                for step_index, value in enumerate(steps):
+                    step_label = f"{label}.steps[{step_index}]"
+                    step = _v2_exact(value, step_label, V2_DYNAMIC_STEP_FIELDS, hard)
+                    ordinal = _v2_int(step.get("ordinal"), f"{step_label}.ordinal", hard)
+                    if ordinal is not None:
+                        ordinals.append(ordinal)
+                    for field in (
+                        "from", "to", "interaction", "communication_mode",
+                        "failure_behavior",
+                    ):
+                        _v2_nonempty_string(
+                            step.get(field), f"{step_label}.{field}", hard
+                        )
+                    if (
+                        step.get("communication_mode") not in communication_modes
+                    ):
+                        hard.append(f"H2 {step_label}.communication_mode is invalid")
+                    integration_id = step.get("integration_id")
+                    if integration_id is not None:
+                        _v2_nonempty_string(
+                            integration_id, f"{step_label}.integration_id", hard
+                        )
+                    for field in (
+                        "contract_realization_ids", "security_realization_ids",
+                    ):
+                        _v2_string_list(step.get(field), f"{step_label}.{field}", hard)
+                if ordinals != list(range(1, len(steps) + 1)):
+                    hard.append(f"H2 {label}.steps ordinals must be contiguous from one")
+                alternates = row.get("alternate_paths")
+                if not isinstance(alternates, list):
+                    hard.append(f"H2 {label}.alternate_paths must be an array")
+                    alternates = []
+                for alt_index, value in enumerate(alternates):
+                    alt_label = f"{label}.alternate_paths[{alt_index}]"
+                    alt = _v2_exact(value, alt_label, V2_ALTERNATE_PATH_FIELDS, hard)
+                    for field in ("name", "condition", "outcome"):
+                        _v2_nonempty_string(alt.get(field), f"{alt_label}.{field}", hard)
+                    step_ordinals = alt.get("step_ordinals")
+                    if (
+                        not isinstance(step_ordinals, list)
+                        or not step_ordinals
+                        or any(
+                            not isinstance(item, int)
+                            or isinstance(item, bool)
+                            or item not in ordinals
+                            for item in step_ordinals
+                        )
+                    ):
+                        hard.append(
+                            f"H2 {alt_label}.step_ordinals must reference scenario steps"
+                        )
+            elif collection == "direction_realizations":
+                realized_by = row.get("realized_by")
+                if not isinstance(realized_by, list):
+                    hard.append(f"H2 {label}.realized_by must be an array")
+                    realized_by = []
+                seen_refs: set[tuple[object, object]] = set()
+                for ref_index, value in enumerate(realized_by):
+                    ref_label = f"{label}.realized_by[{ref_index}]"
+                    ref = _v2_exact(value, ref_label, V2_REALIZED_BY_FIELDS, hard)
+                    kind = ref.get("kind")
+                    ref_id = ref.get("id")
+                    if kind not in V2_REALIZED_BY_KINDS:
+                        hard.append(f"H2 {ref_label}.kind is not canonical")
+                    _v2_nonempty_string(ref_id, f"{ref_label}.id", hard)
+                    key = (kind, ref_id)
+                    if key in seen_refs:
+                        hard.append(f"H2 {label}.realized_by contains duplicate refs")
+                    seen_refs.add(key)
+                status = row.get("realization_status")
+                gaps = row.get("gap_ids") if isinstance(row.get("gap_ids"), list) else []
+                if status not in V2_REALIZATION_STATUSES:
+                    hard.append(f"H2 {label}.realization_status is invalid")
+                elif status == "realized" and (not realized_by or gaps):
+                    hard.append(
+                        f"H2 {label} realized requires realized_by and no gap_ids"
+                    )
+                elif status == "gap" and not gaps:
+                    hard.append(f"H2 {label} gap requires at least one gap id")
+                elif status == "not-applicable" and (realized_by or gaps):
+                    hard.append(
+                        f"H2 {label} not-applicable requires empty references"
+                    )
+                if status == "not-applicable" and not re.search(
+                    r"\b(?:no|none|not applicable|without|absent)\b",
+                    str(row.get("statement", "")),
+                    re.IGNORECASE,
+                ):
+                    hard.append(
+                        f"H2 {label} not-applicable statement must explicitly describe absence"
+                    )
+            elif collection == "decisions":
+                alternatives = row.get("alternatives")
+                if not isinstance(alternatives, list) or not alternatives:
+                    hard.append(f"H2 {label}.alternatives must be a non-empty array")
+                    alternatives = []
+                for alt_index, value in enumerate(alternatives):
+                    alt_label = f"{label}.alternatives[{alt_index}]"
+                    alt = _v2_exact(
+                        value, alt_label, V2_DECISION_ALTERNATIVE_FIELDS, hard
+                    )
+                    for field in V2_DECISION_ALTERNATIVE_FIELDS:
+                        _v2_nonempty_string(
+                            alt.get(field), f"{alt_label}.{field}", hard
+                        )
+
+            if collection == "quality_scenarios":
+                source = row.get("source")
+                target_value = row.get("target")
+                target = _repo_path(repo_root, source)
+                if (
+                    isinstance(target_value, str)
+                    and target_value != "unknown"
+                    and target is not None
+                    and target.is_file()
+                ):
+                    try:
+                        source_text = target.read_text(encoding="utf-8")
+                    except (OSError, UnicodeError):
+                        source_text = ""
+                    if target_value not in source_text:
+                        hard.append(
+                            f"H6 {label}.target must occur literally in its source"
+                        )
+
+            if collection in {"open_questions", "risks", "gaps"}:
+                refs = row.get("related_refs")
+                if not isinstance(refs, list):
+                    hard.append(f"H2 {label}.related_refs must be an array")
+                    continue
+                if collection == "gaps" and not refs:
+                    hard.append(f"H2 {label}.related_refs must not be empty")
+                seen: set[tuple[object, object]] = set()
+                allowed_extra = {
+                    "driver": "drivers",
+                    "open-question": "open_questions",
+                    "gap": "gaps",
+                }
+                for ref_index, value in enumerate(refs):
+                    ref_label = f"{label}.related_refs[{ref_index}]"
+                    ref = _v2_exact(value, ref_label, V2_RELATED_REF_FIELDS, hard)
+                    kind, ref_id = ref.get("kind"), ref.get("id")
+                    if kind not in V2_REALIZED_BY_KINDS and kind not in allowed_extra:
+                        hard.append(f"H2 {ref_label}.kind is not canonical")
+                    _v2_nonempty_string(ref_id, f"{ref_label}.id", hard)
+                    key = (kind, ref_id)
+                    if key in seen:
+                        hard.append(f"H2 {label}.related_refs contains duplicate refs")
+                    seen.add(key)
+
+
+def _v2_reference_checks(
+    data: dict,
+    rows: dict[str, list[dict]],
+    by_id: dict[str, dict[str, dict]],
+    hard: list[str],
+) -> None:
+    def refs(row: dict, field: str, collection: str, label: str) -> None:
+        raw = row.get(field)
+        if not isinstance(raw, list):
+            return
+        unknown = [value for value in raw if value not in by_id[collection]]
+        if unknown:
+            hard.append(
+                f"H5 {label}.{field} has unresolved {collection} id(s): "
+                + ", ".join(str(value) for value in unknown)
+            )
+
+    boundary = data.get("system_boundary", {})
+    context_ids = set(by_id["actors"]) | {boundary.get("id")}
+    endpoint_ids = context_ids | set(by_id["components"])
+    for index, row in enumerate(rows["context_relationships"]):
+        for field in ("from", "to"):
+            if row.get(field) not in context_ids:
+                hard.append(
+                    f"H5 context_relationships[{index}].{field} must resolve to "
+                    "an actor or the system boundary: "
+                    f"{row.get(field)!r}"
+                )
+        if {
+            row.get("from"),
+            row.get("to"),
+        } & set(by_id["actors"]) == set() or (
+            boundary.get("id") not in {row.get("from"), row.get("to")}
+        ):
+            hard.append(
+                f"H5 context_relationships[{index}] must connect exactly one "
+                "actor to SB-001"
+            )
+    for index, row in enumerate(rows["relationships"]):
+        for field in ("from", "to"):
+            if row.get(field) not in by_id["components"]:
+                hard.append(
+                    f"H5 relationships[{index}].{field} is unresolved: "
+                    f"{row.get(field)!r}"
+                )
+        refs(row, "contract_realization_ids", "contract_realizations", f"relationships[{index}]")
+    for index, row in enumerate(rows["deployment_nodes"]):
+        refs(row, "trust_boundary_ids", "trust_boundaries", f"deployment_nodes[{index}]")
+    for index, row in enumerate(rows["deployments"]):
+        if row.get("component_id") not in by_id["components"]:
+            hard.append(
+                f"H5 deployments[{index}].component_id is unresolved: "
+                f"{row.get('component_id')!r}"
+            )
+        if not row.get("node_ids"):
+            hard.append(f"H5 deployments[{index}].node_ids must not be empty")
+        refs(row, "node_ids", "deployment_nodes", f"deployments[{index}]")
+    for index, row in enumerate(rows["deployment_connections"]):
+        for field in ("from_node", "to_node"):
+            if row.get(field) not in by_id["deployment_nodes"]:
+                hard.append(
+                    f"H5 deployment_connections[{index}].{field} is unresolved: "
+                    f"{row.get(field)!r}"
+                )
+    for index, row in enumerate(rows["data_entities"]):
+        for field in ("source_of_truth",):
+            if row.get(field) not in by_id["components"]:
+                hard.append(
+                    f"H5 data_entities[{index}].{field} is unresolved: "
+                    f"{row.get(field)!r}"
+                )
+        refs(row, "writers", "components", f"data_entities[{index}]")
+        refs(row, "readers", "components", f"data_entities[{index}]")
+        refs(row, "transition_ids", "transitions", f"data_entities[{index}]")
+    for index, row in enumerate(rows["integration_flows"]):
+        for field in ("producer", "consumer", "source_of_truth"):
+            if row.get(field) not in by_id["components"]:
+                hard.append(
+                    f"H5 integration_flows[{index}].{field} is unresolved: "
+                    f"{row.get(field)!r}"
+                )
+        refs(row, "data_entity_ids", "data_entities", f"integration_flows[{index}]")
+        refs(row, "contract_realization_ids", "contract_realizations", f"integration_flows[{index}]")
+        refs(row, "security_realization_ids", "security_realizations", f"integration_flows[{index}]")
+    for index, row in enumerate(rows["dynamic_scenarios"]):
+        for step_index, step in enumerate(row.get("steps", [])):
+            if not isinstance(step, dict):
+                continue
+            for field in ("from", "to"):
+                if step.get(field) not in endpoint_ids:
+                    hard.append(
+                        f"H5 dynamic_scenarios[{index}].steps[{step_index}].{field} "
+                        "is unresolved"
+                    )
+            integration_id = step.get("integration_id")
+            if integration_id is not None and integration_id not in by_id["integration_flows"]:
+                hard.append(
+                    f"H5 dynamic_scenarios[{index}].steps[{step_index}].integration_id "
+                    "is unresolved"
+                )
+            refs(step, "contract_realization_ids", "contract_realizations", f"dynamic_scenarios[{index}].steps[{step_index}]")
+            refs(step, "security_realization_ids", "security_realizations", f"dynamic_scenarios[{index}].steps[{step_index}]")
+    for index, row in enumerate(rows["trust_boundaries"]):
+        universe = endpoint_ids | set(by_id["deployment_nodes"])
+        for field in ("inside_ids", "outside_ids"):
+            unknown = [value for value in row.get(field, []) if value not in universe]
+            if unknown:
+                hard.append(f"H5 trust_boundaries[{index}].{field} is unresolved")
+        if set(row.get("inside_ids", [])) & set(row.get("outside_ids", [])):
+            hard.append(f"H5 trust_boundaries[{index}] inside/outside ids overlap")
+        for field in ("inside_ids", "outside_ids"):
+            if not row.get(field):
+                hard.append(f"H5 trust_boundaries[{index}].{field} must not be empty")
+        refs(row, "crossing_integration_ids", "integration_flows", f"trust_boundaries[{index}]")
+        inside = set(row.get("inside_ids", []))
+        outside = set(row.get("outside_ids", []))
+        expected_crossings = [
+            flow.get("id")
+            for flow in rows["integration_flows"]
+            if (
+                flow.get("producer") in inside
+                and flow.get("consumer") in outside
+            )
+            or (
+                flow.get("producer") in outside
+                and flow.get("consumer") in inside
+            )
+        ]
+        declared_crossings = row.get("crossing_integration_ids")
+        if (
+            isinstance(declared_crossings, list)
+            and declared_crossings != expected_crossings
+        ):
+            hard.append(
+                f"H5 trust_boundaries[{index}].crossing_integration_ids must "
+                "exactly equal the producer/consumer crossings in canonical "
+                f"flow order: expected {expected_crossings!r}"
+            )
+    for index, row in enumerate(rows["security_realizations"]):
+        for field, collection in (
+            ("boundary_ids", "trust_boundaries"), ("actor_ids", "actors"),
+            ("component_ids", "components"), ("integration_ids", "integration_flows"),
+            ("data_ids", "data_entities"),
+        ):
+            refs(row, field, collection, f"security_realizations[{index}]")
+        if not row.get("boundary_ids"):
+            hard.append(
+                f"H5 security_realizations[{index}].boundary_ids must not be empty"
+            )
+        if not any(
+            row.get(field)
+            for field in ("component_ids", "integration_ids", "data_ids")
+        ):
+            hard.append(
+                f"H5 security_realizations[{index}] must affect a component, "
+                "integration, or data entity"
+            )
+    for index, row in enumerate(rows["contract_realizations"]):
+        for field, collection in (
+            ("relationship_ids", "relationships"),
+            ("integration_ids", "integration_flows"),
+            ("dynamic_scenario_ids", "dynamic_scenarios"),
+            ("data_ids", "data_entities"),
+        ):
+            refs(row, field, collection, f"contract_realizations[{index}]")
+        if not any(
+            row.get(field)
+            for field in (
+                "relationship_ids", "integration_ids", "dynamic_scenario_ids",
+            )
+        ):
+            hard.append(
+                f"H5 contract_realizations[{index}] must affect a relationship, "
+                "integration, or dynamic scenario"
+            )
+    for index, row in enumerate(rows["transitions"]):
+        for field, collection in (
+            ("component_ids", "components"), ("data_ids", "data_entities"),
+            ("deployment_ids", "deployments"), ("decision_ids", "decisions"),
+        ):
+            refs(row, field, collection, f"transitions[{index}]")
+    for index, row in enumerate(rows["quality_scenarios"]):
+        refs(row, "operation_ids", "operations", f"quality_scenarios[{index}]")
+    for index, row in enumerate(rows["operations"]):
+        for field, collection in (
+            ("component_ids", "components"),
+            ("deployment_node_ids", "deployment_nodes"),
+            ("quality_ids", "quality_scenarios"),
+        ):
+            refs(row, field, collection, f"operations[{index}]")
+    for index, row in enumerate(rows["direction_realizations"]):
+        refs(row, "gap_ids", "gaps", f"direction_realizations[{index}]")
+        for ref_index, ref in enumerate(row.get("realized_by", [])):
+            if not isinstance(ref, dict):
+                continue
+            collection = V2_REALIZED_BY_KINDS.get(ref.get("kind"))
+            resolved = (
+                ref.get("id") == boundary.get("id")
+                if collection is None and ref.get("kind") == "system-boundary"
+                else collection is not None and ref.get("id") in by_id[collection]
+            )
+            if not resolved:
+                hard.append(
+                    f"H5 direction_realizations[{index}].realized_by[{ref_index}] "
+                    "is unresolved"
+                )
+    extra_kinds = {
+        "driver": "drivers",
+        "open-question": "open_questions",
+        "gap": "gaps",
+    }
+    for collection in ("open_questions", "risks", "gaps"):
+        for index, row in enumerate(rows[collection]):
+            for ref_index, ref in enumerate(row.get("related_refs", [])):
+                if not isinstance(ref, dict):
+                    continue
+                target_collection = (
+                    V2_REALIZED_BY_KINDS.get(ref.get("kind"))
+                    or extra_kinds.get(ref.get("kind"))
+                )
+                if target_collection is None:
+                    resolved = (
+                        ref.get("kind") == "system-boundary"
+                        and ref.get("id") == boundary.get("id")
+                    )
+                else:
+                    resolved = ref.get("id") in by_id[target_collection]
+                if not resolved:
+                    hard.append(
+                        f"H5 {collection}[{index}].related_refs[{ref_index}] is unresolved"
+                    )
+
+
+def _v2_is_explicit_no_current_transition(statement: object) -> bool:
+    """Recognize only an anchored, explicit absence of a current transition.
+
+    The migration dimension supplies the subject context, but incidental
+    modifiers such as "no downtime" or "without data loss" must never turn a
+    real migration into not-applicable coverage.  Anything outside these
+    narrow absence forms therefore fails closed to transition-applicable.
+    """
+    if not isinstance(statement, str) or not statement.strip():
+        return False
+    normalized = " ".join(
+        statement.strip().casefold().replace("\u2014", ";").split()
+    )
+    first_clause = re.split(r"\s*[;,:.]\s*", normalized, maxsplit=1)[0].strip()
+    if first_clause in {"none", "not applicable", "not-applicable"}:
+        return True
+
+    scope = (
+        r"(?:(?:current\s+)?"
+        r"(?:(?:runtime|data|schema|state|ownership)"
+        r"(?:\s+or\s+(?:runtime|data|schema|state|ownership))*\s+)?)"
+    )
+    subject = (
+        r"(?:migrations?|transitions?|cutovers?|"
+        r"data\s+movements?|ownership\s+transfers?)"
+    )
+    predicate = (
+        r"(?:introduced|required|planned|needed|applicable|performed|undertaken)"
+    )
+    no_subject = re.fullmatch(
+        rf"(?:there\s+(?:is|are)\s+)?no\s+{scope}{subject}"
+        rf"(?:\s+(?:is|are|will\s+be)\s+(?:currently\s+)?{predicate})?",
+        first_clause,
+    )
+    if no_subject:
+        return True
+    subject_is_absent = re.fullmatch(
+        rf"{scope}{subject}\s+(?:is|are)\s+"
+        rf"(?:(?:currently\s+)?not\s+{predicate}|absent)",
+        first_clause,
+    )
+    if subject_is_absent:
+        return True
+    without_subject = re.fullmatch(
+        rf"without\s+(?:(?:a|any)\s+)?{scope}{subject}",
+        first_clause,
+    )
+    return without_subject is not None
+
+
+def _v2_transition_is_applicable(option: dict | None) -> bool:
+    """Resolve transition applicability from the exact selected commitments."""
+    if option is None:
+        return True
+    statements = option.get("migration_and_evolution")
+    if not isinstance(statements, list) or not statements:
+        return True
+    return not all(
+        _v2_is_explicit_no_current_transition(statement)
+        for statement in statements
+    )
+
+
+def _v2_selected_direction(
+    data: dict,
+    plan: dict,
+    plan_dir: Path,
+    rows: dict[str, list[dict]],
+    by_id: dict[str, dict[str, dict]],
+    hard: list[str],
+) -> tuple[bool, dict | None]:
+    selection_path = plan_dir / "architecture-selection.json"
+    try:
+        selection = _strict_json_loads(selection_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        hard.append(f"H10 architecture-selection.json is unreadable: {exc}")
+        return True, None
+    if not isinstance(selection, dict):
+        hard.append("H10 architecture-selection.json must contain an object")
+        return True, None
+    direction = plan.get("architecture_disposition", {}).get("direction")
+    if not isinstance(direction, dict):
+        hard.append("H10 source plan direction binding must be an object")
+        return True, None
+    selection_record = selection.get("selection")
+    if not isinstance(selection_record, dict):
+        hard.append("H10 architecture selection must contain selection object")
+        return True, None
+    selected_id = selection_record.get("option_id")
+    selected_hash = selection_record.get("option_sha256")
+    exploration_id = selection.get("exploration_id")
+    if selection_record.get("status") != "direction-selected":
+        hard.append("H10 v2 architecture requires a human direction-selected posture")
+    if selection_record.get("decided_by") != "human":
+        hard.append("H10 selected architecture direction must be human-owned")
+    for field, expected in (
+        ("exploration_id", exploration_id),
+        ("selected_option_id", selected_id),
+        ("selected_option_sha256", selected_hash),
+    ):
+        if direction.get(field) != expected:
+            hard.append(f"H10 plan direction.{field} does not match architecture selection")
+    options = selection.get("options")
+    if not isinstance(options, list):
+        hard.append("H10 architecture selection options must be an array")
+        return True, None
+    matches = [
+        option for option in options
+        if isinstance(option, dict) and option.get("option_id") == selected_id
+    ]
+    if len(matches) != 1:
+        hard.append("H10 selected option id must resolve exactly once")
+        return True, None
+    option = matches[0]
+    if option.get("option_sha256") != selected_hash or not isinstance(
+        selected_hash, str
+    ) or not SHA_RE.fullmatch(selected_hash):
+        hard.append("H10 selected option hash does not bind the selected option")
+
+    expected_rows: list[tuple[str, int, str, str]] = []
+    for dimension in V2_COMMITMENT_DIMENSIONS:
+        statements = option.get(dimension)
+        if not isinstance(statements, list) or not statements or any(
+            not isinstance(item, str) or not item for item in statements
+        ):
+            hard.append(
+                f"H10 selected option {dimension} must be a non-empty array "
+                "of exact strings"
+            )
+            continue
+        for ordinal, statement in enumerate(statements, 1):
+            statement_hash = hashlib.sha256(statement.encode("utf-8")).hexdigest()
+            expected_rows.append((dimension, ordinal, statement, statement_hash))
+
+    actual_rows: list[tuple[str, int, object, object]] = []
+    for index, row in enumerate(rows["direction_realizations"]):
+        label = f"direction_realizations[{index}]"
+        if row.get("exploration_id") != exploration_id:
+            hard.append(f"H10 {label}.exploration_id is not the selected exploration")
+        if row.get("selected_option_id") != selected_id:
+            hard.append(f"H10 {label}.selected_option_id is not selected")
+        if row.get("selected_option_sha256") != selected_hash:
+            hard.append(f"H10 {label}.selected_option_sha256 is not selected")
+        statement = row.get("statement")
+        expected_statement_hash = (
+            hashlib.sha256(statement.encode("utf-8")).hexdigest()
+            if isinstance(statement, str)
+            else None
+        )
+        if row.get("statement_sha256") != expected_statement_hash:
+            hard.append(
+                f"H10 {label}.statement_sha256 must hash exact UTF-8 statement bytes"
+            )
+        actual_rows.append(
+            (
+                row.get("dimension"),
+                row.get("ordinal"),
+                statement,
+                row.get("statement_sha256"),
+            )
+        )
+        if row.get("dimension") == "migration_and_evolution":
+            explicitly_absent = _v2_is_explicit_no_current_transition(statement)
+            if (
+                explicitly_absent
+                and row.get("realization_status") != "not-applicable"
+            ):
+                hard.append(
+                    f"H10 {label} explicitly absent current transition must "
+                    "be not-applicable"
+                )
+            elif (
+                not explicitly_absent
+                and row.get("realization_status") == "not-applicable"
+            ):
+                hard.append(
+                    f"H10 {label} non-absence migration commitment cannot be "
+                    "not-applicable"
+                )
+    if actual_rows != expected_rows:
+        hard.append(
+            "H10 direction_realizations must be an ordered bijection with every "
+            "selected option commitment"
+        )
+    return _v2_transition_is_applicable(option), option
+
+
+def _v2_required_dimensions(
+    triggers: list[str],
+    plan_dir: Path,
+    transition_applicable: bool,
+    rows: dict[str, list[dict]],
+) -> list[str]:
+    required = set(V2_BASE_DIMENSIONS)
+    for trigger in triggers:
+        required.update(V2_TRIGGER_DIMENSIONS.get(trigger, set()))
+    if _plan_data_rows(plan_dir) and "cross-feature-durable-or-async-flow" in triggers:
+        required.add("data")
+    if transition_applicable:
+        required.add("transitions")
+    if any(
+        row.get("communication_mode") == "asynchronous"
+        for row in rows["relationships"] + rows["integration_flows"]
+    ):
+        required.add("dynamic_behavior")
+    return [
+        dimension
+        for dimension in V2_COVERAGE_DIMENSIONS
+        if dimension in required
+    ]
+
+
+def _v2_coverage_and_readiness(
+    data: dict,
+    triggers: list[str],
+    required_dimensions: list[str],
+    transition_applicable: bool,
+    source_kinds: dict[str, str],
+    rows: dict[str, list[dict]],
+    by_id: dict[str, dict[str, dict]],
+    hard: list[str],
+) -> None:
+    profile = _v2_exact(
+        data.get("coverage_profile"),
+        "coverage_profile",
+        V2_COVERAGE_PROFILE_FIELDS,
+        hard,
+    )
+    if profile.get("profile_id") != "solution-baseline-v2":
+        hard.append("H6 coverage_profile.profile_id must be solution-baseline-v2")
+    trigger_ids = _v2_string_list(
+        profile.get("trigger_ids"), "coverage_profile.trigger_ids", hard
+    )
+    if trigger_ids != triggers:
+        hard.append("H6 coverage_profile.trigger_ids must exactly copy plan trigger ids")
+    profile_dimensions = _v2_string_list(
+        profile.get("required_dimensions"),
+        "coverage_profile.required_dimensions",
+        hard,
+        nonempty=True,
+    )
+    if profile_dimensions != required_dimensions:
+        hard.append(
+            "H6 coverage_profile.required_dimensions does not equal the "
+            "plan-relative conditional dimension set"
+        )
+
+    coverage = data.get("coverage")
+    if not isinstance(coverage, dict):
+        hard.append("H6 coverage must be an object")
+        coverage = {}
+    elif tuple(coverage) != V2_COVERAGE_DIMENSIONS:
+        missing = sorted(set(V2_COVERAGE_DIMENSIONS) - set(coverage))
+        extra = sorted(set(coverage) - set(V2_COVERAGE_DIMENSIONS))
+        if missing:
+            hard.append("H6 coverage is missing dimension(s): " + ", ".join(missing))
+        if extra:
+            hard.append("H6 coverage has unknown dimension(s): " + ", ".join(extra))
+        if not missing and not extra:
+            hard.append("H6 coverage dimensions must occur in canonical order")
+    for dimension in V2_COVERAGE_DIMENSIONS:
+        row = _v2_exact(
+            coverage.get(dimension),
+            f"coverage.{dimension}",
+            V2_COVERAGE_FIELDS,
+            hard,
+        )
+        status = row.get("status")
+        if status not in V2_COVERAGE_STATES:
+            hard.append(f"H6 coverage.{dimension}.status is invalid")
+        gap_ids = _v2_string_list(
+            row.get("gap_ids"), f"coverage.{dimension}.gap_ids", hard
+        )
+        evidence = _v2_string_list(
+            row.get("evidence"),
+            f"coverage.{dimension}.evidence",
+            hard,
+            nonempty=True,
+        )
+        unknown_evidence = sorted(set(evidence) - set(source_kinds))
+        if unknown_evidence:
+            hard.append(
+                f"H6 coverage.{dimension}.evidence has untracked source(s): "
+                + ", ".join(unknown_evidence)
+            )
+        if status == "gap":
+            if not gap_ids:
+                hard.append(f"H6 coverage.{dimension} gap requires gap_ids")
+            for gap_id in gap_ids:
+                gap = by_id["gaps"].get(gap_id)
+                if gap is None:
+                    hard.append(f"H6 coverage.{dimension} has unresolved gap {gap_id}")
+                elif gap.get("dimension") != dimension or gap.get("status") != "open":
+                    hard.append(
+                        f"H6 coverage.{dimension} gap {gap_id} must be open "
+                        "and in the same dimension"
+                    )
+        elif gap_ids:
+            hard.append(f"H6 coverage.{dimension} {status} requires empty gap_ids")
+        if dimension in required_dimensions and status == "not-applicable":
+            hard.append(f"H6 required dimension {dimension} cannot be not-applicable")
+
+    transition_coverage = coverage.get("transitions")
+    if not transition_applicable:
+        if (
+            not isinstance(transition_coverage, dict)
+            or transition_coverage.get("status") != "not-applicable"
+        ):
+            hard.append(
+                "H6 explicitly absent current transition requires "
+                "coverage.transitions.status not-applicable"
+            )
+        if rows["transitions"]:
+            hard.append(
+                "H6 explicitly absent current transition requires an empty "
+                "transitions collection"
+            )
+
+    dimension_collections = {
+        "direction_realization": ("direction_realizations",),
+        "system_context": ("actors", "context_relationships"),
+        "containers": ("components",),
+        "deployment": ("deployment_nodes", "deployments"),
+        "data": ("data_entities",),
+        "integrations": ("integration_flows",),
+        "dynamic_behavior": ("dynamic_scenarios",),
+        "security": ("trust_boundaries", "security_realizations"),
+        "contracts": ("contract_realizations",),
+        "transitions": ("transitions",),
+        "quality_attributes": ("quality_scenarios",),
+        "operability": ("operations",),
+        "requirements_traceability": ("feature_mappings",),
+    }
+    for dimension, collections in dimension_collections.items():
+        row = coverage.get(dimension)
+        if isinstance(row, dict) and row.get("status") == "complete":
+            for collection in collections:
+                collection_value = (
+                    data.get(collection)
+                    if collection == "feature_mappings"
+                    else rows[collection]
+                )
+                if not collection_value:
+                    hard.append(
+                        f"H6 {dimension} coverage is complete but {collection} is empty"
+                    )
+    if (
+        isinstance(coverage.get("deployment"), dict)
+        and coverage["deployment"].get("status") == "complete"
+        and len(rows["deployment_nodes"]) > 1
+        and not rows["deployment_connections"]
+    ):
+        hard.append(
+            "H6 complete multi-node deployment requires deployment_connections"
+        )
+    if (
+        isinstance(coverage.get("operability"), dict)
+        and coverage["operability"].get("status") == "complete"
+    ):
+        for index, operation in enumerate(rows["operations"]):
+            if not (
+                operation.get("component_ids")
+                or operation.get("deployment_node_ids")
+            ):
+                hard.append(
+                    f"H6 operations[{index}] must reference a component or node"
+                )
+            if not operation.get("quality_ids"):
+                hard.append(
+                    f"H6 operations[{index}].quality_ids must not be empty "
+                    "when operability is complete"
+                )
+
+    open_gaps = {
+        row["id"]: row
+        for row in rows["gaps"]
+        if row.get("status") == "open" and isinstance(row.get("id"), str)
+    }
+    for gap_id, gap in open_gaps.items():
+        occurrences = [
+            dimension
+            for dimension, coverage_row in coverage.items()
+            if isinstance(coverage_row, dict)
+            and gap_id in coverage_row.get("gap_ids", [])
+        ]
+        if occurrences != [gap.get("dimension")]:
+            hard.append(
+                f"H6 open gap {gap_id} must occur exactly once in "
+                f"coverage.{gap.get('dimension')}.gap_ids"
+            )
+        own_coverage = coverage.get(gap.get("dimension"))
+        if not isinstance(own_coverage, dict) or own_coverage.get("status") != "gap":
+            hard.append(
+                f"H6 open gap {gap_id} requires its coverage row status to be gap"
+            )
+    blocking_ids = [
+        row_id for row_id, row in open_gaps.items()
+        if row.get("material") is True or row.get("blocking_stage") == "specification"
+    ]
+    non_blocking_ids = [
+        row_id for row_id in open_gaps if row_id not in set(blocking_ids)
+    ]
+    material_questions = [
+        row.get("id")
+        for row in rows["open_questions"]
+        if row.get("status") == "open" and row.get("material") is True
+    ]
+    commitment_conflict = any(
+        row.get("realization_status") == "gap"
+        for row in rows["direction_realizations"]
+    )
+    expected_status = (
+        "blocked"
+        if blocking_ids or material_questions or commitment_conflict
+        else "ready-with-gaps"
+        if non_blocking_ids
+        else "ready"
+    )
+    readiness = _v2_exact(
+        data.get("readiness"), "readiness", V2_READINESS_FIELDS, hard
+    )
+    if readiness.get("status") not in V2_READINESS_STATUSES:
+        hard.append("H6 readiness.status is invalid")
+    elif readiness.get("status") != expected_status:
+        hard.append(
+            f"H6 readiness.status must be {expected_status!r} from open gaps/questions"
+        )
+    actual_blocking = _v2_string_list(
+        readiness.get("blocking_gap_ids"), "readiness.blocking_gap_ids", hard
+    )
+    actual_non_blocking = _v2_string_list(
+        readiness.get("non_blocking_gap_ids"),
+        "readiness.non_blocking_gap_ids",
+        hard,
+    )
+    if actual_blocking != blocking_ids:
+        hard.append("H6 readiness.blocking_gap_ids does not equal blocking open gaps")
+    if actual_non_blocking != non_blocking_ids:
+        hard.append(
+            "H6 readiness.non_blocking_gap_ids does not equal non-blocking open gaps"
+        )
+    _v2_nonempty_string(readiness.get("summary"), "readiness.summary", hard)
+    baseline = data.get("baseline_status")
+    expected_baseline = (
+        "accepted-for-specification"
+        if expected_status == "ready"
+        else "accepted-for-specification-with-gaps"
+    )
+    if expected_status != "blocked" and baseline != expected_baseline:
+        hard.append(
+            f"H6 baseline_status must be {expected_baseline!r} for readiness "
+            f"{expected_status!r}"
+        )
+    if data.get("lifecycle_status") == "published" and expected_status == "blocked":
+        hard.append("H6 a blocked architecture package cannot be published")
+
+
+def _v2_plan_closure(
+    plan_dir: Path,
+    rows: dict[str, list[dict]],
+    coverage: dict,
+    hard: list[str],
+) -> None:
+    durable = _plan_data_rows(plan_dir)
+    data_by_name = {
+        row.get("name"): row
+        for row in rows["data_entities"]
+        if isinstance(row.get("name"), str)
+    }
+    if (
+        isinstance(coverage.get("data"), dict)
+        and coverage["data"].get("status") == "complete"
+        and set(data_by_name) != set(durable)
+    ):
+        hard.append(
+            "H6 complete data coverage must exactly re-project every plan durable noun"
+        )
+    for noun, cells in durable.items():
+        row = data_by_name.get(noun)
+        if row is None:
+            continue
+        plan_class = cells.get("data-class") or cells.get("data-classification")
+        if row.get("data_class") != plan_class:
+            hard.append(f"H6 data entity {noun!r} does not copy plan data class")
+        lifecycle = row.get("lifecycle", {})
+        for field in V2_LIFECYCLE_FIELDS:
+            if isinstance(lifecycle, dict) and lifecycle.get(field) != cells.get(field):
+                hard.append(
+                    f"H6 data entity {noun!r} does not copy plan {field} disposition"
+                )
+        if row.get("plan_trace") != "feature-plan.md#durable-state-closure":
+            hard.append(
+                f"H6 data entity {noun!r} must trace feature-plan.md#durable-state-closure"
+            )
+    for collection, field in (
+        ("integration_flows", "plan_trace"),
+        ("dynamic_scenarios", "journey_ref"),
+    ):
+        for index, row in enumerate(rows[collection]):
+            if not _plan_trace_resolves(plan_dir, row.get(field)):
+                hard.append(f"H6 {collection}[{index}].{field} does not resolve")
+
+    threat_ids = _plan_contract_ids(plan_dir, "threat-model.md", "TZ")
+    interaction_ids = _plan_contract_ids(
+        plan_dir, "interaction-contract.md", "IC"
+    )
+    security_ids = [row.get("obligation_id") for row in rows["security_realizations"]]
+    contract_ids = [row.get("obligation_id") for row in rows["contract_realizations"]]
+    if (
+        isinstance(coverage.get("security"), dict)
+        and coverage["security"].get("status") == "complete"
+        and (set(security_ids) != threat_ids or len(security_ids) != len(set(security_ids)))
+    ):
+        hard.append(
+            "H6 complete security coverage requires exactly one realization per TZ obligation"
+        )
+    if (
+        isinstance(coverage.get("contracts"), dict)
+        and coverage["contracts"].get("status") == "complete"
+        and (
+            set(contract_ids) != interaction_ids
+            or len(contract_ids) != len(set(contract_ids))
+        )
+    ):
+        hard.append(
+            "H6 complete contracts coverage requires exactly one realization per IC obligation"
+        )
+
+
+def _v2_feature_mappings(
+    data: dict,
+    plan_features: list[str],
+    source_kinds: dict[str, str],
+    rows: dict[str, list[dict]],
+    by_id: dict[str, dict[str, dict]],
+    hard: list[str],
+) -> None:
+    raw = data.get("feature_mappings")
+    if not isinstance(raw, list):
+        hard.append("H7 feature_mappings must be an array")
+        return
+    mappings: dict[str, dict] = {}
+    ordered_features: list[str] = []
+    collection_order = {
+        collection: list(by_id[collection])
+        for collection in V2_COLLECTION_FIELDS
+    }
+    for index, value in enumerate(raw):
+        label = f"feature_mappings[{index}]"
+        row = _v2_exact(value, label, V2_FEATURE_MAPPING_FIELDS, hard)
+        feature_id = row.get("feature_id")
+        if not isinstance(feature_id, str) or not feature_id:
+            hard.append(f"H7 {label}.feature_id must be non-empty")
+            continue
+        if feature_id in mappings:
+            hard.append(f"H7 feature_mappings contains duplicate feature {feature_id}")
+        mappings[feature_id] = row
+        ordered_features.append(feature_id)
+        if row.get("mapping_scope") not in V2_MAPPING_SCOPES:
+            hard.append(f"H7 {label}.mapping_scope is invalid")
+        if row.get("evidence_state") not in V2_EVIDENCE_STATES:
+            hard.append(f"H7 {label}.evidence_state is invalid")
+        elif row.get("evidence_state") == "unknown":
+            hard.append(
+                f"H7 {label}.evidence_state cannot be unknown because feature "
+                "mapping rows are not typed-gap reference targets"
+            )
+        _evidence_refs(row, label, source_kinds, hard)
+        shared = False
+        for field, collection in V2_MAPPING_COLLECTIONS.items():
+            values = _v2_string_list(row.get(field), f"{label}.{field}", hard)
+            unknown = [item for item in values if item not in by_id[collection]]
+            if unknown:
+                hard.append(
+                    f"H7 {label}.{field} has unresolved id(s): "
+                    + ", ".join(unknown)
+                )
+            expected_order = [
+                item for item in collection_order[collection] if item in set(values)
+            ]
+            if values != expected_order:
+                hard.append(
+                    f"H7 {label}.{field} must preserve canonical collection order"
+                )
+            for item in values:
+                features = by_id[collection].get(item, {}).get("feature_ids", [])
+                if isinstance(features, list) and len(features) > 1:
+                    shared = True
+        expected_scope = "cross-feature" if shared else "feature-local"
+        if row.get("mapping_scope") != expected_scope:
+            hard.append(
+                f"H7 {label}.mapping_scope must be {expected_scope!r} from "
+                "its mapped structural rows"
+            )
+    if ordered_features != plan_features:
+        hard.append(
+            "H7 feature_mappings must contain exactly one row per plan feature "
+            "in plan order"
+        )
+
+    for field, collection in V2_MAPPING_COLLECTIONS.items():
+        if collection in {"direction_realizations", "gaps"}:
+            continue
+        for item_id, item in by_id[collection].items():
+            expected = item.get("feature_ids", [])
+            actual = [
+                feature_id
+                for feature_id in plan_features
+                if item_id in mappings.get(feature_id, {}).get(field, [])
+            ]
+            if actual != expected:
+                hard.append(
+                    f"H7 {collection} {item_id} feature_ids must equal the "
+                    "reverse projection from feature_mappings"
+                )
+    for collection, field in (
+        ("direction_realizations", "direction_realization_ids"),
+        ("gaps", "gap_ids"),
+    ):
+        for item_id, item in by_id[collection].items():
+            actual = [
+                feature_id
+                for feature_id in plan_features
+                if item_id in mappings.get(feature_id, {}).get(field, [])
+            ]
+            if not actual:
+                hard.append(f"H7 {collection} {item_id} is not mapped to a feature")
+
+    related_collections = {
+        **V2_REALIZED_BY_KINDS,
+        "driver": "drivers",
+        "open-question": "open_questions",
+        "gap": "gaps",
+    }
+    for gap_id, gap in by_id["gaps"].items():
+        affected: set[str] = set()
+        for ref in gap.get("related_refs", []):
+            if not isinstance(ref, dict):
+                continue
+            collection = related_collections.get(ref.get("kind"))
+            if collection is None:
+                continue
+            target = by_id[collection].get(ref.get("id"))
+            if isinstance(target, dict):
+                affected.update(
+                    value
+                    for value in target.get("feature_ids", [])
+                    if isinstance(value, str)
+                )
+        expected = [feature_id for feature_id in plan_features if feature_id in affected]
+        actual = [
+            feature_id
+            for feature_id in plan_features
+            if gap_id in mappings.get(feature_id, {}).get("gap_ids", [])
+        ]
+        if not expected:
+            hard.append(
+                f"H7 gap {gap_id} must have at least one related structural "
+                "reference with affected feature_ids"
+            )
+        if actual != expected:
+            hard.append(
+                f"H7 gap {gap_id} feature mapping must equal the union of "
+                "related target feature_ids"
+            )
+
+
+def _check_package_v2(
+    arch_dir: Path,
+    repo_root: Path,
+    data: dict,
+    *,
+    allow_proposed: bool,
+    consumer: bool,
+    architecture_input: Path | None,
+) -> tuple[list[str], list[str]]:
+    hard: list[str] = []
+    advisory: list[str] = []
+
+    present = {entry.name for entry in arch_dir.iterdir()}
+    missing = sorted(REQUIRED_FILES - present)
+    extra = sorted(present - REQUIRED_FILES)
+    if missing:
+        hard.append("H1 missing required file(s): " + ", ".join(missing))
+    if extra:
+        hard.append("H1 unexpected file(s) in coherent package: " + ", ".join(extra))
+    for name in sorted(REQUIRED_FILES):
+        target = arch_dir / name
+        if target.is_symlink() or (target.exists() and not target.is_file()):
+            hard.append(f"H1 required artifact must be a regular non-symlink file: {name}")
+        elif target.is_file() and target.stat().st_size == 0:
+            hard.append(f"H1 required artifact is empty: {name}")
+
+    expected_keys = (
+        V2_TOP_LEVEL_KEYS_WITH_RESET
+        if "revision_reset" in data
+        else V2_TOP_LEVEL_KEYS
+    )
+    if tuple(data) != expected_keys:
+        missing_keys = [field for field in expected_keys if field not in data]
+        extra_keys = sorted(set(data) - set(expected_keys))
+        if missing_keys:
+            hard.append("H2 architecture.json is missing key(s): " + ", ".join(missing_keys))
+        if extra_keys:
+            hard.append("H2 architecture.json has unknown key(s): " + ", ".join(extra_keys))
+        if not missing_keys and not extra_keys:
+            hard.append("H2 architecture.json keys must occur in canonical v2 order")
+    if data.get("$schema") != V2_SCHEMA_URN:
+        hard.append(f"H2 $schema must be {V2_SCHEMA_URN!r}")
+    if data.get("schema_version") != V2_SCHEMA_VERSION:
+        hard.append("H2 schema_version must be 2")
+    generator = _v2_exact(
+        data.get("generator"), "generator", ("name", "version"), hard
+    )
+    if generator.get("name") != V2_GENERATOR_NAME:
+        hard.append(f"H2 generator.name must be {V2_GENERATOR_NAME!r}")
+    plugin_version = _v2_plugin_version(hard)
+    if generator.get("version") != plugin_version:
+        hard.append("H2 generator.version must equal the core-engineering plugin version")
+
+    slug = data.get("project_slug")
+    if not isinstance(slug, str) or not PROJECT_SLUG_RE.fullmatch(slug):
+        hard.append("H2 project_slug must be canonical lowercase kebab-case")
+        slug = ""
+    lifecycle = data.get("lifecycle_status")
+    if lifecycle not in V2_LIFECYCLE_STATUSES:
+        hard.append(f"H2 lifecycle_status must be one of {sorted(V2_LIFECYCLE_STATUSES)}")
+    elif lifecycle == "proposed" and not allow_proposed:
+        hard.append(
+            "H2 lifecycle_status proposed is valid only for scratch lint "
+            "with --allow-proposed"
+        )
+    if data.get("baseline_status") not in V2_BASELINE_STATUSES:
+        hard.append(f"H2 baseline_status must be one of {sorted(V2_BASELINE_STATUSES)}")
+    _v2_int(data.get("architecture_revision"), "architecture_revision", hard)
+    _v2_int(data.get("source_plan_revision"), "source_plan_revision", hard)
+
+    expected_plan_path = (
+        (Path("docs") / "plans" / slug).as_posix() if slug else None
+    )
+    if data.get("source_plan_path") != expected_plan_path:
+        hard.append(f"H2 source_plan_path must be {expected_plan_path!r}")
+    plan_dir = (
+        repo_root / expected_plan_path
+        if isinstance(expected_plan_path, str)
+        else repo_root / "__invalid_plan_path__"
+    )
+    if (
+        not _inside(repo_root, plan_dir)
+        or plan_dir.is_symlink()
+        or not plan_dir.is_dir()
+        or _symlink_components(repo_root, plan_dir)
+    ):
+        hard.append("H3 source plan directory is missing or unsafe")
+    if consumer and slug:
+        canonical = repo_root / "docs" / "plans" / slug / "architecture"
+        supplied = architecture_input if architecture_input is not None else arch_dir
+        if (
+            supplied.is_symlink()
+            or _symlink_components(repo_root, canonical)
+            or arch_dir.resolve() != canonical.resolve()
+        ):
+            hard.append(
+                "H2 consumer architecture path must be the canonical "
+                "non-symlink repository package"
+            )
+
+    plan: dict = {}
+    plan_path = plan_dir / "plan.json"
+    try:
+        loaded_plan = _strict_json_loads(plan_path.read_text(encoding="utf-8"))
+        if not isinstance(loaded_plan, dict):
+            raise ValueError("plan.json does not contain an object")
+        plan = loaded_plan
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        hard.append(f"H3 source plan.json is unreadable: {exc}")
+    if plan:
+        if plan.get("project_slug") != slug:
+            hard.append("H3 source plan project_slug does not match architecture")
+        if plan.get("plan_revision") != data.get("source_plan_revision"):
+            hard.append("H3 source_plan_revision does not equal plan.json plan_revision")
+        _validate_source_architecture_disposition(plan, plan_dir, hard, advisory)
+
+    source_kinds = _v2_sources(
+        data,
+        repo_root,
+        plan_dir,
+        consumer=consumer,
+        hard=hard,
+        advisory=advisory,
+    )
+    for index, feature in enumerate(
+        plan.get("features", []) if isinstance(plan.get("features"), list) else []
+    ):
+        file_value = feature.get("file") if isinstance(feature, dict) else None
+        if not isinstance(file_value, str) or not file_value.strip():
+            hard.append(f"H4 plan features[{index}].file must be a non-empty path")
+            continue
+        relative = Path(file_value)
+        candidate = plan_dir / relative
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or not _inside(plan_dir, candidate)
+            or candidate.is_symlink()
+            or not candidate.is_file()
+        ):
+            hard.append(f"H4 plan feature source path is missing or unsafe: {file_value}")
+            continue
+        feature_path = candidate.relative_to(repo_root).as_posix()
+        if source_kinds.get(feature_path) != "plan":
+            hard.append(f"H4 plan feature source is not tracked as plan: {feature_path}")
+    _v2_projections(data, source_kinds, hard)
+    _v2_narrative(data, source_kinds, hard)
+
+    system_boundary = _v2_exact(
+        data.get("system_boundary"),
+        "system_boundary",
+        V2_SYSTEM_BOUNDARY_FIELDS,
+        hard,
+    )
+    if system_boundary.get("id") != "SB-001":
+        hard.append("H2 system_boundary.id must be SB-001")
+    for field in ("name", "responsibility"):
+        _v2_nonempty_string(
+            system_boundary.get(field), f"system_boundary.{field}", hard
+        )
+    for field in ("in_scope", "out_of_scope"):
+        _v2_string_list(
+            system_boundary.get(field),
+            f"system_boundary.{field}",
+            hard,
+            nonempty=True,
+        )
+    if system_boundary.get("evidence_state") not in V2_EVIDENCE_STATES:
+        hard.append("H2 system_boundary.evidence_state is invalid")
+    _evidence_refs(system_boundary, "system_boundary", source_kinds, hard)
+
+    rows: dict[str, list[dict]] = {}
+    by_id: dict[str, dict[str, dict]] = {}
+    for collection in V2_COLLECTION_FIELDS:
+        rows[collection], by_id[collection] = _v2_collection(
+            data, collection, source_kinds, hard
+        )
+    _v2_validate_rows(rows, source_kinds, repo_root, hard)
+    _v2_reference_checks(data, rows, by_id, hard)
+
+    triggers: list[str] = []
+    posture = plan.get("architecture_disposition")
+    if isinstance(posture, dict):
+        raw_triggers = posture.get("triggers")
+        if isinstance(raw_triggers, list) and all(
+            isinstance(item, str) for item in raw_triggers
+        ):
+            triggers = raw_triggers
+    transition_applicable, _ = _v2_selected_direction(
+        data, plan, plan_dir, rows, by_id, hard
+    )
+    required_dimensions = _v2_required_dimensions(
+        triggers, plan_dir, transition_applicable, rows
+    )
+    _v2_coverage_and_readiness(
+        data,
+        triggers,
+        required_dimensions,
+        transition_applicable,
+        source_kinds,
+        rows,
+        by_id,
+        hard,
+    )
+    coverage = data.get("coverage")
+    _v2_plan_closure(
+        plan_dir,
+        rows,
+        coverage if isinstance(coverage, dict) else {},
+        hard,
+    )
+
+    plan_features: list[str] = []
+    raw_features = plan.get("features")
+    if not isinstance(raw_features, list) or not raw_features:
+        hard.append("H7 source plan features must be a non-empty array")
+    else:
+        for index, feature in enumerate(raw_features):
+            feature_id = feature.get("id") if isinstance(feature, dict) else None
+            if not isinstance(feature_id, str) or not feature_id:
+                hard.append(f"H7 source plan features[{index}].id must be non-empty")
+            else:
+                plan_features.append(feature_id)
+    if len(plan_features) != len(set(plan_features)):
+        hard.append("H7 source plan feature ids must be unique")
+    _v2_feature_mappings(
+        data, plan_features, source_kinds, rows, by_id, hard
+    )
+
+    open_gap_ids = {
+        row.get("id")
+        for row in rows["gaps"]
+        if row.get("status") == "open"
+    }
+    collection_gap_routing: dict[str, tuple[str, str | None]] = {
+        "drivers": ("driver", "requirements_traceability"),
+        "actors": ("actor", "system_context"),
+        "context_relationships": ("context-relationship", "system_context"),
+        "components": ("component", "containers"),
+        "relationships": ("relationship", "containers"),
+        "deployment_nodes": ("deployment-node", "deployment"),
+        "deployments": ("deployment", "deployment"),
+        "deployment_connections": ("deployment-connection", "deployment"),
+        "data_entities": ("data-entity", "data"),
+        "integration_flows": ("integration-flow", "integrations"),
+        "dynamic_scenarios": ("dynamic-scenario", "dynamic_behavior"),
+        "trust_boundaries": ("trust-boundary", "security"),
+        "security_realizations": ("security-realization", "security"),
+        "contract_realizations": ("contract-realization", "contracts"),
+        "transitions": ("transition", "transitions"),
+        "quality_scenarios": ("quality-scenario", "quality_attributes"),
+        "operations": ("operation", "operability"),
+        "decisions": ("decision", None),
+        "open_questions": ("open-question", None),
+        "risks": ("risk", None),
+    }
+
+    def has_routed_open_gap(
+        row_id: object,
+        related_kind: str,
+        dimension: str | None,
+    ) -> bool:
+        return any(
+            gap.get("id") in open_gap_ids
+            and (dimension is None or gap.get("dimension") == dimension)
+            and any(
+                isinstance(ref, dict)
+                and ref.get("kind") == related_kind
+                and ref.get("id") == row_id
+                for ref in gap.get("related_refs", [])
+            )
+            for gap in rows["gaps"]
+        )
+
+    def contains_literal_unknown(value: object, *, root: bool = False) -> bool:
+        if isinstance(value, str):
+            return value == "unknown"
+        if isinstance(value, list):
+            return any(contains_literal_unknown(item) for item in value)
+        if isinstance(value, dict):
+            return any(
+                contains_literal_unknown(item)
+                for key, item in value.items()
+                if not root or key not in {"evidence", "evidence_state"}
+            )
+        return False
+
+    for collection, collection_rows in rows.items():
+        if collection == "gaps":
+            continue
+        routing = collection_gap_routing.get(collection)
+        for index, row in enumerate(collection_rows):
+            unknown_evidence = row.get("evidence_state") == "unknown"
+            unknown_value = contains_literal_unknown(row, root=True)
+            if not unknown_evidence and not unknown_value:
+                continue
+            if routing is None:
+                hard.append(
+                    f"H6 {collection}[{index}] cannot use unknown because the "
+                    "row has no typed-gap routing kind"
+                )
+                continue
+            related_kind, dimension = routing
+            if not has_routed_open_gap(row.get("id"), related_kind, dimension):
+                hard.append(
+                    f"H6 {collection}[{index}] unknown evidence/value requires "
+                    "an open same-dimension typed gap related to the exact row"
+                )
+    if system_boundary.get("evidence_state") == "unknown" or contains_literal_unknown(
+        system_boundary, root=True
+    ):
+        if not has_routed_open_gap("SB-001", "system-boundary", "system_context"):
+            hard.append(
+                "H6 system_boundary unknown evidence/value requires an open "
+                "system_context gap related to SB-001"
+            )
+
+    if lifecycle == "published":
+        for index, decision in enumerate(rows["decisions"]):
+            if decision.get("status") != "accepted":
+                hard.append(
+                    f"H6 published decisions[{index}].status must be accepted"
+                )
+
+    reset = data.get("revision_reset")
+    if reset is not None:
+        reset_row = _v2_exact(
+            reset, "revision_reset", V2_REVISION_RESET_FIELDS, hard
+        )
+        _v2_nonempty_string(reset_row.get("reason"), "revision_reset.reason", hard)
+        if reset_row.get("recorded_by") != "human":
+            hard.append("H2 revision_reset.recorded_by must be human")
+        if reset_row.get("gate") != "Invalid Architecture Package Recovery":
+            hard.append("H2 revision_reset.gate is invalid")
+    extensions = data.get("extensions")
+    if not isinstance(extensions, dict):
+        hard.append("H2 extensions must be an object")
+    else:
+        for namespace, payload in extensions.items():
+            if not isinstance(namespace, str) or not EXTENSION_NAMESPACE_RE.fullmatch(
+                namespace
+            ):
+                hard.append(
+                    f"H2 extensions key is not a reverse-DNS namespace: {namespace!r}"
+                )
+            if not isinstance(payload, dict):
+                hard.append(f"H2 extensions.{namespace} must be an object")
+
+    approval = _v2_exact(
+        data.get("approval"), "approval", V2_APPROVAL_FIELDS, hard
+    )
+    if approval.get("gate") != "Final Architecture Approval":
+        hard.append("H8 approval.gate must be 'Final Architecture Approval'")
+    review_digest = approval.get("review_payload_sha256")
+    if not isinstance(review_digest, str) or not SHA_RE.fullmatch(review_digest):
+        hard.append("H8 approval.review_payload_sha256 must be 64 lowercase hex")
+    if lifecycle == "proposed":
+        expected_pending = {
+            "decision": "pending",
+            "recorded_by": "pending",
+            "recorded_at": None,
+            "authority": None,
+            "reference": None,
+            "gate": "Final Architecture Approval",
+            "receipt_sha256": None,
+        }
+        for field, expected in expected_pending.items():
+            if approval.get(field) != expected:
+                hard.append(f"H8 proposed approval.{field} must be {expected!r}")
+    elif lifecycle == "published":
+        if approval.get("decision") != data.get("baseline_status"):
+            hard.append("H8 published approval.decision must equal baseline_status")
+        recorded_by = _v2_nonempty_string(
+            approval.get("recorded_by"), "approval.recorded_by", hard
+        )
+        if recorded_by is not None and APPROVAL_PLACEHOLDER_RE.fullmatch(
+            recorded_by.strip()
+        ):
+            hard.append(
+                "H8 approval.recorded_by must identify the human or recorded role"
+            )
+        recorded_at = approval.get("recorded_at")
+        if not isinstance(recorded_at, str) or not RFC3339_UTC_RE.fullmatch(recorded_at):
+            hard.append("H8 approval.recorded_at must be RFC 3339 UTC")
+        for field in ("authority", "reference"):
+            value = _v2_nonempty_string(
+                approval.get(field), f"approval.{field}", hard
+            )
+            if value is not None and APPROVAL_PLACEHOLDER_RE.fullmatch(value.strip()):
+                hard.append(f"H8 approval.{field} must not be a placeholder")
+        receipt = approval.get("receipt_sha256")
+        if not isinstance(receipt, str) or not SHA_RE.fullmatch(receipt):
+            hard.append("H8 approval.receipt_sha256 must be 64 lowercase hex")
+
+    try:
+        renderer = _v2_load_renderer()
+        render_result, render_code = renderer.check_package(arch_dir)
+        if render_code != 0:
+            details = render_result.get("mismatches") or [render_result.get("message")]
+            hard.extend(
+                f"H1 deterministic renderer check failed: {detail}"
+                for detail in details
+                if isinstance(detail, str)
+            )
+    except Exception as exc:
+        hard.append(
+            "H1 deterministic renderer check could not run: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+    prohibited_claims = (
+        "approved for deployment", "certified compliant", "deployment authorized",
+        "production ready", "ready for production", "release approved",
+        "security accepted", "security approved",
+    )
+    try:
+        projection_text = "\n".join(
+            (arch_dir / path).read_text(encoding="utf-8").lower()
+            for path in (
+                "solution-architecture.md", "views.md",
+                "data-and-integrations.md", "quality-attributes.md",
+            )
+            if (arch_dir / path).is_file()
+        )
+    except (OSError, UnicodeError):
+        projection_text = ""
+    for claim in prohibited_claims:
+        if claim in projection_text:
+            hard.append(f"H8 prohibited authority claim {claim!r}")
+    return hard, advisory
+
+
+def check_package(
+    arch_dir: Path,
+    repo_root: Path,
+    data: dict,
+    allow_proposed: bool = False,
+    consumer: bool = False,
+    architecture_input: Path | None = None,
+    allow_legacy_v1: bool = False,
+) -> tuple[list[str], list[str]]:
+    schema_version = data.get("schema_version")
+    if schema_version == V2_SCHEMA_VERSION:
+        return _check_package_v2(
+            arch_dir,
+            repo_root,
+            data,
+            allow_proposed=allow_proposed,
+            consumer=consumer,
+            architecture_input=architecture_input,
+        )
+    if schema_version == SCHEMA_VERSION and allow_legacy_v1:
+        hard, advisory = _check_package_v1(
+            arch_dir,
+            repo_root,
+            data,
+            allow_proposed=allow_proposed,
+            consumer=consumer,
+            architecture_input=architecture_input,
+        )
+        advisory.insert(
+            0,
+            "A2 legacy schema v1 lint is diagnostic only; regenerate the package "
+            "as schema v2 before any consumer or publication use",
+        )
+        return hard, advisory
+    if schema_version == SCHEMA_VERSION:
+        return (
+            [
+                "H2 schema v1 is non-authoritative and requires regeneration to "
+                "ce-architecture schema v2; use --allow-legacy-v1 only for "
+                "diagnostic migration"
+            ],
+            [],
+        )
+    return (
+        [
+            f"H2 unsupported architecture schema_version {schema_version!r}; "
+            "regenerate to ce-architecture schema v2"
+        ],
+        [],
+    )
+
+
+def result_payload(
+    hard: list[str],
+    advisory: list[str],
+    data: dict | None = None,
+) -> dict:
+    payload = {
         "schema_version": 1,
         "status": "fail" if hard else "pass",
         "hard_failures": hard,
         "advisory": advisory,
         "blocking_hard": len(hard),
     }
+    if isinstance(data, dict) and data.get("schema_version") == V2_SCHEMA_VERSION:
+        payload.update(
+            {
+                "architecture_schema_version": V2_SCHEMA_VERSION,
+                "project_slug": data.get("project_slug"),
+                "lifecycle_status": data.get("lifecycle_status"),
+                "baseline_status": data.get("baseline_status"),
+                "architecture_revision": data.get("architecture_revision"),
+                "source_plan_revision": data.get("source_plan_revision"),
+                "package_receipt_sha256": (
+                    data.get("approval", {}).get("receipt_sha256")
+                    if not hard
+                    and data.get("lifecycle_status") == "published"
+                    and isinstance(data.get("approval"), dict)
+                    else None
+                ),
+            }
+        )
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2514,7 +4995,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--allow-proposed",
         action="store_true",
-        help="allow status=proposed for the pre-approval scratch package only",
+        help="allow lifecycle_status=proposed for the pre-approval scratch package only",
+    )
+    parser.add_argument(
+        "--allow-legacy-v1",
+        action="store_true",
+        help=(
+            "run non-authoritative schema-v1 migration diagnostics; schema v1 "
+            "is rejected by default and can never be consumed or published"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -2532,6 +5021,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_proposed=args.allow_proposed,
             consumer=args.consumer,
             architecture_input=architecture_input,
+            allow_legacy_v1=args.allow_legacy_v1,
         )
     except (
         ArchitectureLintError,
@@ -2554,7 +5044,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"architecture-lint: ERROR — {exc}", file=sys.stderr)
         return 2
 
-    payload = result_payload(hard, advisory)
+    payload = result_payload(hard, advisory, data)
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:

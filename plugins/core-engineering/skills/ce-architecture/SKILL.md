@@ -103,7 +103,7 @@ path validation that contract acquires one exact-file write lease, restores the
 deny-only baseline, and requires `architecture-options-lint.py` to pass before
 its human gate. Do not inspect
 publication transactions, load a shape or baseline stage file, assemble the
-five-file package, or continue below. Second, if the input begins with `shape:`, require the whole input to
+schema-v2 baseline package, or continue below. Second, if the input begins with `shape:`, require the whole input to
 match `shape:[a-z0-9]+(?:-[a-z0-9]+)*`; otherwise stop without treating it as a
 baseline slug. For a match, load `${CLAUDE_SKILL_DIR}/shaping-mode.md` and
 execute only that contract, with the same prohibition on leases, publication
@@ -168,9 +168,9 @@ obsolete-package branch uses its own one-entry `Gate 1 of 1` manifest.
    `recorded` and `observed` map to `read`, `inferred` maps to `inferred`, and
    `unknown` is below the scale. Every inferred structural claim needs a source
    and human review; unknowns are never silently filled.
-4. **Keep tables and `architecture.json` authoritative.** Mermaid diagrams are
-   projections for humans. If rendering is unavailable, the tables still carry
-   the complete relationship and deployment data.
+4. **Keep one authored source.** Schema-v2 `architecture.json` is authoritative;
+   the bundled renderer deterministically generates the four required Markdown
+   table and Mermaid block. Never hand-edit a projection.
 5. **Do not duplicate sibling ownership.** Explore mode owns generation and
    requirement-fit evaluation of complete solution directions; it never creates
    the feature cut. `/core-engineering:ce-plan` owns capabilities,
@@ -187,13 +187,13 @@ obsolete-package branch uses its own one-entry `Gate 1 of 1` manifest.
    `/core-engineering:ce-plan` Stage R and stops. A consequential technical fork
    with no dominant option routes to `/core-engineering:ce-decide`; resume only
    from the human's recorded decision and accepted ADR when ADR-worthy.
-7. **Make coverage explicit.** Record each required dimension as `complete`,
-   `gap`, or `not-applicable` with a reason. A material gap parks the run. A
-   non-material gap may remain only under human-approved
-   `approved-with-gaps` status.
+7. **Separate coverage, readiness, and approval.** Derive required dimensions
+   from plan triggers, record actionable typed gaps, and compute readiness. A
+   material or specification-blocking gap parks; other gaps require
+   `accepted-for-specification-with-gaps`.
 8. **Never write the final package before Final Architecture Approval.** Build
-   the five files in a temporary scratch directory, lint them, and render them
-   for review first. Scratch is not a repository artifact or downstream input.
+   semantic JSON and the four deterministic projections in scratch, lint
+   them, and show their review digest first. Scratch is not downstream input.
 9. **Run the deterministic gate.** Before approval, run
    `python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" <scratch-dir>
    --repo-root . --allow-proposed --json`. Exit 1 or 2 is a package failure and
@@ -201,14 +201,13 @@ obsolete-package branch uses its own one-entry `Gate 1 of 1` manifest.
    at all (no linter result) parks publication; the manual checklist may
    diagnose the package but cannot replace the publisher's pre-stage-final lint
    chain.
-10. **Publish one coherent package:**
+10. **Publish one receipt-bound package:**
     `solution-architecture.md`, `views.md`, `data-and-integrations.md`,
     `quality-attributes.md`, and `architecture.json` under
-    `docs/plans/<slug>/architecture/`. After approval, use the bundled publisher
-    to perform only the approved JSON status/approval transition, verify and
-    copy the reviewed bytes, lint before and after its transactional
-    same-filesystem swap, and roll back on detected failure. Do not hand-edit
-    the destination.
+    `docs/plans/<slug>/architecture/`, with no additional package files. The
+    publisher records lifecycle, human authority/reference,
+    and receipt digest without changing baseline status or projection bytes,
+    linting before and after its transactional swap.
 11. **No external authority.** Never commit, push, open or merge a PR, deploy,
     provision, accept security risk, promote an ADR, or claim production
     readiness.
@@ -266,7 +265,7 @@ Final approval options:
 
 | Option | Consequence |
 |---|---|
-| **Approve & publish** | Publish all five files. Status is `approved` when coverage is complete, otherwise `approved-with-gaps`; the documented gaps remain visible downstream. |
+| **Approve & publish** | Publish the reviewed projections and receipt-bound JSON as `accepted-for-specification`, or `accepted-for-specification-with-gaps` for visible non-blocking gaps. |
 | **Adjust** | Return to the owning model/evidence stage; write no final package yet. |
 | **Park** | Stop for an upstream plan/decision/evidence action; write no final package. |
 | **Abort** | Stop under the deny-only baseline; write no architecture or other domain artifact. The reported lease-control baseline may remain. |
@@ -343,8 +342,8 @@ inputs to `/core-engineering:ce-spec`; this skill does not answer them early.
 - The package is a reasoned baseline, not proof that the system will satisfy
   its quality attributes. Verification and runtime probes provide evidence
   after implementation.
-- Mermaid text is not renderer-tested by this skill. Authoritative tables and
-  JSON preserve the model when diagram rendering is unavailable.
+- Markdown and Mermaid are deterministic renderer output; a byte or registered
+  hash mismatch fails lint rather than degrading to a manual projection.
 - `architecture-lint` proves package shape, reference/coherence rules, source
   hashes, and selected literals. It cannot prove that a component model is a
   good design or that a cited selector semantically entails a human-normalized

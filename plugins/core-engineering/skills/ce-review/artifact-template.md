@@ -60,9 +60,22 @@ The current-state, machine-readable gate input — **per feature**, at `docs/pla
 
 ```json
 {
+  "schema_version": 2,
   "status": "blocked",
   "feature_id": "04-checkout",
   "plan_slug": "<slug>",
+  "spec_revision": 3,
+  "binding": {
+    "plan_sha256": "<64-lowercase-hex>",
+    "feature_sha256": "<64-lowercase-hex>",
+    "spec_sha256": "<64-lowercase-hex>",
+    "tasks_sha256": "<64-lowercase-hex>",
+    "architecture_context_sha256": "<64-lowercase-hex>",
+    "architecture_package_receipt_sha256": "<64-lowercase-hex-or-null>",
+    "implementation_files_sha256": "<64-lowercase-hex>",
+    "repository_state_sha256": "<64-lowercase-hex>",
+    "commit_sha": "<40-to-64-lowercase-hex-or-null>"
+  },
   "mode": "blocking-on-high",
   "reviewed_at": "YYYY-MM-DD",
   "findings_total": 7,
@@ -95,10 +108,39 @@ The current-state, machine-readable gate input — **per feature**, at `docs/pla
 }
 ```
 
+- **Identity and freshness are mandatory.** `schema_version` is exactly `2`;
+  `feature_id`, `plan_slug`, and `spec_revision` identify the reviewed contract.
+  `binding` is copied byte-for-field from the immediately preceding
+  `architecture_context.py review-binding` result. It binds the current plan,
+  feature authority, spec, tasks, normalized architecture context, producer
+  package receipt (or typed `null`), the exact content/missing-state record of
+  every in-scope `tasks[].files` path, the complete tracked/non-ignored
+  repository path/content/executable state, and repository commit. The
+  repository-state digest excludes
+  only evidence that is expected after binding (`review-summary.json`,
+  `code-review.md`, review `evidence/`, metrics, `STATUS.md`, and
+  `ce-auto-build/` run records). Never hand-compose, retain, or partially refresh
+  this object. A task without a non-empty `files` list cannot produce review
+  provenance.
+- `review-gate.py` checks those identities against the spec directory and
+  `tasks.json`, re-derives the current binding, reruns architecture-context
+  freshness (including the package's consumer lint), and rejects stale or
+  mismatched evidence as could-not-run. A recorded commit may be the current
+  commit or an ancestor so the durable review artifact can itself be committed;
+  the separately recorded content digests remain exact. In particular,
+  `implementation_files_sha256` protects declared implementation files and
+  `repository_state_sha256` prevents any other code or authority change from
+  riding on ancestor acceptance. Merge-bar invocation supplies the exact
+  evaluated head rather than inferring it from the checked-out worktree.
 - **`status`** — `"pass"`, or `"blocked"` iff `blocking_high > 0`. It reflects the
   machine gate state. Optional **`mode`** is provenance only; the deterministic
   gate intentionally acts only on `status` and `blocking_high`.
-- **`blocking_high`** is the single precomputed gate count: the number of findings where `severity == "high" AND confidence == "confirmed" AND lens ∈ {correctness, security}`. The deterministic gate reads that count, requires a non-negative integer, and checks that `status` agrees with zero/non-zero. It never re-derives the predicate from the finding list. (Performance is excluded for free — it can never be High.)
+- **`blocking_high`** is the precomputed gate count: the number of findings where
+  `severity == "high" AND confidence == "confirmed" AND lens ∈ {correctness,
+  security}`. The deterministic gate independently derives that predicate from
+  the structured findings and requires exact agreement with `blocking_high`,
+  `findings_total`, and `status`; a false clean count is schema-invalid.
+  (Performance is excluded for free — it can never be High.)
 - **`blocking_route`** is `null` when `blocking_high == 0`, `implement` for
   implementation-repairable blocking findings, or `plan-conflict` when any
   blocking finding requires human-owned plan revision. Mixed blockers use

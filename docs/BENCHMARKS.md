@@ -85,7 +85,7 @@ the path back to a live label.
 | EVAL-017 | `/core-engineering:ce-auto-build` | fixed sequential three-feature run: success, product park, retry exhaustion, schema-v2 state, and final human-review gate | $20.00 | design-verified, not live-run |
 | EVAL-018 | `/core-engineering:ce-humanize` | rewrites generic prose while preserving facts, links, and structure | $1.00 | design-verified, not live-run |
 | EVAL-019 | `/core-engineering:ce-go` | routes a bounded low-risk change to direct-only `/core-engineering:ce-patch`, then stops without writes | $1.00 | design-verified, not live-run |
-| EVAL-020 | `/core-engineering:ce-architecture` | loads and lints the written plan, renders the evidence-first Scope Confirmation gate, and stops without publishing before human approval; its frozen package separately passes `architecture-lint.py` | $3.00 | design-verified, not live-run |
+| EVAL-020 | `/core-engineering:ce-architecture` | loads and lints the written plan, renders the evidence-first Scope Confirmation gate, and stops without publishing before human approval; its frozen schema-v2 package separately proves strict structure, deterministic projections, typed trigger coverage, and a digest-bound acceptance receipt | $3.00 | design-verified, not live-run |
 | EVAL-021 | `/core-engineering:ce-plan` | renders Project Understanding, verifies its context anchors before sending one scenario-scoped decision event, resumes the same session, and stops at the evidence/authority-bearing Architecture Evaluation Frame without a final write | $3.00 aggregate | design-verified, not live-run |
 
 Honest failure log from the same batch — kept because it calibrated the

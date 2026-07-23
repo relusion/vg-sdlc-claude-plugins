@@ -63,7 +63,8 @@ detailed procedure loads on demand — see *How to Run This Workflow* below.
   derives `[CONTRACT]` criteria from; absent ⇒ no interaction obligations for this
   feature), the plan's required **`architecture_disposition`** (decision,
   triggers, rationale, human owner, convergence result, and accepted-ADR
-  `decision_refs`), and any **approved architecture package** under
+  `decision_refs`), and any published **accepted-for-specification architecture
+  package** under
   `architecture/`. Stage 0 validates the full plan before interpreting the
   disposition and validates every present package before use. A
   `required` + `converged` disposition blocks specification until that package
@@ -100,13 +101,13 @@ Follow the workflow exactly. Do not skip stages, gates, or validation.
 4. **Enforce the architecture disposition** (Stage 0.1) before feature design. A
    missing, malformed, or non-converged required disposition routes to
    `/core-engineering:ce-plan` Stage R. A `required` + `converged` disposition
-   without a current approved package routes to
+   without a current published accepted-for-specification package routes to
    `/core-engineering:ce-architecture <slug>` and stops. A recommended gap or
    human waiver is context to surface, never authority to invent cross-feature
    design.
 5. **Enforce dependency order** (Stage 0.2). Do not proceed unless every hard dependency is specced or built. For a valid single-feature minimal plan, record dependency order `N/A by construction`; discovering a dependency routes to planning.
 6. **Maintain traceability:** Scope item → Acceptance Criterion → Test Case → Task, and every journey step this feature owns → ≥ 1 Test Case (carrying the step's modality). No orphans at any link. A minimal plan has no Journey Map, so only the Scope chain applies unless planning expands the shape.
-7. **Stay focused.** Scale effort to feature size — a Simple feature with no unknowns runs light. Do not manufacture ceremony. The artifact template's **Tier-scaling** rule names which `ce-spec.md` sections such a feature omits (omit the empty section, never the analysis); `spec-lint` H1–H5 still pass on the reduced spec.
+7. **Stay focused.** Scale effort to feature size — a Simple feature with no unknowns runs light. Do not manufacture ceremony. The artifact template's **Tier-scaling** rule names which `ce-spec.md` sections such a feature omits (omit the empty section, never the analysis); `spec-lint` H1–H7 still pass on the reduced spec.
 8. **Log every decision** with its options, choice, rationale, tier, and `decided_by: human`. Propagate cross-feature resolutions — architecturally-significant ones to a project ADR, others to the shared-context ledger (Stage 5.2). Minimal mode has no shared ledger: a cross-feature resolution invalidates that mode and routes to planning rather than creating a missing artifact from inside spec.
 9. **Run the Mechanical Lint Gate** (below) before Final Approval — auto-build runs the same script as a blocking spec-artifact gate.
 10. **Output:** write `ce-spec.md` and `tasks.json` to `docs/plans/[slug]/specs/<id>/`.
@@ -222,7 +223,8 @@ that:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec-lint.py" <scratch-dir> \
-  --threat-model docs/plans/<slug>/threat-model.md --feature <id>   # enables H5 when present
+  --threat-model docs/plans/<slug>/threat-model.md --feature <id> \
+  --plan-dir docs/plans/<slug> --repo-root . --require-architecture-context
 ```
 
 Pass `--threat-model` **and** `--feature <id>` here: the scratch dir is outside the
@@ -236,7 +238,8 @@ For a single-feature minimal plan whose inline Security Projection assigns
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec-lint.py" <scratch-dir> \
-  --threat-model docs/plans/<slug>/feature-plan.md --feature <id>
+  --threat-model docs/plans/<slug>/feature-plan.md --feature <id> \
+  --plan-dir docs/plans/<slug> --repo-root . --require-architecture-context
 ```
 
 The block uses the same `security_obligations` shape as a full threat model, so
@@ -244,11 +247,13 @@ H5 remains armed without manufacturing a full-plan file. When the confirmed
 inline projection has `threat_ids: []`, omit the flags and record H5 N/A from
 that explicit assessed negative—not from feature count or file absence.
 
-It checks (H1–H4, and **H5** when `--threat-model` is passed): every `tasks.json`
+It checks H1–H7: every `tasks.json`
 `verifies` resolves to a real TC; every TC carries a `modality:` and a
 `verification:` tag, with `manual` modality paired to `manual:judgment`; no orphan
 task or TC; and every `TZ-NNN` the threat-model assigns this feature is covered by a
-`[SECURITY: TZ-NNN]` AC. Pass `--threat-model` whenever the plan has one — omit it
+`[SECURITY: TZ-NNN]` AC. H7 requires exact tasks/Markdown architecture-context
+parity and freshness against the current consumer-linted package or typed
+no-package disposition. Pass `--threat-model` whenever the plan has one — omit it
 and H5 is simply N/A (no false fail on a plan without a threat-model). Disposition:
 
 - **PASS (exit 0)** → annotate the items it covers in Stage 5.3 as **`[machine-verified]`**.

@@ -83,8 +83,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" \
 
 - `exit 0`: record the package status and architecture/source-plan revisions,
   load its feature mappings and gaps for the selected features, and surface
-  repository-evidence drift advisories. `approved-with-gaps` adds the relevant
-  gaps to kickoff coverage.
+  repository-evidence drift advisories.
+  `accepted-for-specification-with-gaps` adds the relevant gaps to kickoff
+  coverage.
 - `exit 1`: stop and route to `/core-engineering:ce-architecture <slug>`; the
   package is invalid or stale and cannot gate an unattended run.
 - `exit 2`: stop with the exact error and the same architecture recovery route.

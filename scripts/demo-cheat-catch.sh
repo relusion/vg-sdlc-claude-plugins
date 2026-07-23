@@ -19,6 +19,53 @@ bar() { python3 "$ROOT/scripts/gate_runner.py" --repo "$DEMO" --base "$BASE" \
             --plugin-root "$ROOT/plugins/core-engineering"; }
 
 cp -R "$ROOT/evals/fixtures/implementation-ready-feature" "$DEMO" || exit 1
+python3 - "$ROOT" "$DEMO" <<'PY' || exit 1
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+toolkit = Path(sys.argv[1])
+repo = Path(sys.argv[2])
+plan_dir = repo / "docs/plans/team-invitations"
+spec_dir = plan_dir / "specs/01-invite-user"
+helper = (
+    toolkit
+    / "plugins/core-engineering/skills/ce-spec/scripts/architecture_context.py"
+)
+derived = subprocess.run(
+    [
+        sys.executable,
+        str(helper),
+        "--repo-root",
+        str(repo),
+        "derive",
+        str(plan_dir),
+        "01-invite-user",
+        "--json",
+    ],
+    check=True,
+    capture_output=True,
+    text=True,
+    timeout=120,
+)
+context = json.loads(derived.stdout)["architecture_context"]
+
+tasks_path = spec_dir / "tasks.json"
+tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
+tasks["architecture_context"] = context
+tasks_path.write_text(json.dumps(tasks, indent=2) + "\n", encoding="utf-8")
+
+spec_path = spec_dir / "ce-spec.md"
+spec_path.write_text(
+    spec_path.read_text(encoding="utf-8")
+    + "\n## Architecture Context\n\n"
+    + "```json architecture-context\n"
+    + json.dumps(context, indent=2, sort_keys=True)
+    + "\n```\n",
+    encoding="utf-8",
+)
+PY
 mkdir -p "$DEMO/tests"
 cat > "$TEST_FILE" <<'EOF'
 from src.invitations import create_invitation

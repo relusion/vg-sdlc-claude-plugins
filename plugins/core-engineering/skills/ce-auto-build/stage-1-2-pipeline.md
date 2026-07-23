@@ -52,7 +52,9 @@ Run the external spec gate:
 test -f "docs/plans/<slug>/specs/<id>/ce-spec.md"
 test -f "docs/plans/<slug>/specs/<id>/tasks.json"
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec-lint.py" \
-  "docs/plans/<slug>/specs/<id>" --json
+  "docs/plans/<slug>/specs/<id>" \
+  --repo-root . --plan-dir "docs/plans/<slug>" --feature <id> \
+  --require-architecture-context --json
 ```
 
 - Pass: `run-state.py advance <id> specced`.
@@ -76,6 +78,9 @@ generic implementation worker. Its specification inputs are only the on-disk
 Direct it to the `implement` skill and its autonomous overlay. It works test-first,
 runs the applicable suite and acceptance checks, and writes
 `specs/<id>/verification.md`, including a reproducible try-it-yourself section.
+The implement skill's Stage-0 provenance preflight must pass before any code
+mutation; a spec whose persisted architecture binding differs from the current
+consumer-linted package returns to specification rather than being implemented.
 
 Then run the external gates against the clean Stage-0 baseline. For scope, repeat
 `--spec-dir` for the current spec and every earlier spec that reached implementation;
@@ -152,11 +157,15 @@ Direct the worker to the existing review contract at
 `${CLAUDE_SKILL_DIR}/../ce-review/SKILL.md` and require it to load
 `${CLAUDE_SKILL_DIR}/../ce-review/artifact-template.md` before writing. The machine
 summary must use that exact `status` / `blocking_high` / `blocking_route` schema;
-do not reconstruct a new verdict format from memory. Then validate it externally:
+its plan/feature/spec/package/commit `binding` is mandatory and must be copied from
+the deterministic helper immediately before the write. Do not reconstruct a new
+verdict or binding format from memory. Then validate it externally:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/review-gate.py" \
-  "docs/plans/<slug>/specs/<id>" --require-blocking-route --json
+  "docs/plans/<slug>/specs/<id>" \
+  --repo-root . --plan-dir "docs/plans/<slug>" --feature <id> \
+  --require-blocking-route --json
 ```
 
 Every high-severity correctness or security finding receives an adversarial
@@ -199,6 +208,31 @@ After the loop, spawn one fresh verification worker over the combined working tr
 It runs the whole test suite, build, and lint; rechecks completed features' acceptance
 criteria; and exercises available cross-feature journeys and integration bridges. It
 writes `docs/plans/<slug>/verification-report.md`.
+
+After that report is written and all machine-owned code, specification, and evidence
+writes have settled, run a **final review-freshness sweep** over every completed
+feature, in ship order:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/review-gate.py" \
+  "docs/plans/<slug>/specs/<completed-id>" \
+  --repo-root . --plan-dir "docs/plans/<slug>" --feature <completed-id> \
+  --require-blocking-route --json
+```
+
+This is mandatory even when each feature passed review earlier: a later feature may
+legitimately share or revise an earlier file, and combined verification writes its
+final evidence only after the feature loop. The earlier review binding must not
+remain authoritative after either change. Exit `0` keeps the feature current. A
+stale or mismatched binding (exit `2` with a freshness error) requires a fresh
+independent review of that feature and a new exact binding, followed by the same gate
+again. Other exit `2` results park as `tooling-gap`. Exit `1` follows the normal
+`blocking_route` disposition above; do not call the integration pass complete while
+any review is stale, blocked, or could not run. Writing another feature's
+`review-summary.json`, `code-review.md`, review `evidence/`, metrics, `STATUS.md`,
+or `ce-auto-build/` run evidence does not itself stale a binding; code, plan,
+spec, task, architecture, verification evidence, or other repository-authority
+changes do.
 
 Do not repair integration failures inside this pass. Record the failing feature or
 unknown ownership, evidence, and cheapest next check for the human end-review. A

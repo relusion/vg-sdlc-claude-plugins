@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Transactionally publish one validated ce-architecture package.
+"""Transactionally publish one reviewed ce-architecture schema-v2 package.
 
-The helper never edits or repairs package content. It validates a scratch
-package with the sibling ``architecture-lint.py``, enforces revision and human
-recovery authority, copies the exact five files into a same-parent staging
-directory, and swaps that directory into the canonical plan location. The swap
-uses two same-filesystem renames, so it has a known crash window between the
-backup and install renames; orphan transaction paths make recovery explicit on
-the next run. A final lint failure restores the prior package (or restores
-absence on first publish).
+The helper verifies deterministic review bytes and digests, enforces revision
+and human approval identity/authority/reference, copies the exact five files
+into a same-parent stage, and changes only ``lifecycle_status`` plus the strict
+approval receipt.  The swap uses two same-filesystem renames, so it has a known
+crash window between backup and install; orphan transaction paths make recovery
+explicit. A final lint failure restores the prior package (or first-publish
+absence).
 
 Exit codes:
   0  PUBLISHED — the canonical package passed its final lint.
@@ -21,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import importlib.util
 import json
 import os
 import re
@@ -35,6 +35,8 @@ from pathlib import Path
 
 
 SCHEMA_VERSION = 1
+ARCHITECTURE_SCHEMA_VERSION = 2
+ARCHITECTURE_SCHEMA_URN = "urn:vg-sdlc:ce-architecture:architecture:v2"
 PACKAGE_FILES = {
     "solution-architecture.md",
     "views.md",
@@ -42,19 +44,35 @@ PACKAGE_FILES = {
     "quality-attributes.md",
     "architecture.json",
 }
-PUBLISHED_STATUSES = {"approved", "approved-with-gaps"}
+PUBLISHED_STATUSES = {
+    "accepted-for-specification",
+    "accepted-for-specification-with-gaps",
+}
 RESET_FIELD = "revision_reset"
 RESET_GATE = "Invalid Architecture Package Recovery"
 FINAL_APPROVAL_GATE = "Final Architecture Approval"
 PENDING_APPROVAL = {
     "decision": "pending",
     "recorded_by": "pending",
+    "recorded_at": None,
+    "authority": None,
+    "reference": None,
     "gate": FINAL_APPROVAL_GATE,
+    "review_payload_sha256": None,
+    "receipt_sha256": None,
 }
 TRANSACTION_PREFIX = ".architecture-publish-"
 TRANSACTION_LOCK = f"{TRANSACTION_PREFIX}lock"
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LINT_TIMEOUT_SECONDS = 30
+SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+RFC3339_UTC_RE = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+)
+APPROVAL_PLACEHOLDER_RE = re.compile(
+    r"^(?:pending|human|unknown|tbd|todo|placeholder|<[^>]+>)$",
+    re.IGNORECASE,
+)
 
 
 class PublishInputError(Exception):
@@ -63,6 +81,19 @@ class PublishInputError(Exception):
 
 class PublishRuntimeError(Exception):
     """The publication helper could not safely complete (exit 2)."""
+
+
+def _strict_manifest_pairs(pairs: list[tuple[str, object]]) -> dict:
+    result: dict = {}
+    for key, value in pairs:
+        if key in result:
+            raise PublishInputError(f"duplicate architecture.json key: {key}")
+        result[key] = value
+    return result
+
+
+def _strict_manifest_loads(payload: str) -> object:
+    return json.loads(payload, object_pairs_hook=_strict_manifest_pairs)
 
 
 def _lexists(path: Path) -> bool:
@@ -109,7 +140,7 @@ def _read_manifest(path: Path, *, label: str) -> dict:
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise PublishInputError(f"{label} architecture.json must be a regular file")
     try:
-        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        data = _strict_manifest_loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PublishInputError(f"{label} architecture.json is unreadable: {exc}") from exc
     if not isinstance(data, dict):
@@ -182,7 +213,9 @@ def _require_exact_scratch(path: Path) -> tuple[dict, dict[str, bytes]]:
     if _package_shape(path) != shape:
         raise PublishInputError("scratch package changed while it was being inspected")
     try:
-        manifest = json.loads(snapshot["architecture.json"].decode("utf-8"))
+        manifest = _strict_manifest_loads(
+            snapshot["architecture.json"].decode("utf-8")
+        )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PublishInputError(f"scratch architecture.json is unreadable: {exc}") from exc
     if not isinstance(manifest, dict):
@@ -274,6 +307,70 @@ def run_lint(
             process_exit_code=process_exit_code,
         )
     return {**payload, "exit_code": process_exit_code}
+
+
+def _load_renderer():
+    script = Path(__file__).resolve().with_name("architecture-render.py")
+    spec = importlib.util.spec_from_file_location(
+        "ce_architecture_publish_renderer", script
+    )
+    if spec is None or spec.loader is None:
+        raise PublishRuntimeError(f"could not load deterministic renderer: {script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def run_render_check(package: Path) -> dict:
+    try:
+        renderer = _load_renderer()
+        result, exit_code = renderer.check_package(package)
+    except Exception as exc:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "error",
+            "mismatches": [],
+            "message": f"renderer check failed: {type(exc).__name__}: {exc}",
+            "exit_code": 2,
+        }
+    if not isinstance(result, dict):
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "error",
+            "mismatches": [],
+            "message": "renderer check returned a non-object",
+            "exit_code": 2,
+        }
+    return {**result, "exit_code": exit_code}
+
+
+def _assess_render_result(result: object) -> dict:
+    if not isinstance(result, dict):
+        return {"outcome": "error", "message": "render result must be an object"}
+    exit_code = result.get("exit_code")
+    status = result.get("status")
+    mismatches = result.get("mismatches")
+    if (
+        not isinstance(exit_code, int)
+        or isinstance(exit_code, bool)
+        or exit_code not in {0, 1, 2}
+        or not isinstance(status, str)
+        or not isinstance(mismatches, list)
+        or any(not isinstance(item, str) for item in mismatches)
+    ):
+        return {"outcome": "error", "message": "invalid renderer result contract"}
+    if exit_code == 0 and status == "pass" and not mismatches:
+        return {"outcome": "pass", "message": "coherent pass"}
+    if exit_code == 1 and status == "mismatch" and mismatches:
+        return {
+            "outcome": "fail",
+            "message": "; ".join(mismatches),
+        }
+    message = result.get("message")
+    return {
+        "outcome": "error",
+        "message": message if isinstance(message, str) else "renderer check error",
+    }
 
 
 def _validate_reset_record(manifest: dict) -> str:
@@ -593,31 +690,84 @@ def _bind_human_approval(
     reviewed_manifest: dict,
     reviewed_manifest_bytes: bytes,
     publish_status: str,
-) -> None:
-    """Change only status/approval while preserving every reviewed Markdown byte."""
+    *,
+    recorded_by: str,
+    approval_authority: str,
+    approval_reference: str,
+    approval_time: str,
+) -> str:
+    """Change only lifecycle/approval while preserving reviewed Markdown bytes."""
     expected = copy.deepcopy(reviewed_manifest)
-    expected["status"] = publish_status
+    expected["lifecycle_status"] = "published"
     expected["approval"] = {
         "decision": publish_status,
-        "recorded_by": "human",
+        "recorded_by": recorded_by,
+        "recorded_at": approval_time,
+        "authority": approval_authority,
+        "reference": approval_reference,
         "gate": FINAL_APPROVAL_GATE,
+        "review_payload_sha256": reviewed_manifest["approval"][
+            "review_payload_sha256"
+        ],
+        "receipt_sha256": None,
     }
     manifest_path = stage / "architecture.json"
     if manifest_path.read_bytes() != reviewed_manifest_bytes:
         raise PublishRuntimeError("staged manifest bytes did not preserve the reviewed manifest")
     try:
-        staged = json.loads(manifest_path.read_text(encoding="utf-8"))
+        staged = _strict_manifest_loads(
+            manifest_path.read_text(encoding="utf-8")
+        )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PublishRuntimeError(f"cannot bind approval to staged manifest: {exc}") from exc
     if staged != reviewed_manifest:
         raise PublishRuntimeError("staged manifest bytes did not preserve the reviewed JSON values")
-    manifest_path.write_text(json.dumps(expected, indent=2) + "\n", encoding="utf-8")
     try:
-        rebound = json.loads(manifest_path.read_text(encoding="utf-8"))
+        renderer = _load_renderer()
+        documents = renderer.render_documents(expected)
+        for path, expected_bytes in documents.items():
+            if (stage / path).read_bytes() != expected_bytes:
+                raise PublishRuntimeError(
+                    f"approval binding would change reviewed projection bytes: {path}"
+                )
+        receipt = renderer.receipt_sha256(expected, documents)
+    except PublishRuntimeError:
+        raise
+    except Exception as exc:
+        raise PublishRuntimeError(
+            f"cannot compute published approval receipt: {type(exc).__name__}: {exc}"
+        ) from exc
+    expected["approval"]["receipt_sha256"] = receipt
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".architecture.json.", suffix=".tmp", dir=stage
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(expected, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, manifest_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    try:
+        rebound = _strict_manifest_loads(
+            manifest_path.read_text(encoding="utf-8")
+        )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PublishRuntimeError(f"cannot verify staged approval binding: {exc}") from exc
     if rebound != expected:
-        raise PublishRuntimeError("staged manifest changed values beyond status and approval")
+        raise PublishRuntimeError(
+            "staged manifest changed values beyond lifecycle_status and approval"
+        )
+    for key in reviewed_manifest.keys() - {"lifecycle_status", "approval"}:
+        if rebound.get(key) != reviewed_manifest.get(key):
+            raise PublishRuntimeError(
+                f"staged manifest changed reviewed field beyond approval: {key}"
+            )
+    return receipt
 
 
 def _rollback(target: Path, backup: Path | None, rejected: Path) -> tuple[bool, str | None]:
@@ -641,6 +791,10 @@ def publish_package(
     slug: str,
     *,
     publish_status: str,
+    recorded_by: str | None = None,
+    approval_authority: str | None = None,
+    approval_reference: str | None = None,
+    approval_time: str | None = None,
     allow_extra_cleanup: bool = False,
     accept_human_approved_reset: bool = False,
 ) -> tuple[dict, int]:
@@ -658,6 +812,10 @@ def publish_package(
         "prior": None,
         "prelint": None,
         "prelint_validation": None,
+        "pre_render_check": None,
+        "pre_render_validation": None,
+        "stage_render_check": None,
+        "stage_render_validation": None,
         "stage_lint": None,
         "stage_lint_validation": None,
         "final_lint": None,
@@ -681,6 +839,7 @@ def publish_package(
         },
         "warnings": [],
         "published_revision": None,
+        "package_receipt_sha256": None,
         "publish_status": publish_status,
         "revision_reset": None,
         "message": None,
@@ -716,6 +875,14 @@ def publish_package(
             raise PublishInputError("scratch package must be outside the repository root")
 
         manifest, reviewed_bytes = _require_exact_scratch(scratch)
+        if (
+            manifest.get("$schema") != ARCHITECTURE_SCHEMA_URN
+            or manifest.get("schema_version") != ARCHITECTURE_SCHEMA_VERSION
+        ):
+            raise PublishInputError(
+                "publisher accepts only ce-architecture schema v2 packages; "
+                "regenerate legacy packages"
+            )
         if manifest.get("project_slug") != slug:
             raise PublishInputError(
                 f"scratch project_slug {manifest.get('project_slug')!r} does not match {slug!r}"
@@ -729,14 +896,70 @@ def publish_package(
             raise PublishInputError(
                 f"publish status must be one of {sorted(PUBLISHED_STATUSES)}"
             )
-        if manifest.get("status") != "proposed":
-            raise PublishInputError("reviewed scratch status must be 'proposed'")
-        approval = manifest.get("approval")
-        if not isinstance(approval, dict) or approval != PENDING_APPROVAL:
+        if manifest.get("baseline_status") != publish_status:
             raise PublishInputError(
-                "reviewed scratch approval must be pending at Final Architecture Approval"
+                "publish status must equal the reviewed scratch baseline_status"
+            )
+        if manifest.get("lifecycle_status") != "proposed":
+            raise PublishInputError(
+                "reviewed scratch lifecycle_status must be 'proposed'"
+            )
+        for value, label in (
+            (recorded_by, "recorded_by"),
+            (approval_authority, "approval_authority"),
+            (approval_reference, "approval_reference"),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise PublishInputError(f"{label} must be a non-empty string")
+            if APPROVAL_PLACEHOLDER_RE.fullmatch(value.strip()):
+                raise PublishInputError(
+                    f"{label} must be durable approval information, not a placeholder"
+                )
+        if approval_time is None:
+            approval_time = (
+                datetime.now(timezone.utc)
+                .isoformat(timespec="seconds")
+                .replace("+00:00", "Z")
+            )
+        if not isinstance(approval_time, str) or not RFC3339_UTC_RE.fullmatch(
+            approval_time
+        ):
+            raise PublishInputError("approval_time must be RFC 3339 UTC")
+        approval = manifest.get("approval")
+        pending_without_review = {
+            **PENDING_APPROVAL,
+            "review_payload_sha256": (
+                approval.get("review_payload_sha256")
+                if isinstance(approval, dict)
+                else None
+            ),
+        }
+        if (
+            not isinstance(approval, dict)
+            or approval != pending_without_review
+            or not isinstance(approval.get("review_payload_sha256"), str)
+            or not SHA_RE.fullmatch(approval["review_payload_sha256"])
+        ):
+            raise PublishInputError(
+                "reviewed scratch approval must be canonical pending with a "
+                "deterministic review payload digest"
             )
         new_revision = _manifest_revision(manifest, label="scratch")
+
+        pre_render = run_render_check(scratch)
+        result["pre_render_check"] = pre_render
+        pre_render_validation = _assess_render_result(pre_render)
+        result["pre_render_validation"] = pre_render_validation
+        if pre_render_validation["outcome"] == "error":
+            raise PublishRuntimeError(
+                "scratch renderer check could not be trusted: "
+                + pre_render_validation["message"]
+            )
+        if pre_render_validation["outcome"] == "fail":
+            raise PublishInputError(
+                "scratch deterministic render check failed: "
+                + pre_render_validation["message"]
+            )
 
         prelint = run_lint(scratch, repo_root, allow_proposed=True)
         result["prelint"] = prelint
@@ -837,12 +1060,31 @@ def publish_package(
         # Scratch was linted before the lock mutation. Package authority and
         # revision checks then ran under that exclusive same-parent lock.
         stage = _copy_to_stage(scratch, plan_dir, reviewed_bytes)
-        _bind_human_approval(
+        receipt = _bind_human_approval(
             stage,
             manifest,
             reviewed_bytes["architecture.json"],
             publish_status,
+            recorded_by=recorded_by,
+            approval_authority=approval_authority,
+            approval_reference=approval_reference,
+            approval_time=approval_time,
         )
+        result["package_receipt_sha256"] = receipt
+        stage_render = run_render_check(stage)
+        result["stage_render_check"] = stage_render
+        stage_render_validation = _assess_render_result(stage_render)
+        result["stage_render_validation"] = stage_render_validation
+        if stage_render_validation["outcome"] == "error":
+            raise PublishRuntimeError(
+                "same-parent staged renderer check could not be trusted: "
+                + stage_render_validation["message"]
+            )
+        if stage_render_validation["outcome"] == "fail":
+            raise PublishInputError(
+                "same-parent staged deterministic render check failed: "
+                + stage_render_validation["message"]
+            )
         stage_lint = run_lint(stage, repo_root)
         result["stage_lint"] = stage_lint
         stage_lint_validation = _assess_lint_result(stage_lint)
@@ -979,6 +1221,25 @@ def main(argv: list[str] | None = None) -> int:
         help="human-selected final package status",
     )
     parser.add_argument(
+        "--recorded-by",
+        required=True,
+        help="identity or recorded role of the approving human",
+    )
+    parser.add_argument(
+        "--approval-authority",
+        required=True,
+        help="human solution/technical architecture approval authority",
+    )
+    parser.add_argument(
+        "--approval-reference",
+        required=True,
+        help="durable review, ticket, or change-control reference",
+    )
+    parser.add_argument(
+        "--approval-time",
+        help="RFC 3339 UTC approval time; defaults to publisher-recorded current UTC",
+    )
+    parser.add_argument(
         "--allow-extra-cleanup",
         action="store_true",
         help="allow an approved replacement to remove unexpected prior-package entries",
@@ -996,6 +1257,10 @@ def main(argv: list[str] | None = None) -> int:
         args.repo_root,
         args.plan_slug,
         publish_status=args.publish_status,
+        recorded_by=args.recorded_by,
+        approval_authority=args.approval_authority,
+        approval_reference=args.approval_reference,
+        approval_time=args.approval_time,
         allow_extra_cleanup=args.allow_extra_cleanup,
         accept_human_approved_reset=args.accept_human_approved_reset,
     )

@@ -44,6 +44,40 @@ class ScratchWriteTests(unittest.TestCase):
                 MODULE.write_scratch(scratch, "architecture.json", b"{")
             self.assertEqual(json.loads(target.read_text(encoding="utf-8")), {"old": True})
 
+    def test_architecture_json_requires_strict_schema_v2(self):
+        with tempfile.TemporaryDirectory() as td:
+            scratch = Path(td) / "owned"
+            scratch.mkdir()
+            with self.assertRaisesRegex(ValueError, "schema v2"):
+                MODULE.write_scratch(
+                    scratch,
+                    "architecture.json",
+                    json.dumps({"schema_version": 1}).encode("utf-8"),
+                )
+            payload = json.dumps(
+                {
+                    "$schema": MODULE.ARCHITECTURE_SCHEMA_URN,
+                    "schema_version": MODULE.ARCHITECTURE_SCHEMA_VERSION,
+                }
+            ).encode("utf-8")
+            self.assertEqual(
+                MODULE.write_scratch(
+                    scratch, "architecture.json", payload
+                ).read_bytes(),
+                payload,
+            )
+
+    def test_architecture_json_rejects_duplicate_keys(self):
+        with tempfile.TemporaryDirectory() as td:
+            scratch = Path(td) / "owned"
+            scratch.mkdir()
+            payload = (
+                b'{"$schema":"urn:vg-sdlc:ce-architecture:architecture:v2",'
+                b'"schema_version":2,"schema_version":2}'
+            )
+            with self.assertRaisesRegex(ValueError, "duplicate JSON object key"):
+                MODULE.write_scratch(scratch, "architecture.json", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

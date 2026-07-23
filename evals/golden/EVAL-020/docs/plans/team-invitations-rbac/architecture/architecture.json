@@ -1,127 +1,867 @@
 {
-  "schema_version": 1,
+  "$schema": "urn:vg-sdlc:ce-architecture:architecture:v2",
+  "schema_version": 2,
+  "generator": {
+    "name": "/core-engineering:ce-architecture",
+    "version": "0.10.7"
+  },
   "project_slug": "team-invitations-rbac",
-  "status": "approved",
-  "architecture_revision": 1,
+  "lifecycle_status": "published",
+  "baseline_status": "accepted-for-specification-with-gaps",
+  "architecture_revision": 3,
   "source_plan_revision": 1,
   "source_plan_path": "docs/plans/team-invitations-rbac",
   "sources": [
-    {"path": "docs/plans/team-invitations-rbac/plan.json", "sha256": "cb97726c179115879a3a4f6b150dac2e183d9f95aca821200d507ab6e4351a2f", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/architecture-selection.json", "sha256": "b42a05aa3127f1ce26f368a040628a7e43c864481d51d14c5eed109530b1d80b", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/feature-plan.md", "sha256": "9e4f476c8e5fd2f7d05094c85f197beb67babd1de50d495e65e72257e1f2e05e", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/shared-context.md", "sha256": "710b1b572379a0c76653d5e0ab41ef89eb9896ed4aaa36ae4c656d3421dd18b3", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/threat-model.md", "sha256": "7a1eaac1746c3199ed2a0d1d7ba8d21cb64185126acac0f374f1914d85a9942d", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/interaction-contract.md", "sha256": "2d594a2084ca7fc4add87e84a231d45b7ce26d3158fcf381e8546854aeeca64f", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md", "sha256": "f9eea14208ed41134e32f021f71d36a5fcea008e32f630ab0daea4e2c6506bf4", "kind": "plan"},
-    {"path": "docs/plans/team-invitations-rbac/features/02-team-invitations.md", "sha256": "1ad7b0a72a508928c863efeabbc453afe2e849a79f130fc01997e48470de271e", "kind": "plan"},
-    {"path": "docs/briefs/team-invitations-rbac.md", "sha256": "6c48d52ac4c4713cb27fbda8c4094077d64c760f4ea11ee14177796368267387", "kind": "brief"},
-    {"path": "docs/adr/0001-single-service-runtime.md", "sha256": "444870d98f6f26b1d433c06471bc7a58c6c67545adef022213fb0baf1537d492", "kind": "adr"},
-    {"path": "src/auth.py", "sha256": "2635ae93bb494c69282ae4fa0aaeb2b22def5e3060d074d597f3f9ae1d43dad6", "kind": "repository"},
-    {"path": "src/invitations.py", "sha256": "f82027e59e07c8d26482264ca9cb2083f0a7a2cc990ef2d8fa479324a0feafc3", "kind": "repository"},
-    {"path": "deploy/compose.yaml", "sha256": "72c4b451f75c6613abacd3d07236c9e9614e17feaeb6e2caf5c75b1e97e65b45", "kind": "repository"},
-    {"path": "Dockerfile", "sha256": "c9d3e98e443a2ec2ccae9f6fd9c2755e0e9b4a434070202954df520e8dd23032", "kind": "repository"}
+    {
+      "path": "Dockerfile",
+      "sha256": "c9d3e98e443a2ec2ccae9f6fd9c2755e0e9b4a434070202954df520e8dd23032",
+      "kind": "repository"
+    },
+    {
+      "path": "deploy/compose.yaml",
+      "sha256": "72c4b451f75c6613abacd3d07236c9e9614e17feaeb6e2caf5c75b1e97e65b45",
+      "kind": "repository"
+    },
+    {
+      "path": "docs/adr/0001-single-service-runtime.md",
+      "sha256": "444870d98f6f26b1d433c06471bc7a58c6c67545adef022213fb0baf1537d492",
+      "kind": "adr"
+    },
+    {
+      "path": "docs/briefs/team-invitations-rbac.md",
+      "sha256": "6c48d52ac4c4713cb27fbda8c4094077d64c760f4ea11ee14177796368267387",
+      "kind": "brief"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/architecture-selection.json",
+      "sha256": "b42a05aa3127f1ce26f368a040628a7e43c864481d51d14c5eed109530b1d80b",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/feature-plan.md",
+      "sha256": "9e4f476c8e5fd2f7d05094c85f197beb67babd1de50d495e65e72257e1f2e05e",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md",
+      "sha256": "f9eea14208ed41134e32f021f71d36a5fcea008e32f630ab0daea4e2c6506bf4",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/features/02-team-invitations.md",
+      "sha256": "1ad7b0a72a508928c863efeabbc453afe2e849a79f130fc01997e48470de271e",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/interaction-contract.md",
+      "sha256": "2d594a2084ca7fc4add87e84a231d45b7ce26d3158fcf381e8546854aeeca64f",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/plan.json",
+      "sha256": "cb97726c179115879a3a4f6b150dac2e183d9f95aca821200d507ab6e4351a2f",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/shared-context.md",
+      "sha256": "710b1b572379a0c76653d5e0ab41ef89eb9896ed4aaa36ae4c656d3421dd18b3",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/team-invitations-rbac/threat-model.md",
+      "sha256": "7a1eaac1746c3199ed2a0d1d7ba8d21cb64185126acac0f374f1914d85a9942d",
+      "kind": "plan"
+    },
+    {
+      "path": "src/auth.py",
+      "sha256": "2635ae93bb494c69282ae4fa0aaeb2b22def5e3060d074d597f3f9ae1d43dad6",
+      "kind": "repository"
+    },
+    {
+      "path": "src/invitations.py",
+      "sha256": "f82027e59e07c8d26482264ca9cb2083f0a7a2cc990ef2d8fa479324a0feafc3",
+      "kind": "repository"
+    }
   ],
-  "artifacts": {
-    "overview": "solution-architecture.md",
-    "views": "views.md",
-    "data_and_integrations": "data-and-integrations.md",
-    "quality_attributes": "quality-attributes.md"
+  "projections": [
+    {
+      "id": "PROJ-001",
+      "projection_type": "solution-architecture",
+      "path": "solution-architecture.md",
+      "required": true,
+      "sha256": "6a580a8ebde8097a6c6be1fcdca096a5f584bd10688708aa905f35ea601633f2"
+    },
+    {
+      "id": "PROJ-002",
+      "projection_type": "architecture-views",
+      "path": "views.md",
+      "required": true,
+      "sha256": "259e9cab3359682e1517b08f54631e0fc45fc39f02c27d6be41002bb448ca8bc"
+    },
+    {
+      "id": "PROJ-003",
+      "projection_type": "data-and-integrations",
+      "path": "data-and-integrations.md",
+      "required": true,
+      "sha256": "46522492e678f6058dac6e25e205cfa7b48044573c6b82c2fcdc774ab0c41ec9"
+    },
+    {
+      "id": "PROJ-004",
+      "projection_type": "quality-attributes",
+      "path": "quality-attributes.md",
+      "required": true,
+      "sha256": "702beed8bc20a439d63ad9b59ab57ac8b598a28cb7ed9c9210637e9bc1236dfa"
+    }
+  ],
+  "coverage_profile": {
+    "profile_id": "solution-baseline-v2",
+    "trigger_ids": [
+      "explicit-architecture-deliverable",
+      "trust-residency-or-sensitive-boundary",
+      "shared-data-ownership-or-migration"
+    ],
+    "required_dimensions": [
+      "direction_realization",
+      "system_context",
+      "containers",
+      "deployment",
+      "data",
+      "integrations",
+      "dynamic_behavior",
+      "security",
+      "contracts",
+      "quality_attributes",
+      "operability",
+      "requirements_traceability"
+    ]
   },
   "coverage": {
-    "system_context": {"status": "complete", "material": false, "reason": "actors and public boundary trace to the plan journey"},
-    "containers": {"status": "complete", "material": false, "reason": "logical runtime responsibilities trace to both features and ADR-0001"},
-    "deployment": {"status": "complete", "material": false, "reason": "Docker Compose records the application and PostgreSQL nodes"},
-    "data": {"status": "complete", "material": false, "reason": "both durable nouns retain plan-owned ownership and lifecycle dispositions"},
-    "integrations": {"status": "complete", "material": false, "reason": "HTTPS, authorization, and persistence flows trace to plan headings"},
-    "quality_attributes": {"status": "complete", "material": false, "reason": "three literal requirement targets map to tactics and verification"},
-    "security": {"status": "complete", "material": false, "reason": "TZ-001 and TZ-002 are re-projected without reassignment"},
-    "operability": {"status": "complete", "material": false, "reason": "failure behavior and verification ownership are explicit at architecture scope"},
-    "requirements_traceability": {"status": "complete", "material": false, "reason": "each plan feature has exactly one architecture mapping"}
+    "direction_realization": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    "system_context": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    "containers": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/adr/0001-single-service-runtime.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    "deployment": {
+      "status": "gap",
+      "gap_ids": [
+        "GAP-001"
+      ],
+      "evidence": [
+        "Dockerfile",
+        "deploy/compose.yaml",
+        "docs/briefs/team-invitations-rbac.md"
+      ]
+    },
+    "data": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    },
+    "integrations": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    },
+    "dynamic_behavior": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    "security": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/threat-model.md"
+      ]
+    },
+    "contracts": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    },
+    "transitions": {
+      "status": "not-applicable",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    "quality_attributes": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md"
+      ]
+    },
+    "operability": {
+      "status": "gap",
+      "gap_ids": [
+        "GAP-002",
+        "GAP-003"
+      ],
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
+    },
+    "requirements_traceability": {
+      "status": "complete",
+      "gap_ids": [],
+      "evidence": [
+        "docs/plans/team-invitations-rbac/plan.json"
+      ]
+    }
   },
+  "readiness": {
+    "status": "ready-with-gaps",
+    "blocking_gap_ids": [],
+    "non_blocking_gap_ids": [
+      "GAP-001",
+      "GAP-002",
+      "GAP-003"
+    ],
+    "summary": "The baseline is accepted for specification with explicit non-material gaps for production topology, recovery targets, and operations ownership."
+  },
+  "narrative": {
+    "executive_summary": "Team invitations and role-based authorization remain in one Python application runtime with explicit authorization, invitation, persistence, trust, and transaction boundaries.",
+    "scope": [
+      "Role and authorization foundation",
+      "Invitation creation, listing, and acceptance",
+      "Architecture-level component, deployment, data, trust, contract, transition, quality, and operations consequences"
+    ],
+    "non_goals": [
+      "Email delivery implementation",
+      "Production deployment topology selection",
+      "Endpoint payload, database schema, or implementation-test specification"
+    ],
+    "architecture_overview": "A browser or API client calls the invitation component over HTTPS. The invitation component crosses the in-process authorization boundary before PostgreSQL persistence, and invitation acceptance coordinates token consumption with unique membership creation in one transaction.",
+    "assumptions": [
+      {
+        "id": "AS-001",
+        "statement": "The existing Python runtime and PostgreSQL database remain adequate for the recorded invitation load.",
+        "evidence_state": "inferred",
+        "evidence": [
+          "docs/plans/team-invitations-rbac/architecture-selection.json",
+          "docs/briefs/team-invitations-rbac.md"
+        ]
+      }
+    ],
+    "validation_strategy": [
+      {
+        "id": "VAL-001",
+        "statement": "Verify authorization-before-write, idempotent acceptance, literal latency criteria, and deterministic architecture traceability before downstream implementation approval.",
+        "owner": "specification and verification workflows",
+        "evidence_state": "recorded",
+        "evidence": [
+          "docs/briefs/team-invitations-rbac.md",
+          "docs/plans/team-invitations-rbac/plan.json"
+        ]
+      }
+    ],
+    "evidence_boundary": "The baseline uses the written plan, accepted direction, brief, ADR, Python fixture, Dockerfile, and local Docker Compose topology. No production deployment description, recovery objective, or operations ownership record was available.",
+    "consistency_model": "Invitation acceptance consumes one token and creates at most one team membership through a transaction and uniqueness invariant; authorization denial terminates before a durable write.",
+    "security_privacy_summary": "The architecture realizes both plan-owned threat obligations through a public API boundary and an explicit authorization chokepoint. This is design traceability, not security acceptance.",
+    "operability_summary": "The request path exposes latency, denial, persistence-failure, and replay signals, while production signal ownership and runbook ownership remain GAP-003.",
+    "capacity_resilience_recovery_summary": "The brief records a p95 latency requirement and the fixture records one local application and database. Production capacity, topology, availability, and recovery targets remain explicit downstream gaps.",
+    "cost_complexity_summary": "The selected single-runtime direction avoids a new service boundary and migration while retaining logical seams for a later evidence-backed extraction."
+  },
+  "drivers": [
+    {
+      "id": "DRV-001",
+      "name": "Existing runtime fit",
+      "statement": "The capability extends the repository's existing Python service and PostgreSQL deployment.",
+      "source": "docs/briefs/team-invitations-rbac.md",
+      "consequence": "Authorization, invitation, and persistence responsibilities remain logical components in one deployable runtime.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/adr/0001-single-service-runtime.md"
+      ]
+    },
+    {
+      "id": "DRV-002",
+      "name": "Authorization before persistence",
+      "statement": "Protected invitation and membership writes require authorization before persistence.",
+      "source": "docs/plans/team-invitations-rbac/threat-model.md",
+      "consequence": "Every protected write crosses the authorization component before the PostgreSQL write path.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    {
+      "id": "DRV-003",
+      "name": "Idempotent invitation acceptance",
+      "statement": "Invitation acceptance is idempotent per invitation token.",
+      "source": "docs/plans/team-invitations-rbac/interaction-contract.md",
+      "consequence": "Token consumption and unique membership creation share one transactional contract.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    },
+    {
+      "id": "DRV-004",
+      "name": "Invitation latency target",
+      "statement": "Invitation creation must complete at p95 under 500 ms under normal load.",
+      "source": "docs/briefs/team-invitations-rbac.md",
+      "consequence": "The synchronous request path remains bounded and observable.",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md"
+      ]
+    },
+    {
+      "id": "DRV-005",
+      "name": "Recorded local topology",
+      "statement": "The repository records a Docker Compose application plus PostgreSQL topology.",
+      "source": "docs/plans/team-invitations-rbac/shared-context.md",
+      "consequence": "The baseline describes the observed local topology without claiming an unrecorded production topology.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "observed",
+      "evidence": [
+        "Dockerfile",
+        "deploy/compose.yaml",
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
+    }
+  ],
+  "actors": [
+    {
+      "id": "A-001",
+      "name": "Team administrator",
+      "kind": "role",
+      "roles": [
+        "Create and list team invitations",
+        "Choose an existing team role for an invitee"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    {
+      "id": "A-002",
+      "name": "Invited user",
+      "kind": "role",
+      "roles": [
+        "Accept an invitation token and become a team member"
+      ],
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    }
+  ],
+  "system_boundary": {
+    "id": "SB-001",
+    "name": "Team invitations and RBAC system",
+    "responsibility": "Authorize team operations and manage invitation and membership lifecycle within the written plan.",
+    "in_scope": [
+      "Role and authorization foundation",
+      "Invitation creation, listing, acceptance, and membership creation"
+    ],
+    "out_of_scope": [
+      "Email delivery",
+      "Production deployment topology selection"
+    ],
+    "evidence_state": "recorded",
+    "evidence": [
+      "docs/briefs/team-invitations-rbac.md",
+      "docs/plans/team-invitations-rbac/feature-plan.md"
+    ]
+  },
+  "context_relationships": [
+    {
+      "id": "CR-001",
+      "from": "A-001",
+      "to": "SB-001",
+      "interaction": "Authorize and manage team invitations",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    {
+      "id": "CR-002",
+      "from": "A-002",
+      "to": "SB-001",
+      "interaction": "Accept an invitation and become a team member",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    }
+  ],
   "components": [
     {
       "id": "C-001",
       "name": "Browser or API client",
       "kind": "user-interface",
+      "responsibilities": [
+        "Submit invitation and acceptance requests and present explicit outcomes"
+      ],
+      "owner": "calling client",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
       "evidence_state": "recorded",
-      "responsibilities": ["Send invitation and acceptance requests and render explicit outcomes"],
-      "features": ["02-team-invitations"],
-      "evidence": ["docs/plans/team-invitations-rbac/feature-plan.md"]
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
     },
     {
       "id": "C-002",
       "name": "Invitation application component",
       "kind": "service",
+      "responsibilities": [
+        "Coordinate invitation creation, listing, token validation, and acceptance",
+        "Invoke authorization before protected persistence"
+      ],
+      "owner": "application team",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "inferred",
-      "responsibilities": ["Coordinate invitation creation, listing, and acceptance"],
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
-      "evidence": ["src/invitations.py", "docs/adr/0001-single-service-runtime.md"]
+      "evidence": [
+        "src/invitations.py",
+        "docs/adr/0001-single-service-runtime.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
     },
     {
       "id": "C-003",
       "name": "Authorization and membership component",
       "kind": "service",
+      "responsibilities": [
+        "Evaluate team capabilities",
+        "Own membership invariants and authorization-before-write behavior"
+      ],
+      "owner": "application team",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "recorded",
-      "responsibilities": ["Evaluate capabilities and own membership invariants"],
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
-      "evidence": ["src/auth.py", "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md"]
+      "evidence": [
+        "src/auth.py",
+        "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md"
+      ]
     },
     {
       "id": "C-004",
       "name": "PostgreSQL data store",
       "kind": "data-store",
+      "responsibilities": [
+        "Persist invitation and membership records as the source of truth",
+        "Enforce transactional and uniqueness constraints"
+      ],
+      "owner": "application data owner",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "observed",
-      "responsibilities": ["Persist invitation and membership records as the source of truth"],
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
-      "evidence": ["deploy/compose.yaml", "docs/plans/team-invitations-rbac/feature-plan.md"]
+      "evidence": [
+        "deploy/compose.yaml",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
     }
   ],
   "relationships": [
-    {"id": "R-001", "from": "C-001", "to": "C-002", "interaction": "Authenticated HTTPS invitation API", "evidence_state": "recorded", "evidence": ["docs/plans/team-invitations-rbac/threat-model.md"]},
-    {"id": "R-002", "from": "C-002", "to": "C-003", "interaction": "In-process authorization and membership call", "evidence_state": "recorded", "evidence": ["docs/plans/team-invitations-rbac/feature-plan.md"]},
-    {"id": "R-003", "from": "C-002", "to": "C-004", "interaction": "PostgreSQL invitation transaction", "evidence_state": "inferred", "evidence": ["docs/plans/team-invitations-rbac/interaction-contract.md"]},
-    {"id": "R-004", "from": "C-003", "to": "C-004", "interaction": "PostgreSQL membership read and write", "evidence_state": "inferred", "evidence": ["docs/plans/team-invitations-rbac/interaction-contract.md"]}
+    {
+      "id": "R-001",
+      "from": "C-001",
+      "to": "C-002",
+      "interaction": "Submit authenticated invitation and acceptance requests",
+      "protocol": "HTTPS",
+      "communication_mode": "synchronous",
+      "contract_realization_ids": [],
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
+    },
+    {
+      "id": "R-002",
+      "from": "C-002",
+      "to": "C-003",
+      "interaction": "Evaluate authorization and coordinate membership behavior",
+      "protocol": "Python call",
+      "communication_mode": "in-process",
+      "contract_realization_ids": [],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/adr/0001-single-service-runtime.md"
+      ]
+    },
+    {
+      "id": "R-003",
+      "from": "C-002",
+      "to": "C-004",
+      "interaction": "Persist and read invitation state within the acceptance transaction",
+      "protocol": "PostgreSQL",
+      "communication_mode": "data-access",
+      "contract_realization_ids": [
+        "CTR-001"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "deploy/compose.yaml"
+      ]
+    },
+    {
+      "id": "R-004",
+      "from": "C-003",
+      "to": "C-004",
+      "interaction": "Read and write membership state with uniqueness enforcement",
+      "protocol": "PostgreSQL",
+      "communication_mode": "data-access",
+      "contract_realization_ids": [
+        "CTR-001"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "deploy/compose.yaml"
+      ]
+    }
   ],
   "deployment_nodes": [
     {
       "id": "N-001",
       "name": "User agent",
-      "environment": "client",
+      "environment": "client environment",
+      "provider": "user-managed client environment",
+      "runtime": "browser or API client",
+      "region": "unknown",
+      "zones": [
+        "unknown"
+      ],
+      "network_zone": "unknown",
+      "residency": "unknown",
+      "scaling": "unknown",
+      "availability": "unknown",
+      "trust_boundary_ids": [
+        "TB-001"
+      ],
+      "feature_ids": [
+        "02-team-invitations"
+      ],
       "evidence_state": "recorded",
-      "evidence": ["docs/briefs/team-invitations-rbac.md"],
-      "evidence_claims": {
-        "name": {"path": "docs/briefs/team-invitations-rbac.md", "literal": "recipient accepts the invitation", "derivation": "User agent"},
-        "environment": {"path": "docs/briefs/team-invitations-rbac.md", "literal": "notification adapter", "derivation": "client"}
-      }
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md"
+      ],
+      "evidence_claims": [
+        {
+          "field": "name",
+          "path": "docs/briefs/team-invitations-rbac.md",
+          "literal": "recipient accepts the invitation",
+          "derivation": "User agent"
+        },
+        {
+          "field": "environment",
+          "path": "docs/briefs/team-invitations-rbac.md",
+          "literal": "notification adapter",
+          "derivation": "client environment"
+        }
+      ]
     },
     {
       "id": "N-002",
       "name": "Application container",
       "environment": "local-compose",
+      "provider": "Docker Compose",
+      "runtime": "Python 3.13 application container",
+      "region": "unknown",
+      "zones": [
+        "unknown"
+      ],
+      "network_zone": "unknown",
+      "residency": "unknown",
+      "scaling": "unknown",
+      "availability": "unknown",
+      "trust_boundary_ids": [
+        "TB-001"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "observed",
-      "evidence": ["Dockerfile", "deploy/compose.yaml"],
-      "evidence_claims": {
-        "name": {"path": "Dockerfile", "literal": "FROM python:3.13-slim", "derivation": "Application container"},
-        "environment": {"path": "deploy/compose.yaml", "literal": "services:", "derivation": "local-compose"}
-      }
+      "evidence": [
+        "Dockerfile",
+        "deploy/compose.yaml"
+      ],
+      "evidence_claims": [
+        {
+          "field": "name",
+          "path": "Dockerfile",
+          "literal": "FROM python:3.13-slim",
+          "derivation": "Application container"
+        },
+        {
+          "field": "environment",
+          "path": "deploy/compose.yaml",
+          "literal": "services:",
+          "derivation": "local-compose"
+        },
+        {
+          "field": "provider",
+          "path": "deploy/compose.yaml",
+          "literal": "services:",
+          "derivation": "Docker Compose"
+        },
+        {
+          "field": "runtime",
+          "path": "Dockerfile",
+          "literal": "FROM python:3.13-slim",
+          "derivation": "Python 3.13 application container"
+        }
+      ]
     },
     {
       "id": "N-003",
       "name": "PostgreSQL container",
       "environment": "local-compose",
+      "provider": "Docker Compose",
+      "runtime": "PostgreSQL 17 container",
+      "region": "unknown",
+      "zones": [
+        "unknown"
+      ],
+      "network_zone": "unknown",
+      "residency": "unknown",
+      "scaling": "unknown",
+      "availability": "unknown",
+      "trust_boundary_ids": [],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "observed",
-      "evidence": ["deploy/compose.yaml"],
-      "evidence_claims": {
-        "name": {"path": "deploy/compose.yaml", "literal": "image: postgres:17", "derivation": "PostgreSQL container"},
-        "environment": {"path": "deploy/compose.yaml", "literal": "services:", "derivation": "local-compose"}
-      }
+      "evidence": [
+        "deploy/compose.yaml"
+      ],
+      "evidence_claims": [
+        {
+          "field": "name",
+          "path": "deploy/compose.yaml",
+          "literal": "image: postgres:17",
+          "derivation": "PostgreSQL container"
+        },
+        {
+          "field": "environment",
+          "path": "deploy/compose.yaml",
+          "literal": "services:",
+          "derivation": "local-compose"
+        },
+        {
+          "field": "provider",
+          "path": "deploy/compose.yaml",
+          "literal": "services:",
+          "derivation": "Docker Compose"
+        },
+        {
+          "field": "runtime",
+          "path": "deploy/compose.yaml",
+          "literal": "image: postgres:17",
+          "derivation": "PostgreSQL 17 container"
+        }
+      ]
     }
   ],
   "deployments": [
-    {"component_id": "C-001", "node_ids": ["N-001"], "evidence_state": "inferred", "evidence": ["docs/briefs/team-invitations-rbac.md"]},
-    {"component_id": "C-002", "node_ids": ["N-002"], "evidence_state": "inferred", "evidence": ["Dockerfile", "deploy/compose.yaml"]},
-    {"component_id": "C-003", "node_ids": ["N-002"], "evidence_state": "inferred", "evidence": ["docs/adr/0001-single-service-runtime.md", "Dockerfile"]},
-    {"component_id": "C-004", "node_ids": ["N-003"], "evidence_state": "observed", "evidence": ["deploy/compose.yaml"]}
+    {
+      "id": "DP-001",
+      "component_id": "C-001",
+      "node_ids": [
+        "N-001"
+      ],
+      "replica_strategy": "Client instances are caller-managed; production expectations are tracked by GAP-001.",
+      "scaling": "Client concurrency is outside the deployable application boundary.",
+      "failover": "Caller retry is bounded by the interaction contract and explicit API outcomes.",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md"
+      ]
+    },
+    {
+      "id": "DP-002",
+      "component_id": "C-002",
+      "node_ids": [
+        "N-002"
+      ],
+      "replica_strategy": "The fixture records one local application service; production replica strategy is tracked by GAP-001.",
+      "scaling": "Production application scaling is not recorded and is tracked by GAP-001.",
+      "failover": "Production application failover is not recorded and is tracked by GAP-001.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "observed",
+      "evidence": [
+        "Dockerfile",
+        "deploy/compose.yaml"
+      ]
+    },
+    {
+      "id": "DP-003",
+      "component_id": "C-003",
+      "node_ids": [
+        "N-002"
+      ],
+      "replica_strategy": "Authorization shares the application placement and its GAP-001 production replica decision.",
+      "scaling": "Authorization scales with the application placement under the future production topology.",
+      "failover": "Authorization shares the application failure domain until a new plan and ADR change it.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/adr/0001-single-service-runtime.md",
+        "Dockerfile"
+      ]
+    },
+    {
+      "id": "DP-004",
+      "component_id": "C-004",
+      "node_ids": [
+        "N-003"
+      ],
+      "replica_strategy": "The fixture records one local database service; production replica strategy is tracked by GAP-001.",
+      "scaling": "Production database scaling is not recorded and is tracked by GAP-001.",
+      "failover": "Production database failover is not recorded and is tracked by GAP-001.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "observed",
+      "evidence": [
+        "deploy/compose.yaml"
+      ]
+    }
+  ],
+  "deployment_connections": [
+    {
+      "id": "DC-001",
+      "from_node": "N-001",
+      "to_node": "N-002",
+      "direction": "bidirectional",
+      "protocol": "HTTPS",
+      "purpose": "Submit invitation and acceptance requests and receive explicit outcomes",
+      "network_boundary": "Public client to application boundary; production controls are tracked by GAP-001.",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md",
+        "docs/plans/team-invitations-rbac/threat-model.md"
+      ]
+    },
+    {
+      "id": "DC-002",
+      "from_node": "N-002",
+      "to_node": "N-003",
+      "direction": "bidirectional",
+      "protocol": "PostgreSQL",
+      "purpose": "Read and write invitation and membership state transactionally",
+      "network_boundary": "Local Compose application-to-data boundary; production controls are tracked by GAP-001.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "observed",
+      "evidence": [
+        "deploy/compose.yaml"
+      ]
+    }
   ],
   "data_entities": [
     {
@@ -129,179 +869,1519 @@
       "name": "membership",
       "data_class": "personal",
       "source_of_truth": "C-004",
-      "writers": ["C-002", "C-003"],
-      "readers": ["C-002", "C-003"],
+      "writers": [
+        "C-002",
+        "C-003"
+      ],
+      "readers": [
+        "C-002",
+        "C-003"
+      ],
       "lifecycle": {
         "retain": "owned-by:01-roles-authz-foundation",
         "export": "owned-by:01-roles-authz-foundation",
         "erase": "owned-by:01-roles-authz-foundation"
       },
+      "consistency": "Membership creation is unique per team and user and is coordinated transactionally with invitation acceptance.",
+      "storage": "existing PostgreSQL data store",
+      "region_residency": "Production residency is not recorded; GAP-001 owns closure.",
+      "backup_recovery": "Production backup and recovery targets are not recorded; GAP-002 owns closure.",
+      "transition_ids": [],
       "plan_trace": "feature-plan.md#durable-state-closure",
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "inferred",
-      "evidence": ["docs/plans/team-invitations-rbac/feature-plan.md", "docs/plans/team-invitations-rbac/interaction-contract.md"]
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "deploy/compose.yaml"
+      ]
     },
     {
       "id": "DATA-002",
       "name": "invitation",
       "data_class": "personal",
       "source_of_truth": "C-004",
-      "writers": ["C-002"],
-      "readers": ["C-002"],
+      "writers": [
+        "C-002"
+      ],
+      "readers": [
+        "C-002"
+      ],
       "lifecycle": {
         "retain": "owned-by:02-team-invitations",
         "export": "owned-by:02-team-invitations",
         "erase": "owned-by:02-team-invitations"
       },
+      "consistency": "Invitation token consumption and membership creation complete in one acceptance transaction.",
+      "storage": "existing PostgreSQL data store",
+      "region_residency": "Production residency is not recorded; GAP-001 owns closure.",
+      "backup_recovery": "Production backup and recovery targets are not recorded; GAP-002 owns closure.",
+      "transition_ids": [],
       "plan_trace": "feature-plan.md#durable-state-closure",
-      "features": ["02-team-invitations"],
+      "feature_ids": [
+        "02-team-invitations"
+      ],
       "evidence_state": "inferred",
-      "evidence": ["docs/plans/team-invitations-rbac/feature-plan.md", "docs/plans/team-invitations-rbac/features/02-team-invitations.md"]
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/features/02-team-invitations.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
     }
   ],
   "integration_flows": [
     {
       "id": "IF-001",
-      "evidence_state": "recorded",
+      "name": "Invitation API request",
       "producer": "C-001",
       "consumer": "C-002",
       "protocol": "HTTPS",
-      "data": ["invitation command", "invitation token"],
-      "data_entity_ids": ["DATA-002"],
+      "communication_mode": "synchronous",
+      "data": [
+        "invitation command",
+        "invitation token"
+      ],
+      "data_entity_ids": [
+        "DATA-002"
+      ],
       "source_of_truth": "C-004",
-      "failure_behavior": "Caller receives an explicit HTTP failure and no success is implied",
+      "failure_behavior": "The caller receives an explicit HTTP failure and no success is implied.",
+      "timeout_retry": "A caller may retry only under the invitation-token idempotency behavior realized by CTR-001.",
+      "contract_realization_ids": [],
+      "security_realization_ids": [
+        "SR-002"
+      ],
       "plan_trace": "feature-plan.md#journey-map",
-      "features": ["02-team-invitations"],
-      "contract_refs": ["TZ-002"],
-      "evidence": ["docs/plans/team-invitations-rbac/feature-plan.md", "docs/plans/team-invitations-rbac/threat-model.md"]
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "details": "The public request carries team, email, role, or token input into the application boundary.",
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
     },
     {
       "id": "IF-002",
-      "evidence_state": "recorded",
+      "name": "Authorization and membership call",
       "producer": "C-002",
       "consumer": "C-003",
-      "protocol": "in-process call",
-      "data": ["caller id", "team id", "capability", "membership command"],
-      "data_entity_ids": ["DATA-001"],
+      "protocol": "Python call",
+      "communication_mode": "in-process",
+      "data": [
+        "caller identity",
+        "team identifier",
+        "required capability",
+        "membership command"
+      ],
+      "data_entity_ids": [
+        "DATA-001"
+      ],
       "source_of_truth": "C-004",
-      "failure_behavior": "Authorization denial stops before persistence",
+      "failure_behavior": "Authorization denial stops the request before any invitation or membership persistence.",
+      "timeout_retry": "The in-process result is returned in the same request; callers do not bypass a denial.",
+      "contract_realization_ids": [],
+      "security_realization_ids": [
+        "SR-001",
+        "SR-002"
+      ],
       "plan_trace": "feature-plan.md#dependency-flow",
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
-      "contract_refs": ["TZ-001", "TZ-002"],
-      "evidence": ["docs/plans/team-invitations-rbac/feature-plan.md", "src/auth.py"]
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "details": "The logical component boundary is explicit even though both responsibilities share one runtime.",
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "src/auth.py"
+      ]
     },
     {
       "id": "IF-003",
-      "evidence_state": "inferred",
+      "name": "Invitation and membership transaction",
       "producer": "C-002",
       "consumer": "C-004",
       "protocol": "PostgreSQL transaction",
-      "data": ["invitation record", "membership record"],
-      "data_entity_ids": ["DATA-001", "DATA-002"],
+      "communication_mode": "data-access",
+      "data": [
+        "invitation record",
+        "membership record"
+      ],
+      "data_entity_ids": [
+        "DATA-001",
+        "DATA-002"
+      ],
       "source_of_truth": "C-004",
-      "failure_behavior": "The transaction rolls back; replay returns the existing membership",
+      "failure_behavior": "The transaction rolls back; replay returns the existing membership without duplication.",
+      "timeout_retry": "Retry is safe only through the idempotent token and unique membership contract.",
+      "contract_realization_ids": [
+        "CTR-001"
+      ],
+      "security_realization_ids": [
+        "SR-001",
+        "SR-002"
+      ],
       "plan_trace": "feature-plan.md#durable-state-closure",
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
-      "contract_refs": ["IC-001", "TZ-002"],
-      "evidence": ["docs/plans/team-invitations-rbac/interaction-contract.md", "deploy/compose.yaml"]
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "details": "The existing PostgreSQL store is the source of truth for both durable nouns.",
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "deploy/compose.yaml"
+      ]
     }
   ],
+  "dynamic_scenarios": [
+    {
+      "id": "DS-001",
+      "name": "Authorize, create, and accept an invitation",
+      "journey_ref": "feature-plan.md#journey-map",
+      "trigger": "A team administrator invites a person and the recipient later accepts the issued token.",
+      "success_outcome": "An authorized invitation is persisted and one idempotent acceptance creates exactly one team membership.",
+      "steps": [
+        {
+          "ordinal": 1,
+          "from": "A-001",
+          "to": "C-001",
+          "interaction": "Submit an invitation request",
+          "communication_mode": "human",
+          "integration_id": null,
+          "contract_realization_ids": [],
+          "security_realization_ids": [
+            "SR-002"
+          ],
+          "failure_behavior": "The client presents an explicit validation or authorization failure."
+        },
+        {
+          "ordinal": 2,
+          "from": "C-001",
+          "to": "C-002",
+          "interaction": "Send the invitation command",
+          "communication_mode": "synchronous",
+          "integration_id": "IF-001",
+          "contract_realization_ids": [],
+          "security_realization_ids": [
+            "SR-002"
+          ],
+          "failure_behavior": "An HTTP failure returns without implying invitation creation."
+        },
+        {
+          "ordinal": 3,
+          "from": "C-002",
+          "to": "C-003",
+          "interaction": "Authorize the protected invitation write",
+          "communication_mode": "in-process",
+          "integration_id": "IF-002",
+          "contract_realization_ids": [],
+          "security_realization_ids": [
+            "SR-001",
+            "SR-002"
+          ],
+          "failure_behavior": "A denial stops the scenario before persistence."
+        },
+        {
+          "ordinal": 4,
+          "from": "C-002",
+          "to": "C-004",
+          "interaction": "Persist the authorized invitation",
+          "communication_mode": "data-access",
+          "integration_id": "IF-003",
+          "contract_realization_ids": [
+            "CTR-001"
+          ],
+          "security_realization_ids": [
+            "SR-001",
+            "SR-002"
+          ],
+          "failure_behavior": "The transaction rolls back and the caller receives an explicit failure."
+        },
+        {
+          "ordinal": 5,
+          "from": "A-002",
+          "to": "C-001",
+          "interaction": "Submit the invitation token for acceptance",
+          "communication_mode": "human",
+          "integration_id": null,
+          "contract_realization_ids": [
+            "CTR-001"
+          ],
+          "security_realization_ids": [
+            "SR-002"
+          ],
+          "failure_behavior": "An invalid token produces an explicit failure without membership creation."
+        },
+        {
+          "ordinal": 6,
+          "from": "C-001",
+          "to": "C-002",
+          "interaction": "Send the invitation acceptance command",
+          "communication_mode": "synchronous",
+          "integration_id": "IF-001",
+          "contract_realization_ids": [
+            "CTR-001"
+          ],
+          "security_realization_ids": [
+            "SR-002"
+          ],
+          "failure_behavior": "The response distinguishes failure from an accepted result."
+        },
+        {
+          "ordinal": 7,
+          "from": "C-002",
+          "to": "C-003",
+          "interaction": "Authorize membership creation and enforce membership invariants",
+          "communication_mode": "in-process",
+          "integration_id": "IF-002",
+          "contract_realization_ids": [
+            "CTR-001"
+          ],
+          "security_realization_ids": [
+            "SR-001",
+            "SR-002"
+          ],
+          "failure_behavior": "A denial or membership-invariant failure stops acceptance before persistence."
+        },
+        {
+          "ordinal": 8,
+          "from": "C-002",
+          "to": "C-004",
+          "interaction": "Consume the invitation and create membership transactionally",
+          "communication_mode": "data-access",
+          "integration_id": "IF-003",
+          "contract_realization_ids": [
+            "CTR-001"
+          ],
+          "security_realization_ids": [
+            "SR-001",
+            "SR-002"
+          ],
+          "failure_behavior": "Rollback preserves the prior durable state; replay returns the existing membership."
+        }
+      ],
+      "alternate_paths": [
+        {
+          "name": "Authorization denied",
+          "condition": "The caller lacks the authorization required for the attempted invitation or membership write.",
+          "outcome": "Return denial and create no invitation or membership.",
+          "step_ordinals": [
+            3,
+            7
+          ]
+        },
+        {
+          "name": "Acceptance replay",
+          "condition": "The invitation token was already accepted.",
+          "outcome": "Return the existing membership without creating a duplicate.",
+          "step_ordinals": [
+            8
+          ]
+        }
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/feature-plan.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "docs/plans/team-invitations-rbac/threat-model.md"
+      ]
+    }
+  ],
+  "trust_boundaries": [
+    {
+      "id": "TB-001",
+      "name": "Public API boundary",
+      "boundary_type": "trust",
+      "description": "Untrusted invitation and bearer-token input crosses from a user-controlled client into the application.",
+      "inside_ids": [
+        "C-002",
+        "C-003",
+        "C-004",
+        "N-002",
+        "N-003"
+      ],
+      "outside_ids": [
+        "A-001",
+        "A-002",
+        "C-001",
+        "N-001"
+      ],
+      "crossing_integration_ids": [
+        "IF-001"
+      ],
+      "residency": "Production processing residency is tracked by GAP-001.",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
+    },
+    {
+      "id": "TB-002",
+      "name": "Authorization chokepoint",
+      "boundary_type": "authorization",
+      "description": "Invitation orchestration crosses the central capability check before protected persistence.",
+      "inside_ids": [
+        "C-003"
+      ],
+      "outside_ids": [
+        "C-002"
+      ],
+      "crossing_integration_ids": [
+        "IF-002"
+      ],
+      "residency": "Logical in-process boundary within the selected single application runtime.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/adr/0001-single-service-runtime.md"
+      ]
+    }
+  ],
+  "security_realizations": [
+    {
+      "id": "SR-001",
+      "obligation_id": "TZ-001",
+      "boundary_ids": [
+        "TB-002"
+      ],
+      "actor_ids": [
+        "A-001"
+      ],
+      "component_ids": [
+        "C-002",
+        "C-003",
+        "C-004"
+      ],
+      "integration_ids": [
+        "IF-002",
+        "IF-003"
+      ],
+      "data_ids": [
+        "DATA-001",
+        "DATA-002"
+      ],
+      "tactics": [
+        "Evaluate the required team capability before protected persistence",
+        "Stop on denial without writing invitation or membership state"
+      ],
+      "verification": "Automated capability-denial assertions prove HTTP 403 and no durable write.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    },
+    {
+      "id": "SR-002",
+      "obligation_id": "TZ-002",
+      "boundary_ids": [
+        "TB-001",
+        "TB-002"
+      ],
+      "actor_ids": [
+        "A-001",
+        "A-002"
+      ],
+      "component_ids": [
+        "C-001",
+        "C-002",
+        "C-003",
+        "C-004"
+      ],
+      "integration_ids": [
+        "IF-001",
+        "IF-002",
+        "IF-003"
+      ],
+      "data_ids": [
+        "DATA-002"
+      ],
+      "tactics": [
+        "Validate invitation input",
+        "Do not log invitation tokens",
+        "Authorize invitation creation before persistence"
+      ],
+      "verification": "Automated validation, redaction, denial, and no-write assertions cover the invitation boundary.",
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/threat-model.md"
+      ]
+    }
+  ],
+  "contract_realizations": [
+    {
+      "id": "CTR-001",
+      "obligation_id": "IC-001",
+      "relationship_ids": [
+        "R-003",
+        "R-004"
+      ],
+      "integration_ids": [
+        "IF-003"
+      ],
+      "dynamic_scenario_ids": [
+        "DS-001"
+      ],
+      "data_ids": [
+        "DATA-001",
+        "DATA-002"
+      ],
+      "behavior": "Invitation acceptance consumes one token and creates at most one membership per team and user.",
+      "failure_behavior": "A replay returns the existing membership, while a failed transaction creates neither a partial acceptance nor a duplicate.",
+      "compatibility": "The plan-owned IC-001 remains authoritative for both feature specifications and any later evolution.",
+      "verification": "Replay, uniqueness, rollback, and concurrent-acceptance tests after specification.",
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/interaction-contract.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ]
+    }
+  ],
+  "transitions": [],
   "quality_scenarios": [
     {
       "id": "QA-001",
-      "evidence_state": "inferred",
+      "name": "Invitation creation latency",
       "attribute": "latency",
       "source": "docs/briefs/team-invitations-rbac.md",
-      "stimulus": "An administrator submits an invitation",
+      "stimulus": "A team administrator submits a valid invitation.",
       "environment": "normal load",
-      "response": "The API confirms invitation creation",
+      "response": "The API confirms invitation creation.",
       "target": "p95 under 500 ms",
-      "tactic": "Keep the synchronous path bounded and use indexed PostgreSQL access",
-      "verification": "/core-engineering:ce-probe-perf after implementation",
-      "features": ["02-team-invitations"]
+      "tactic": "Keep authorization and persistence in a bounded synchronous path and use indexed PostgreSQL access.",
+      "verification": "/core-engineering:ce-probe-perf against the accepted criterion after implementation.",
+      "operation_ids": [
+        "OP-001"
+      ],
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "details": "The target is a written requirement, not measured performance evidence.",
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md"
+      ]
     },
     {
       "id": "QA-002",
-      "evidence_state": "inferred",
+      "name": "Unauthorized invitation denial",
       "attribute": "security",
-      "source": "docs/plans/team-invitations-rbac/threat-model.md",
-      "stimulus": "An unauthorized caller submits an invitation",
+      "source": "docs/briefs/team-invitations-rbac.md",
+      "stimulus": "An unauthorized caller submits an invitation.",
       "environment": "any supported load",
-      "response": "The request is denied without an invitation write",
+      "response": "The request is denied before invitation persistence.",
       "target": "Unauthorized invitation attempts return HTTP 403 and create no invitation.",
-      "tactic": "Invoke C-003 before C-004 persistence",
-      "verification": "Automated HTTP response and persistence assertion",
-      "features": ["01-roles-authz-foundation", "02-team-invitations"]
+      "tactic": "Cross SR-001 before the PostgreSQL invitation write.",
+      "verification": "Automated HTTP response and no-persistence assertions.",
+      "operation_ids": [
+        "OP-001"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "details": "The scenario binds the threat obligation to an observable no-write result.",
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/threat-model.md"
+      ]
     },
     {
       "id": "QA-003",
-      "evidence_state": "inferred",
+      "name": "Idempotent invitation acceptance",
       "attribute": "reliability",
-      "source": "docs/plans/team-invitations-rbac/interaction-contract.md",
-      "stimulus": "A recipient replays invitation acceptance",
-      "environment": "normal operation or client retry",
-      "response": "The existing membership is returned without duplication",
+      "source": "docs/briefs/team-invitations-rbac.md",
+      "stimulus": "A recipient or client retries invitation acceptance.",
+      "environment": "normal operation, timeout recovery, or concurrent retry",
+      "response": "The existing membership is returned without duplication.",
       "target": "Invitation acceptance is idempotent per invitation token.",
-      "tactic": "Consume the token and create membership transactionally with uniqueness",
-      "verification": "Automated replay and concurrency tests",
-      "features": ["01-roles-authz-foundation", "02-team-invitations"]
+      "tactic": "Consume the token and create membership transactionally with a uniqueness invariant.",
+      "verification": "Automated replay, rollback, uniqueness, and concurrency tests.",
+      "operation_ids": [
+        "OP-001",
+        "OP-002"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "details": "IC-001 supplies the architecture-level invariant; specification owns concrete schema and test cases.",
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "OP-001",
+      "name": "Invitation and authorization path health",
+      "category": "observability",
+      "responsibility": "Detect invitation latency, authorization denials, persistence failures, and unsafe token exposure.",
+      "owner": "unknown",
+      "signals": [
+        "request latency",
+        "HTTP outcome count",
+        "authorization denial count",
+        "transaction rollback count",
+        "redacted correlation identifier"
+      ],
+      "failure_domain": "single application request and PostgreSQL transaction path",
+      "target": "Use QA-001, QA-002, and QA-003 as architecture thresholds and behavioral outcomes.",
+      "tactic": "Emit correlated metrics and structured failures without invitation-token values.",
+      "runbook": "unknown",
+      "verification": "Review the telemetry contract during specification and probe the implemented path during verification.",
+      "component_ids": [
+        "C-002",
+        "C-003",
+        "C-004"
+      ],
+      "deployment_node_ids": [
+        "N-002",
+        "N-003"
+      ],
+      "quality_ids": [
+        "QA-001",
+        "QA-002",
+        "QA-003"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "docs/plans/team-invitations-rbac/threat-model.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    },
+    {
+      "id": "OP-002",
+      "name": "Invitation and membership recovery",
+      "category": "recovery",
+      "responsibility": "Recover invitation and membership state without violating authorization or idempotency invariants.",
+      "owner": "unknown",
+      "signals": [
+        "database availability",
+        "transaction rollback count",
+        "acceptance replay outcome"
+      ],
+      "failure_domain": "PostgreSQL durable state and the shared application runtime",
+      "target": "unknown",
+      "tactic": "Preserve transactional rollback and uniqueness; define production recovery objectives before deployment.",
+      "runbook": "unknown",
+      "verification": "Exercise rollback and replay behavior after implementation, then verify the accepted recovery target before deployment.",
+      "component_ids": [
+        "C-002",
+        "C-003",
+        "C-004"
+      ],
+      "deployment_node_ids": [
+        "N-002",
+        "N-003"
+      ],
+      "quality_ids": [
+        "QA-003"
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md",
+        "docs/plans/team-invitations-rbac/interaction-contract.md"
+      ]
+    }
+  ],
+  "direction_realizations": [
+    {
+      "id": "DR-001",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "responsibilities_and_boundaries",
+      "ordinal": 1,
+      "statement": "Authorization owns capability checks; invitations owns invitation lifecycle.",
+      "statement_sha256": "7d8581d661fb61351d2222bffa4f28670e789d671695cb117060c8aa266fce77",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "component",
+          "id": "C-002"
+        },
+        {
+          "kind": "component",
+          "id": "C-003"
+        },
+        {
+          "kind": "decision",
+          "id": "D-001"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-002",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "runtime_and_deployment",
+      "ordinal": 1,
+      "statement": "One application runtime with the existing PostgreSQL data store.",
+      "statement_sha256": "3bd63e88ce7f90d53812efdd3d75148d51e9d750bc49c440418d7a087ce58d68",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "deployment",
+          "id": "DP-002"
+        },
+        {
+          "kind": "deployment",
+          "id": "DP-004"
+        },
+        {
+          "kind": "decision",
+          "id": "D-001"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-003",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "data_ownership",
+      "ordinal": 1,
+      "statement": "Invitation and membership writes remain explicit and transactionally coordinated.",
+      "statement_sha256": "8ac9bd68423c06d571f5aad6b501775764589669590e01a39d2adf82d561d42d",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "data-entity",
+          "id": "DATA-001"
+        },
+        {
+          "kind": "data-entity",
+          "id": "DATA-002"
+        },
+        {
+          "kind": "contract-realization",
+          "id": "CTR-001"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-004",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "integrations_and_failure",
+      "ordinal": 1,
+      "statement": "In-process authorization failure stops before persistence.",
+      "statement_sha256": "86027059f8ee29036329cdea9cf3663b048266fd6df8d63e2d3f2e19a9f12e01",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "relationship",
+          "id": "R-002"
+        },
+        {
+          "kind": "integration-flow",
+          "id": "IF-002"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-005",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "trust_residency_and_security",
+      "ordinal": 1,
+      "statement": "Every protected write crosses the authorization boundary first.",
+      "statement_sha256": "55ac16e46521215ef48c53367ab9b2f9cb1c937629f5fffe0438dcf93da25980",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "trust-boundary",
+          "id": "TB-002"
+        },
+        {
+          "kind": "security-realization",
+          "id": "SR-001"
+        },
+        {
+          "kind": "security-realization",
+          "id": "SR-002"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-006",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "quality_tactics",
+      "ordinal": 1,
+      "statement": "Transactional acceptance provides idempotent membership creation.",
+      "statement_sha256": "b55c45e3abb4c1fa243536e19564d50545fea9d838a85758610c064e99e90b5b",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "contract-realization",
+          "id": "CTR-001"
+        },
+        {
+          "kind": "quality-scenario",
+          "id": "QA-003"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-007",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "migration_and_evolution",
+      "ordinal": 1,
+      "statement": "No runtime migration; logical boundaries can later be extracted if evidence requires it.",
+      "statement_sha256": "8261a58d9b9e1e9c0a7ad596f0947d8bf635de51236a86e63ae22d284464114e",
+      "realization_status": "not-applicable",
+      "realized_by": [],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-008",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "capability_implications",
+      "ordinal": 1,
+      "statement": "C01 decomposes into authorization foundation followed by invitation delivery.",
+      "statement_sha256": "f4112c22187c7728b96018e5e317ff4cbb31788bc73131e45c1a7d89f905f149",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "component",
+          "id": "C-002"
+        },
+        {
+          "kind": "component",
+          "id": "C-003"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-009",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "assumptions",
+      "ordinal": 1,
+      "statement": "The existing runtime and database remain adequate for the recorded load.",
+      "statement_sha256": "53b8ff5cdbf2cf1cb2203f2931c998497ea31a68ef2f5659d33915217e47ef30",
+      "realization_status": "realized",
+      "realized_by": [
+        {
+          "kind": "risk",
+          "id": "AR-003"
+        }
+      ],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
+    },
+    {
+      "id": "DR-010",
+      "exploration_id": "AEX-daee7bdc72fb",
+      "selected_option_id": "A01",
+      "selected_option_sha256": "9e8aa601f8cacb793b63ca9e72ad9159450f1ad99bdd02cefd63baeee68d9983",
+      "dimension": "irreversible_commitments",
+      "ordinal": 1,
+      "statement": "No irreversible infrastructure commitment is introduced.",
+      "statement_sha256": "d7f8991e541ca4e29e2c294e9b2dcb92a91aa8a14545ae494715c8366f993af8",
+      "realization_status": "not-applicable",
+      "realized_by": [],
+      "gap_ids": [],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
     }
   ],
   "feature_mappings": [
     {
       "feature_id": "01-roles-authz-foundation",
+      "mapping_scope": "cross-feature",
       "evidence_state": "inferred",
-      "component_ids": ["C-002", "C-003", "C-004"],
-      "data_ids": ["DATA-001"],
-      "integration_ids": ["IF-002", "IF-003"],
-      "quality_ids": ["QA-002", "QA-003"],
-      "architecture_disposition": "cross-feature",
-      "evidence": ["docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md"]
+      "evidence": [
+        "docs/plans/team-invitations-rbac/features/01-roles-authz-foundation.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ],
+      "direction_realization_ids": [
+        "DR-001",
+        "DR-002",
+        "DR-003",
+        "DR-004",
+        "DR-005",
+        "DR-006",
+        "DR-007",
+        "DR-008",
+        "DR-009",
+        "DR-010"
+      ],
+      "driver_ids": [
+        "DRV-001",
+        "DRV-002",
+        "DRV-003",
+        "DRV-005"
+      ],
+      "actor_ids": [
+        "A-001"
+      ],
+      "context_relationship_ids": [
+        "CR-001"
+      ],
+      "component_ids": [
+        "C-002",
+        "C-003",
+        "C-004"
+      ],
+      "relationship_ids": [
+        "R-002",
+        "R-003",
+        "R-004"
+      ],
+      "deployment_node_ids": [
+        "N-002",
+        "N-003"
+      ],
+      "deployment_ids": [
+        "DP-002",
+        "DP-003",
+        "DP-004"
+      ],
+      "deployment_connection_ids": [
+        "DC-002"
+      ],
+      "data_ids": [
+        "DATA-001"
+      ],
+      "integration_ids": [
+        "IF-002",
+        "IF-003"
+      ],
+      "dynamic_scenario_ids": [
+        "DS-001"
+      ],
+      "trust_boundary_ids": [
+        "TB-002"
+      ],
+      "security_realization_ids": [
+        "SR-001"
+      ],
+      "contract_realization_ids": [
+        "CTR-001"
+      ],
+      "transition_ids": [],
+      "quality_ids": [
+        "QA-002",
+        "QA-003"
+      ],
+      "operation_ids": [
+        "OP-001",
+        "OP-002"
+      ],
+      "decision_ids": [
+        "D-001"
+      ],
+      "open_question_ids": [
+        "OQ-001",
+        "OQ-002",
+        "OQ-003"
+      ],
+      "risk_ids": [
+        "AR-001",
+        "AR-003"
+      ],
+      "gap_ids": [
+        "GAP-001",
+        "GAP-002",
+        "GAP-003"
+      ]
     },
     {
       "feature_id": "02-team-invitations",
+      "mapping_scope": "cross-feature",
       "evidence_state": "inferred",
-      "component_ids": ["C-001", "C-002", "C-003", "C-004"],
-      "data_ids": ["DATA-001", "DATA-002"],
-      "integration_ids": ["IF-001", "IF-002", "IF-003"],
-      "quality_ids": ["QA-001", "QA-002", "QA-003"],
-      "architecture_disposition": "cross-feature",
-      "evidence": ["docs/plans/team-invitations-rbac/features/02-team-invitations.md"]
+      "evidence": [
+        "docs/plans/team-invitations-rbac/features/02-team-invitations.md",
+        "docs/plans/team-invitations-rbac/feature-plan.md"
+      ],
+      "direction_realization_ids": [
+        "DR-001",
+        "DR-002",
+        "DR-003",
+        "DR-004",
+        "DR-005",
+        "DR-006",
+        "DR-007",
+        "DR-008",
+        "DR-009",
+        "DR-010"
+      ],
+      "driver_ids": [
+        "DRV-001",
+        "DRV-002",
+        "DRV-003",
+        "DRV-004",
+        "DRV-005"
+      ],
+      "actor_ids": [
+        "A-001",
+        "A-002"
+      ],
+      "context_relationship_ids": [
+        "CR-001",
+        "CR-002"
+      ],
+      "component_ids": [
+        "C-001",
+        "C-002",
+        "C-003",
+        "C-004"
+      ],
+      "relationship_ids": [
+        "R-001",
+        "R-002",
+        "R-003",
+        "R-004"
+      ],
+      "deployment_node_ids": [
+        "N-001",
+        "N-002",
+        "N-003"
+      ],
+      "deployment_ids": [
+        "DP-001",
+        "DP-002",
+        "DP-003",
+        "DP-004"
+      ],
+      "deployment_connection_ids": [
+        "DC-001",
+        "DC-002"
+      ],
+      "data_ids": [
+        "DATA-001",
+        "DATA-002"
+      ],
+      "integration_ids": [
+        "IF-001",
+        "IF-002",
+        "IF-003"
+      ],
+      "dynamic_scenario_ids": [
+        "DS-001"
+      ],
+      "trust_boundary_ids": [
+        "TB-001",
+        "TB-002"
+      ],
+      "security_realization_ids": [
+        "SR-001",
+        "SR-002"
+      ],
+      "contract_realization_ids": [
+        "CTR-001"
+      ],
+      "transition_ids": [],
+      "quality_ids": [
+        "QA-001",
+        "QA-002",
+        "QA-003"
+      ],
+      "operation_ids": [
+        "OP-001",
+        "OP-002"
+      ],
+      "decision_ids": [
+        "D-001"
+      ],
+      "open_question_ids": [
+        "OQ-001",
+        "OQ-002",
+        "OQ-003"
+      ],
+      "risk_ids": [
+        "AR-001",
+        "AR-002",
+        "AR-003"
+      ],
+      "gap_ids": [
+        "GAP-001",
+        "GAP-002",
+        "GAP-003"
+      ]
     }
   ],
   "decisions": [
     {
       "id": "D-001",
-      "evidence_state": "recorded",
+      "title": "Single application runtime",
       "status": "accepted",
-      "summary": "Keep RBAC and invitations in one application runtime",
+      "context": "Authorization and invitation features share a Python service, PostgreSQL state, protected writes, and one transaction boundary.",
+      "decision": "Keep authorization, membership, and invitation responsibilities in one application runtime with explicit logical components and a shared PostgreSQL data store.",
+      "rationale": "The direction satisfies authorization-before-persistence and idempotency without adding a runtime or network boundary.",
+      "alternatives": [
+        {
+          "option": "Separate invitation runtime with eventual authorization",
+          "consequence": "Adds a service, trust, protocol, deployment, and reconciliation boundary.",
+          "rejection_reason": "It permits pending invitation persistence before the mandatory authorization decision."
+        }
+      ],
+      "consequences": [
+        "Authorization and invitations share one deployment blast radius.",
+        "A later service extraction requires a new plan, ADR, and transition.",
+        "Verification covers the shared transaction and protected-write boundary."
+      ],
+      "reversibility": "Logical seams preserve a future extraction path, but a split requires an explicit transition plan.",
+      "cost_if_wrong": "Cross-feature runtime, data-ownership, and operational rework.",
+      "owner": "solution architecture owner",
+      "decided_by": "human",
+      "decided_at": null,
       "adr_path": "docs/adr/0001-single-service-runtime.md",
-      "features": ["01-roles-authz-foundation", "02-team-invitations"],
-      "evidence": ["docs/adr/0001-single-service-runtime.md"]
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/adr/0001-single-service-runtime.md",
+        "docs/plans/team-invitations-rbac/architecture-selection.json"
+      ]
     }
   ],
-  "open_questions": [],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "status": "open",
+      "question": "What production provider, region, zone, network, residency, scaling, and availability topology will host the application and PostgreSQL?",
+      "material": false,
+      "owner": "deployment authority",
+      "needed_by": "deployment",
+      "options": [
+        "Retain a production-equivalent single-runtime container topology",
+        "Select a managed application and PostgreSQL topology through a separately approved deployment decision"
+      ],
+      "related_refs": [
+        {
+          "kind": "deployment-node",
+          "id": "N-002"
+        },
+        {
+          "kind": "deployment-node",
+          "id": "N-003"
+        },
+        {
+          "kind": "gap",
+          "id": "GAP-001"
+        }
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "deploy/compose.yaml"
+      ]
+    },
+    {
+      "id": "OQ-002",
+      "status": "open",
+      "question": "What recovery objective and backup policy apply to invitation and membership state?",
+      "material": false,
+      "owner": "data and recovery authority",
+      "needed_by": "deployment",
+      "options": [
+        "Adopt an existing documented PostgreSQL recovery policy",
+        "Record project-specific RPO and RTO targets before deployment"
+      ],
+      "related_refs": [
+        {
+          "kind": "operation",
+          "id": "OP-002"
+        },
+        {
+          "kind": "gap",
+          "id": "GAP-002"
+        }
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md",
+        "deploy/compose.yaml"
+      ]
+    },
+    {
+      "id": "OQ-003",
+      "status": "open",
+      "question": "Which human-owned operations role owns production signals and runbooks for the invitation and membership path?",
+      "material": false,
+      "owner": "operations authority",
+      "needed_by": "implementation",
+      "options": [
+        "Application team",
+        "Shared platform operations team"
+      ],
+      "related_refs": [
+        {
+          "kind": "operation",
+          "id": "OP-001"
+        },
+        {
+          "kind": "operation",
+          "id": "OP-002"
+        },
+        {
+          "kind": "gap",
+          "id": "GAP-003"
+        }
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
+    }
+  ],
   "risks": [
     {
       "id": "AR-001",
+      "title": "Local trust authentication",
+      "statement": "The fixture's PostgreSQL trust authentication is suitable only for local evaluation.",
+      "likelihood": "certain in the fixture",
+      "impact": "Reusing the local setting in production would weaken database access control.",
+      "severity": "high",
+      "owner": "deployment authority",
+      "mitigation": "Require managed credentials and a reviewed production network policy before deployment.",
+      "contingency": "Block production deployment until non-trust authentication is evidenced.",
+      "trigger": "A deployment proposal carries POSTGRES_HOST_AUTH_METHOD=trust beyond local evaluation.",
+      "related_refs": [
+        {
+          "kind": "deployment-node",
+          "id": "N-003"
+        },
+        {
+          "kind": "deployment-connection",
+          "id": "DC-002"
+        }
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
       "evidence_state": "observed",
-      "statement": "The fixture's PostgreSQL trust authentication is suitable only for local evaluation",
-      "owner": "deployment owner",
-      "mitigation": "Require managed credentials before approving a deployed environment",
-      "evidence": ["deploy/compose.yaml"]
+      "evidence": [
+        "deploy/compose.yaml"
+      ]
     },
     {
       "id": "AR-002",
-      "evidence_state": "inferred",
-      "statement": "A future notification adapter would introduce a new integration boundary",
+      "title": "Future notification boundary",
+      "statement": "A future email delivery adapter would introduce an integration and trust boundary outside this fixture.",
+      "likelihood": "possible",
+      "impact": "Unplanned delivery coupling could change failure, privacy, and retry behavior.",
+      "severity": "medium",
       "owner": "plan owner",
-      "mitigation": "Revise the plan before adding email delivery",
-      "evidence": ["docs/briefs/team-invitations-rbac.md"]
+      "mitigation": "Revise the plan and architecture before adding email delivery.",
+      "contingency": "Keep the token-returning test harness as the bounded fixture behavior.",
+      "trigger": "The product scope adds outbound notification delivery.",
+      "related_refs": [
+        {
+          "kind": "component",
+          "id": "C-002"
+        },
+        {
+          "kind": "integration-flow",
+          "id": "IF-001"
+        }
+      ],
+      "feature_ids": [
+        "02-team-invitations"
+      ],
+      "evidence_state": "recorded",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md"
+      ]
+    },
+    {
+      "id": "AR-003",
+      "title": "Runtime and database adequacy",
+      "statement": "The selected direction assumes the existing runtime and database remain adequate for the recorded load.",
+      "likelihood": "possible",
+      "impact": "Unexpected load could breach the latency target or force a topology revision.",
+      "severity": "medium",
+      "owner": "application architecture owner",
+      "mitigation": "Verify QA-001 against representative load before release and revise the architecture if the target is missed.",
+      "contingency": "Scale or revise the single-runtime topology through an approved follow-up decision.",
+      "trigger": "Representative performance evidence misses p95 under 500 ms.",
+      "related_refs": [
+        {
+          "kind": "quality-scenario",
+          "id": "QA-001"
+        },
+        {
+          "kind": "decision",
+          "id": "D-001"
+        }
+      ],
+      "feature_ids": [
+        "01-roles-authz-foundation",
+        "02-team-invitations"
+      ],
+      "evidence_state": "inferred",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/architecture-selection.json",
+        "docs/briefs/team-invitations-rbac.md"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "GAP-001",
+      "dimension": "deployment",
+      "gap_type": "topology",
+      "statement": "Production provider, region, zones, network zones, residency, scaling, availability, replica, and failover topology are not recorded.",
+      "impact": "Deployment and residency controls cannot be approved from the local Compose fixture.",
+      "material": false,
+      "owner": "deployment authority",
+      "next_action": "Select and record the production topology before deployment.",
+      "closure_criteria": "An accepted deployment source replaces every production topology unknown and updates the affected nodes, placements, connections, and trust-boundary residency.",
+      "blocking_stage": "deployment",
+      "status": "open",
+      "related_refs": [
+        {
+          "kind": "deployment-node",
+          "id": "N-001"
+        },
+        {
+          "kind": "deployment-node",
+          "id": "N-002"
+        },
+        {
+          "kind": "deployment-node",
+          "id": "N-003"
+        },
+        {
+          "kind": "deployment",
+          "id": "DP-001"
+        },
+        {
+          "kind": "deployment",
+          "id": "DP-002"
+        },
+        {
+          "kind": "deployment",
+          "id": "DP-003"
+        },
+        {
+          "kind": "deployment",
+          "id": "DP-004"
+        },
+        {
+          "kind": "deployment-connection",
+          "id": "DC-001"
+        },
+        {
+          "kind": "deployment-connection",
+          "id": "DC-002"
+        },
+        {
+          "kind": "data-entity",
+          "id": "DATA-001"
+        },
+        {
+          "kind": "data-entity",
+          "id": "DATA-002"
+        },
+        {
+          "kind": "trust-boundary",
+          "id": "TB-001"
+        },
+        {
+          "kind": "open-question",
+          "id": "OQ-001"
+        }
+      ],
+      "evidence_state": "unknown",
+      "evidence": [
+        "docs/briefs/team-invitations-rbac.md",
+        "deploy/compose.yaml"
+      ]
+    },
+    {
+      "id": "GAP-002",
+      "dimension": "operability",
+      "gap_type": "quality-target",
+      "statement": "Production backup policy, recovery point objective, and recovery time objective are not recorded.",
+      "impact": "Recovery adequacy for invitation and membership state cannot be verified before deployment.",
+      "material": false,
+      "owner": "data and recovery authority",
+      "next_action": "Record the applicable recovery and backup targets before deployment.",
+      "closure_criteria": "An accepted source defines the targets and OP-002 plus both data entities record their recovery behavior.",
+      "blocking_stage": "deployment",
+      "status": "open",
+      "related_refs": [
+        {
+          "kind": "data-entity",
+          "id": "DATA-001"
+        },
+        {
+          "kind": "data-entity",
+          "id": "DATA-002"
+        },
+        {
+          "kind": "operation",
+          "id": "OP-002"
+        },
+        {
+          "kind": "open-question",
+          "id": "OQ-002"
+        }
+      ],
+      "evidence_state": "unknown",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md",
+        "deploy/compose.yaml"
+      ]
+    },
+    {
+      "id": "GAP-003",
+      "dimension": "operability",
+      "gap_type": "ownership",
+      "statement": "Production operations ownership and runbook ownership are not recorded.",
+      "impact": "Invitation-path alerts or recovery work could lack an accountable responder.",
+      "material": false,
+      "owner": "operations authority",
+      "next_action": "Assign a human-owned operations role and record the production runbook authority before implementation.",
+      "closure_criteria": "An accepted source names the owner and OP-001 plus OP-002 replace their ownership and runbook unknowns.",
+      "blocking_stage": "implementation",
+      "status": "open",
+      "related_refs": [
+        {
+          "kind": "operation",
+          "id": "OP-001"
+        },
+        {
+          "kind": "operation",
+          "id": "OP-002"
+        },
+        {
+          "kind": "open-question",
+          "id": "OQ-003"
+        }
+      ],
+      "evidence_state": "unknown",
+      "evidence": [
+        "docs/plans/team-invitations-rbac/shared-context.md"
+      ]
     }
   ],
   "approval": {
-    "decision": "approved",
-    "recorded_by": "human",
-    "gate": "Final Architecture Approval"
-  }
+    "decision": "accepted-for-specification-with-gaps",
+    "recorded_by": "EVAL-020 golden maintainer",
+    "recorded_at": "2026-07-23T13:00:00Z",
+    "authority": "Core Engineering evaluation fixture owner",
+    "reference": "EVAL-020 schema-v2 corrective review revision 3",
+    "gate": "Final Architecture Approval",
+    "review_payload_sha256": "e3134b5aae9e2aca26ba11c2131256b0260a76c8064c5d0f3aa3c1760b397aa4",
+    "receipt_sha256": "cb299778ddef5c7b62a1f2cf25e718d120cb2da879fd54410fab7103bdb98297"
+  },
+  "extensions": {}
 }

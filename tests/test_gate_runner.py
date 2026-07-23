@@ -9,6 +9,7 @@ documented exit codes (0 pass / 1 required-gate failure, fail-closed /
 """
 
 import ast
+import importlib.util
 import json
 import os
 import shutil
@@ -23,6 +24,17 @@ RUNNER = REPO / "scripts" / "gate_runner.py"
 PLUGIN = REPO / "plugins" / "core-engineering"
 POLICY = PLUGIN / "merge-policy.json"
 FIXTURE = REPO / "evals" / "fixtures" / "implementation-ready-feature"
+CONTEXT_HELPER = (
+    REPO
+    / "plugins/core-engineering/skills/ce-spec/scripts/architecture_context.py"
+)
+
+_context_spec = importlib.util.spec_from_file_location(
+    "gate_runner_review_context", CONTEXT_HELPER
+)
+ac = importlib.util.module_from_spec(_context_spec)
+assert _context_spec.loader is not None
+_context_spec.loader.exec_module(ac)
 
 GIT_ENV = dict(
     os.environ,
@@ -72,6 +84,24 @@ def _make_adopter_repo(tmpdir):
     repo = Path(tmpdir) / "repo"
     shutil.copytree(FIXTURE, repo,
                     ignore=shutil.ignore_patterns("__pycache__"))
+    plan_dir = repo / "docs/plans/team-invitations"
+    spec_dir = plan_dir / "specs/01-invite-user"
+    context = ac.derive_context(
+        plan_dir, "01-invite-user", repo_root=repo
+    )
+    tasks_path = spec_dir / "tasks.json"
+    tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
+    tasks["architecture_context"] = context
+    tasks_path.write_text(json.dumps(tasks, indent=2) + "\n", encoding="utf-8")
+    spec_path = spec_dir / "ce-spec.md"
+    spec_path.write_text(
+        spec_path.read_text(encoding="utf-8")
+        + "\n## Architecture Context\n\n"
+        + "```json architecture-context\n"
+        + json.dumps(context, indent=2, sort_keys=True)
+        + "\n```\n",
+        encoding="utf-8",
+    )
     test_file = repo / TEST_FILE_REL
     test_file.parent.mkdir(parents=True, exist_ok=True)
     test_file.write_text(TEST_FILE_BODY, encoding="utf-8")
@@ -127,6 +157,44 @@ class GateRunner(unittest.TestCase):
         self.assertEqual(verdict["status"], "fail")
         self.assertTrue(any("spec-lint" in h for h in verdict["hard_failures"]),
                         verdict["hard_failures"])
+
+    def test_architecture_context_removal_cannot_downgrade_merge_gate(self):
+        repo, base = self._make_adopter()
+        spec_dir = (
+            repo
+            / "docs/plans/team-invitations/specs/01-invite-user"
+        )
+        tasks_path = spec_dir / "tasks.json"
+        tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
+        del tasks["architecture_context"]
+        tasks_path.write_text(json.dumps(tasks, indent=2) + "\n", encoding="utf-8")
+        spec_path = spec_dir / "ce-spec.md"
+        text = spec_path.read_text(encoding="utf-8")
+        spec_path.write_text(
+            text.split("\n## Architecture Context\n", 1)[0] + "\n",
+            encoding="utf-8",
+        )
+        _commit_all(repo, "strip architecture provenance")
+        res = _run(
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--change-class",
+            "standard",
+            "--declared",
+            "",
+            "--json",
+        )
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        verdict = _verdict(res)
+        self.assertTrue(
+            any(
+                "missing required architecture_context" in item
+                for item in verdict["hard_failures"]
+            ),
+            verdict["hard_failures"],
+        )
 
     def test_working_tree_cannot_launder_a_broken_committed_spec(self):
         # The bar judges COMMITTED state: restoring the spec on disk WITHOUT
@@ -397,12 +465,44 @@ class GateRunner(unittest.TestCase):
     SPEC_REL = "docs/plans/team-invitations/specs/01-invite-user"
 
     def _write_review_summary(self, repo, blocking_high):
-        summary = repo / self.SPEC_REL / "review-summary.json"
-        summary.write_text(json.dumps({
-            "status": "blocked" if blocking_high else "pass",
-            "feature_id": "01-invite-user", "blocking_high": blocking_high,
-            "findings_total": blocking_high,
-        }), encoding="utf-8")
+        plan_dir = repo / "docs/plans/team-invitations"
+        spec_dir = repo / self.SPEC_REL
+        tasks_path = spec_dir / "tasks.json"
+        tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
+        findings = [
+            {
+                "id": f"CR-{index}",
+                "lens": "correctness",
+                "severity": "high",
+                "confidence": "confirmed",
+            }
+            for index in range(1, blocking_high + 1)
+        ]
+        summary = spec_dir / "review-summary.json"
+        summary.write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "status": "blocked" if blocking_high else "pass",
+                    "feature_id": "01-invite-user",
+                    "plan_slug": "team-invitations",
+                    "spec_revision": tasks["spec_revision"],
+                    "binding": ac.review_binding(
+                        spec_dir,
+                        repo_root=repo,
+                        plan_dir=plan_dir,
+                        feature_id="01-invite-user",
+                    ),
+                    "blocking_high": blocking_high,
+                    "blocking_route": "implement" if blocking_high else None,
+                    "findings_total": len(findings),
+                    "findings": findings,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def test_review_gate_advisory_never_blocks_but_surfaces(self):
         # A spec whose review-summary.json has blocking_high: 1 gets a yellow
@@ -452,6 +552,56 @@ class GateRunner(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         rg = next(g for g in _verdict(res)["gates"] if g["id"] == "review-gate")
         self.assertEqual(rg["status"], "pass")
+
+    def test_review_gate_uses_materialized_head_not_checked_out_head(self):
+        repo, base = self._make_adopter()
+        (repo / "reviewed-marker.txt").write_text(
+            "state reviewed at target head\n", encoding="utf-8"
+        )
+        _commit_all(repo, "implementation state to review")
+        self._write_review_summary(repo, 0)
+        _commit_all(repo, "clean review evidence")
+        reviewed_head = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=GIT_ENV,
+            timeout=60,
+        ).stdout.strip()
+
+        # The runner evaluates reviewed_head from a materialized tree while the
+        # adopter worktree is deliberately checked out at an older commit.
+        _git(repo, "checkout", "--detach", base)
+        data = json.loads(POLICY.read_text(encoding="utf-8"))
+        data.pop("$comment", None)
+        review_bar = {
+            "required_integrity_gates": ["review-gate"],
+            "validity": "human",
+            "advisory_gates": [],
+        }
+        data["defaults"] = dict(review_bar)
+        data["change_classes"] = {"standard": dict(review_bar)}
+        data.pop("class_rules", None)
+        res = _run(
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            reviewed_head,
+            "--change-class",
+            "standard",
+            "--policy",
+            str(self._write_policy(data)),
+            "--json",
+        )
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        gate = _verdict(res)["gates"][0]
+        self.assertEqual(gate["status"], "pass")
+        self.assertEqual(
+            gate["runs"][0]["detail"]["evaluated_commit"], reviewed_head
+        )
 
     def test_plan_lint_advisory_fans_out_per_plan_dir(self):
         # plan-lint runs once per committed plan dir ({plan_dir} fan-out) as an

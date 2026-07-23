@@ -178,16 +178,22 @@ checked before the remaining criteria are scored; the human selects, revises, or
 rejects the direction. The exact option set and selection are hash-bound into
 `architecture-selection.json`. After decomposition, read-only shaping verifies
 that the plan realizes the selected direction. Normal architecture mode writes
-the human-approved five-file package under `docs/plans/<slug>/architecture/` when
-the disposition requires it or the team accepts a recommendation.
+the five-file schema-v2 package under `docs/plans/<slug>/architecture/` when the
+disposition requires it or the team accepts a recommendation. JSON is the strict
+source; human tables and diagrams are generated projections. Trigger-relevant
+context, dynamic behavior, trust/security realization, transition, topology,
+and operability are either structured or represented by typed gaps. Final human
+approval records an accepted-for-specification receipt bound to the exact
+package digest; it is not production, security, or deployment approval.
 
 **Done when:** the plan has bounded features, ship order, journey trace,
 durable-state closure, security obligations, interaction contracts, and a
 current human-owned architecture direction and disposition. Architecture drivers
 were evaluated before feature boundaries were frozen, and a required shaping pass
 has converged before the plan freezes. The required architecture package traces
-system, deployment, data/integration, and quality views to the stable plan and
-repository evidence before feature specification begins.
+system, dynamic, trust, deployment, transition, data/integration, quality, and
+operational views to the stable plan and repository evidence—or names a typed
+owner-routed gap—before feature specification begins.
 
 **Measure:** architecture-direction selection/revision rate, first-pass
 `architecture-lint` pass rate, and plan or spec rework caused by missed
@@ -219,10 +225,14 @@ feature spec.
 `verification.md`.
 
 Both commands independently revalidate the disposition and every occupied
-architecture package. This closes the direct-implementation path for an old or
-hand-authored spec: required missing/stale architecture stops before the spec is
-trusted or code is changed; recommended/waived absence remains visible at the
-human Proceed gate.
+architecture package. Specification persists the package digest, architecture
+revision, exact per-feature structural ids, and relevant gap ids into
+`tasks.json` and projects the same binding into `ce-spec.md`. This closes the
+direct-implementation path for an old or hand-authored spec: required
+missing/legacy/stale architecture or a mismatched spec binding stops before the
+spec is trusted or code is changed; recommended/waived absence remains visible
+at the human Proceed gate. Outbound review checks the same provenance before
+issuing a current gate summary.
 
 **Done when:** tasks are complete, tests were run, dependency checks passed, and
 verification evidence is written.

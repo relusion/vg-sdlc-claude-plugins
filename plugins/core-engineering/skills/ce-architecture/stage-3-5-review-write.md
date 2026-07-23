@@ -27,18 +27,29 @@ architecture package.
 
 Before any decision gate, verify:
 
-- component, relationship, node, flow, and quality ids are unique;
-- all relationship/flow endpoints resolve;
-- every plan feature has exactly one mapping entry;
-- every feature/`TZ-NNN`/`IC-NNN`/ADR reference resolves, and complete coverage
-  re-projects every plan-owned durable noun and TZ/IC id;
-- deployment mappings reference known components and nodes;
-- every deployment node has exact evidence selectors and a reviewed normalized
-  derivation for its name and environment;
-- each numeric quality target occurs in its cited source;
-- every required coverage dimension is dispositioned; and
-- every model row and its required references appear together in the
-  appropriate authoritative Markdown table, not only in prose or Mermaid.
+- every strict schema-v2 collection uses canonical ids and exact keys;
+- all context, runtime, deployment, flow, scenario, boundary, realization, and
+  transition endpoints resolve;
+- every selected option statement has exactly one dimension/ordinal/hash-bound
+  `direction_realizations` row and every realization ref resolves;
+- every plan feature has exactly one mapping entry and each structural row's
+  `feature_ids` equals the reverse feature mapping;
+- every durable noun, plan journey, architecture-determining NFR, `TZ-NNN`,
+  `IC-NNN`, decision, ADR, and trigger-conditional dimension has exact closure
+  or a typed gap;
+- transition applicability follows the exact selected
+  `migration_and_evolution` commitments, with explicit absence represented by
+  `not-applicable` coverage and realizations rather than a no-op transition;
+- each trust boundary's crossing flows exactly match the explicitly opposite
+  producer/consumer side assignments in canonical flow order;
+- deployments include source-backed topology fields and evidence selectors;
+- dynamic steps are ordered and their alternate paths resolve;
+- each numeric quality target occurs literally in its cited source;
+- coverage, typed gaps, and readiness agree, with no material or
+  specification-blocking open gap in a reviewable package;
+- exactly the four required projection registrations are ordered and hashable;
+  and
+- deterministic render output equals the registered Markdown/Mermaid bytes.
 
 ### 3.3 Classify decisions and gaps
 
@@ -49,8 +60,9 @@ Classify each unresolved item:
   choice with wide blast radius;
 - **routine synthesis:** naming, diagram layout, or a direct re-projection of an
   accepted source; or
-- **coverage gap:** evidence is unavailable. Mark material vs non-material and
-  explain the cost of being wrong.
+- **typed gap:** evidence or authority is unavailable. Record dimension, type,
+  impact, materiality, owner, next action, closure criterion, blocking stage,
+  related refs, and evidence.
 
 ### 3.4 Material Architecture Decisions `[material, conditional]`
 
@@ -74,37 +86,62 @@ Never bundle multiple unrelated material choices under one approval.
 ### 4.1 Assemble in scratch
 
 Create a uniquely named temporary directory with `mktemp -d`, verify that its
-resolved path is outside the repository, and render the five files using
+resolved path is outside the repository, and assemble schema v2 using
 `${CLAUDE_SKILL_DIR}/artifact-template.md`. Retain that exact resolved path and
-remove only that owned temporary directory on every terminal exit. Because the
-Write/Edit guard rejects out-of-workspace targets, write each rendered file
-through `${CLAUDE_SKILL_DIR}/scripts/scratch-write.py`, which accepts content
-only on standard input and restricts output to the five canonical names below
-the OS temporary directory. Feed it with a single-quoted heredoc delimiter
-generated after evidence loading; ensure no rendered line equals that delimiter.
-Never splice evidence into shell arguments or executable shell syntax, and do
-not loosen the repository write lease. Set:
+remove only that owned temporary directory on every terminal exit.
+
+Author only `architecture.json`. Write it through
+`${CLAUDE_SKILL_DIR}/scripts/scratch-write.py` with a fresh single-quoted
+heredoc delimiter that no JSON line equals. Never splice evidence into shell
+arguments or executable shell syntax, and do not loosen the repository write
+lease:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/scratch-write.py" \
-  "<exact-scratch-dir>" "solution-architecture.md" <<'CE_ARCH_<fresh-128-bit-hex>'
-<rendered Markdown; shell metacharacters remain literal in this quoted body>
+  "<exact-scratch-dir>" "architecture.json" <<'CE_ARCH_<fresh-128-bit-hex>'
+<semantic schema-v2 JSON; shell metacharacters remain literal in this quoted body>
 CE_ARCH_<same-fresh-128-bit-hex>
 ```
 
-Repeat for each canonical filename with a fresh delimiter that no rendered
-line equals. A nonzero writer exit leaves the package unreviewable: show the
-error, correct the rendered input/path, and retry before lint. After all writes,
-verify the directory contains exactly the five regular non-symlink files.
+Register the four required projections with pending hashes, then invoke the
+bundled renderer to generate the Markdown/Mermaid bytes, populate their hashes,
+normalize the pending review posture, and populate
+`approval.review_payload_sha256`:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-render.py" render \
+  "<exact-scratch-dir>/architecture.json" \
+  --output-dir "<exact-scratch-dir>" --finalize-review --json
+```
+
+A nonzero writer/renderer exit leaves the package unreviewable. Correct the
+semantic JSON and rerun from a clean owned scratch directory; never hand-edit a
+projection. Verify the directory contains `architecture.json`, the four
+required regular non-symlink projections, and no other entry.
+
+Prove the assembled package still equals the deterministic projection before
+lint:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-render.py" check \
+  "<exact-scratch-dir>" --json
+```
+
+A nonzero check is a package failure; return to the semantic JSON and rerender.
 
 Set:
 
+- `$schema: urn:vg-sdlc:ce-architecture:architecture:v2`,
+  `schema_version: 2`, and the exact generator identity/version;
 - `architecture_revision: 1`, or prior revision + 1;
 - `source_plan_revision` from `plan.json` (legacy missing value is `1`);
-- `status: proposed` and `approval.decision: pending` /
-  `approval.recorded_by: pending` until the final gate; and
-- the intended published status (`approved` when coverage is complete,
-  otherwise `approved-with-gaps`) in the rendered review summary.
+- `lifecycle_status: proposed`;
+- `baseline_status: accepted-for-specification` when no gap remains, otherwise
+  `accepted-for-specification-with-gaps` only for non-material,
+  non-specification-blocking gaps;
+- computed `readiness: ready|ready-with-gaps`; and
+- canonical pending approval fields, null receipt, and the renderer-produced
+  review payload digest.
 
 The scratch package is review material, not a repository artifact.
 
@@ -144,11 +181,15 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-lint.py" <scratch-dir> \
 Show:
 
 1. architecture purpose, scope, non-goals, and evidence boundary;
-2. component/relationship, deployment, data/integration, and quality tables;
-3. diagrams as secondary projections;
-4. accepted ADRs, assumptions, risks, gaps, and validation routes;
-5. plan-feature traceability; and
-6. the passing lint result.
+2. every selected-direction commitment and its realization refs;
+3. context, runtime, deployment, dynamic, transition, data/integration,
+   trust/security/contract, quality, and operations tables;
+4. deterministic diagrams as secondary projections;
+5. accepted decisions/ADRs, questions, assumptions, risks, typed gaps, and
+   validation routes;
+6. complete plan-feature traceability and coverage/readiness; and
+7. the passing lint result, exact review payload digest, and registered
+   projection hashes.
 
 ## Stage 5 — Final Approval and Publish
 
@@ -158,17 +199,24 @@ Print `Gate N of M — Final Architecture Approval` using the computed gate coun
 Restore the deny-only baseline immediately before yielding this gate; no write
 authority remains active while the human reviews the package.
 Render What needs your decision first: inferred structural rows, non-material
-coverage gaps, and any explicit override. Then present the four final options
-defined in `SKILL.md`.
+gaps, and any explicit override. Show the proposed human approval authority,
+the durable approval reference that will be recorded, the exact
+`baseline_status`, the review payload digest, the receipt-hash plan, and all
+four projection paths/hashes. Then present the four final options defined
+in `SKILL.md`.
 
 `Approve & publish` is permitted only when:
 
 - no material decision or structural conflict remains;
+- readiness is `ready` or `ready-with-gaps`, never `blocked`;
 - every accepted material cross-feature decision has an accepted ADR when
   ADR-worthy;
-- all non-material gaps are visible and status is `approved-with-gaps`;
+- every selected commitment is closed and all non-material gaps are typed,
+  actionable, mapped, and reflected by
+  `accepted-for-specification-with-gaps`;
 - lint passed; and
-- the exact five target paths, final status, publisher flags, and bounded hidden
+- the exact five target paths, final lifecycle/baseline status,
+  authority/reference, publisher flags, digest plan, and bounded hidden
   transaction scope under `docs/plans/<slug>/.architecture-publish-*` are shown.
 
 ### 5.2 Publish transactionally
@@ -182,15 +230,27 @@ and return to the owning recovery/gate path. Then invoke:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-publish.py" <scratch-dir> \
   --repo-root . --plan-slug <validated-slug> \
-  --publish-status <approved|approved-with-gaps> --json
+  --publish-status \
+  <accepted-for-specification|accepted-for-specification-with-gaps> \
+  --recorded-by "<reviewed-human-identity-or-role>" \
+  --approval-authority "<reviewed-human-authority>" \
+  --approval-reference "<reviewed-durable-reference>" --json
 ```
 
-The helper revalidates the exact `proposed`/pending review package, snapshots
-its bytes, applies only the approved `status` and `approval` JSON transition in
-a same-parent stage, lints the stage, swaps it into the canonical path, and
-lints again. Markdown bytes must remain identical to review. For a revision it
+The helper revalidates the exact schema-v2 `proposed`/pending review package and
+recomputes projection hashes and `review_payload_sha256`. It snapshots the
+bytes, changes only `lifecycle_status` to `published` plus the reviewed
+approval decision, recorded-by/time, authority, reference, and receipt digest
+in a same-parent stage, lints the stage, swaps it into the canonical path, and
+lints again. `baseline_status` and all projection bytes remain identical to
+review. Markdown bytes must remain identical to review. For a revision it
 preserves the prior revision sequence and rolls back a detected final-lint or
 filesystem failure.
+
+Use optional `--approval-time <reviewed-RFC3339-UTC>` only when the gate
+reviewed that exact time; otherwise the publisher records current UTC. The gate
+must show the exact `recorded_by`, authority, and reference values before
+approval.
 
 Add `--allow-extra-cleanup` only when the final gate listed every unexpected
 existing entry and the human explicitly approved its removal. Add
@@ -228,9 +288,14 @@ Then report:
 
 ```text
 Architecture written: docs/plans/<slug>/architecture/
-Status:               approved | approved-with-gaps
+Lifecycle:            published
+Baseline:             accepted-for-specification | accepted-for-specification-with-gaps
+Readiness:            ready | ready-with-gaps
 Plan revision:        <n>
 Architecture revision:<n>
+Approval authority:   <human authority>
+Approval reference:   <durable reference>
+Receipt SHA-256:       <verified digest>
 Lint:                 PASS
 Coverage gaps:        <n>
 Next: /core-engineering:ce-spec <slug>/<first-feature-id>

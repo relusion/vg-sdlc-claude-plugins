@@ -23,6 +23,7 @@ AUTOBUILD_COPY = "plugins/core-engineering/skills/ce-auto-build/scripts/plan-lin
 ARCHITECTURE_COPY = "plugins/core-engineering/skills/ce-architecture/scripts/plan-lint.py"
 SPEC_COPY = "plugins/core-engineering/skills/ce-spec/scripts/plan-lint.py"
 IMPLEMENT_COPY = "plugins/core-engineering/skills/ce-implement/scripts/plan-lint.py"
+REVIEW_COPY = "plugins/core-engineering/skills/ce-review/scripts/plan-lint.py"
 
 SELECTION_CANONICAL = (
     "plugins/core-engineering/skills/ce-plan-audit/scripts/architecture-selection-lint.py"
@@ -33,6 +34,7 @@ SELECTION_COPIES = [
     "plugins/core-engineering/skills/ce-auto-build/scripts/architecture-selection-lint.py",
     "plugins/core-engineering/skills/ce-spec/scripts/architecture-selection-lint.py",
     "plugins/core-engineering/skills/ce-implement/scripts/architecture-selection-lint.py",
+    "plugins/core-engineering/skills/ce-review/scripts/architecture-selection-lint.py",
 ]
 
 PLAN_STAGE = REPO / "plugins/core-engineering/skills/ce-plan/stage-8-9-write.md"
@@ -58,6 +60,7 @@ class PlanLintForkRegistration(unittest.TestCase):
         self.assertIn(ARCHITECTURE_COPY, entry["copies"])
         self.assertIn(SPEC_COPY, entry["copies"])
         self.assertIn(IMPLEMENT_COPY, entry["copies"])
+        self.assertIn(REVIEW_COPY, entry["copies"])
 
     def test_copies_are_byte_identical_to_canonical(self):
         canon = (REPO / CANONICAL).read_bytes()
@@ -80,6 +83,10 @@ class PlanLintForkRegistration(unittest.TestCase):
         self.assertEqual(
             (REPO / IMPLEMENT_COPY).read_bytes(), canon,
             "ce-implement plan-lint copy drifted from canonical",
+        )
+        self.assertEqual(
+            (REPO / REVIEW_COPY).read_bytes(), canon,
+            "ce-review plan-lint copy drifted from canonical",
         )
 
     def test_selection_lint_registered_for_every_plan_lint_consumer(self):

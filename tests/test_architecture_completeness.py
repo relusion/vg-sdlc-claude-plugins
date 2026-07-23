@@ -159,6 +159,7 @@ class ArchitectureCompleteness(unittest.TestCase):
         # by the base fixture tests.
         from tests.test_architecture_lint import al
 
+        kwargs["allow_legacy_v1"] = True
         return al.check_package(arch_dir, root, manifest, **kwargs)
 
 

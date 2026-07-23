@@ -212,8 +212,9 @@ Print `Gate N of M — Architecture Coverage Gap`, then ask:
 | **Waive with a human reason** | Continue with the named uncertainty visible downstream; this is delivery-risk acceptance only, not security/compliance/production approval. |
 | **Park** | Stop without a final plan until the gap closes. |
 
-A material coverage gap can never become `approved-with-gaps` architecture at
-this stage; it is either resolved, explicitly waived by the human, or parked.
+A material coverage gap can never become an
+`accepted-for-specification-with-gaps` architecture baseline at this stage; it
+is either resolved, explicitly waived by the human, or parked.
 
 ## 5A.5 Enforce the convergence cap
 

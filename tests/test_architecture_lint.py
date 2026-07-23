@@ -21,6 +21,7 @@ SELECTION_SCRIPT = (
     REPO
     / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-selection-lint.py"
 )
+V2_FIXTURE = REPO / "tests/architecture_v2_fixture.py"
 
 _spec = importlib.util.spec_from_file_location("architecture_lint_mod", SCRIPT)
 al = importlib.util.module_from_spec(_spec)
@@ -31,6 +32,17 @@ _selection_spec = importlib.util.spec_from_file_location(
 )
 sl = importlib.util.module_from_spec(_selection_spec)
 _selection_spec.loader.exec_module(sl)
+_v2_spec = importlib.util.spec_from_file_location(
+    "architecture_v2_fixture_for_lint", V2_FIXTURE
+)
+v2 = importlib.util.module_from_spec(_v2_spec)
+_v2_spec.loader.exec_module(v2)
+
+
+def _legacy_check(*args, **kwargs):
+    """Keep v1 tests explicit and migration-only."""
+    kwargs["allow_legacy_v1"] = True
+    return al.check_package(*args, **kwargs)
 
 
 OVERVIEW = """# Solution Architecture: team-invitations
@@ -688,9 +700,9 @@ class ArchitectureLintGreen(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             arch_dir, _ = _make_repo(root)
-            hard, advisory = al.check_package(arch_dir, root, al.load_package(arch_dir))
+            hard, advisory = _legacy_check(arch_dir, root, al.load_package(arch_dir))
             self.assertEqual(hard, [])
-            self.assertEqual(advisory, [])
+            self.assertTrue(any(item.startswith("A2 legacy schema v1") for item in advisory))
 
     def test_valid_package_is_bound_to_exact_human_selected_direction(self):
         with tempfile.TemporaryDirectory() as td:
@@ -720,9 +732,9 @@ class ArchitectureLintGreen(unittest.TestCase):
                 "docs/plans/team-invitations/architecture-selection.json",
                 {row["path"] for row in manifest["sources"]},
             )
-            hard, advisory = al.check_package(arch_dir, root, manifest)
+            hard, advisory = _legacy_check(arch_dir, root, manifest)
             self.assertEqual(hard, [])
-            self.assertEqual(advisory, [])
+            self.assertTrue(any(item.startswith("A2 legacy schema v1") for item in advisory))
 
     def test_legacy_source_plan_is_advisory_but_cannot_seed_new_baseline(self):
         with tempfile.TemporaryDirectory() as td:
@@ -737,7 +749,7 @@ class ArchitectureLintGreen(unittest.TestCase):
                 if row["path"] == "docs/plans/team-invitations/plan.json"
             )
             source["sha256"] = _sha(plan_path)
-            hard, advisory = al.check_package(arch_dir, root, manifest)
+            hard, advisory = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     item.startswith("source plan H10")
@@ -756,9 +768,9 @@ class ArchitectureLintGreen(unittest.TestCase):
             manifest["approval"]["decision"] = "pending"
             manifest["approval"]["recorded_by"] = "pending"
             _save(arch_dir, manifest)
-            hard, _ = al.check_package(arch_dir, root, manifest, allow_proposed=True)
+            hard, _ = _legacy_check(arch_dir, root, manifest, allow_proposed=True)
             self.assertEqual(hard, [])
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("--allow-proposed" in item for item in hard))
 
     def test_consumer_mode_advises_on_repository_drift_only(self):
@@ -766,9 +778,9 @@ class ArchitectureLintGreen(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             _write(root / "src/application.py", "RUNTIME = 'implemented-feature-one'\n")
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("stale source hash" in item for item in hard))
-            hard, advisory = al.check_package(arch_dir, root, manifest, consumer=True)
+            hard, advisory = _legacy_check(arch_dir, root, manifest, consumer=True)
             self.assertEqual(hard, [])
             self.assertTrue(any("repository evidence drift" in item for item in advisory))
 
@@ -779,7 +791,7 @@ class ArchitectureLintGreen(unittest.TestCase):
             shared = "docs/plans/team-invitations/shared-context.md"
             next(row for row in manifest["sources"] if row["path"] == shared)["kind"] = "repository"
             _write(root / shared, "# Context\nNew residency requirement.\n")
-            hard, advisory = al.check_package(
+            hard, advisory = _legacy_check(
                 arch_dir, root, manifest, consumer=True
             )
             self.assertTrue(any("must use kind 'plan'" in item for item in hard), hard)
@@ -809,9 +821,9 @@ class ArchitectureLintGreen(unittest.TestCase):
                     "",
                 ),
             )
-            hard, advisory = al.check_package(arch_dir, root, manifest)
+            hard, advisory = _legacy_check(arch_dir, root, manifest)
             self.assertEqual(hard, [])
-            self.assertEqual(advisory, [])
+            self.assertTrue(any(item.startswith("A2 legacy schema v1") for item in advisory))
 
 
 class ArchitectureLintRed(unittest.TestCase):
@@ -828,7 +840,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 if row["path"] == "docs/plans/team-invitations/plan.json"
             )
             source["sha256"] = _sha(plan_path)
-            return al.check_package(arch_dir, root, manifest)
+            return _legacy_check(arch_dir, root, manifest)
 
     def test_malformed_source_plan_posture_is_h9_failure(self):
         with tempfile.TemporaryDirectory() as td:
@@ -846,7 +858,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 if row["path"] == "docs/plans/team-invitations/plan.json"
             )
             source["sha256"] = _sha(plan_path)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             posture_failures = [item for item in hard if item.startswith("H9")]
             self.assertTrue(posture_failures, hard)
             joined = " ".join(posture_failures)
@@ -869,7 +881,7 @@ class ArchitectureLintRed(unittest.TestCase):
             )
             source["sha256"] = _sha(plan_path)
 
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     item.startswith("source plan H10")
@@ -898,7 +910,7 @@ class ArchitectureLintRed(unittest.TestCase):
             )
             _write(overview_path, overview)
 
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     item.startswith("H8 selected-direction projection")
@@ -1022,7 +1034,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             _write(root / manifest["sources"][0]["path"], "{}\n")
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("stale source hash" in item for item in hard))
 
     def test_missing_required_file_fails(self):
@@ -1030,7 +1042,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             (arch_dir / "views.md").unlink()
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("missing required file" in item for item in hard))
 
     def test_dangling_relationship_endpoint_fails(self):
@@ -1038,7 +1050,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["relationships"][0]["to"] = "C-999"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("unknown component 'C-999'" in item for item in hard))
 
     def test_unknown_contract_reference_fails(self):
@@ -1046,7 +1058,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["integration_flows"][0]["contract_refs"] = ["TZ-999"]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("unknown threat id TZ-999" in item for item in hard))
 
     def test_contract_id_prefix_and_malformed_id_fail(self):
@@ -1059,7 +1071,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 if source["path"].endswith("threat-model.md"):
                     source["sha256"] = _sha(threat)
             manifest["integration_flows"][0]["contract_refs"] = ["TZ-001", "TZ-foo"]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("unknown threat id TZ-001" in item for item in hard))
             self.assertTrue(any("invalid contract ref 'TZ-foo'" in item for item in hard))
 
@@ -1068,7 +1080,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["integration_flows"][0]["plan_trace"] = "feature-plan.md#missing-edge"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("plan_trace does not resolve" in item for item in hard))
 
     def test_flow_trace_to_unowned_plan_heading_fails(self):
@@ -1084,7 +1096,7 @@ class ArchitectureLintRed(unittest.TestCase):
             for source in manifest["sources"]:
                 if source["path"].endswith("feature-plan.md"):
                     source["sha256"] = _sha(root / source["path"])
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("must target Journey Map" in item for item in hard))
 
     def test_flow_trace_must_use_feature_plan(self):
@@ -1099,7 +1111,7 @@ class ArchitectureLintRed(unittest.TestCase):
             manifest["integration_flows"][0]["plan_trace"] = (
                 "features/02-team-invitations.md#dependency-flow"
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("must target feature-plan.md" in item for item in hard))
 
     def test_invented_quality_target_fails(self):
@@ -1107,7 +1119,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["quality_scenarios"][0]["target"] = "p99 under 10 ms"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("does not occur literally" in item for item in hard))
 
     def test_missing_feature_mapping_fails(self):
@@ -1115,7 +1127,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["feature_mappings"].pop()
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("missing exactly-one mapping" in item for item in hard))
 
     def test_feature_mapping_requires_tracked_evidence(self):
@@ -1123,7 +1135,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             del manifest["feature_mappings"][0]["evidence"]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "feature mapping '01-roles-authz-foundation'.evidence must be "
@@ -1150,7 +1162,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 arch_dir / "views.md",
                 VIEWS.replace(row, row + row + extra, 1),
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any("component table has duplicate row key(s): ['C-001']" in item for item in hard),
                 hard,
@@ -1188,7 +1200,7 @@ class ArchitectureLintRed(unittest.TestCase):
             _write(arch_dir / "views.md", views)
             _write(arch_dir / "solution-architecture.md", overview)
             _write(arch_dir / "data-and-integrations.md", data)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             for expected in (
                 "component C-001 column 'name' must project 'Invitation API'",
                 "deployment node N-001 column 'name selector' must project",
@@ -1209,7 +1221,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 arch_dir / "solution-architecture.md",
                 OVERVIEW.replace("> Status: approved", "> Status: proposed"),
             )
-            hard, _ = al.check_package(
+            hard, _ = _legacy_check(
                 arch_dir, root, manifest, allow_proposed=True
             )
             self.assertTrue(any("reviewed Status must equal 'approved'" in item for item in hard), hard)
@@ -1224,7 +1236,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "material": False,
                 "reason": "alert ownership remains open",
             }
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any("reviewed Status must equal 'approved-with-gaps'" in item for item in hard),
                 hard,
@@ -1241,7 +1253,7 @@ class ArchitectureLintRed(unittest.TestCase):
                     "> Status: approved\n> Intended status: approved-with-gaps\n",
                 ),
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("Intended status contradicts" in item for item in hard), hard)
 
     def test_overview_identity_and_revisions_are_bound_to_manifest(self):
@@ -1281,7 +1293,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 root = Path(td)
                 arch_dir, manifest = _make_repo(root)
                 _write(arch_dir / "solution-architecture.md", mutate(OVERVIEW))
-                hard, _ = al.check_package(arch_dir, root, manifest)
+                hard, _ = _legacy_check(arch_dir, root, manifest)
                 self.assertTrue(any(expected in item for item in hard), hard)
 
     def test_unaccepted_adr_fails(self):
@@ -1293,7 +1305,7 @@ class ArchitectureLintRed(unittest.TestCase):
             for source in manifest["sources"]:
                 if source["path"].endswith("0001-existing-runtime.md"):
                     source["sha256"] = _sha(root / source["path"])
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("exactly one canonical Status: accepted" in item for item in hard))
 
     def test_adr_historical_accepted_line_cannot_mask_proposed_status(self):
@@ -1308,7 +1320,7 @@ class ArchitectureLintRed(unittest.TestCase):
             for source in manifest["sources"]:
                 if source["path"].endswith("0001-existing-runtime.md"):
                     source["sha256"] = _sha(adr)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any("found ['proposed', 'accepted']" in item for item in hard), hard
             )
@@ -1321,7 +1333,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "status": "gap", "material": False, "reason": "unknown"
             }
             manifest["open_questions"] = [{"question": "Which region?", "material": False}]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("approved cannot contain coverage gaps" in item for item in hard))
             self.assertTrue(any("approved cannot contain open questions" in item for item in hard))
 
@@ -1335,7 +1347,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "status": "gap", "material": False, "reason": "unknown"
             }
             manifest["open_questions"] = [{"question": "Database choice", "material": True}]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("material open question blocks" in item for item in hard))
 
     def test_projection_omission_fails(self):
@@ -1351,7 +1363,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 VIEWS.replace(relationship_row, "")
                 + "\nR-001 still connects C-001 to C-002 in this prose note.\n",
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("R-001 is absent" in item for item in hard))
 
     def test_header_only_component_table_fails(self):
@@ -1367,7 +1379,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "`docs/plans/team-invitations/feature-plan.md` |\n"
             )
             _write(arch_dir / "views.md", VIEWS.replace(component_rows, ""))
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any("Runtime / Container View authoritative table is header-only" in item for item in hard)
             )
@@ -1392,7 +1404,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 f"## View Coverage Gaps\n{component_table}\n",
             )
             _write(arch_dir / "views.md", views)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "views.md ## Runtime / Container View is missing its authoritative table"
@@ -1415,7 +1427,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 1,
             )
             _write(arch_dir / "views.md", views)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "component C-001 column 'features' is missing reference "
@@ -1435,7 +1447,7 @@ class ArchitectureLintRed(unittest.TestCase):
                     "| R-001 | C-002 | C-001 | Write membership state | recorded |",
                 ),
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "relationship R-001 column 'from' must project 'C-001'"
@@ -1465,7 +1477,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "`docs/plans/team-invitations/shared-context.md` |",
             )
             _write(arch_dir / "views.md", views)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "deployment node N-001 column 'environment' must project "
@@ -1498,7 +1510,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 1,
             )
             _write(arch_dir / "data-and-integrations.md", data)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "data entity DATA-001 column 'source of truth' must project "
@@ -1536,7 +1548,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 arch_dir / "data-and-integrations.md",
                 DATA.replace(integration_row, bad_row),
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             for expected in (
                 "integration IF-001 column 'producer' must project 'C-001'",
                 "integration IF-001 column 'data entities' is missing reference DATA-002",
@@ -1555,7 +1567,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "01-roles-authz-foundation |",
             )
             _write(arch_dir / "quality-attributes.md", quality)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "quality QA-001 column 'features' is missing reference "
@@ -1573,7 +1585,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "| 01-roles-authz-foundation | C-002 | DATA-002 | IF-001 | QA-001 |",
             )
             _write(arch_dir / "solution-architecture.md", overview)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "feature mapping 01-roles-authz-foundation column 'data entities' "
@@ -1602,7 +1614,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 "nobody | | `src/application.py` |",
             )
             _write(arch_dir / "solution-architecture.md", overview)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             for expected in (
                 "decision D-001 column 'affected features' is missing reference "
                 "02-team-invitations",
@@ -1623,7 +1635,7 @@ class ArchitectureLintRed(unittest.TestCase):
             manifest["coverage"]["security"] = {
                 "status": "gap", "material": True, "reason": "trust boundary unknown"
             }
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("material coverage gap blocks" in item for item in hard))
 
     def test_untracked_evidence_path_fails(self):
@@ -1631,7 +1643,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["components"][0]["evidence"] = ["docs/untracked.md"]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("untracked source" in item for item in hard))
 
     def test_observed_state_requires_repository_evidence(self):
@@ -1639,7 +1651,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["components"][0]["evidence_state"] = "observed"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("observed evidence must cite a repository" in item for item in hard))
 
     def test_missing_evidence_state_fails(self):
@@ -1647,7 +1659,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             del manifest["relationships"][0]["evidence_state"]
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("evidence_state" in item for item in hard))
 
     def test_unknown_claim_requires_coverage_gap(self):
@@ -1655,7 +1667,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["components"][0]["evidence_state"] = "unknown"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("unknown structural claim" in item for item in hard))
 
     def test_inferred_deployment_node_fails(self):
@@ -1663,7 +1675,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["deployment_nodes"][0]["evidence_state"] = "inferred"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("must be recorded or observed" in item for item in hard))
 
     def test_deployment_node_selector_and_derivation_must_be_grounded(self):
@@ -1673,7 +1685,7 @@ class ArchitectureLintRed(unittest.TestCase):
             claims = manifest["deployment_nodes"][0]["evidence_claims"]
             claims["name"]["literal"] = "Invented deployment evidence"
             claims["environment"]["derivation"] = "staging"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
                     "evidence_claims.name.literal does not occur" in item
@@ -1693,7 +1705,7 @@ class ArchitectureLintRed(unittest.TestCase):
             arch_dir, manifest = _make_repo(root)
             manifest["deployments"][0]["node_ids"] = []
             manifest["deployments"][0]["evidence"] = []
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("node_ids must be a non-empty" in item for item in hard))
             self.assertTrue(any("evidence must be a non-empty" in item for item in hard))
 
@@ -1703,7 +1715,7 @@ class ArchitectureLintRed(unittest.TestCase):
             arch_dir, manifest = _make_repo(root)
             manifest["integration_flows"] = []
             manifest["quality_scenarios"] = []
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("integration coverage is complete" in item for item in hard))
             self.assertTrue(any("quality coverage is complete" in item for item in hard))
 
@@ -1713,7 +1725,7 @@ class ArchitectureLintRed(unittest.TestCase):
             arch_dir, manifest = _make_repo(root)
             manifest["feature_mappings"][0]["quality_ids"] = []
             manifest["feature_mappings"][0]["component_ids"].append("C-001")
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("quality QA-001 feature declaration" in item for item in hard))
             self.assertTrue(any("component C-001 feature declaration" in item for item in hard))
 
@@ -1722,7 +1734,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             manifest["data_entities"][0]["data_class"] = "public"
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("does not match plan column" in item for item in hard))
 
     def test_prohibited_authority_claim_is_hard_failure(self):
@@ -1730,9 +1742,9 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             _write(arch_dir / "solution-architecture.md", OVERVIEW + "\nProduction approved.\n")
-            hard, advisory = al.check_package(arch_dir, root, manifest)
+            hard, advisory = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("prohibited authority claim" in item for item in hard))
-            self.assertEqual(advisory, [])
+            self.assertTrue(any(item.startswith("A2 legacy schema v1") for item in advisory))
 
     def test_negated_authority_disclaimer_is_allowed(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1743,7 +1755,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 (arch_dir / "solution-architecture.md").read_text(encoding="utf-8")
                 + "\nThis is not a compliance attestation and is not production ready.\n",
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertEqual(hard, [])
 
     def test_all_external_authority_claims_fail(self):
@@ -1756,7 +1768,7 @@ class ArchitectureLintRed(unittest.TestCase):
                 + "\nSecurity approved. Release approved. Production ready. "
                 "Approved for deployment.\n",
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             for phrase in (
                 "security approved", "release approved", "production ready",
                 "approved for deployment",
@@ -1774,7 +1786,7 @@ class ArchitectureLintRed(unittest.TestCase):
                     "Quality scenario prose",
                 ),
             )
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("missing authoritative table header" in item for item in hard))
 
     def test_unexpected_nested_payload_fails(self):
@@ -1782,7 +1794,7 @@ class ArchitectureLintRed(unittest.TestCase):
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
             _write(arch_dir / "evidence/payload.txt", "unexpected\n")
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("unexpected file" in item for item in hard))
 
     def test_symlinked_required_artifact_fails(self):
@@ -1793,7 +1805,7 @@ class ArchitectureLintRed(unittest.TestCase):
             target.write_text(VIEWS, encoding="utf-8")
             (arch_dir / "views.md").unlink()
             (arch_dir / "views.md").symlink_to(target)
-            hard, _ = al.check_package(arch_dir, root, manifest)
+            hard, _ = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(any("must not be a symlink" in item for item in hard), hard)
 
 
@@ -1806,6 +1818,7 @@ class ArchitectureLintCli(unittest.TestCase):
                 str(arch_dir),
                 "--repo-root",
                 str(root),
+                "--allow-legacy-v1",
                 *flags,
                 "--json",
             ],
@@ -1820,7 +1833,7 @@ class ArchitectureLintCli(unittest.TestCase):
             arch_dir = root / "architecture"
             arch_dir.mkdir()
             proc = subprocess.run(
-                [sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root), "--json"],
+                [sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root), "--allow-legacy-v1", "--json"],
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -1833,7 +1846,7 @@ class ArchitectureLintCli(unittest.TestCase):
             root = Path(td)
             arch_dir, _ = _make_repo(root)
             proc = subprocess.run(
-                [sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root), "--json"],
+                [sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root), "--allow-legacy-v1", "--json"],
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -1847,7 +1860,7 @@ class ArchitectureLintCli(unittest.TestCase):
             arch_dir, _ = _make_repo(root)
             (arch_dir / "views.md").write_bytes(b"\xff\xfe")
             proc = subprocess.run(
-                [sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root), "--json"],
+                [sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root), "--allow-legacy-v1", "--json"],
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -1882,7 +1895,7 @@ class ArchitectureLintCli(unittest.TestCase):
             _write(root / "src/application.py", "RUNTIME = 'changed'\n")
             command = [
                 sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root),
-                "--consumer", "--json",
+                "--allow-legacy-v1", "--consumer", "--json",
             ]
             proc = subprocess.run(command, capture_output=True, text=True, timeout=30)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -1908,7 +1921,7 @@ class ArchitectureLintCli(unittest.TestCase):
             proc = subprocess.run(
                 [
                     sys.executable, str(SCRIPT), str(arch_dir), "--repo-root", str(root),
-                    "--consumer", "--json",
+                    "--allow-legacy-v1", "--consumer", "--json",
                 ],
                 capture_output=True,
                 text=True,
@@ -1918,6 +1931,333 @@ class ArchitectureLintCli(unittest.TestCase):
             self.assertTrue(
                 any("canonical non-symlink" in item for item in json.loads(proc.stdout)["hard_failures"])
             )
+
+
+class ArchitectureLintV2(unittest.TestCase):
+    def _check(self, root: Path, arch_dir: Path, manifest: dict):
+        _save(arch_dir, manifest)
+        return al.check_package(
+            arch_dir,
+            root,
+            manifest,
+            allow_proposed=True,
+        )
+
+    @staticmethod
+    def _refinalize(arch_dir: Path, manifest: dict) -> None:
+        renderer = al._v2_load_renderer()
+        finalized, documents = renderer.finalize_review_manifest(manifest)
+        manifest.clear()
+        manifest.update(finalized)
+        for path, payload in documents.items():
+            (arch_dir / path).write_bytes(payload)
+        _save(arch_dir, manifest)
+
+    @staticmethod
+    def _operability_gap(manifest: dict) -> None:
+        manifest["baseline_status"] = "accepted-for-specification-with-gaps"
+        manifest["coverage"]["operability"] = {
+            "status": "gap",
+            "gap_ids": ["GAP-001"],
+            "evidence": ["docs/briefs/team-invitations.md"],
+        }
+        manifest["readiness"] = {
+            "status": "ready-with-gaps",
+            "blocking_gap_ids": [],
+            "non_blocking_gap_ids": ["GAP-001"],
+            "summary": "A non-material implementation-stage ownership gap remains.",
+        }
+        manifest["gaps"] = [
+            {
+                "id": "GAP-001",
+                "dimension": "operability",
+                "gap_type": "ownership",
+                "statement": "Detailed alert ownership is not recorded.",
+                "impact": "An alert could lack its implementation owner.",
+                "material": False,
+                "owner": "operations owner",
+                "next_action": "Assign the owner before implementation.",
+                "closure_criteria": "OP-001 names the accepted owner.",
+                "blocking_stage": "implementation",
+                "status": "open",
+                "related_refs": [{"kind": "operation", "id": "OP-001"}],
+                "evidence_state": "recorded",
+                "evidence": ["docs/briefs/team-invitations.md"],
+            }
+        ]
+
+    def test_schema_v1_requires_explicit_migration_diagnostic(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = _make_repo(root)
+            hard, advisory = al.check_package(arch_dir, root, manifest)
+            self.assertTrue(any("requires regeneration" in item for item in hard))
+            self.assertEqual(advisory, [])
+
+    def test_complete_v2_fixture_passes_and_exposes_identity(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            hard, advisory = al.check_package(
+                arch_dir, root, manifest, allow_proposed=True
+            )
+            self.assertEqual(hard, [])
+            self.assertEqual(advisory, [])
+            payload = al.result_payload(hard, advisory, manifest)
+            self.assertEqual(payload["architecture_schema_version"], 2)
+            self.assertIsNone(payload["package_receipt_sha256"])
+
+    def test_transition_applicability_follows_exact_selected_commitment(self):
+        cases = (
+            (
+                "no current migration",
+                (
+                    "No runtime migration; logical boundaries can later be "
+                    "extracted if evidence requires it."
+                ),
+                False,
+            ),
+            (
+                "real migration",
+                "Introduce invitation state additively before enabling acceptance.",
+                True,
+            ),
+            (
+                "migration with no downtime",
+                "Migration with no downtime introduces invitation state additively.",
+                True,
+            ),
+        )
+        for label, statement, transition_applicable in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                arch_dir, manifest = v2.make_v2_repo(
+                    root, migration_statement=statement
+                )
+                hard, advisory = al.check_package(
+                    arch_dir, root, manifest, allow_proposed=True
+                )
+                self.assertEqual(hard, [])
+                self.assertEqual(advisory, [])
+                self.assertEqual(
+                    "transitions"
+                    in manifest["coverage_profile"]["required_dimensions"],
+                    transition_applicable,
+                )
+                self.assertEqual(
+                    manifest["coverage"]["transitions"]["status"],
+                    "complete" if transition_applicable else "not-applicable",
+                )
+                self.assertEqual(
+                    bool(manifest["transitions"]), transition_applicable
+                )
+                migration_row = next(
+                    row
+                    for row in manifest["direction_realizations"]
+                    if row["dimension"] == "migration_and_evolution"
+                )
+                self.assertEqual(
+                    migration_row["realization_status"],
+                    "realized" if transition_applicable else "not-applicable",
+                )
+
+    def test_transition_absence_cannot_be_represented_by_noop_rows(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(
+                root,
+                migration_statement="No current data migration is introduced.",
+            )
+            manifest["coverage"]["transitions"]["status"] = "complete"
+            manifest["transitions"] = [
+                {
+                    "id": "TR-001",
+                    "name": "Ceremonial no-op",
+                }
+            ]
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(
+                any(
+                    "requires coverage.transitions.status not-applicable" in item
+                    for item in hard
+                ),
+                hard,
+            )
+            self.assertTrue(
+                any(
+                    "requires an empty transitions collection" in item
+                    for item in hard
+                ),
+                hard,
+            )
+
+    def test_trust_boundary_crossings_accept_both_flow_directions(self):
+        for label, producer, consumer in (
+            ("outside-to-inside", "C-001", "C-002"),
+            ("inside-to-outside", "C-002", "C-001"),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                arch_dir, manifest = v2.make_v2_repo(root)
+                flow = manifest["integration_flows"][0]
+                flow["producer"] = producer
+                flow["consumer"] = consumer
+                self._refinalize(arch_dir, manifest)
+                hard, advisory = al.check_package(
+                    arch_dir, root, manifest, allow_proposed=True
+                )
+                self.assertEqual(hard, [])
+                self.assertEqual(advisory, [])
+
+    def test_trust_boundary_crossing_set_is_exact(self):
+        cases = (
+            ("missing", lambda boundary: boundary.__setitem__(
+                "crossing_integration_ids", []
+            ), "expected ['IF-001']"),
+            ("unexpected", lambda boundary: (
+                boundary.__setitem__("inside_ids", ["C-001", "C-002"]),
+                boundary.__setitem__("outside_ids", ["A-001"]),
+            ), "expected []"),
+        )
+        for label, mutate, expected in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                arch_dir, manifest = v2.make_v2_repo(root)
+                mutate(manifest["trust_boundaries"][0])
+                self._refinalize(arch_dir, manifest)
+                hard, _ = al.check_package(
+                    arch_dir, root, manifest, allow_proposed=True
+                )
+                self.assertTrue(
+                    any(
+                        "crossing_integration_ids must exactly equal" in item
+                        and expected in item
+                        for item in hard
+                    ),
+                    hard,
+                )
+
+    def test_unlisted_flow_endpoint_is_non_crossing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            boundary = manifest["trust_boundaries"][0]
+            boundary["outside_ids"] = ["A-001"]
+            boundary["crossing_integration_ids"] = []
+            self._refinalize(arch_dir, manifest)
+            hard, advisory = al.check_package(
+                arch_dir, root, manifest, allow_proposed=True
+            )
+            self.assertEqual(hard, [])
+            self.assertEqual(advisory, [])
+
+    def test_unknown_nested_key_and_commitment_rewrite_fail(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            manifest["actors"][0]["invented"] = True
+            manifest["direction_realizations"][0]["statement"] += " rewritten"
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(any("unknown key(s): invented" in item for item in hard))
+            self.assertTrue(any("ordered bijection" in item for item in hard))
+
+    def test_unknown_value_cannot_hide_under_complete_coverage(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            manifest["deployment_nodes"][0]["region"] = "unknown"
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(
+                any("open same-dimension typed gap" in item for item in hard),
+                hard,
+            )
+
+    def test_feature_source_and_deployment_claim_are_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            feature_path = (
+                "docs/plans/team-invitations/features/"
+                "01-roles-authz-foundation.md"
+            )
+            manifest["sources"] = [
+                row for row in manifest["sources"] if row["path"] != feature_path
+            ]
+            manifest["deployment_nodes"][0]["evidence_claims"][0][
+                "derivation"
+            ] = "different"
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(any("feature source is not tracked" in item for item in hard))
+            self.assertTrue(any("derivation must exactly equal" in item for item in hard))
+
+    def test_feature_source_wrong_kind_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            feature_path = (
+                "docs/plans/team-invitations/features/"
+                "01-roles-authz-foundation.md"
+            )
+            next(
+                row for row in manifest["sources"] if row["path"] == feature_path
+            )["kind"] = "reference"
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(any("not tracked as plan" in item for item in hard))
+
+    def test_quality_target_must_be_literal_source_text(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            manifest["quality_scenarios"][0]["target"] = "p99 under 10 ms"
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(any("target must occur literally" in item for item in hard))
+
+    def test_open_gap_must_route_through_coverage_and_every_affected_feature(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            self._operability_gap(manifest)
+            manifest["feature_mappings"][0]["gap_ids"] = ["GAP-001"]
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(
+                any("feature mapping must equal the union" in item for item in hard),
+                hard,
+            )
+
+            manifest["feature_mappings"][1]["gap_ids"] = ["GAP-001"]
+            manifest["coverage"]["operability"] = {
+                "status": "complete",
+                "gap_ids": [],
+                "evidence": ["docs/briefs/team-invitations.md"],
+            }
+            hard, _ = self._check(root, arch_dir, manifest)
+            self.assertTrue(
+                any("must occur exactly once" in item for item in hard),
+                hard,
+            )
+            self.assertTrue(
+                any("requires its coverage row status to be gap" in item for item in hard),
+                hard,
+            )
+
+    def test_duplicate_manifest_key_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, _ = v2.make_v2_repo(root)
+            manifest_path = arch_dir / "architecture.json"
+            text = manifest_path.read_text(encoding="utf-8")
+            manifest_path.write_text(
+                text.replace(
+                    '"schema_version": 2,',
+                    '"schema_version": 2,\n  "schema_version": 2,',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                al.ArchitectureLintError, "duplicate JSON object key"
+            ):
+                al.load_package(arch_dir)
 
 
 if __name__ == "__main__":

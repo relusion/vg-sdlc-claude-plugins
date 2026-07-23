@@ -5,6 +5,7 @@ The helper deliberately accepts content only on stdin. This keeps untrusted
 requirement and repository text out of shell arguments. It writes only one of
 the five canonical filenames, only below the operating system temporary
 directory, and replaces that file atomically within the scratch directory.
+An ``architecture.json`` write must already identify strict schema v2.
 """
 
 from __future__ import annotations
@@ -25,6 +26,17 @@ REQUIRED_FILES = {
     "architecture.json",
 }
 MAX_BYTES = 10 * 1024 * 1024
+ARCHITECTURE_SCHEMA_URN = "urn:vg-sdlc:ce-architecture:architecture:v2"
+ARCHITECTURE_SCHEMA_VERSION = 2
+
+
+def _strict_object_pairs(pairs: list[tuple[str, object]]) -> dict:
+    result: dict = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
 
 
 def _inside(base: Path, candidate: Path) -> bool:
@@ -55,11 +67,22 @@ def write_scratch(scratch_dir: Path, filename: str, payload: bytes) -> Path:
         raise ValueError("scratch artifact target must be absent or a regular file")
     if filename == "architecture.json":
         try:
-            parsed = json.loads(payload.decode("utf-8"))
+            parsed = json.loads(
+                payload.decode("utf-8"),
+                object_pairs_hook=_strict_object_pairs,
+            )
         except (UnicodeError, json.JSONDecodeError) as exc:
             raise ValueError(f"architecture.json input is invalid: {exc}") from exc
         if not isinstance(parsed, dict):
             raise ValueError("architecture.json input must contain an object")
+        if (
+            parsed.get("$schema") != ARCHITECTURE_SCHEMA_URN
+            or parsed.get("schema_version") != ARCHITECTURE_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "architecture.json must be ce-architecture schema v2; "
+                "legacy schema v1 requires regeneration"
+            )
     else:
         try:
             payload.decode("utf-8")

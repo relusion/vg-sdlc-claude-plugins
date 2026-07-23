@@ -41,6 +41,21 @@ routine. The human approves the task list.
 
 Assemble `ce-spec.md` + `tasks.json` per **`${CLAUDE_SKILL_DIR}/artifact-template.md`** in this skill's directory — do not reconstruct either file's format from memory.
 
+Immediately before rendering, derive the exact architecture binding from the
+already validated Stage-0 state:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/architecture_context.py" --repo-root . \
+  derive docs/plans/<slug> <id> --plan-mode <full|single-feature-minimal> --json
+```
+
+Exit 0 returns one `architecture_context`. Copy that exact object into
+`tasks.json` and the `ce-spec.md` `## Architecture Context` JSON block. Never
+hand-calculate the producer receipt or feature-mapping digest. Exit 1/2 parks
+assembly and returns to Stage 0's owning plan/architecture route; a typed
+`recommended-absent`, `not-required`, `waived`, or `single-feature-minimal`
+result is valid context, not permission to omit the block.
+
 ### 5.1.5 Mechanical Lint  *(supplement — does not replace 5.3)*
 
 Before the human checklist, run the **Mechanical Lint Gate** (defined in
@@ -102,6 +117,10 @@ The **consolidated final gate**, run on the **assembled, frozen `ce-spec.md`** �
 - [ ] Every governance reciprocal the plan's Stage 6.3 closure dispositions `owned-by:` this feature (`retain` / `export` / `erase`) is bound by ≥ 1 acceptance criterion and ≥ 1 test case (§2.1); minimal mode records this row `N/A by construction`.
 - [ ] Every `TZ-NNN` the full plan's `threat-model.md` or minimal plan's inline Security Projection assigns this feature is bound by ≥ 1 acceptance criterion marked `[SECURITY: TZ-NNN]` **[machine-verified: H5]** (H5 checks the marker; an N/A feature has no threat-ids) **and** proven by ≥ 1 test case (human — the per-AC test-case rule, only advisorily A2) — or the obligation is consent-excluded in the plan (autonomous: parked). Minimal mode may record an explicit empty assessed negative; it never infers N/A from one-feature shape. Whether the security criterion is *substantively adequate* stays the human's.
 - [ ] Every `IC-NNN` the plan's `interaction-contract.md` assigns this feature is bound by ≥ 1 acceptance criterion marked `[CONTRACT: IC-NNN]` **and** proven by ≥ 1 test case (**human/agent-attested — no lint**; behavioural-protocol invariants and NFRs are un-derivable from markdown, like §3.5/§3.6) — or the obligation is consent-excluded in the plan (autonomous: parked). Minimal mode records plan-owned interaction obligations `N/A by construction`. Whether the interaction criterion is *substantively adequate* stays the human's.
+- [ ] `tasks.json.architecture_context` and the Markdown Architecture Context
+  projection are exact peers and still match the current consumer-linted
+  package/feature mapping or typed no-package disposition
+  **[machine-verified: H7]**.
 
 ### 5.4 Final Approval  [material]
 

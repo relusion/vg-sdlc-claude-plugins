@@ -1,4 +1,6 @@
-"""Focused tests for ce-architecture's transactional publication helper."""
+"""Focused tests for schema-v2 transactional architecture publication."""
+
+from __future__ import annotations
 
 import copy
 import hashlib
@@ -12,39 +14,63 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = (
     REPO
     / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-publish.py"
 )
-GOLDEN_ROOT = REPO / "evals/golden/EVAL-020"
-SLUG = "team-invitations-rbac"
-
-_spec = importlib.util.spec_from_file_location("architecture_publish_mod", SCRIPT)
-ap = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ap)
+FIXTURE = REPO / "tests/architecture_v2_fixture.py"
+LEGACY_FIXTURE = REPO / "tests/test_architecture_lint.py"
 
 
-def _save_manifest(package: Path, manifest: dict) -> None:
+def _load(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ap = _load(SCRIPT, "architecture_publish_v2_tests")
+v2 = _load(FIXTURE, "architecture_publish_v2_fixture")
+
+APPROVAL = {
+    "publish_status": "accepted-for-specification",
+    "recorded_by": "architect@example.test",
+    "approval_authority": "Solution Architecture Council",
+    "approval_reference": "REVIEW-123",
+    "approval_time": "2026-07-23T10:30:00Z",
+}
+COHERENT_PASS = {
+    "schema_version": 1,
+    "exit_code": 0,
+    "status": "pass",
+    "blocking_hard": 0,
+    "hard_failures": [],
+    "advisory": [],
+}
+
+
+def _case(workspace: Path, *, retain_target: bool = False):
+    root = workspace / "repo"
+    target, manifest = v2.make_v2_repo(root)
+    scratch = workspace / "scratch"
+    shutil.copytree(target, scratch)
+    if not retain_target:
+        shutil.rmtree(target)
+    return root, target, scratch, manifest
+
+
+def _render_review(package: Path, manifest: dict) -> dict:
+    renderer = ap._load_renderer()
+    finalized, documents = renderer.finalize_review_manifest(manifest)
+    for path, payload in documents.items():
+        (package / path).write_bytes(payload)
     (package / "architecture.json").write_text(
-        json.dumps(manifest, indent=2), encoding="utf-8"
-    )
-
-
-def _set_architecture_revision(package: Path, manifest: dict, revision: int) -> None:
-    current = manifest["architecture_revision"]
-    overview = package / "solution-architecture.md"
-    text = overview.read_text(encoding="utf-8")
-    current_banner = f"> Architecture revision: {current}"
-    if text.count(current_banner) != 1:
-        raise AssertionError(
-            f"expected exactly one reviewed architecture revision banner: {current_banner}"
-        )
-    overview.write_text(
-        text.replace(current_banner, f"> Architecture revision: {revision}"),
+        json.dumps(finalized, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    manifest["architecture_revision"] = revision
+    return finalized
 
 
 def _fingerprint(path: Path) -> dict[str, str]:
@@ -55,21 +81,264 @@ def _fingerprint(path: Path) -> dict[str, str]:
     }
 
 
-def _package_case(workspace: Path) -> tuple[Path, Path, Path, dict]:
-    root = workspace / "repo"
-    shutil.copytree(GOLDEN_ROOT, root, dirs_exist_ok=True)
-    target = root / f"docs/plans/{SLUG}/architecture"
-    manifest = json.loads((target / "architecture.json").read_text(encoding="utf-8"))
-    scratch = workspace / "scratch-architecture"
-    shutil.copytree(target, scratch)
-    manifest["status"] = "proposed"
-    manifest["approval"] = copy.deepcopy(ap.PENDING_APPROVAL)
-    _save_manifest(scratch, manifest)
+def _with_reset(manifest: dict, reset: dict) -> dict:
+    result = {}
+    for key, value in manifest.items():
+        if key == "approval":
+            result["revision_reset"] = reset
+        result[key] = value
+    return result
+
+
+def _valid_prior_case(workspace: Path):
+    root, target, scratch, manifest = _case(workspace, retain_target=True)
+    prior_scratch = workspace / "prior-scratch"
+    shutil.copytree(target, prior_scratch)
+    shutil.rmtree(target)
+    result, code = ap.publish_package(
+        prior_scratch,
+        root,
+        "team-invitations",
+        **APPROVAL,
+    )
+    if code != 0:
+        raise AssertionError(f"could not prepare valid prior: {result}")
+    manifest["architecture_revision"] = 2
+    manifest = _render_review(scratch, manifest)
     return root, target, scratch, manifest
 
 
-class ArchitecturePublish(unittest.TestCase):
-    def test_unexpected_lint_result_decoding_exception_is_structured(self):
+class ArchitecturePublishV2(unittest.TestCase):
+    def test_first_publication_preserves_reviewed_markdown_and_seals_receipt(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, target, scratch, reviewed = _case(Path(td))
+            markdown = {
+                name: (scratch / name).read_bytes()
+                for name in ap.PACKAGE_FILES
+                if name.endswith(".md")
+            }
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result["status"], "published")
+            self.assertEqual(result["pre_render_validation"]["outcome"], "pass")
+            self.assertEqual(result["stage_render_validation"]["outcome"], "pass")
+            self.assertEqual(result["final_lint_validation"]["outcome"], "pass")
+            published = json.loads(
+                (target / "architecture.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(published["lifecycle_status"], "published")
+            self.assertEqual(
+                published["baseline_status"], reviewed["baseline_status"]
+            )
+            self.assertEqual(
+                published["approval"]["review_payload_sha256"],
+                reviewed["approval"]["review_payload_sha256"],
+            )
+            self.assertEqual(
+                published["approval"]["receipt_sha256"],
+                result["package_receipt_sha256"],
+            )
+            self.assertEqual(
+                published["approval"]["receipt_sha256"],
+                result["final_lint"]["package_receipt_sha256"],
+            )
+            for name, payload in markdown.items():
+                self.assertEqual((target / name).read_bytes(), payload)
+
+    def test_cli_requires_identity_authority_and_reference(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, _, scratch, _ = _case(Path(td))
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    str(scratch),
+                    "--repo-root",
+                    str(root),
+                    "--plan-slug",
+                    "team-invitations",
+                    "--publish-status",
+                    "accepted-for-specification",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("--recorded-by", proc.stderr)
+
+    def test_placeholder_receipt_authority_is_refused(self):
+        fields = ("recorded_by", "approval_authority", "approval_reference")
+        for field in fields:
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as td:
+                root, target, scratch, _ = _case(Path(td))
+                arguments = {**APPROVAL, field: "TBD"}
+                result, code = ap.publish_package(
+                    scratch, root, "team-invitations", **arguments
+                )
+                self.assertEqual(code, 1)
+                self.assertEqual(result["status"], "refused")
+                self.assertIn("placeholder", result["message"])
+                self.assertFalse(target.exists())
+
+    def test_projection_byte_mutation_is_refused_before_lint(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, target, scratch, _ = _case(Path(td))
+            projection = scratch / "views.md"
+            projection.write_text(
+                projection.read_text(encoding="utf-8") + "\nmanual edit\n",
+                encoding="utf-8",
+            )
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("render check failed", result["message"])
+            self.assertIsNone(result["prelint"])
+            self.assertFalse(target.exists())
+
+    def test_review_digest_mutation_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, _, scratch, _ = _case(Path(td))
+            manifest = json.loads(
+                (scratch / "architecture.json").read_text(encoding="utf-8")
+            )
+            manifest["approval"]["review_payload_sha256"] = "f" * 64
+            (scratch / "architecture.json").write_text(
+                json.dumps(manifest, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("review_payload_sha256", result["message"])
+
+    def test_schema_v1_is_refused_without_running_lint(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, target, scratch, _ = _case(Path(td))
+            manifest = json.loads(
+                (scratch / "architecture.json").read_text(encoding="utf-8")
+            )
+            manifest.pop("$schema")
+            manifest["schema_version"] = 1
+            (scratch / "architecture.json").write_text(
+                json.dumps(manifest, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("schema v2", result["message"])
+            self.assertIsNone(result["prelint"])
+            self.assertFalse(target.exists())
+
+    def test_readable_prior_requires_monotonic_revision(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, target, scratch, manifest = _case(
+                Path(td), retain_target=True
+            )
+            # Publish the current review package as the valid prior.
+            prior_scratch = Path(td) / "prior-scratch"
+            shutil.copytree(target, prior_scratch)
+            shutil.rmtree(target)
+            prior_result, prior_code = ap.publish_package(
+                prior_scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(prior_code, 0, prior_result)
+
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("revision must advance", result["message"])
+
+            manifest["architecture_revision"] = 2
+            _render_review(scratch, manifest)
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result["published_revision"], 2)
+
+    def test_readable_schema_v1_prior_can_upgrade_to_v2_next_revision(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            root, target, scratch, manifest = _case(
+                workspace, retain_target=True
+            )
+            manifest["architecture_revision"] = 2
+            _render_review(scratch, manifest)
+
+            legacy_root = workspace / "legacy-repo"
+            legacy = _load(
+                LEGACY_FIXTURE,
+                "architecture_publish_legacy_upgrade_fixture",
+            )
+            legacy_arch, legacy_manifest = legacy._make_repo(legacy_root)
+            self.assertEqual(legacy_manifest["schema_version"], 1)
+            shutil.rmtree(target)
+            shutil.copytree(legacy_arch, target)
+
+            result, code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result["prior"]["state"], "invalid-readable")
+            self.assertEqual(result["published_revision"], 2)
+            published = json.loads(
+                (target / "architecture.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(published["schema_version"], 2)
+            self.assertEqual(published["architecture_revision"], 2)
+
+    def test_final_lint_failure_rolls_back_prior(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, target, scratch, _ = _case(Path(td))
+            calls = 0
+            real = ap.run_lint
+
+            def fail_final(package, repo_root, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 3:
+                    return {
+                        "schema_version": 1,
+                        "status": "fail",
+                        "hard_failures": ["H1 injected final failure"],
+                        "advisory": [],
+                        "blocking_hard": 1,
+                        "exit_code": 1,
+                    }
+                return real(package, repo_root, **kwargs)
+
+            with mock.patch.object(ap, "run_lint", side_effect=fail_final):
+                result, code = ap.publish_package(
+                    scratch, root, "team-invitations", **APPROVAL
+                )
+            self.assertEqual(code, 1, result)
+            self.assertEqual(result["status"], "rolled-back")
+            self.assertTrue(result["rollback"]["restored"])
+            self.assertFalse(target.exists(), "first-publish absence must be restored")
+
+    def test_unexpected_lint_result_is_not_trusted(self):
+        assessment = ap._assess_lint_result(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "hard_failures": ["contradiction"],
+                "advisory": [],
+                "blocking_hard": 1,
+                "exit_code": 0,
+            }
+        )
+        self.assertEqual(assessment["outcome"], "error")
+        self.assertFalse(assessment["coherent"])
+
+    def test_unexpected_lint_decoder_exception_is_structured(self):
         completed = subprocess.CompletedProcess(
             args=["architecture-lint.py"],
             returncode=0,
@@ -83,7 +352,6 @@ class ArchitecturePublish(unittest.TestCase):
                     side_effect=RuntimeError("simulated decoder failure"),
                 ):
             result = ap.run_lint(Path("/unused"), REPO)
-
         self.assertEqual(result["exit_code"], 2)
         self.assertEqual(result["process_exit_code"], 0)
         self.assertEqual(result["status"], "error")
@@ -92,289 +360,195 @@ class ArchitecturePublish(unittest.TestCase):
         self.assertTrue(assessment["coherent"])
         self.assertEqual(assessment["outcome"], "error")
 
-    def test_first_publication_succeeds_and_emits_structured_json(self):
+    def test_scratch_pre_lint_failure_preserves_valid_prior(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, reviewed = _package_case(Path(td))
-            markdown_bytes = {
-                name: (scratch / name).read_bytes()
-                for name in ap.PACKAGE_FILES - {"architecture.json"}
-            }
-            shutil.rmtree(target)
-
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    str(scratch),
-                    "--repo-root",
-                    str(root),
-                    "--plan-slug",
-                    SLUG,
-                    "--publish-status",
-                    "approved",
-                    "--json",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-            result = json.loads(proc.stdout)
-            self.assertEqual(result["status"], "published")
-            self.assertEqual(result["published_revision"], 1)
-            self.assertEqual(result["final_lint"]["status"], "pass")
-            self.assertFalse(result["transaction"]["crash_consistent"])
-            self.assertEqual(
-                {item.name for item in target.iterdir()}, ap.PACKAGE_FILES
-            )
-            for name, expected_bytes in markdown_bytes.items():
-                self.assertEqual((target / name).read_bytes(), expected_bytes)
-            expected_manifest = copy.deepcopy(reviewed)
-            expected_manifest["status"] = "approved"
-            expected_manifest["approval"] = {
-                "decision": "approved",
-                "recorded_by": "human",
-                "gate": ap.FINAL_APPROVAL_GATE,
-            }
-            published_manifest = json.loads(
-                (target / "architecture.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(published_manifest, expected_manifest)
-            for key in reviewed.keys() - {"status", "approval"}:
-                self.assertEqual(published_manifest[key], reviewed[key])
-            self.assertTrue(scratch.is_dir(), "publisher must not consume scratch")
-            self.assertEqual(
-                list(target.parent.glob(".architecture-publish-*")), [],
-                "successful publication must leave no transaction directory",
-            )
-
-    def test_scratch_pre_lint_failure_preserves_valid_old_package(self):
-        with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
+            root, target, scratch, manifest = _valid_prior_case(Path(td))
             before = _fingerprint(target)
-            _set_architecture_revision(scratch, manifest, 2)
             manifest["relationships"][0]["to"] = "C-999"
-            _save_manifest(scratch, manifest)
-
+            _render_review(scratch, manifest)
             result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+                scratch, root, "team-invitations", **APPROVAL
             )
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 1, result)
             self.assertEqual(result["status"], "refused")
             self.assertIn("scratch architecture lint failed", result["message"])
             self.assertEqual(_fingerprint(target), before)
             self.assertFalse(result["rollback"]["attempted"])
 
-    def test_revision_banner_mismatch_is_pre_lint_refusal(self):
+    def test_unexpected_prior_entry_requires_cleanup_authority(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
+            root, target, scratch, _ = _valid_prior_case(Path(td))
+            note = target / "operator-notes.txt"
+            note.write_text("retain until approved cleanup\n", encoding="utf-8")
             before = _fingerprint(target)
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
-            overview = scratch / "solution-architecture.md"
-            overview.write_text(
-                overview.read_text(encoding="utf-8").replace(
-                    "> Architecture revision: 2",
-                    "> Architecture revision: 1",
-                ),
-                encoding="utf-8",
+            refused, refused_code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
             )
-
-            result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
-            )
-
-            self.assertEqual(code, 1)
-            self.assertEqual(result["status"], "refused")
-            self.assertIn("Architecture revision must equal 2", result["message"])
+            self.assertEqual(refused_code, 1, refused)
+            self.assertIn("--allow-extra-cleanup", refused["message"])
             self.assertEqual(_fingerprint(target), before)
-            self.assertFalse(result["rollback"]["attempted"])
-            self.assertEqual(
-                list(target.parent.glob(".architecture-publish-*")), []
-            )
-
-    def test_unexpected_existing_entry_refuses_without_cleanup_authority(self):
-        with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
-            (target / "operator-notes.txt").write_text("keep me\n", encoding="utf-8")
+            self.assertTrue(note.is_file())
 
             result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+                scratch,
+                root,
+                "team-invitations",
+                allow_extra_cleanup=True,
+                **APPROVAL,
             )
-            self.assertEqual(code, 1)
-            self.assertIn("--allow-extra-cleanup", result["message"])
-            self.assertTrue((target / "operator-notes.txt").is_file())
-            self.assertEqual(
-                json.loads((target / "architecture.json").read_text())["architecture_revision"],
-                1,
-            )
+            self.assertEqual(code, 0, result)
+            self.assertFalse(note.exists())
+            self.assertEqual(result["published_revision"], 2)
 
-    def test_malformed_prior_requires_cli_and_durable_human_reset(self):
+    def test_malformed_prior_requires_flag_and_durable_reset(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
+            root, target, scratch, manifest = _case(
+                Path(td), retain_target=True
+            )
             malformed = "{not-json\n"
             (target / "architecture.json").write_text(malformed, encoding="utf-8")
-            manifest["revision_reset"] = {
+            reset = {
                 "reason": (
-                    "The prior manifest is unreadable; architecture owner approved "
-                    "a new baseline."
+                    "The architecture owner approved a new baseline because "
+                    "the prior manifest is unreadable."
                 ),
                 "recorded_by": "human",
                 "gate": ap.RESET_GATE,
             }
-            _save_manifest(scratch, manifest)
+            manifest = _with_reset(manifest, reset)
+            _render_review(scratch, manifest)
 
-            result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+            refused, refused_code = ap.publish_package(
+                scratch, root, "team-invitations", **APPROVAL
             )
-            self.assertEqual(code, 1)
-            self.assertIn("--accept-human-approved-reset", result["message"])
-            self.assertEqual((target / "architecture.json").read_text(), malformed)
+            self.assertEqual(refused_code, 1, refused)
+            self.assertIn("--accept-human-approved-reset", refused["message"])
+            self.assertEqual(
+                (target / "architecture.json").read_text(encoding="utf-8"),
+                malformed,
+            )
 
-            no_record = dict(manifest)
-            no_record.pop("revision_reset")
-            _save_manifest(scratch, no_record)
+            no_record = {
+                key: value
+                for key, value in manifest.items()
+                if key != "revision_reset"
+            }
+            _render_review(scratch, no_record)
+            refused, refused_code = ap.publish_package(
+                scratch,
+                root,
+                "team-invitations",
+                accept_human_approved_reset=True,
+                **APPROVAL,
+            )
+            self.assertEqual(refused_code, 1, refused)
+            self.assertIn("revision_reset", refused["message"])
+
+            _render_review(scratch, manifest)
             result, code = ap.publish_package(
                 scratch,
                 root,
-                SLUG,
-                publish_status="approved",
+                "team-invitations",
                 accept_human_approved_reset=True,
-            )
-            self.assertEqual(code, 1)
-            self.assertIn("revision_reset", result["message"])
-            self.assertEqual((target / "architecture.json").read_text(), malformed)
-
-            _save_manifest(scratch, manifest)
-            result, code = ap.publish_package(
-                scratch,
-                root,
-                SLUG,
-                publish_status="approved",
-                accept_human_approved_reset=True,
+                **APPROVAL,
             )
             self.assertEqual(code, 0, result)
-            self.assertEqual(result["status"], "published")
-            published = json.loads((target / "architecture.json").read_text())
+            published = json.loads(
+                (target / "architecture.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(published["architecture_revision"], 1)
-            self.assertEqual(published["revision_reset"]["recorded_by"], "human")
+            self.assertEqual(
+                published["revision_reset"]["recorded_by"], "human"
+            )
 
-    def test_final_lint_failure_rolls_back_valid_old_package(self):
+    def test_final_lint_failure_restores_valid_prior_exactly(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             before = _fingerprint(target)
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
             real_run_lint = ap.run_lint
             target_calls = 0
 
-            def fail_only_final(
-                package: Path,
-                repo_root: Path,
-                *,
-                allow_proposed: bool = False,
-            ) -> dict:
+            def fail_final(package, repo_root, **kwargs):
                 nonlocal target_calls
-                result = real_run_lint(
-                    package, repo_root, allow_proposed=allow_proposed
-                )
+                result = real_run_lint(package, repo_root, **kwargs)
                 if package.resolve() == target.resolve():
                     target_calls += 1
                     if target_calls == 2:
                         return {
+                            **COHERENT_PASS,
                             "exit_code": 1,
                             "status": "fail",
-                            "hard_failures": ["simulated final validation failure"],
+                            "blocking_hard": 1,
+                            "hard_failures": ["simulated final failure"],
                         }
                 return result
 
-            with mock.patch.object(ap, "run_lint", side_effect=fail_only_final):
+            with mock.patch.object(ap, "run_lint", side_effect=fail_final):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
             self.assertEqual(code, 1, result)
             self.assertEqual(result["status"], "rolled-back")
-            self.assertTrue(result["rollback"]["attempted"])
             self.assertTrue(result["rollback"]["restored"])
             self.assertEqual(_fingerprint(target), before)
             self.assertEqual(
                 list(target.parent.glob(".architecture-publish-*")), []
             )
 
-    def test_incoherent_pre_lint_payload_is_runtime_error_without_mutation(self):
+    def test_incoherent_pre_lint_is_runtime_error_without_mutation(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             before = _fingerprint(target)
-            real_run_lint = ap.run_lint
 
-            def corrupt_pre_result(
-                package: Path,
-                repo_root: Path,
-                *,
-                allow_proposed: bool = False,
-            ) -> dict:
-                if allow_proposed:
+            def corrupt_pre(package, repo_root, **kwargs):
+                if kwargs.get("allow_proposed"):
                     return {
                         "exit_code": 0,
                         "status": "error",
-                        "error": "simulated non-JSON linter output",
+                        "error": "simulated non-JSON output",
                     }
-                return real_run_lint(
-                    package, repo_root, allow_proposed=allow_proposed
-                )
+                return ap.run_lint(package, repo_root, **kwargs)
 
-            with mock.patch.object(ap, "run_lint", side_effect=corrupt_pre_result):
+            real_run_lint = ap.run_lint
+
+            def routed(package, repo_root, **kwargs):
+                if kwargs.get("allow_proposed"):
+                    return corrupt_pre(package, repo_root, **kwargs)
+                return real_run_lint(package, repo_root, **kwargs)
+
+            with mock.patch.object(ap, "run_lint", side_effect=routed):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
-            self.assertEqual(code, 2)
+            self.assertEqual(code, 2, result)
             self.assertEqual(result["status"], "error")
             self.assertFalse(result["prelint_validation"]["coherent"])
-            self.assertEqual(result["prelint_validation"]["outcome"], "error")
             self.assertEqual(_fingerprint(target), before)
             self.assertEqual(
                 list(target.parent.glob(".architecture-publish-*")), []
             )
 
-    def test_contradictory_stage_lint_payload_is_error_without_target_mutation(self):
+    def test_incoherent_stage_lint_is_error_without_target_mutation(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             before = _fingerprint(target)
             real_run_lint = ap.run_lint
 
-            def corrupt_stage_result(
-                package: Path,
-                repo_root: Path,
-                *,
-                allow_proposed: bool = False,
-            ) -> dict:
+            def corrupt_stage(package, repo_root, **kwargs):
                 if package.name.startswith(".architecture-publish-stage-"):
                     return {
-                        "schema_version": 1,
-                        "exit_code": 0,
+                        **COHERENT_PASS,
                         "status": "fail",
                         "blocking_hard": 1,
-                        "hard_failures": ["simulated contradictory result"],
-                        "advisory": [],
+                        "hard_failures": ["contradictory stage result"],
                     }
-                return real_run_lint(
-                    package, repo_root, allow_proposed=allow_proposed
-                )
+                return real_run_lint(package, repo_root, **kwargs)
 
-            with mock.patch.object(ap, "run_lint", side_effect=corrupt_stage_result):
+            with mock.patch.object(ap, "run_lint", side_effect=corrupt_stage):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
-            self.assertEqual(code, 2)
+            self.assertEqual(code, 2, result)
             self.assertEqual(result["status"], "error")
             self.assertFalse(result["stage_lint_validation"]["coherent"])
             self.assertEqual(_fingerprint(target), before)
@@ -382,141 +556,80 @@ class ArchitecturePublish(unittest.TestCase):
                 list(target.parent.glob(".architecture-publish-*")), []
             )
 
-    def test_contradictory_final_lint_payload_rolls_back(self):
+    def test_incoherent_final_lint_rolls_back_valid_prior(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             before = _fingerprint(target)
             real_run_lint = ap.run_lint
             target_calls = 0
 
-            def corrupt_final_result(
-                package: Path,
-                repo_root: Path,
-                *,
-                allow_proposed: bool = False,
-            ) -> dict:
+            def corrupt_final(package, repo_root, **kwargs):
                 nonlocal target_calls
-                result = real_run_lint(
-                    package, repo_root, allow_proposed=allow_proposed
-                )
+                result = real_run_lint(package, repo_root, **kwargs)
                 if package.resolve() == target.resolve():
                     target_calls += 1
                     if target_calls == 2:
                         return {
-                            "schema_version": 1,
-                            "exit_code": 0,
-                            "status": "pass",
+                            **COHERENT_PASS,
                             "blocking_hard": 1,
-                            "hard_failures": ["hidden failure"],
-                            "advisory": [],
+                            "hard_failures": ["hidden final failure"],
                         }
                 return result
 
-            with mock.patch.object(ap, "run_lint", side_effect=corrupt_final_result):
+            with mock.patch.object(ap, "run_lint", side_effect=corrupt_final):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
             self.assertEqual(code, 1, result)
             self.assertEqual(result["status"], "rolled-back")
             self.assertFalse(result["final_lint_validation"]["coherent"])
-            self.assertEqual(result["final_lint_validation"]["outcome"], "error")
             self.assertTrue(result["rollback"]["restored"])
             self.assertEqual(_fingerprint(target), before)
-            self.assertEqual(
-                list(target.parent.glob(".architecture-publish-*")), []
-            )
 
-    def test_final_lint_unicode_decode_error_is_structured_and_rolls_back(self):
+    def test_final_lint_unicode_error_is_structured_and_rolls_back(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             before = _fingerprint(target)
             real_run_lint = ap.run_lint
-            lint_calls = 0
-            coherent_pass = {
-                "schema_version": 1,
-                "exit_code": 0,
-                "status": "pass",
-                "blocking_hard": 0,
-                "hard_failures": [],
-                "advisory": [],
-            }
+            target_calls = 0
 
-            def decode_error_on_final(
-                package: Path,
-                repo_root: Path,
-                *,
-                allow_proposed: bool = False,
-            ) -> dict:
-                nonlocal lint_calls
-                lint_calls += 1
-                if lint_calls != 4:
-                    return dict(coherent_pass)
-                decode_error = UnicodeDecodeError(
-                    "utf-8",
-                    b"\xff",
-                    0,
-                    1,
-                    "simulated invalid linter output",
-                )
-                with mock.patch.object(
-                    ap.subprocess,
-                    "run",
-                    side_effect=decode_error,
-                ):
-                    return real_run_lint(
-                        package,
-                        repo_root,
-                        allow_proposed=allow_proposed,
-                    )
+            def unicode_final(package, repo_root, **kwargs):
+                nonlocal target_calls
+                if package.resolve() == target.resolve():
+                    target_calls += 1
+                    if target_calls == 2:
+                        error = UnicodeDecodeError(
+                            "utf-8",
+                            b"\xff",
+                            0,
+                            1,
+                            "simulated invalid linter output",
+                        )
+                        return ap._lint_runtime_error(
+                            "linter result decoding failed",
+                            error,
+                            process_exit_code=0,
+                        )
+                return real_run_lint(package, repo_root, **kwargs)
 
-            with mock.patch.object(
-                ap,
-                "run_lint",
-                side_effect=decode_error_on_final,
-            ):
+            with mock.patch.object(ap, "run_lint", side_effect=unicode_final):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
             self.assertEqual(code, 1, result)
             self.assertEqual(result["status"], "rolled-back")
             self.assertEqual(result["final_lint"]["exit_code"], 2)
-            self.assertEqual(result["final_lint"]["status"], "error")
             self.assertIn("UnicodeDecodeError", result["final_lint"]["error"])
             self.assertTrue(result["final_lint_validation"]["coherent"])
-            self.assertEqual(result["final_lint_validation"]["outcome"], "error")
             self.assertTrue(result["rollback"]["restored"])
             self.assertEqual(_fingerprint(target), before)
-            self.assertEqual(
-                list(target.parent.glob(".architecture-publish-*")), []
-            )
 
-    def test_missing_expected_backup_cannot_be_reported_as_restored(self):
+    def test_missing_expected_backup_is_not_reported_as_restored(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             target_calls = 0
-            coherent_pass = {
-                "schema_version": 1,
-                "exit_code": 0,
-                "status": "pass",
-                "blocking_hard": 0,
-                "hard_failures": [],
-                "advisory": [],
-            }
 
-            def lose_backup_before_final_failure(
-                package: Path,
-                repo_root: Path,
-                *,
-                allow_proposed: bool = False,
-            ) -> dict:
+            def lose_backup(package, repo_root, **kwargs):
                 nonlocal target_calls
                 if package.resolve() == target.resolve():
                     target_calls += 1
@@ -527,23 +640,19 @@ class ArchitecturePublish(unittest.TestCase):
                         self.assertEqual(len(backups), 1)
                         shutil.rmtree(backups[0])
                         return {
-                            "schema_version": 1,
+                            **COHERENT_PASS,
                             "exit_code": 1,
                             "status": "fail",
                             "blocking_hard": 1,
                             "hard_failures": ["simulated final failure"],
-                            "advisory": [],
                         }
-                return dict(coherent_pass)
+                return dict(COHERENT_PASS)
 
-            with mock.patch.object(
-                ap, "run_lint", side_effect=lose_backup_before_final_failure
-            ):
+            with mock.patch.object(ap, "run_lint", side_effect=lose_backup):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
-            self.assertEqual(code, 2)
+            self.assertEqual(code, 2, result)
             self.assertEqual(result["status"], "error")
             self.assertFalse(result["rollback"]["restored"])
             self.assertIn("rollback could not be proven", result["message"])
@@ -554,86 +663,47 @@ class ArchitecturePublish(unittest.TestCase):
             )
             self.assertFalse((target.parent / ap.TRANSACTION_LOCK).exists())
 
-    def test_scratch_symlink_is_refused_before_target_mutation(self):
+    def test_scratch_file_symlink_is_refused_before_target_mutation(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, _ = _package_case(Path(td))
+            root, target, scratch, _ = _case(Path(td), retain_target=True)
             before = _fingerprint(target)
             overview = scratch / "solution-architecture.md"
             overview.unlink()
             overview.symlink_to(target / "solution-architecture.md")
-
             result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+                scratch, root, "team-invitations", **APPROVAL
             )
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 1, result)
             self.assertIn("symlink entries", result["message"])
             self.assertEqual(_fingerprint(target), before)
 
     def test_already_published_scratch_is_refused(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            before = _fingerprint(target)
-            manifest["status"] = "approved"
-            manifest["approval"] = {
-                "decision": "approved",
-                "recorded_by": "human",
-                "gate": ap.FINAL_APPROVAL_GATE,
-            }
-            _save_manifest(scratch, manifest)
-
+            root, target, scratch, _ = _case(Path(td))
             result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
-            )
-
-            self.assertEqual(code, 1)
-            self.assertIn("status must be 'proposed'", result["message"])
-            self.assertEqual(_fingerprint(target), before)
-
-    def test_readable_invalid_prior_advances_revision_and_forbids_reset(self):
-        with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            invalid_prior = json.loads(
-                (target / "architecture.json").read_text(encoding="utf-8")
-            )
-            invalid_prior["relationships"][0]["to"] = "C-999"
-            _save_manifest(target, invalid_prior)
-            before = _fingerprint(target)
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
-
-            refused, refused_code = ap.publish_package(
-                scratch,
-                root,
-                SLUG,
-                publish_status="approved",
-                accept_human_approved_reset=True,
-            )
-            self.assertEqual(refused_code, 1)
-            self.assertEqual(refused["prior"]["state"], "invalid-readable")
-            self.assertIn("readable revision", refused["message"])
-            self.assertEqual(_fingerprint(target), before)
-
-            result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+                scratch, root, "team-invitations", **APPROVAL
             )
             self.assertEqual(code, 0, result)
-            self.assertEqual(result["prior"]["state"], "invalid-readable")
-            self.assertEqual(result["published_revision"], 2)
+            published_scratch = Path(td) / "published-scratch"
+            shutil.copytree(target, published_scratch)
+            before = _fingerprint(target)
+            result, code = ap.publish_package(
+                published_scratch, root, "team-invitations", **APPROVAL
+            )
+            self.assertEqual(code, 1, result)
+            self.assertIn("lifecycle_status must be 'proposed'", result["message"])
+            self.assertEqual(_fingerprint(target), before)
 
     def test_orphan_transaction_refuses_with_recovery_details(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _case(Path(td), retain_target=True)
             before = _fingerprint(target)
             orphan = target.parent / ".architecture-publish-backup-crashed"
             orphan.mkdir()
-
             result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+                scratch, root, "team-invitations", **APPROVAL
             )
-
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 1, result)
             self.assertEqual(result["orphan_transactions"], [orphan.name])
             self.assertIn("explicit crash recovery", result["message"])
             self.assertEqual(_fingerprint(target), before)
@@ -641,124 +711,107 @@ class ArchitecturePublish(unittest.TestCase):
             self.assertEqual(
                 result["transaction"]["lock"]["disposition"], "released"
             )
-            self.assertFalse((target.parent / ap.TRANSACTION_LOCK).exists())
 
-    def test_active_lock_blocks_a_concurrent_publisher(self):
+    def test_active_lock_blocks_concurrent_publisher(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _case(Path(td), retain_target=True)
             before = _fingerprint(target)
-            target_rel = Path(f"docs/plans/{SLUG}/architecture")
-            lock_path, lock_token, lock_result = ap._acquire_transaction_lock(
+            target_rel = Path("docs/plans/team-invitations/architecture")
+            lock_path, token, lock_result = ap._acquire_transaction_lock(
                 target.parent, target_rel
             )
             self.assertIsNotNone(lock_path)
-            self.assertIsNotNone(lock_token)
-            self.assertEqual(lock_result["disposition"], "acquired")
+            self.assertIsNotNone(token)
             try:
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-                self.assertEqual(code, 1)
+                self.assertEqual(code, 1, result)
                 lock = result["transaction"]["lock"]
                 self.assertEqual(lock["disposition"], "blocked-existing")
                 self.assertEqual(
                     lock["owner"]["token"], lock_result["owner"]["token"]
                 )
-                self.assertEqual(
-                    result["orphan_transactions"], [ap.TRANSACTION_LOCK]
-                )
                 self.assertTrue(lock_path.is_file())
                 self.assertEqual(_fingerprint(target), before)
             finally:
-                ap._release_transaction_lock(lock_path, lock_token)
+                ap._release_transaction_lock(lock_path, token)
 
-    def test_crash_leftover_lock_reports_owner_and_requires_recovery(self):
+    def test_crash_leftover_lock_reports_owner_and_is_retained(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _case(Path(td), retain_target=True)
             before = _fingerprint(target)
             lock_path = target.parent / ap.TRANSACTION_LOCK
-            leftover_owner = {
+            owner = {
                 "schema_version": 1,
                 "pid": 4242,
                 "created_at": "2026-01-02T03:04:05Z",
-                "target": f"docs/plans/{SLUG}/architecture",
+                "target": "docs/plans/team-invitations/architecture",
                 "token": "crash-leftover-token",
             }
-            lock_path.write_text(json.dumps(leftover_owner), encoding="utf-8")
-
+            lock_path.write_text(json.dumps(owner), encoding="utf-8")
             result, code = ap.publish_package(
-                scratch, root, SLUG, publish_status="approved"
+                scratch, root, "team-invitations", **APPROVAL
             )
-
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 1, result)
             lock = result["transaction"]["lock"]
             self.assertEqual(lock["disposition"], "blocked-existing")
-            self.assertEqual(lock["owner"]["state"], "readable")
             self.assertEqual(lock["owner"]["pid"], 4242)
             self.assertIn("crash-leftover", result["message"])
-            self.assertTrue(lock_path.is_file(), "publisher must not remove an unknown lock")
+            self.assertTrue(lock_path.is_file())
             self.assertEqual(_fingerprint(target), before)
 
-    def test_backup_cleanup_failure_keeps_valid_target_and_warns(self):
+    def test_backup_cleanup_failure_keeps_published_target_and_warns(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, manifest = _package_case(Path(td))
-            _set_architecture_revision(scratch, manifest, 2)
-            _save_manifest(scratch, manifest)
+            root, target, scratch, _ = _valid_prior_case(Path(td))
             real_remove = ap._remove_path
 
-            def refuse_backup_cleanup(path: Path) -> None:
+            def refuse_backup_cleanup(path):
                 if path.name.startswith(".architecture-publish-backup-"):
                     raise PermissionError("simulated cleanup denial")
-                real_remove(path)
+                return real_remove(path)
 
             with mock.patch.object(
                 ap, "_remove_path", side_effect=refuse_backup_cleanup
             ):
                 result, code = ap.publish_package(
-                    scratch, root, SLUG, publish_status="approved"
+                    scratch, root, "team-invitations", **APPROVAL
                 )
-
             self.assertEqual(code, 0, result)
             self.assertEqual(result["status"], "published")
             self.assertFalse(result["cleanup"]["backup_removed"])
             retained = target.parent / result["cleanup"]["retained_backup"]
             self.assertTrue(retained.is_dir())
             self.assertTrue(result["warnings"])
-            published = json.loads((target / "architecture.json").read_text())
+            published = json.loads(
+                (target / "architecture.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(published["architecture_revision"], 2)
 
     def test_scratch_directory_symlink_is_refused(self):
         with tempfile.TemporaryDirectory() as td:
             workspace = Path(td)
-            root, target, scratch, _ = _package_case(workspace)
+            root, target, scratch, _ = _case(workspace, retain_target=True)
             before = _fingerprint(target)
             linked = workspace / "scratch-link"
             linked.symlink_to(scratch, target_is_directory=True)
-
             result, code = ap.publish_package(
-                linked, root, SLUG, publish_status="approved"
+                linked, root, "team-invitations", **APPROVAL
             )
-
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 1, result)
             self.assertIn("directory must not be a symlink", result["message"])
             self.assertEqual(_fingerprint(target), before)
 
     def test_scratch_inside_repository_is_refused(self):
         with tempfile.TemporaryDirectory() as td:
-            root, target, scratch, _ = _package_case(Path(td))
+            root, target, scratch, _ = _case(Path(td), retain_target=True)
             before = _fingerprint(target)
             inside = root / "scratch-inside-repository"
             shutil.copytree(scratch, inside)
-
             result, code = ap.publish_package(
-                inside, root, SLUG, publish_status="approved"
+                inside, root, "team-invitations", **APPROVAL
             )
-
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 1, result)
             self.assertIn("outside the repository root", result["message"])
             self.assertEqual(_fingerprint(target), before)
 

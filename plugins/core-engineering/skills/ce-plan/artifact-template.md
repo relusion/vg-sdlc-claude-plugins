@@ -1100,7 +1100,7 @@ Consistency rules:
 
 | `decision` | Direction status | Required convergence | Other invariants |
 |---|---|---|---|
-| `required` | `direction-selected` or migrated `adopted-existing` | `converged` | at least one trigger; `iteration_count >= 1`; a current approved architecture package is required before spec |
+| `required` | `direction-selected` or migrated `adopted-existing` | `converged` | at least one trigger; `iteration_count >= 1`; a current accepted-for-specification architecture package is required before spec |
 | `recommended` | selected/adopted, or `deferred` | `converged` or `deferred` | at least one recommendation trigger; selected/adopted plus `converged` has `iteration_count >= 1`; `deferred` has `iteration_count: 0`; package absence is a visible coverage gap |
 | `not-required` | `not-applicable` | `not-applicable` | no triggers; `iteration_count: 0`; human-confirmed basis |
 | `waived` | prior `direction-selected`/`adopted-existing`, or `waived` when no direction was selected | `waived` | at least one trigger; `iteration_count >= 1`; explicit human rationale/summary; residual risk remains visible |

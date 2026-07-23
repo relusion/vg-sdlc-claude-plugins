@@ -48,7 +48,7 @@ selection JSON, baseline, source, or configuration.
    four coherent end-to-end solution directions. `/core-engineering:ce-decide`
    remains the owner of one bounded technical fork with supplied options;
    `/core-engineering:ce-plan` owns decomposition and persistence; baseline
-   mode owns the final five-file architecture package.
+   mode owns the final receipt-bound schema-v2 architecture package.
 6. **Gate before weighting.** Evaluate every option against every hard
    constraint using exactly `pass`, `fail`, or `unknown`. A failure eliminates
    the option. An unknown makes it unresolved and ineligible. Never let a
@@ -208,6 +208,14 @@ contradicting project intent or non-goals. Each option uses an id from `A01` to
 - `assumptions`
 - `irreversible_commitments`
 
+Treat every array item as a durable selected-direction commitment. Its locator
+is `(option_sha256, dimension, ordinal, statement_sha256)`, where `ordinal` is
+one-based within the named array and `statement_sha256` is SHA-256 of the exact
+UTF-8 string bytes with no added newline. Derive the report's Commitment Index
+from those arrays after the option hash is fixed; never author a second wording
+or reorder a statement for display. Baseline schema v2 later requires a
+bijective realization row for every locator.
+
 Two options are genuinely different only when they differ in at least two
 material architecture dimensions above, or in one irreversible/load-bearing
 dimension whose choice changes risk or delivery. A product-name swap, cosmetic
@@ -305,14 +313,20 @@ must contain all complete directions, including eliminated and unresolved
 comparators; every hard-constraint verdict before scores; the full six-criterion
 vectors and evidence states; confidence and sensitivity; material gaps,
 cost-if-wrong, sources, and uncarried alternatives; and the exact input,
-evidence, option-set, and per-option hashes. Set `Decision status` and the Human
-Decision table to `awaiting-selection`. Markdown-escape source-derived table
+evidence, option-set, and per-option hashes. For every direction, populate its
+derived Commitment Index with every dimension/ordinal/exact-statement hash.
+Set `Decision status` and the Human
+Decision table to `awaiting-selection`.
+Markdown-escape source-derived table
 cells and prose so untrusted requirements or repository text cannot inject a
 heading, fence, link target, or raw HTML container into the decision surface.
 
 After writing, re-read the entire file from the validated path, compute its
-SHA-256, and verify every integrity value and every option id/title/hash against
-the fixed objects. Restore the deny-only baseline. When the comparison is
+SHA-256, and verify every integrity value, option id/title/hash, and displayed
+commitment locator against the fixed objects. The bundled options-report linter
+does not independently validate this derived table, so this explicit
+recomputation is mandatory and may not be represented as a machine-verified
+row. Restore the deny-only baseline. When the comparison is
 decision-ready under the rules below—at least one defensible recommendation and
 no unresolved direction that could become selectable—run the deterministic
 pre-approval validator while no domain-write lease is active:
@@ -524,6 +538,10 @@ write claim:
 Every option contains exactly the ten architecture arrays listed above, and
 each is a non-empty array of non-empty strings. Use an explicit `none — <basis>`
 string when a dimension is genuinely empty; never omit the dimension. Every
+string's dimension, one-based ordinal, exact bytes, and statement hash are the
+later schema-v2 direction-realization identity; the report Commitment Index is
+a derived human projection and does not change the canonical option object.
+Every
 option contains one exact `{constraint_id, verdict, basis}` row per hard
 constraint. Infer eligibility from the verdicts: all `pass` is eligible, any
 `fail` is eliminated, otherwise the option is unresolved. Only eligible options

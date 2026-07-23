@@ -26,10 +26,20 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py"
+CONTEXT_SCRIPT = (
+    REPO
+    / "plugins/core-engineering/skills/ce-spec/scripts/architecture_context.py"
+)
 
 _spec = importlib.util.spec_from_file_location("spec_lint_mod", SCRIPT)
 sl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sl)
+
+_context_spec = importlib.util.spec_from_file_location(
+    "spec_lint_architecture_context_test", CONTEXT_SCRIPT
+)
+ac = importlib.util.module_from_spec(_context_spec)
+_context_spec.loader.exec_module(ac)
 
 # Minimal spec that passes H1–H4: one AC (security-marked), one TC proving it,
 # one task verifying the TC.
@@ -244,6 +254,164 @@ class PatchLintImportCompat(unittest.TestCase):
     def test_fork_copy_is_byte_identical(self):
         copy = REPO / "plugins/core-engineering/skills/ce-auto-build/scripts/spec-lint.py"
         self.assertEqual(SCRIPT.read_bytes(), copy.read_bytes())
+
+
+class ArchitectureContextH7(unittest.TestCase):
+    def write_bound_spec(self, root: Path) -> tuple[Path, Path]:
+        spec_dir = write_plan(root, None)
+        plan_dir = root / "docs/plans/demo"
+        (plan_dir / "plan.json").write_text(
+            json.dumps(
+                {
+                    "project_slug": "demo",
+                    "plan_revision": 1,
+                    "features": [
+                        {
+                            "id": "feat-1",
+                            "file": "features/feat-1.md",
+                        }
+                    ],
+                    "architecture_disposition": {
+                        "decision": "not-required",
+                        "rationale": "bounded feature-local fixture",
+                        "triggers": [],
+                        "decided_by": "human",
+                        "convergence": {
+                            "status": "not-applicable",
+                            "iteration_count": 0,
+                            "summary": "fixture convergence",
+                            "decision_refs": [],
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (plan_dir / "features").mkdir(exist_ok=True)
+        (plan_dir / "features/feat-1.md").write_text(
+            "# Feature\n", encoding="utf-8"
+        )
+        (plan_dir / "architecture-selection.json").write_text(
+            json.dumps({"schema_version": 2, "fixture": True}),
+            encoding="utf-8",
+        )
+        context = ac.derive_context(plan_dir, "feat-1", repo_root=root)
+        tasks = {
+            "feature_id": "feat-1",
+            "spec_revision": 1,
+            "architecture_context": context,
+            "tasks": [
+                {
+                    "id": "T-1",
+                    "files": ["src/feature.py"],
+                    "verifies": ["TC-1"],
+                }
+            ],
+        }
+        spec = (
+            SPEC_MD
+            + "\n## Architecture Context\n\n"
+            + "```json architecture-context\n"
+            + json.dumps(context, indent=2, sort_keys=True)
+            + "\n```\n"
+        )
+        (spec_dir / "ce-spec.md").write_text(spec, encoding="utf-8")
+        (spec_dir / "tasks.json").write_text(
+            json.dumps(tasks), encoding="utf-8"
+        )
+        return plan_dir, spec_dir
+
+    def strict_args(self, root: Path, plan_dir: Path, spec_dir: Path) -> list[str]:
+        return [
+            str(spec_dir),
+            "--repo-root",
+            str(root),
+            "--plan-dir",
+            str(plan_dir),
+            "--feature",
+            "feat-1",
+            "--require-architecture-context",
+        ]
+
+    def test_strict_gate_rejects_missing_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec_dir = write_plan(root, None)
+            payload, rc = run_lint_json(
+                str(spec_dir), "--require-architecture-context"
+            )
+        self.assertEqual(rc, 1)
+        self.assertEqual(payload["architecture_context_status"], "missing")
+        self.assertTrue(
+            any("H7" in item for item in payload["hard_failures"])
+        )
+
+    def test_removing_tasks_context_cannot_silently_downgrade_bound_spec(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plan_dir, spec_dir = self.write_bound_spec(root)
+            tasks_path = spec_dir / "tasks.json"
+            tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
+            del tasks["architecture_context"]
+            tasks_path.write_text(json.dumps(tasks), encoding="utf-8")
+            payload, rc = run_lint_json(str(spec_dir))
+        self.assertEqual(rc, 1, payload)
+        self.assertEqual(payload["architecture_context_status"], "missing")
+        self.assertTrue(
+            any(
+                "cannot downgrade a bound spec to legacy" in item
+                for item in payload["hard_failures"]
+            )
+        )
+
+    def test_current_tasks_and_markdown_projection_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir, spec_dir = self.write_bound_spec(root)
+            payload, rc = run_lint_json(
+                *self.strict_args(root, plan_dir, spec_dir)
+            )
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(payload["architecture_context_status"], "ran")
+
+    def test_markdown_tasks_mismatch_and_stale_plan_are_hard_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir, spec_dir = self.write_bound_spec(root)
+            spec_path = spec_dir / "ce-spec.md"
+            spec_path.write_text(
+                spec_path.read_text(encoding="utf-8").replace(
+                    "bounded feature-local fixture",
+                    "different projected reason",
+                ),
+                encoding="utf-8",
+            )
+            mismatch, mismatch_rc = run_lint_json(
+                *self.strict_args(root, plan_dir, spec_dir)
+            )
+            self.assertEqual(mismatch_rc, 1)
+            self.assertTrue(
+                any("exactly equal" in item for item in mismatch["hard_failures"])
+            )
+
+            spec_path.write_text(
+                spec_path.read_text(encoding="utf-8").replace(
+                    "different projected reason",
+                    "bounded feature-local fixture",
+                ),
+                encoding="utf-8",
+            )
+            plan_path = plan_dir / "plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            plan["plan_revision"] = 2
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            stale, stale_rc = run_lint_json(
+                *self.strict_args(root, plan_dir, spec_dir)
+            )
+        self.assertEqual(stale_rc, 1)
+        self.assertTrue(
+            any("stale or mismatched" in item for item in stale["hard_failures"])
+        )
 
 
 if __name__ == "__main__":

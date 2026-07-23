@@ -35,8 +35,8 @@ before the plan is frozen. It returns analysis to planning and writes nothing.
    only the provisional structural model, coherence check, and bounded result.
 6. **Return exactly one result status:** `converged`,
    `requires-plan-delta`, `requires-decision`, or `blocked`. Do not emit
-   `approved`, `proposed`, `approved-with-gaps`, `pass`, or another status. A
-   result is valid only for the echoed `source_candidate_revision`,
+   `accepted-for-specification`, `accepted-for-specification-with-gaps`,
+   `proposed`, `published`, `pass`, or another status. A result is valid only for the echoed `source_candidate_revision`,
    `source_shaping_attempt`, and complete `source_shaping_input_sha256`.
 7. **No authority transfer.** Never approve or publish architecture, accept
    security/compliance risk, promote an ADR, commit, push, deploy, provision, or

@@ -41,6 +41,10 @@ HARD checks (a FAIL -> exit 1; these gate auto-build's spec-artifact step):
       Scope Lock's file boundary with no silent gaps. A spec where NO task lists files
       is a legacy spec authored before enforcement: H6 is N/A (silent — the guard
       itself advisory-warns on it, never a false FAIL here).
+  H7  Architecture provenance (when `architecture_context` is present, or when
+      `--require-architecture-context` is set): tasks.json carries the strict
+      typed context, ce-spec.md projects that exact object, and it matches the
+      current consumer-linted plan/package and feature mapping.
 
 ADVISORY checks (warnings only; never change the exit code — markdown-derived,
 best-effort):
@@ -74,6 +78,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -102,6 +107,22 @@ THREAT_ID = re.compile(r"\bTZ-\d+\b", re.I)
 # ABSENCE alongside a rendered-surface signal (a `modality: browser` TC) is what A4
 # warns on. An optional tail names the surface, e.g. `[SURFACE: room-canvas]`.
 SURFACE_MARKER = re.compile(r"\[SURFACE\b([^\]]*)\]", re.I)
+
+
+def _load_architecture_context_module():
+    script = Path(__file__).with_name("architecture_context.py")
+    if not script.is_file():
+        raise SpecLintError(
+            f"colocated architecture_context.py is missing: {script}"
+        )
+    spec = importlib.util.spec_from_file_location(
+        f"ce_spec_architecture_context_{abs(hash(str(script)))}", script
+    )
+    if spec is None or spec.loader is None:
+        raise SpecLintError(f"could not load architecture_context.py: {script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _canon_tz(tz: str) -> str:
@@ -422,6 +443,28 @@ def _feature_id(args, spec_path: Path, tasks: dict) -> str:
     return args.feature or tasks.get("feature_id") or spec_path.resolve().parent.name
 
 
+def _artifact_repo_root(spec_path: Path) -> Path:
+    """Infer the root of a canonical docs/plans/<slug>/specs/<id> artifact tree.
+
+    Merge-bar checks materialize the committed head into a read-only tree outside
+    the source repository, so git discovery is deliberately not used here.
+    """
+    resolved = spec_path.resolve()
+    try:
+        plan_dir = resolved.parent.parent.parent
+        root = plan_dir.parent.parent.parent
+    except IndexError as exc:
+        raise SpecLintError(
+            f"cannot infer repository root from spec path: {spec_path}"
+        ) from exc
+    if root / "docs" / "plans" / plan_dir.name != plan_dir:
+        raise SpecLintError(
+            "architecture-context validation requires canonical "
+            "docs/plans/<slug>/specs/<id> layout or explicit --repo-root"
+        )
+    return root
+
+
 def resolve_threat_ids(args, spec_path: Path, tasks: dict) -> tuple[set | None, str]:
     """--threat-ids (explicit, comma-separated) wins; else --threat-model; else the
     CANONICAL location `<spec_dir>/../../threat-model.md` is auto-discovered — so H5
@@ -479,6 +522,24 @@ def main(argv=None) -> int:
     p.add_argument("--threat-ids", help="comma-separated TZ-NNN this feature must cover (H5); takes precedence over --threat-model")
     p.add_argument("--threat-model", help="path to the plan's threat-model.md; H5 reads this feature's threat_ids from it")
     p.add_argument("--feature", help="feature id for --threat-model lookup (default: tasks.json feature_id, else spec-dir name)")
+    p.add_argument(
+        "--repo-root",
+        type=Path,
+        help=(
+            "artifact repository root used to verify architecture-context "
+            "paths/digests (inferred from canonical spec layout when omitted)"
+        ),
+    )
+    p.add_argument(
+        "--plan-dir",
+        type=Path,
+        help="current plan directory (required when linting pre-write scratch)",
+    )
+    p.add_argument(
+        "--require-architecture-context",
+        action="store_true",
+        help="hard-fail a legacy spec with no tasks.json architecture_context",
+    )
     p.add_argument("--json", action="store_true", help="emit a machine-readable JSON result")
     args = p.parse_args(argv)
 
@@ -491,6 +552,41 @@ def main(argv=None) -> int:
                                     enforce_files=True)
         if h5_status == "disarmed":
             advisory.append(h5_disarm_advisory(args, spec_path, tasks))
+        architecture_context_status = "legacy"
+        context_marker_present = "## Architecture Context" in spec_text
+        if (
+            "architecture_context" in tasks
+            or context_marker_present
+            or args.require_architecture_context
+        ):
+            if "architecture_context" not in tasks:
+                hard.append(
+                    "H7 tasks.json is missing required architecture_context; "
+                    "removing the machine context cannot downgrade a bound spec "
+                    "to legacy"
+                )
+                architecture_context_status = "missing"
+            else:
+                context_module = _load_architecture_context_module()
+                context_repo_root = (
+                    args.repo_root.resolve()
+                    if args.repo_root is not None
+                    else _artifact_repo_root(spec_path)
+                )
+                context_failures, _context = context_module.validate_spec_context(
+                    spec_text=spec_text,
+                    tasks=tasks,
+                    spec_dir=spec_path.parent,
+                    repo_root=context_repo_root,
+                    plan_dir=args.plan_dir,
+                    feature_id=_feature_id(args, spec_path, tasks),
+                    script_dir=Path(__file__).resolve().parent,
+                    check_freshness=True,
+                )
+                hard.extend(f"H7 {failure}" for failure in context_failures)
+                architecture_context_status = (
+                    "fail" if context_failures else "ran"
+                )
     except SpecLintError as e:
         if args.json:
             print(json.dumps({"status": "error", "message": str(e)}))
@@ -522,6 +618,7 @@ def main(argv=None) -> int:
             "surface_acs": len(spec.get("surface_acs", {})),
             "threat_ids": sorted(threat_ids) if threat_ids else [],
             "h5_status": h5_status,
+            "architecture_context_status": architecture_context_status,
             "tasks": len(tasks["tasks"]),
             "hard_failures": hard,
             "advisory": advisory,
@@ -543,7 +640,10 @@ def main(argv=None) -> int:
         for f in hard:
             print(f"    x {f}")
     else:
-        passed = "H1-H5" if h5_status == "ran" else "H1-H4"
+        passed_through = 7 if architecture_context_status == "ran" else (
+            5 if h5_status == "ran" else 4
+        )
+        passed = f"H1-H{passed_through}"
         h5_note = {"ran": "H5 ran", "na": "H5 n/a", "disarmed": "H5 DISARMED"}[h5_status]
         print(f"\n  PASS — hard referential-integrity checks ({passed}) hold ({h5_note}).")
     if advisory:
