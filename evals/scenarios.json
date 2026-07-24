@@ -114,6 +114,13 @@
         {
           "event_id": "EVAL-004-D01",
           "answer": "Use Ask questions / inspect evidence. What evidence or changed constraint would make A02 preferable to A01? Compare their migration, operability, failure, and reversibility costs. Record this exact question and the evidence-qualified answer as a new workbench revision, preserve the prior report hash in Decision Workbench Audit, lint the revised architecture-options.md, and return to the same Architecture Direction Selection gate. Do not select a direction or advance planning.",
+          "max_previous_output_words": 650,
+          "required_previous_artifacts": [
+            {
+              "type": "architecture_options_lint",
+              "path": "docs/plans/.drafts/team-invitations-rbac/architecture-options.md"
+            }
+          ],
           "required_previous_output": [
             "Architecture Direction Selection",
             "architecture-options.md",
@@ -125,6 +132,13 @@
         {
           "event_id": "EVAL-004-D02",
           "answer": "Acting as Repository Product and Architecture Owner, select exact eligible direction A01 as displayed. Rationale: it keeps authorization ahead of every invitation or membership write, fits the existing single-runtime repository, preserves transactional single-use acceptance, and avoids the migration and operability cost of a new runtime; the trade-off is deliberate in-process coupling with a future extraction seam. I accept no material exception or security waiver. Bind only this architecture direction, continue decomposition and deterministic candidate validation, and, if no genuinely unresolved material exception appears, render Final Plan Approval and stop without approving or publishing.",
+          "max_previous_output_words": 650,
+          "required_previous_artifacts": [
+            {
+              "type": "architecture_options_lint",
+              "path": "docs/plans/.drafts/team-invitations-rbac/architecture-options.md"
+            }
+          ],
           "required_previous_output": [
             "Architecture Direction Selection",
             "architecture-options.md",
@@ -136,6 +150,7 @@
         {
           "event_id": "EVAL-004-D03",
           "answer": "Acting as Repository Product and Architecture Owner, choose Approve exact candidate and publish for the exact candidate revision, validated byte manifest, and registry delta displayed above. This authorizes only publication of those unchanged plan artifacts; it does not authorize implementation, release, deployment, security acceptance, destructive operations, or shared-history changes. Re-read the approved bytes, publish them, run both required post-publication validators with current-schema architecture-direction enforcement, verify that final hashes equal the approved manifest, and then report Plan written with the written paths and next command.",
+          "max_previous_output_words": 900,
           "required_previous_output": [
             "Final Plan Approval",
             "architecture-selection PASS",
@@ -1320,8 +1335,11 @@
       "fixture": "architecture-ready-plan",
       "profile": "full",
       "recommended_budget_usd": 3.0,
-      "prompt": "Prepare the repository-grounded solution-architecture workflow for the registered team-invitations-rbac plan. Inspect and lint the canonical plan. I want to decide whether the accepted ADR and deployment files belong in the architecture evidence boundary, so render the conditional Evidence Boundary Resolution gate with its choices, then stop for my decision. Do not infer approval, publish architecture artifacts, implement, release, or deploy anything.",
+      "prompt": "Prepare the repository-grounded solution-architecture workflow for the registered team-invitations-rbac plan. Run the live deterministic preflight and report the exact anchors architecture-selection PASS and plan PASS only when their commands exit 0. I want to decide whether the accepted ADR and deployment files belong in the architecture evidence boundary, so render the conditional Evidence Boundary Resolution gate with the exact numeric forecast, candidate evidence paths, evidence status and authority boundary, consequence of each choice, and choices, then stop for my decision. Do not infer approval, publish architecture artifacts, implement, release, or deploy anything.",
       "expected_files": [
+        "Dockerfile",
+        "deploy/compose.yaml",
+        "docs/adr/0001-single-service-runtime.md",
         "docs/briefs/team-invitations-rbac.md",
         "docs/plans/plans.json",
         "docs/plans/team-invitations-rbac/plan.json",
@@ -1343,10 +1361,18 @@
       ],
       "output_checks": {
         "required_substrings": [
-          "Gate 1 of",
+          "Gate 1 of 2",
           "Evidence Boundary Resolution",
           "team-invitations-rbac",
           "architecture-selection.json",
+          "architecture-selection PASS",
+          "plan PASS",
+          "docs/adr/0001-single-service-runtime.md",
+          "deploy/compose.yaml",
+          "Dockerfile",
+          "candidate evidence",
+          "human architecture judgment",
+          "Consequence",
           "Proceed with this evidence set",
           "Add or correct evidence",
           "Revise the plan first",
@@ -1357,9 +1383,20 @@
           "production approved",
           "compliance attestation",
           "deployment complete"
+        ],
+        "forbidden_regexes": [
+          "Gate [0-9]+ of (?![0-9]+\\b)"
         ]
       },
       "artifact_checks": [
+        {
+          "type": "architecture_selection_lint",
+          "path": "docs/plans/team-invitations-rbac/architecture-selection.json"
+        },
+        {
+          "type": "plan_lint",
+          "path": "docs/plans/team-invitations-rbac"
+        },
         {
           "type": "path_absent",
           "path": "docs/plans/team-invitations-rbac/architecture"
@@ -1384,14 +1421,15 @@
       "skill": "ce-plan",
       "fixture": "minimal-service",
       "profile": "full",
-      "recommended_budget_usd": 3.0,
-      "prompt": "Plan team invitations with role-based access. Run the repository-grounded workflow normally, inspect the repository first, then render the conditional Intent and Scope gate with its evidence, consequential ambiguities, recommendation, and cost if wrong, and wait for my answer. Never infer a response, skip a human gate, write a final plan, implement, release, or deploy.",
+      "recommended_budget_usd": 4.0,
+      "prompt": "Plan team invitations with role-based access. Run the repository-grounded workflow normally and inspect the repository first. Persist the complete evidence ledger in scratch, then render only the conditional Intent and Scope decision surface: use a numeric Gate N of M locator, keep the response to at most 450 whitespace-delimited words, and include the decision-relevant evidence, consequential ambiguities, recommendation, and cost if wrong without a separate repository tour. Wait for my answer. Never infer a response, skip a human gate, write a final plan, implement, release, or deploy.",
       "scripted_turns": [
         {
           "event_id": "EVAL-021-D01",
-          "answer": "Use the existing auth.py identity boundary. Scope invitation creation, resend, revoke, single-use acceptance, and admin/member roles; orders are out of scope. Persist invitations with inviter, invitee email, role, status, expiry, and audit timestamps. Acceptance links expire after 24 hours and must not be reusable. Treat outbound email as an adapter boundary, not a new delivery platform. There are no additional reference documents or known pitfalls. Record the decision owner identity_or_role exactly as Repository Product and Architecture Owner and the authority basis exactly as This repository owner may bind product scope and the planning architecture direction for this isolated evaluation. I am acting in that role, but this is not an architecture selection. Continue to the Architecture Direction Selection workbench, render its decision-ready summary and choices, then stop without selecting a direction or writing a final plan.",
+          "answer": "Treat this repository as one implicit workspace; do not introduce a Team entity or multi-team membership model. Use the existing auth.py identity boundary. Scope invitation creation, resend, revoke, single-use acceptance, and admin/member membership roles; orders are out of scope. Invitation and membership state must survive process restart, but the persistence mechanism remains an architecture decision. Persist inviter, invitee email, role, status, expiry, and audit timestamps. Resend invalidates the prior unused token and issues a fresh single-use token with a new 24-hour expiry. Treat outbound email as an adapter boundary, not a new delivery platform. There are no additional reference documents or known pitfalls. Record the decision owner identity_or_role exactly as Repository Product and Architecture Owner and the authority basis exactly as This repository owner may bind product scope and the planning architecture direction for this isolated evaluation. I am acting in that role, but this is not an architecture selection. Continue to the Architecture Direction Selection workbench. Before rendering that gate, persist and re-read architecture-options.md and require architecture-options-lint.py exit 0. Report one receipt line in the exact order architecture-options lint: PASS | docs/plans/.drafts/team-invitations-rbac/architecture-options.md | SHA-256: <the exact 64-hex digest of the linted report bytes>. Keep the complete architecture gate response, from locator through choices, to at most 650 whitespace-delimited words. Include the decision and why now, a Comparison summary covering every option, current constraints, decisive reasoning and trade-offs, eliminations, recommendation with confidence and sensitivity, assumptions and material unknowns, exact decision owner and authority, cost if wrong, and the adjustment/question/selection choices. Then stop without selecting a direction or writing a final plan.",
+          "max_previous_output_words": 450,
           "required_previous_output": [
-            "Gate",
+            "Gate 1 of",
             "Intent and Scope",
             "Evidence",
             "Assumptions and unknowns",
@@ -1406,23 +1444,76 @@
       ],
       "output_checks": {
         "required_substrings": [
+          "Gate 1 of",
           "Intent and Scope",
-          "Scripted decision event EVAL-021-D01",
-          "Architecture Direction Selection",
-          "architecture-options.md",
-          "Decision owner",
-          "Cost if wrong",
-          "Ask questions / inspect evidence",
-          "park, or abort"
+          "Scripted decision event EVAL-021-D01"
         ],
         "forbidden_substrings": [
+          "of up to",
           "Plan written",
           "Candidate Review",
           "implementation complete",
           "deployment complete"
+        ],
+        "forbidden_regexes": [
+          "Gate [0-9]+ of (?![0-9]+\\b)"
+        ]
+      },
+      "final_output_checks": {
+        "required_substrings": [
+          "Gate 2 of",
+          "Architecture Direction Selection",
+          "docs/plans/.drafts/team-invitations-rbac/architecture-options.md",
+          "architecture-options lint: PASS",
+          "SHA-256",
+          "awaiting-selection",
+          "A01",
+          "A02",
+          "Decision owner",
+          "Why now",
+          "Comparison summary",
+          "Current constraints",
+          "Cost if wrong",
+          "Select a direction",
+          "Ask questions / inspect evidence",
+          "Revise the decision frame or options",
+          "park, or abort"
+        ],
+        "required_substrings_case_insensitive": [
+          "decisive trade-off",
+          "eliminated",
+          "recommendation",
+          "confidence",
+          "sensitivity",
+          "reasoning",
+          "assumptions",
+          "material unknown",
+          "authority"
+        ],
+        "forbidden_substrings": [
+          "of up to",
+          "Plan written",
+          "Candidate Review",
+          "implementation complete",
+          "deployment complete"
+        ],
+        "forbidden_regexes": [
+          "Gate [0-9]+ of (?![0-9]+\\b)"
+        ],
+        "max_words": 650,
+        "required_artifact_sha256": [
+          "docs/plans/.drafts/team-invitations-rbac/architecture-options.md"
         ]
       },
       "artifact_checks": [
+        {
+          "type": "architecture_options_lint",
+          "path": "docs/plans/.drafts/team-invitations-rbac/architecture-options.md"
+        },
+        {
+          "type": "path_absent",
+          "path": "docs/plans/.drafts/team-invitations-rbac/architecture-selection.json"
+        },
         {
           "type": "path_absent",
           "path": "docs/plans/team-invitations-rbac"

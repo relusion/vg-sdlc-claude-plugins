@@ -67,8 +67,8 @@ class ReleaseDocumentationReadiness(unittest.TestCase):
             evidence.index("scripts/plan-lint.py"),
             evidence.index("scripts/task-evidence.py"),
         )
-        self.assertIn("--require-current-schema", evidence)
-        self.assertIn("--require-architecture-direction", evidence)
+        self.assertNotIn("--require-current-schema", evidence)
+        self.assertNotIn("--require-architecture-direction", evidence)
         self.assertIn("--evaluated-commit <full-head-sha>", evidence)
         self.assertIn("--require-blocking-route", evidence)
         self.assertIn("--feature <id-1> --feature <id-2>", evidence)

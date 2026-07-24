@@ -11,6 +11,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -178,6 +179,112 @@ class EvalCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("timeout_seconds must be a positive integer", res.stderr)
 
+    def test_scenario_budget_must_be_finite_and_positive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text())
+            data["scenarios"][0]["recommended_budget_usd"] = float("nan")
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "recommended_budget_usd must be a finite positive number",
+                res.stderr,
+            )
+
+    def test_scripted_turn_word_limit_must_be_a_positive_integer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text())
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-021")
+            scenario["scripted_turns"][0]["max_previous_output_words"] = 0
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "max_previous_output_words must be a positive integer",
+                res.stderr,
+            )
+
+    def test_final_output_word_limit_must_be_a_positive_integer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text())
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-021")
+            scenario["final_output_checks"]["max_words"] = 0
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "final_output_checks.max_words must be a positive integer",
+                res.stderr,
+            )
+
+    def test_final_artifact_digest_requires_matching_artifact_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text())
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-021")
+            scenario["artifact_checks"] = [
+                check
+                for check in scenario["artifact_checks"]
+                if check.get("type") != "architecture_options_lint"
+            ]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "required_artifact_sha256.0 must match an exact, "
+                "non-absence artifact_checks path",
+                res.stderr,
+            )
+
+    def test_final_artifact_digest_paths_must_be_nonempty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text())
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-021")
+            scenario["final_output_checks"]["required_artifact_sha256"] = []
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "required_artifact_sha256 must be a non-empty list",
+                res.stderr,
+            )
+
+    def test_scripted_turn_previous_artifacts_are_exact_and_bounded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text())
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-004")
+            scenario["scripted_turns"][0]["required_previous_artifacts"] = [{
+                "type": "spec_lint",
+                "path": "../outside",
+                "invented": True,
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+            res = run("--root", str(repo))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "required_previous_artifacts.0 has unknown key(s): invented",
+                res.stderr,
+            )
+            self.assertIn(
+                "required_previous_artifacts.0.type must be one of",
+                res.stderr,
+            )
+            self.assertIn(
+                "required_previous_artifacts.0.path must stay inside",
+                res.stderr,
+            )
+
     def test_scripted_turn_requires_context_anchor_and_scenario_scoped_event(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_eval_repo(Path(tmp))
@@ -231,6 +338,19 @@ class EvalCheck(unittest.TestCase):
         self.assertIn("select exact eligible direction A01", turns[1]["answer"])
         self.assertIn("Final Plan Approval", turns[2]["required_previous_output"])
         self.assertIn("Approve exact candidate and publish", turns[2]["answer"])
+        self.assertEqual(
+            [turn["max_previous_output_words"] for turn in turns],
+            [650, 650, 900],
+        )
+        for turn in turns[:2]:
+            self.assertEqual(turn["required_previous_artifacts"], [{
+                "type": "architecture_options_lint",
+                "path": (
+                    "docs/plans/.drafts/team-invitations-rbac/"
+                    "architecture-options.md"
+                ),
+            }])
+        self.assertNotIn("required_previous_artifacts", turns[2])
 
         selection_check = next(
             check
@@ -254,8 +374,208 @@ class EvalCheck(unittest.TestCase):
         self.assertIn("Architecture Direction Selection", serialized)
         self.assertIn("Ask questions / inspect evidence", serialized)
         self.assertIn("architecture-options.md", serialized)
+        self.assertEqual(scenario["recommended_budget_usd"], 4.0)
+        self.assertEqual(
+            scenario["scripted_turns"][0]["max_previous_output_words"],
+            450,
+        )
+        self.assertIn("one implicit workspace", scenario["scripted_turns"][0]["answer"])
+        self.assertIn(
+            "must survive process restart",
+            scenario["scripted_turns"][0]["answer"],
+        )
+        self.assertIn(
+            "at most 650 whitespace-delimited words",
+            scenario["scripted_turns"][0]["answer"],
+        )
+        self.assertIn("of up to", scenario["output_checks"]["forbidden_substrings"])
+        self.assertNotIn(
+            "Architecture Direction Selection",
+            scenario["output_checks"]["required_substrings"],
+        )
+        self.assertEqual(scenario["final_output_checks"]["max_words"], 650)
+        self.assertIn(
+            "Architecture Direction Selection",
+            scenario["final_output_checks"]["required_substrings"],
+        )
+        self.assertIn(
+            "Revise the decision frame or options",
+            scenario["final_output_checks"]["required_substrings"],
+        )
+        self.assertIn("A01", scenario["final_output_checks"]["required_substrings"])
+        self.assertIn("A02", scenario["final_output_checks"]["required_substrings"])
+        self.assertIn(
+            "Comparison summary",
+            scenario["final_output_checks"]["required_substrings"],
+        )
+        self.assertIn(
+            "Why now",
+            scenario["final_output_checks"]["required_substrings"],
+        )
+        self.assertEqual(
+            scenario["final_output_checks"][
+                "required_substrings_case_insensitive"
+            ],
+            [
+                "decisive trade-off",
+                "eliminated",
+                "recommendation",
+                "confidence",
+                "sensitivity",
+                "reasoning",
+                "assumptions",
+                "material unknown",
+                "authority",
+            ],
+        )
+        report_path = (
+            "docs/plans/.drafts/team-invitations-rbac/"
+            "architecture-options.md"
+        )
+        self.assertEqual(
+            scenario["final_output_checks"]["required_artifact_sha256"],
+            [report_path],
+        )
+        self.assertTrue(
+            any(
+                check.get("type") == "architecture_options_lint"
+                and check.get("path") == report_path
+                for check in scenario["artifact_checks"]
+            )
+        )
+        self.assertTrue(
+            any(
+                check == {
+                    "type": "path_absent",
+                    "path": (
+                        "docs/plans/.drafts/team-invitations-rbac/"
+                        "architecture-selection.json"
+                    ),
+                }
+                for check in scenario["artifact_checks"]
+            )
+        )
         self.assertNotIn("Project Understanding", serialized)
         self.assertNotIn("Architecture Evaluation Frame", serialized)
+
+    def test_architecture_options_artifact_check_replays_preselection_lint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            report = (
+                repo_root
+                / "docs/plans/.drafts/team-invitations-rbac/architecture-options.md"
+            )
+            report.parent.mkdir(parents=True)
+            report.write_text("# decision report\n", encoding="utf-8")
+            with mock.patch.object(
+                eval_check,
+                "run_architecture_options_lint",
+                return_value=[],
+            ) as lint:
+                failures = eval_check.grade_artifact_target(
+                    REPO,
+                    "EVAL-021",
+                    {"type": "architecture_options_lint"},
+                    "architecture_options_lint",
+                    report,
+                    artifact_repo_root=repo_root,
+                )
+            self.assertEqual(failures, [])
+            lint.assert_called_once()
+            self.assertEqual(lint.call_args.args[2], report)
+            self.assertEqual(lint.call_args.args[3], repo_root)
+
+    def test_live_plan_preflight_artifact_checks_replay_both_linters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            plan_dir = repo_root / "docs/plans/team-invitations-rbac"
+            plan_dir.mkdir(parents=True)
+            selection = plan_dir / "architecture-selection.json"
+            selection.write_text("{}\n", encoding="utf-8")
+
+            with mock.patch.object(
+                eval_check,
+                "run_architecture_selection_lint",
+                return_value=[],
+            ) as selection_lint:
+                failures = eval_check.grade_artifact_target(
+                    REPO,
+                    "EVAL-020",
+                    {"type": "architecture_selection_lint"},
+                    "architecture_selection_lint",
+                    selection,
+                    artifact_repo_root=repo_root,
+                )
+            self.assertEqual(failures, [])
+            selection_lint.assert_called_once()
+            self.assertEqual(selection_lint.call_args.args[2], selection)
+            self.assertEqual(selection_lint.call_args.args[3], repo_root)
+
+            with mock.patch.object(
+                eval_check,
+                "run_plan_lint",
+                return_value=[],
+            ) as plan_lint:
+                failures = eval_check.grade_artifact_target(
+                    REPO,
+                    "EVAL-020",
+                    {"type": "plan_lint"},
+                    "plan_lint",
+                    plan_dir,
+                    artifact_repo_root=repo_root,
+                )
+            self.assertEqual(failures, [])
+            plan_lint.assert_called_once()
+            self.assertEqual(plan_lint.call_args.args[2], plan_dir)
+
+    def test_architecture_options_artifact_lint_failure_is_attributed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            report = (
+                repo_root
+                / "docs/plans/.drafts/team-invitations-rbac/architecture-options.md"
+            )
+            report.parent.mkdir(parents=True)
+            report.write_text("# incomplete\n", encoding="utf-8")
+            failures = eval_check.run_architecture_options_lint(
+                REPO,
+                "EVAL-021",
+                report,
+                repo_root,
+                "artifact architecture-options.md",
+            )
+            self.assertEqual(len(failures), 1)
+            self.assertIn("architecture_options_lint failed", failures[0])
+            self.assertIn("architecture-exploration.json", failures[0])
+
+    def test_architecture_options_lint_execution_failures_are_structured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            report = repo_root / "architecture-options.md"
+            report.write_text("# report\n", encoding="utf-8")
+            cases = (
+                (
+                    subprocess.TimeoutExpired(cmd=["lint"], timeout=30),
+                    "timed out after 30 seconds",
+                ),
+                (OSError("permission denied"), "permission denied"),
+            )
+            for side_effect, expected in cases:
+                with self.subTest(expected=expected), mock.patch.object(
+                    eval_check.subprocess,
+                    "run",
+                    side_effect=side_effect,
+                ):
+                    failures = eval_check.run_architecture_options_lint(
+                        REPO,
+                        "EVAL-021",
+                        report,
+                        repo_root,
+                        "artifact architecture-options.md",
+                    )
+                self.assertEqual(len(failures), 1)
+                self.assertIn("architecture_options_lint could not run", failures[0])
+                self.assertIn(expected, failures[0])
 
     def test_missing_expected_fixture_file_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -279,6 +599,145 @@ class EvalCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 1)
             self.assertIn("EVAL-003", res.stderr)
             self.assertIn("should not contain file:line citations", res.stderr)
+
+    def test_final_output_checks_do_not_grade_scripted_answer_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["final_output_checks"] = {
+                "required_substrings": ["FINAL_GATE_ONLY"],
+                "max_words": 20,
+            }
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "runs"
+            out.mkdir()
+            (out / "EVAL-003.md").write_text(
+                "Not analyzable yet — too thin to ground\n"
+                "## Scripted decision event EVAL-003-D01\n"
+                "FINAL_GATE_ONLY\n",
+                encoding="utf-8",
+            )
+            final_text = "Not analyzable yet — too thin to ground"
+            final_payload = final_text.encode("utf-8")
+            (out / "EVAL-003.final.md").write_bytes(final_payload)
+            (out / "metadata.json").write_text(json.dumps({
+                "schema_version": 1,
+                "records": [{
+                    "id": "EVAL-003",
+                    "status": "pass",
+                    "final_output": {
+                        "file": "EVAL-003.final.md",
+                        "sha256": hashlib.sha256(final_payload).hexdigest(),
+                        "word_count": len(final_text.split()),
+                        "byte_count": len(final_payload),
+                    },
+                }],
+            }), encoding="utf-8")
+
+            res = run("--root", str(repo), "--outputs-dir", str(out))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "final output missing required text 'FINAL_GATE_ONLY'",
+                res.stderr,
+            )
+
+    def test_final_output_sidecar_tampering_breaks_runner_hash_binding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["final_output_checks"] = {
+                "required_substrings": ["FINAL_GATE_ONLY"],
+            }
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "runs"
+            out.mkdir()
+            (out / "EVAL-003.md").write_text(
+                "Not analyzable yet — too thin to ground\n",
+                encoding="utf-8",
+            )
+            original = "FINAL_GATE_ONLY safe".encode("utf-8")
+            tampered = "FINAL_GATE_ONLY evil".encode("utf-8")
+            self.assertEqual(len(original), len(tampered))
+            (out / "EVAL-003.final.md").write_bytes(tampered)
+            (out / "metadata.json").write_text(json.dumps({
+                "schema_version": 1,
+                "records": [{
+                    "id": "EVAL-003",
+                    "status": "pass",
+                    "final_output": {
+                        "file": "EVAL-003.final.md",
+                        "sha256": hashlib.sha256(original).hexdigest(),
+                        "word_count": len(original.decode("utf-8").split()),
+                        "byte_count": len(original),
+                    },
+                }],
+            }), encoding="utf-8")
+
+            res = run("--root", str(repo), "--outputs-dir", str(out))
+            self.assertEqual(res.returncode, 1)
+            self.assertIn(
+                "final-output sidecar SHA-256 does not match its runner receipt",
+                res.stderr,
+            )
+
+    def test_final_output_word_limit_is_graded(self):
+        failures = eval_check.grade_one_output(
+            "EVAL-021",
+            "one two three",
+            {"max_words": 2},
+            label="final output",
+        )
+        self.assertEqual(
+            failures,
+            ["EVAL-021: final output has 3 words, exceeding max_words=2"],
+        )
+
+    def test_final_output_digest_is_bound_to_exact_checked_artifact_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outputs_dir = Path(tmp) / "runs"
+            work = outputs_dir / "work/EVAL-021"
+            report_path = (
+                "docs/plans/.drafts/team-invitations-rbac/"
+                "architecture-options.md"
+            )
+            report = work / report_path
+            report.parent.mkdir(parents=True)
+            report.write_text("# decision report\n", encoding="utf-8")
+            digest = hashlib.sha256(report.read_bytes()).hexdigest()
+            record = {"work_dir": str(work)}
+            receipt = (
+                "architecture-options lint: PASS | "
+                f"{report_path} | SHA-256: {digest}\n"
+            )
+
+            self.assertEqual(
+                eval_check.grade_required_artifact_sha256(
+                    REPO,
+                    outputs_dir,
+                    "EVAL-021",
+                    record,
+                    receipt,
+                    [report_path],
+                ),
+                [],
+            )
+            failures = eval_check.grade_required_artifact_sha256(
+                REPO,
+                outputs_dir,
+                "EVAL-021",
+                record,
+                receipt.replace(digest, "0" * 64),
+                [report_path],
+            )
+            self.assertEqual(len(failures), 1)
+            self.assertIn("does not bind", failures[0])
+            self.assertIn(digest, failures[0])
 
     def test_output_substring_checks_can_opt_into_case_insensitive_semantics(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -379,17 +838,41 @@ class EvalCheck(unittest.TestCase):
         )
         required = scenario["output_checks"]["required_substrings"]
         self.assertIn("Evidence Boundary Resolution", required)
+        self.assertIn("Gate 1 of 2", required)
+        self.assertIn("architecture-selection PASS", required)
+        self.assertIn("plan PASS", required)
+        self.assertIn("docs/adr/0001-single-service-runtime.md", required)
+        self.assertIn("deploy/compose.yaml", required)
+        self.assertIn("human architecture judgment", required)
+        self.assertIn("Consequence", required)
         self.assertIn("Proceed with this evidence set", required)
         self.assertIn(
             "Architecture written:",
             scenario["output_checks"]["forbidden_substrings"],
         )
-        self.assertEqual(
+        self.assertIn(
+            {
+                "type": "architecture_selection_lint",
+                "path": (
+                    "docs/plans/team-invitations-rbac/"
+                    "architecture-selection.json"
+                ),
+            },
             scenario["artifact_checks"],
-            [{
+        )
+        self.assertIn(
+            {
+                "type": "plan_lint",
+                "path": "docs/plans/team-invitations-rbac",
+            },
+            scenario["artifact_checks"],
+        )
+        self.assertIn(
+            {
                 "type": "path_absent",
                 "path": "docs/plans/team-invitations-rbac/architecture",
-            }],
+            },
+            scenario["artifact_checks"],
         )
         self.assertEqual(
             set(scenario["git_checks"]["allowed_changed_path_globs"]),
@@ -1017,7 +1500,6 @@ class GoldenGates(unittest.TestCase):
             )
             selection_data = json.loads(selection.read_text(encoding="utf-8"))
             selection_data["schema_version"] = 1
-            selection_data.pop("architecture_options_report")
             selection.write_text(
                 json.dumps(selection_data, indent=2) + "\n",
                 encoding="utf-8",
@@ -1034,7 +1516,7 @@ class GoldenGates(unittest.TestCase):
             self.assertEqual(res.returncode, 1, res.stdout)
             self.assertIn("plan_lint failed", res.stderr)
             self.assertIn(
-                "fresh exploration output must use current schema_version 2",
+                "schema_version must equal 2",
                 res.stderr,
             )
 

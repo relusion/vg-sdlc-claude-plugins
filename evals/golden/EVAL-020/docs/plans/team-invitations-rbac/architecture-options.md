@@ -11,6 +11,8 @@
 - **Recommendation basis:** A02 fails the authorization-before-persistence constraint, leaving A01 as the sole eligible direction.
 - **Confidence / sensitivity:** medium / not-applicable
 - **Decision owner / authority:** Repository Architecture Owner — This evaluation fixture assigns architecture applicability and direction approval to the repository architecture owner.
+- **Current constraints:** Authorization must execute before invitation or membership persistence; the accepted single-runtime direction and PostgreSQL boundary remain authoritative.
+- **Key trade-off:** A01 preserves the accepted runtime and authorization boundary, while A02 simplifies invitation capture by violating the protected-write constraint.
 - **Cost if wrong:** Rework boundaries, migration tasks, and operational controls.
 - **Material gaps and inferences:** None — the approved evidence covers this comparison.
 

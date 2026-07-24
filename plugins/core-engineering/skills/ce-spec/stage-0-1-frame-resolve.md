@@ -27,7 +27,7 @@ disposition or loading any feature design context:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 ```
 
 - **exit 0:** continue with the lint-validated manifest and its human-bound
@@ -44,7 +44,7 @@ context:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/<slug>/architecture-selection.json \
-  --require-current-schema --json
+  --json
 ```
 
 Exit 1 or 2 routes to `/core-engineering:ce-plan` Stage R. A scorecard, option

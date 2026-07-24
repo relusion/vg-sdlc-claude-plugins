@@ -52,6 +52,8 @@ def _decision_ready_report(data: dict) -> str:
                 f"{data['evaluation_frame']['decision_owner']['identity_or_role']} — "
                 f"{data['evaluation_frame']['decision_owner']['authority_basis']}"
             ),
+            "- **Current constraints:** Personal data remains in-region and invalid tokens fail closed.",
+            "- **Key trade-off:** A01 maximizes repository fit while A02 preserves a stronger extraction boundary.",
             "- **Cost if wrong:** Rework boundaries, migration, and operational ownership.",
             "- **Material gaps and inferences:** None — all score evidence is recorded.",
             "",
@@ -180,6 +182,35 @@ class ArchitectureOptionsLintContract(unittest.TestCase):
         self.report.write_text(text, encoding="utf-8")
         _, failures = ol.validate_file(self.report, repo_root=self.root)
         self.assertTrue(any("'Cost if wrong'" in failure for failure in failures))
+
+    def test_placeholder_decision_triage_fields_fail_with_lint_parity(self):
+        cases = {
+            "Current constraints": "TBD",
+            "Key trade-off": "unknown",
+            "Cost if wrong": "${cost_if_wrong}",
+            "Material gaps and inferences": "[insert material gaps]",
+        }
+        for label, placeholder in cases.items():
+            with self.subTest(label=label, placeholder=placeholder):
+                text = self.report.read_text(encoding="utf-8")
+                text, count = re.subn(
+                    rf"(^\s*-\s+\*\*{re.escape(label)}:\*\*\s*).*?$",
+                    rf"\g<1>{placeholder}",
+                    text,
+                    count=1,
+                    flags=re.MULTILINE,
+                )
+                self.assertEqual(1, count)
+                self.report.write_text(text, encoding="utf-8")
+                _, failures = ol.validate_file(self.report, repo_root=self.root)
+                self.assertTrue(
+                    any(
+                        label in failure and "unfilled placeholder" in failure
+                        for failure in failures
+                    ),
+                    failures,
+                )
+                self.report, self.data = _write_valid_report(self.root)
 
     def test_decision_owner_and_authority_are_exactly_visible_before_selection(self):
         owner = self.data["evaluation_frame"]["decision_owner"]

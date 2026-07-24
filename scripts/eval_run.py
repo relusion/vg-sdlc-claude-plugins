@@ -6,6 +6,7 @@ calls. Use --execute plus an explicit --max-budget-usd to run Claude Code.
 
 Outputs are written as:
     evals/runs/<run-id>/<scenario-id>.md
+    evals/runs/<run-id>/<scenario-id>.final.md  # exact final assistant result
     evals/runs/<run-id>/metadata.json
     evals/runs/<run-id>/summary.json
     evals/runs/<run-id>/work/<scenario-id>/...  # copied fixture repo
@@ -24,6 +25,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -32,12 +34,27 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from eval_check import IGNORED_STATE_EXCLUDED_DIRS, PROFILES, load_scenarios, rel
+from eval_check import (
+    IGNORED_STATE_EXCLUDED_DIRS,
+    PROFILES,
+    grade_artifact_target,
+    is_finite_positive_number,
+    load_scenarios,
+    rel,
+    validate_catalog,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TIMEOUT_SECONDS = 900
 CLI_VERSION_TIMEOUT_SECONDS = 10
-BUDGET_EXCEEDED = "Exceeded USD budget"
+BUDGET_EXCEEDED_MARKERS = (
+    "Exceeded USD budget",
+    "Reached maximum budget",
+    "error_max_budget_usd",
+    "budget_exhausted",
+)
+BUDGET_EXCEEDED_SUBTYPES = {"error_max_budget_usd"}
+BUDGET_EXCEEDED_TERMINAL_REASONS = {"budget_exhausted"}
 AUTH_REQUIRED = "Not logged in"
 EVAL_PLUGIN_DIRS = (Path("plugins/core-engineering"),)
 
@@ -55,7 +72,11 @@ def select_scenarios(all_scenarios: list[dict], wanted: list[str], profiles: lis
         unknown = sorted(set(profiles) - PROFILES)
         if unknown:
             raise ValueError(f"unknown profile(s): {', '.join(unknown)}")
-        selected = [s for s in all_scenarios if s.get("profile") in profiles]
+        selected = [
+            s
+            for s in all_scenarios
+            if isinstance(s, dict) and s.get("profile") in profiles
+        ]
         if not selected:
             raise ValueError(f"no scenarios matched profile(s): {', '.join(profiles)}")
         return selected
@@ -360,9 +381,157 @@ def parse_scripted_response(stdout: str) -> tuple[str, str, float]:
         raise ValueError("Claude scripted output is missing non-empty result text")
     if not isinstance(session_id, str) or not session_id.strip():
         raise ValueError("Claude scripted output is missing a resumable session_id")
-    if not isinstance(cost, (int, float)) or isinstance(cost, bool) or cost < 0:
+    if (
+        not isinstance(cost, (int, float))
+        or isinstance(cost, bool)
+        or not math.isfinite(cost)
+        or cost < 0
+    ):
         raise ValueError("Claude scripted output is missing a non-negative total_cost_usd")
     return result, session_id, float(cost)
+
+
+def parse_claude_json_payload(stdout: str) -> dict | None:
+    """Best-effort parse of Claude's JSON success or error envelope."""
+    try:
+        payload = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def payload_reported_cost(payload: dict | None) -> float | None:
+    """Return a finite non-negative invocation cost when Claude reported one."""
+    if payload is None:
+        return None
+    cost = payload.get("total_cost_usd")
+    if (
+        not isinstance(cost, (int, float))
+        or isinstance(cost, bool)
+        or not math.isfinite(cost)
+        or cost < 0
+    ):
+        return None
+    return float(cost)
+
+
+def is_budget_exceeded(combined: str, payload: dict | None = None) -> bool:
+    """Recognize legacy text and current structured Claude budget failures."""
+    if payload is not None and (
+        payload.get("subtype") in BUDGET_EXCEEDED_SUBTYPES
+        or payload.get("terminal_reason") in BUDGET_EXCEEDED_TERMINAL_REASONS
+    ):
+        return True
+    return any(marker in combined for marker in BUDGET_EXCEEDED_MARKERS)
+
+
+def regular_file_sha256(path: Path) -> tuple[str | None, str | None]:
+    """Hash a regular, non-symlink file or return a stable failure reason."""
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None, "missing or not a regular file"
+        return hashlib.sha256(path.read_bytes()).hexdigest(), None
+    except OSError as exc:
+        return None, str(exc)
+
+
+def persist_final_output(out_dir: Path, scenario_id: str, text: str) -> dict:
+    """Persist exact assistant-result bytes without overwriting prior evidence."""
+    filename = f"{scenario_id}.final.md"
+    if Path(filename).name != filename:
+        raise OSError(f"unsafe scenario id for final-output sidecar: {scenario_id!r}")
+    payload = text.encode("utf-8")
+    path = out_dir / filename
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    return {
+        "file": filename,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "word_count": len(text.split()),
+        "byte_count": len(payload),
+    }
+
+
+def check_required_previous_artifacts(
+    root: Path,
+    scenario_id: str,
+    work_dir: Path,
+    checks: list[dict],
+) -> tuple[list[dict], list[str]]:
+    """Validate exact artifacts at a scripted human-answer boundary."""
+    receipts: list[dict] = []
+    failures: list[str] = []
+    for check in checks:
+        artifact_type = check["type"]
+        relative_path = check["path"]
+        path_fragment = Path(relative_path)
+        if (
+            artifact_type != "architecture_options_lint"
+            or path_fragment.is_absolute()
+            or ".." in path_fragment.parts
+        ):
+            failures.append(
+                f"{scenario_id}: unsafe or unsupported prior-turn artifact check "
+                f"{artifact_type!r}:{relative_path!r}"
+            )
+            continue
+        path = work_dir / path_fragment
+        sha256_before, hash_failure = regular_file_sha256(path)
+        if hash_failure:
+            failures.append(
+                f"{scenario_id}: could not hash prior-turn artifact "
+                f"{relative_path!r}: {hash_failure}"
+            )
+            continue
+        try:
+            check_failures = grade_artifact_target(
+                root,
+                scenario_id,
+                check,
+                artifact_type,
+                path,
+                artifact_repo_root=work_dir,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            failures.append(
+                f"{scenario_id}: prior-turn artifact validation could not run "
+                f"for {relative_path!r}: {exc}"
+            )
+            continue
+        if check_failures:
+            failures.extend(check_failures)
+            continue
+        sha256_after, hash_failure = regular_file_sha256(path)
+        if hash_failure:
+            failures.append(
+                f"{scenario_id}: could not hash validated prior-turn artifact "
+                f"{relative_path!r}: {hash_failure}"
+            )
+            continue
+        if sha256_after != sha256_before:
+            failures.append(
+                f"{scenario_id}: prior-turn artifact changed while it was being validated: "
+                f"{relative_path!r}"
+            )
+            continue
+        receipts.append({
+            "type": artifact_type,
+            "path": relative_path,
+            "status": "pass",
+            "sha256": sha256_after,
+        })
+    return receipts, failures
 
 
 def run_scripted_turns(
@@ -385,6 +554,8 @@ def run_scripted_turns(
     next_prompt: str | None = None
     remaining_budget = float(args.max_budget_usd)
     reported_cost = 0.0
+    failed_turn_reported_cost: float | None = None
+    final_result: str | None = None
     started = time.monotonic()
 
     def persist() -> None:
@@ -406,6 +577,8 @@ def run_scripted_turns(
             "scripted_decisions": decisions,
             "reported_cost_usd": reported_cost,
         })
+        if failed_turn_reported_cost is not None:
+            record["failed_turn_reported_cost_usd"] = failed_turn_reported_cost
         print(f"{scenario['id']}: {message}", file=sys.stderr)
         return record
 
@@ -467,8 +640,12 @@ def run_scripted_turns(
                 part.strip() for part in (proc.stdout, proc.stderr) if part.strip()
             )
             first_line = combined.splitlines()[0] if combined else f"claude exited {proc.returncode}"
+            error_payload = parse_claude_json_payload(proc.stdout)
+            failed_turn_reported_cost = payload_reported_cost(error_payload)
+            if failed_turn_reported_cost is not None:
+                reported_cost += failed_turn_reported_cost
             kind = "claude-error"
-            if BUDGET_EXCEEDED in combined:
+            if is_budget_exceeded(combined, error_payload):
                 kind = "budget-exceeded"
             elif AUTH_REQUIRED in combined:
                 kind = "auth-error"
@@ -497,9 +674,20 @@ def run_scripted_turns(
         transcript.extend([f"## Assistant turn {assistant_turn}", "", result, ""])
 
         if assistant_turn > len(scripted_turns):
+            final_result = result
             break
 
         scripted = scripted_turns[assistant_turn - 1]
+        word_count = len(result.split())
+        max_words = scripted.get("max_previous_output_words")
+        if max_words is not None and word_count > max_words:
+            return fail(
+                "scripted-output-limit",
+                "refused to send decision event "
+                f"{scripted['event_id']}: prior output had {word_count} words, "
+                f"exceeding max_previous_output_words={max_words}",
+                proc.returncode,
+            )
         required = scripted["required_previous_output"]
         missing = [anchor for anchor in required if anchor not in result]
         if missing:
@@ -511,6 +699,22 @@ def run_scripted_turns(
                 proc.returncode,
             )
 
+        required_artifacts = scripted.get("required_previous_artifacts", [])
+        artifact_receipts, artifact_failures = check_required_previous_artifacts(
+            root,
+            scenario["id"],
+            work_dir,
+            required_artifacts,
+        )
+        if artifact_failures:
+            return fail(
+                "scripted-artifact-precondition",
+                "refused to send decision event "
+                f"{scripted['event_id']}: prior turn artifact precondition failed: "
+                + "; ".join(artifact_failures),
+                proc.returncode,
+            )
+
         context_sha256 = hashlib.sha256(result.encode("utf-8")).hexdigest()
         answer = scripted["answer"]
         answer_sha256 = hashlib.sha256(answer.encode("utf-8")).hexdigest()
@@ -518,6 +722,8 @@ def run_scripted_turns(
             "event_id": scripted["event_id"],
             "after_assistant_turn": assistant_turn,
             "required_previous_output": required,
+            "required_previous_artifacts": artifact_receipts,
+            "previous_output_word_count": word_count,
             "context_sha256": context_sha256,
             "answer_sha256": answer_sha256,
             "session_id": session_id,
@@ -528,12 +734,47 @@ def run_scripted_turns(
             f"- Context SHA-256: `{context_sha256}`",
             f"- Answer SHA-256: `{answer_sha256}`",
             f"- Verified context anchors: {', '.join(f'`{anchor}`' for anchor in required)}",
+            (
+                f"- Previous output words: {word_count}"
+                + (
+                    f" / {max_words} maximum"
+                    if max_words is not None
+                    else ""
+                )
+            ),
+            (
+                "- Verified previous artifacts: "
+                + (
+                    ", ".join(
+                        f"`{receipt['type']}:{receipt['path']}@{receipt['sha256']}`"
+                        for receipt in artifact_receipts
+                    )
+                    if artifact_receipts
+                    else "none required"
+                )
+            ),
             "",
             answer,
             "",
         ])
         next_prompt = f"[Eval decision event {scripted['event_id']}]\n{answer}"
 
+    if final_result is None:
+        return fail(
+            "scripted-protocol-error",
+            "scripted scenario ended without an exact final assistant result",
+            None,
+        )
+    try:
+        final_output_receipt = persist_final_output(
+            out_dir, scenario["id"], final_result
+        )
+    except (OSError, UnicodeError) as exc:
+        return fail(
+            "final-output-persistence",
+            f"could not persist exact final assistant result: {exc}",
+            None,
+        )
     persist()
     record.update({
         "status": "pass",
@@ -542,6 +783,7 @@ def run_scripted_turns(
         "scripted_decisions": decisions,
         "reported_cost_usd": reported_cost,
         "session_id": session_id,
+        "final_output": final_output_receipt,
     })
     print(
         f"{scenario['id']}: wrote {rel(root, output_file)} "
@@ -553,13 +795,26 @@ def run_scripted_turns(
 def check_execute_preconditions(args, scenarios: list[dict]) -> None:
     if args.max_budget_usd is None:
         raise ValueError("--execute requires --max-budget-usd so eval spend is explicit")
-    if args.max_budget_usd <= 0:
-        raise ValueError("--max-budget-usd must be positive")
+    if not math.isfinite(args.max_budget_usd) or args.max_budget_usd <= 0:
+        raise ValueError("--max-budget-usd must be a finite positive number")
     if args.timeout is not None and args.timeout <= 0:
         raise ValueError("--timeout must be positive")
-    recommended = max(float(s.get("recommended_budget_usd", 0)) for s in scenarios)
+    recommendations: list[tuple[dict, float]] = []
+    for scenario in scenarios:
+        value = scenario.get("recommended_budget_usd")
+        if not is_finite_positive_number(value):
+            raise ValueError(
+                f"{scenario.get('id', '<unknown>')}: recommended_budget_usd "
+                "must be a finite positive number"
+            )
+        recommendations.append((scenario, float(value)))
+    recommended = max(value for _, value in recommendations)
     if args.max_budget_usd < recommended and not args.allow_low_budget:
-        ids = ", ".join(s["id"] for s in scenarios if float(s.get("recommended_budget_usd", 0)) == recommended)
+        ids = ", ".join(
+            scenario["id"]
+            for scenario, value in recommendations
+            if value == recommended
+        )
         raise ValueError(
             f"--max-budget-usd {args.max_budget_usd:g} is below the selected scenario "
             f"recommendation {recommended:g} ({ids}). Re-run with --max-budget-usd {recommended:g} "
@@ -683,11 +938,26 @@ def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
         (out_dir / f"{scenario['id']}.stderr").write_text(proc.stderr, encoding="utf-8")
     record["status"] = "pass" if proc.returncode == 0 else "failed"
     record["returncode"] = proc.returncode
+    if proc.returncode == 0:
+        try:
+            record["final_output"] = persist_final_output(
+                out_dir, scenario["id"], proc.stdout
+            )
+        except (OSError, UnicodeError) as exc:
+            record.update({
+                "status": "failed",
+                "failure_kind": "final-output-persistence",
+                "failure_message": f"could not persist exact final assistant result: {exc}",
+            })
+            print(
+                f"{scenario['id']}: could not persist exact final assistant result: {exc}",
+                file=sys.stderr,
+            )
     try:
         record["git_state"]["after"] = capture_git_state(work_dir)
     except ValueError as git_exc:
         record["git_state"]["capture_error"] = str(git_exc)
-        if proc.returncode == 0:
+        if record.get("status") == "pass":
             record.update({
                 "status": "failed",
                 "failure_kind": "git-state-error",
@@ -698,7 +968,12 @@ def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
         combined = "\n".join(part.strip() for part in (proc.stdout, proc.stderr) if part.strip())
         first_line = combined.splitlines()[0] if combined else f"claude exited {proc.returncode}"
         record["failure_message"] = first_line
-        if BUDGET_EXCEEDED in combined:
+        error_payload = parse_claude_json_payload(proc.stdout)
+        failed_cost = payload_reported_cost(error_payload)
+        if failed_cost is not None:
+            record["reported_cost_usd"] = failed_cost
+            record["failed_turn_reported_cost_usd"] = failed_cost
+        if is_budget_exceeded(combined, error_payload):
             record["failure_kind"] = "budget-exceeded"
             print(
                 f"{scenario['id']}: budget exceeded before an eval artifact was produced "
@@ -715,7 +990,7 @@ def run_one(args, root: Path, scenario: dict, out_dir: Path) -> dict:
         else:
             record["failure_kind"] = "claude-error"
             print(f"{scenario['id']}: claude exited {proc.returncode}: {first_line}", file=sys.stderr)
-    else:
+    elif record.get("status") == "pass":
         print(f"{scenario['id']}: wrote {rel(root, output_file)}")
     return record
 
@@ -854,10 +1129,21 @@ def main(argv=None) -> int:
 
     root = Path(args.root).resolve()
     try:
+        if args.max_budget_usd is not None and (
+            not math.isfinite(args.max_budget_usd) or args.max_budget_usd <= 0
+        ):
+            raise ValueError("--max-budget-usd must be a finite positive number")
         started_at = utc_timestamp()
         run_id = default_run_id()
         data = load_scenarios(root)
-        selected = select_scenarios(data["scenarios"], args.scenario, args.profile, args.all)
+        catalog_errors, _ = validate_catalog(root, data["scenarios"])
+        if catalog_errors:
+            raise ValueError(
+                "eval catalog validation failed:\n- " + "\n- ".join(catalog_errors)
+            )
+        selected = select_scenarios(
+            data["scenarios"], args.scenario, args.profile, args.all
+        )
         if args.execute:
             check_execute_preconditions(args, selected)
         claude_cli = capture_claude_cli_provenance(args, root)

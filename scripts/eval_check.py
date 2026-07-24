@@ -12,6 +12,10 @@ When an outputs dir is supplied, files named <scenario-id>.md are checked
 against the scenario's lightweight deterministic output assertions. Missing
 outputs are ignored unless --require-all-outputs is set, so a partial manual
 eval run can still be checked while it is in progress.
+
+Scenarios with final_output_checks additionally verify a hash-bound
+<scenario-id>.final.md sidecar from runner metadata before grading only that
+exact final assistant result.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -28,7 +33,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CITATION_RE = re.compile(r"\b[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+:\d+(?:-\d+)?\b")
-BUDGET_EXCEEDED = "Exceeded USD budget"
+BUDGET_EXCEEDED_MARKERS = (
+    "Exceeded USD budget",
+    "Reached maximum budget",
+    "error_max_budget_usd",
+    "budget_exhausted",
+)
 PROFILES = {"smoke", "full", "benchmark"}
 MAX_CHECK_SUBSTRING_CHARS = 160
 IGNORED_STATE_EXCLUDED_DIRS = frozenset({
@@ -57,11 +67,18 @@ OUTPUT_CHECK_KEYS = {
     "required_substrings_case_insensitive",
     "forbidden_substrings_case_insensitive",
 }
+FINAL_OUTPUT_CHECK_KEYS = OUTPUT_CHECK_KEYS | {
+    "max_words",
+    "required_artifact_sha256",
+}
 SCRIPTED_TURN_KEYS = {
     "event_id",
     "answer",
+    "max_previous_output_words",
+    "required_previous_artifacts",
     "required_previous_output",
 }
+SCRIPTED_PREVIOUS_ARTIFACT_TYPES = {"architecture_options_lint"}
 GIT_CHECK_KEYS = {
     "head_unchanged",
     "branch_unchanged",
@@ -74,18 +91,24 @@ GIT_CHECK_KEYS = {
 ARTIFACT_BASE_KEYS = {"type", "path", "path_glob"}
 ARTIFACT_TYPES = {
     "architecture_lint",
+    "architecture_options_lint",
+    "architecture_selection_lint",
     "file_contains",
     "json_fields",
     "jsonl_records",
     "path_absent",
+    "plan_lint",
     "spec_lint",
 }
 ARTIFACT_TYPE_KEYS = {
     "architecture_lint": ARTIFACT_BASE_KEYS,
+    "architecture_options_lint": ARTIFACT_BASE_KEYS,
+    "architecture_selection_lint": ARTIFACT_BASE_KEYS,
     "file_contains": ARTIFACT_BASE_KEYS | {"substrings", "forbidden_substrings"},
     "json_fields": ARTIFACT_BASE_KEYS | {"equals", "contains", "min_lengths"},
     "jsonl_records": ARTIFACT_BASE_KEYS | {"where", "equals", "contains", "count"},
     "path_absent": {"type", "path"},
+    "plan_lint": ARTIFACT_BASE_KEYS,
     "spec_lint": ARTIFACT_BASE_KEYS,
 }
 
@@ -106,6 +129,15 @@ def rel(root: Path, path: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
+
+
+def is_finite_positive_number(value: object) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except (OverflowError, ValueError):
+        return False
 
 
 def load_scenarios(root: Path) -> dict:
@@ -146,7 +178,11 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
     gate_count = 0
 
     for idx, scenario in enumerate(scenarios):
-        prefix = scenario.get("id") or f"<scenario #{idx + 1}>"
+        fallback_prefix = f"<scenario #{idx + 1}>"
+        if isinstance(scenario, dict):
+            prefix = scenario.get("id") or fallback_prefix
+        else:
+            prefix = fallback_prefix
         if not isinstance(scenario, dict):
             errors.append(f"{prefix}: scenario entry must be an object")
             continue
@@ -254,14 +290,64 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
                         f"{prefix}: {label}.required_previous_output must contain at least "
                         "one gate/context anchor before the answer can be sent"
                     )
+                max_words = turn.get("max_previous_output_words")
+                if max_words is not None and (
+                    not isinstance(max_words, int)
+                    or isinstance(max_words, bool)
+                    or max_words <= 0
+                ):
+                    errors.append(
+                        f"{prefix}: {label}.max_previous_output_words "
+                        "must be a positive integer"
+                    )
+                previous_artifacts = turn.get("required_previous_artifacts")
+                if previous_artifacts is not None:
+                    if not isinstance(previous_artifacts, list) or not previous_artifacts:
+                        errors.append(
+                            f"{prefix}: {label}.required_previous_artifacts "
+                            "must be a non-empty list"
+                        )
+                    else:
+                        for artifact_idx, artifact in enumerate(previous_artifacts):
+                            artifact_label = (
+                                f"{label}.required_previous_artifacts.{artifact_idx}"
+                            )
+                            if not isinstance(artifact, dict):
+                                errors.append(
+                                    f"{prefix}: {artifact_label} must be an object"
+                                )
+                                continue
+                            unknown_artifact_keys = sorted(
+                                set(artifact) - {"type", "path"}
+                            )
+                            if unknown_artifact_keys:
+                                errors.append(
+                                    f"{prefix}: {artifact_label} has unknown key(s): "
+                                    + ", ".join(unknown_artifact_keys)
+                                )
+                            artifact_type = artifact.get("type")
+                            if artifact_type not in SCRIPTED_PREVIOUS_ARTIFACT_TYPES:
+                                errors.append(
+                                    f"{prefix}: {artifact_label}.type must be one of "
+                                    f"{sorted(SCRIPTED_PREVIOUS_ARTIFACT_TYPES)}"
+                                )
+                            errors.extend(
+                                validate_artifact_path(
+                                    prefix,
+                                    f"{artifact_label}.path",
+                                    artifact.get("path"),
+                                )
+                            )
 
         profile = scenario.get("profile")
         if profile not in PROFILES:
             errors.append(f"{prefix}: profile must be one of {sorted(PROFILES)}")
 
         budget = scenario.get("recommended_budget_usd")
-        if not isinstance(budget, (int, float)) or budget <= 0:
-            errors.append(f"{prefix}: recommended_budget_usd must be a positive number")
+        if not is_finite_positive_number(budget):
+            errors.append(
+                f"{prefix}: recommended_budget_usd must be a finite positive number"
+            )
 
         timeout_seconds = scenario.get("timeout_seconds")
         if timeout_seconds is not None and (
@@ -292,6 +378,19 @@ def validate_catalog(root: Path, scenarios: list[dict]) -> tuple[list[str], int]
                 errors.extend(run_gate(root, prefix, gate))
 
         errors.extend(validate_output_checks(prefix, scenario.get("output_checks")))
+        final_output_checks = scenario.get("final_output_checks")
+        if final_output_checks is not None:
+            errors.extend(
+                validate_output_checks(
+                    prefix,
+                    final_output_checks,
+                    label="final_output_checks",
+                    allow_max_words=True,
+                )
+            )
+            errors.extend(
+                validate_final_artifact_sha256_bindings(prefix, scenario)
+            )
         errors.extend(validate_artifact_checks(prefix, scenario))
         errors.extend(validate_git_checks(prefix, scenario.get("git_checks")))
 
@@ -346,43 +445,50 @@ def validate_check_strings(sid: str, label: str, value: object) -> list[str]:
     return errors
 
 
-def validate_output_checks(sid: str, checks: object) -> list[str]:
+def validate_output_checks(
+    sid: str,
+    checks: object,
+    *,
+    label: str = "output_checks",
+    allow_max_words: bool = False,
+) -> list[str]:
     if not isinstance(checks, dict) or not checks:
-        return [f"{sid}: output_checks must be a non-empty object"]
+        return [f"{sid}: {label} must be a non-empty object"]
 
     errors: list[str] = []
-    unknown = sorted(set(checks) - OUTPUT_CHECK_KEYS)
+    allowed_keys = FINAL_OUTPUT_CHECK_KEYS if allow_max_words else OUTPUT_CHECK_KEYS
+    unknown = sorted(set(checks) - allowed_keys)
     if unknown:
-        errors.append(f"{sid}: output_checks has unknown key(s): {', '.join(unknown)}")
+        errors.append(f"{sid}: {label} has unknown key(s): {', '.join(unknown)}")
 
     require_citation = checks.get("require_citation", False)
     forbid_citation = checks.get("forbid_citation", False)
     if not isinstance(require_citation, bool):
-        errors.append(f"{sid}: output_checks.require_citation must be boolean")
+        errors.append(f"{sid}: {label}.require_citation must be boolean")
     if not isinstance(forbid_citation, bool):
-        errors.append(f"{sid}: output_checks.forbid_citation must be boolean")
+        errors.append(f"{sid}: {label}.forbid_citation must be boolean")
     if require_citation and forbid_citation:
-        errors.append(f"{sid}: output_checks cannot require and forbid citations")
+        errors.append(f"{sid}: {label} cannot require and forbid citations")
 
-    errors.extend(validate_check_strings(sid, "output_checks.required_substrings",
+    errors.extend(validate_check_strings(sid, f"{label}.required_substrings",
                                          checks.get("required_substrings")))
-    errors.extend(validate_check_strings(sid, "output_checks.forbidden_substrings",
+    errors.extend(validate_check_strings(sid, f"{label}.forbidden_substrings",
                                          checks.get("forbidden_substrings")))
     errors.extend(validate_check_strings(
         sid,
-        "output_checks.required_substrings_case_insensitive",
+        f"{label}.required_substrings_case_insensitive",
         checks.get("required_substrings_case_insensitive"),
     ))
     errors.extend(validate_check_strings(
         sid,
-        "output_checks.forbidden_substrings_case_insensitive",
+        f"{label}.forbidden_substrings_case_insensitive",
         checks.get("forbidden_substrings_case_insensitive"),
     ))
-    errors.extend(validate_check_strings(sid, "output_checks.required_citations",
+    errors.extend(validate_check_strings(sid, f"{label}.required_citations",
                                          checks.get("required_citations")))
 
     regexes = checks.get("forbidden_regexes")
-    errors.extend(validate_check_strings(sid, "output_checks.forbidden_regexes", regexes))
+    errors.extend(validate_check_strings(sid, f"{label}.forbidden_regexes", regexes))
     if isinstance(regexes, list):
         for idx, pat in enumerate(regexes):
             if not isinstance(pat, str) or not pat:
@@ -390,25 +496,63 @@ def validate_output_checks(sid: str, checks: object) -> list[str]:
             try:
                 re.compile(pat)
             except re.error as exc:
-                errors.append(f"{sid}: output_checks.forbidden_regexes.{idx} is invalid: {exc}")
+                errors.append(f"{sid}: {label}.forbidden_regexes.{idx} is invalid: {exc}")
 
     required_citations = checks.get("required_citations", [])
     if required_citations and not require_citation:
-        errors.append(f"{sid}: output_checks.required_citations requires require_citation: true")
+        errors.append(f"{sid}: {label}.required_citations requires require_citation: true")
     if require_citation and not required_citations:
         errors.append(
-            f"{sid}: output_checks.require_citation must pin expected files with required_citations"
+            f"{sid}: {label}.require_citation must pin expected files with required_citations"
         )
     if forbid_citation and required_citations:
-        errors.append(f"{sid}: output_checks cannot forbid citations and require citation files")
+        errors.append(f"{sid}: {label} cannot forbid citations and require citation files")
     if isinstance(required_citations, list):
         for idx, path in enumerate(required_citations):
             if not isinstance(path, str) or not path:
                 continue
             if ":" in path:
                 errors.append(
-                    f"{sid}: output_checks.required_citations.{idx} should be a file path "
+                    f"{sid}: {label}.required_citations.{idx} should be a file path "
                     "without a line suffix"
+                )
+
+    max_words = checks.get("max_words")
+    if allow_max_words and max_words is not None and (
+        not isinstance(max_words, int)
+        or isinstance(max_words, bool)
+        or max_words <= 0
+    ):
+        errors.append(f"{sid}: {label}.max_words must be a positive integer")
+
+    artifact_sha256_paths = checks.get("required_artifact_sha256")
+    if allow_max_words:
+        if (
+            "required_artifact_sha256" in checks
+            and (
+                not isinstance(artifact_sha256_paths, list)
+                or not artifact_sha256_paths
+            )
+        ):
+            errors.append(
+                f"{sid}: {label}.required_artifact_sha256 "
+                "must be a non-empty list"
+            )
+        errors.extend(
+            validate_check_strings(
+                sid,
+                f"{label}.required_artifact_sha256",
+                artifact_sha256_paths,
+            )
+        )
+        if isinstance(artifact_sha256_paths, list):
+            for idx, path in enumerate(artifact_sha256_paths):
+                errors.extend(
+                    validate_artifact_path(
+                        sid,
+                        f"{label}.required_artifact_sha256.{idx}",
+                        path,
+                    )
                 )
 
     has_assertion = any(
@@ -419,13 +563,47 @@ def validate_output_checks(sid: str, checks: object) -> list[str]:
             "forbidden_substrings",
             "forbidden_substrings_case_insensitive",
             "require_citation",
+            "required_artifact_sha256",
             "required_substrings",
             "required_substrings_case_insensitive",
         )
     )
+    if allow_max_words and max_words is not None:
+        has_assertion = True
     if not has_assertion:
-        errors.append(f"{sid}: output_checks must contain at least one assertion")
+        errors.append(f"{sid}: {label} must contain at least one assertion")
 
+    return errors
+
+
+def validate_final_artifact_sha256_bindings(sid: str, scenario: dict) -> list[str]:
+    """Require every displayed artifact digest to target an independently checked file."""
+    final_checks = scenario.get("final_output_checks")
+    if not isinstance(final_checks, dict):
+        return []
+    paths = final_checks.get("required_artifact_sha256")
+    if not isinstance(paths, list):
+        return []
+    artifact_checks = scenario.get("artifact_checks")
+    if not isinstance(artifact_checks, list):
+        artifact_checks = []
+
+    errors: list[str] = []
+    for idx, path in enumerate(paths):
+        if not isinstance(path, str) or not path:
+            continue
+        matching = [
+            check
+            for check in artifact_checks
+            if isinstance(check, dict)
+            and check.get("path") == path
+            and check.get("type") != "path_absent"
+        ]
+        if not matching:
+            errors.append(
+                f"{sid}: final_output_checks.required_artifact_sha256.{idx} "
+                "must match an exact, non-absence artifact_checks path"
+            )
     return errors
 
 
@@ -688,13 +866,18 @@ def run_json_fields_gate(root: Path, sid: str, gate: dict) -> list[str]:
 
 def run_spec_lint(root: Path, sid: str, path: Path, label: str) -> list[str]:
     script = root / "plugins/core-engineering/skills/ce-spec/scripts/spec-lint.py"
-    proc = subprocess.run(
-        [sys.executable, str(script), str(path), "--json"],
-        capture_output=True,
-        text=True,
-        cwd=root,
-        timeout=30,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script), str(path), "--json"],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return [f"{sid}: spec_lint could not run for {label}: timed out after 30 seconds"]
+    except OSError as exc:
+        return [f"{sid}: spec_lint could not run for {label}: {exc}"]
     if proc.returncode != 0:
         detail = (proc.stdout or proc.stderr).strip().splitlines()
         msg = detail[0] if detail else f"exit {proc.returncode}"
@@ -703,26 +886,30 @@ def run_spec_lint(root: Path, sid: str, path: Path, label: str) -> list[str]:
 
 
 def run_plan_lint(root: Path, sid: str, path: Path, label: str) -> list[str]:
-    """Replay a frozen plan dir through the canonical plan-lint.py.
+    """Replay a plan dir through the canonical plan-lint.py.
 
     exit 0 = structurally well-formed (PASS); 1 = a hard structural failure;
     2 = un-runnable. Any non-zero exit fails the gate. The first hard failure
-    (or error message) is surfaced so a mutated golden names its own break.
+    (or error message) is surfaced so a mutated artifact names its own break.
     """
     script = root / "plugins/core-engineering/skills/ce-plan-audit/scripts/plan-lint.py"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            str(script),
-            str(path),
-            "--require-architecture-direction",
-            "--json",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=root,
-        timeout=30,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                str(path),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return [f"{sid}: plan_lint could not run for {label}: timed out after 30 seconds"]
+    except OSError as exc:
+        return [f"{sid}: plan_lint could not run for {label}: {exc}"]
     if proc.returncode == 0:
         return []
     msg = f"exit {proc.returncode}"
@@ -740,6 +927,60 @@ def run_plan_lint(root: Path, sid: str, path: Path, label: str) -> list[str]:
     return [f"{sid}: plan_lint failed for {label}: {msg}"]
 
 
+def run_architecture_selection_lint(
+    root: Path,
+    sid: str,
+    path: Path,
+    repo_root: Path,
+    label: str,
+) -> list[str]:
+    """Replay a selected planning direction through its canonical preflight lint."""
+    script = (
+        root
+        / "plugins/core-engineering/skills/ce-architecture/scripts/"
+        "architecture-selection-lint.py"
+    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                str(path),
+                "--repo-root",
+                str(repo_root),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return [
+            f"{sid}: architecture_selection_lint could not run for {label}: "
+            "timed out after 30 seconds"
+        ]
+    except OSError as exc:
+        return [
+            f"{sid}: architecture_selection_lint could not run for {label}: {exc}"
+        ]
+    if proc.returncode == 0:
+        return []
+    msg = f"exit {proc.returncode}"
+    try:
+        data = json.loads(proc.stdout)
+        if isinstance(data, dict):
+            if data.get("hard_failures"):
+                msg = str(data["hard_failures"][0])
+            elif data.get("message"):
+                msg = str(data["message"])
+    except (json.JSONDecodeError, ValueError):
+        detail = (proc.stdout or proc.stderr).strip().splitlines()
+        if detail:
+            msg = detail[0]
+    return [f"{sid}: architecture_selection_lint failed for {label}: {msg}"]
+
+
 def run_architecture_lint(
     root: Path,
     sid: str,
@@ -752,20 +993,28 @@ def run_architecture_lint(
         root
         / "plugins/core-engineering/skills/ce-architecture/scripts/architecture-lint.py"
     )
-    proc = subprocess.run(
-        [
-            sys.executable,
-            str(script),
-            str(path),
-            "--repo-root",
-            str(repo_root),
-            "--json",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=root,
-        timeout=30,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                str(path),
+                "--repo-root",
+                str(repo_root),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return [
+            f"{sid}: architecture_lint could not run for {label}: "
+            "timed out after 30 seconds"
+        ]
+    except OSError as exc:
+        return [f"{sid}: architecture_lint could not run for {label}: {exc}"]
     if proc.returncode == 0:
         return []
     msg = f"exit {proc.returncode}"
@@ -783,6 +1032,58 @@ def run_architecture_lint(
     return [f"{sid}: architecture_lint failed for {label}: {msg}"]
 
 
+def run_architecture_options_lint(
+    root: Path,
+    sid: str,
+    path: Path,
+    repo_root: Path,
+    label: str,
+) -> list[str]:
+    """Replay a draft direction report through its pre-selection lint."""
+    script = (
+        root
+        / "plugins/core-engineering/skills/ce-architecture/scripts/"
+        "architecture-options-lint.py"
+    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                str(path),
+                "--repo-root",
+                str(repo_root),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return [
+            f"{sid}: architecture_options_lint could not run for {label}: "
+            "timed out after 30 seconds"
+        ]
+    except OSError as exc:
+        return [f"{sid}: architecture_options_lint could not run for {label}: {exc}"]
+    if proc.returncode == 0:
+        return []
+    msg = f"exit {proc.returncode}"
+    try:
+        data = json.loads(proc.stdout)
+        if isinstance(data, dict):
+            if data.get("hard_failures"):
+                msg = str(data["hard_failures"][0])
+            elif data.get("message"):
+                msg = str(data["message"])
+    except (json.JSONDecodeError, ValueError):
+        detail = (proc.stdout or proc.stderr).strip().splitlines()
+        if detail:
+            msg = detail[0]
+    return [f"{sid}: architecture_options_lint failed for {label}: {msg}"]
+
+
 def load_run_records(outputs_dir: Path) -> dict:
     metadata = outputs_dir / "metadata.json"
     if not metadata.is_file():
@@ -795,6 +1096,86 @@ def load_run_records(outputs_dir: Path) -> dict:
     if not isinstance(records, list):
         return {}
     return {r.get("id"): r for r in records if isinstance(r, dict) and r.get("id")}
+
+
+def load_exact_final_output(
+    root: Path,
+    outputs_dir: Path,
+    sid: str,
+    record: object,
+) -> tuple[str | None, list[str]]:
+    """Load a runner-written final response and verify its receipt.
+
+    Scripted transcripts contain model turns plus harness-supplied answers, so
+    they are not a trustworthy source for assertions about the final assistant
+    response. The runner binds that response to a fixed sidecar name and hashes
+    its exact UTF-8 bytes in metadata.
+    """
+    if not isinstance(record, dict):
+        return None, [
+            f"{sid}: final_output_checks require runner metadata with a final-output receipt"
+        ]
+    receipt = record.get("final_output")
+    if not isinstance(receipt, dict):
+        return None, [f"{sid}: final-output receipt is missing or invalid"]
+
+    expected_file = f"{sid}.final.md"
+    if receipt.get("file") != expected_file:
+        return None, [
+            f"{sid}: final-output receipt must bind exact sidecar {expected_file!r}"
+        ]
+    expected_sha256 = receipt.get("sha256")
+    expected_word_count = receipt.get("word_count")
+    expected_byte_count = receipt.get("byte_count")
+    if not isinstance(expected_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", expected_sha256
+    ):
+        return None, [f"{sid}: final-output receipt has an invalid SHA-256"]
+    if (
+        not isinstance(expected_word_count, int)
+        or isinstance(expected_word_count, bool)
+        or expected_word_count < 0
+    ):
+        return None, [f"{sid}: final-output receipt has an invalid word_count"]
+    if (
+        not isinstance(expected_byte_count, int)
+        or isinstance(expected_byte_count, bool)
+        or expected_byte_count < 0
+    ):
+        return None, [f"{sid}: final-output receipt has an invalid byte_count"]
+
+    path = outputs_dir / expected_file
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None, [
+                f"{sid}: final-output sidecar missing or not a regular file: "
+                f"{rel(root, path)}"
+            ]
+        payload = path.read_bytes()
+    except OSError as exc:
+        return None, [
+            f"{sid}: could not read final-output sidecar {rel(root, path)}: {exc}"
+        ]
+
+    actual_sha256 = hashlib.sha256(payload).hexdigest()
+    if actual_sha256 != expected_sha256:
+        return None, [
+            f"{sid}: final-output sidecar SHA-256 does not match its runner receipt"
+        ]
+    if len(payload) != expected_byte_count:
+        return None, [
+            f"{sid}: final-output sidecar byte count does not match its runner receipt"
+        ]
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return None, [f"{sid}: final-output sidecar is not UTF-8: {exc}"]
+    actual_word_count = len(text.split())
+    if actual_word_count != expected_word_count:
+        return None, [
+            f"{sid}: final-output sidecar word count does not match its runner receipt"
+        ]
+    return text, []
 
 
 def grade_outputs(root: Path, scenarios: list[dict], outputs_dir: Path,
@@ -820,7 +1201,9 @@ def grade_outputs(root: Path, scenarios: list[dict], outputs_dir: Path,
                 pass
             captured_first = captured.splitlines()[0] if captured else ""
             kind = record.get("failure_kind") or (
-                "budget-exceeded" if BUDGET_EXCEEDED in captured else "claude-error"
+                "budget-exceeded"
+                if any(marker in captured for marker in BUDGET_EXCEEDED_MARKERS)
+                else "claude-error"
             )
             msg = record.get("failure_message") or captured_first or f"returncode {record.get('returncode')}"
             errors.append(f"{sid}: run failed before output grading ({kind}: {msg})")
@@ -836,40 +1219,146 @@ def grade_outputs(root: Path, scenarios: list[dict], outputs_dir: Path,
             errors.append(f"{sid}: output_checks must be an object")
             continue
         errors.extend(grade_one_output(sid, text, checks))
+        final_checks = scenario.get("final_output_checks")
+        if final_checks is not None:
+            if not isinstance(final_checks, dict):
+                errors.append(f"{sid}: final_output_checks must be an object")
+            else:
+                final_text, final_errors = load_exact_final_output(
+                    root, outputs_dir, sid, record
+                )
+                errors.extend(final_errors)
+                if final_text is not None:
+                    errors.extend(
+                        grade_one_output(
+                            sid,
+                            final_text,
+                            final_checks,
+                            label="final output",
+                        )
+                    )
+                    errors.extend(
+                        grade_required_artifact_sha256(
+                            root,
+                            outputs_dir,
+                            sid,
+                            record,
+                            final_text,
+                            final_checks.get("required_artifact_sha256", []),
+                        )
+                    )
         errors.extend(grade_artifacts(root, outputs_dir, scenario, record))
         errors.extend(grade_git_state(root, outputs_dir, scenario, record))
 
     return errors, graded
 
 
-def grade_one_output(sid: str, text: str, checks: dict) -> list[str]:
+def grade_one_output(
+    sid: str,
+    text: str,
+    checks: dict,
+    *,
+    label: str = "output",
+) -> list[str]:
     errors: list[str] = []
     for item in checks.get("required_substrings", []):
         if item not in text:
-            errors.append(f"{sid}: output missing required text {item!r}")
+            errors.append(f"{sid}: {label} missing required text {item!r}")
     for item in checks.get("forbidden_substrings", []):
         if item in text:
-            errors.append(f"{sid}: output contains forbidden text {item!r}")
+            errors.append(f"{sid}: {label} contains forbidden text {item!r}")
     folded_text = text.casefold()
     for item in checks.get("required_substrings_case_insensitive", []):
         if item.casefold() not in folded_text:
-            errors.append(f"{sid}: output missing semantic text {item!r}")
+            errors.append(f"{sid}: {label} missing semantic text {item!r}")
     for item in checks.get("forbidden_substrings_case_insensitive", []):
         if item.casefold() in folded_text:
-            errors.append(f"{sid}: output contains forbidden semantic text {item!r}")
+            errors.append(f"{sid}: {label} contains forbidden semantic text {item!r}")
     for pat in checks.get("forbidden_regexes", []):
         if re.search(pat, text, re.MULTILINE):
-            errors.append(f"{sid}: output matched forbidden regex {pat!r}")
+            errors.append(f"{sid}: {label} matched forbidden regex {pat!r}")
     if checks.get("require_citation") and not CITATION_RE.search(text):
-        errors.append(f"{sid}: output has no file:line citation")
+        errors.append(f"{sid}: {label} has no file:line citation")
     for path in checks.get("required_citations", []):
         pat = re.compile(
             rf"(?<![A-Za-z0-9_./-])(?:\./)?{re.escape(path)}:\d+(?:-\d+)?\b"
         )
         if not pat.search(text):
-            errors.append(f"{sid}: output missing citation for {path}")
+            errors.append(f"{sid}: {label} missing citation for {path}")
     if checks.get("forbid_citation") and CITATION_RE.search(text):
-        errors.append(f"{sid}: output should not contain file:line citations")
+        errors.append(f"{sid}: {label} should not contain file:line citations")
+    max_words = checks.get("max_words")
+    if isinstance(max_words, int) and not isinstance(max_words, bool):
+        word_count = len(text.split())
+        if word_count > max_words:
+            errors.append(
+                f"{sid}: {label} has {word_count} words, exceeding max_words={max_words}"
+            )
+    return errors
+
+
+def grade_required_artifact_sha256(
+    root: Path,
+    outputs_dir: Path,
+    sid: str,
+    record: object,
+    final_text: str,
+    paths: object,
+) -> list[str]:
+    """Bind a displayed same-line receipt to the exact final artifact bytes."""
+    if not paths:
+        return []
+    if not isinstance(paths, list):
+        return [f"{sid}: final output artifact SHA-256 paths must be a list"]
+    base = resolve_artifact_base(root, outputs_dir, sid, record)
+    if base is None:
+        return [
+            f"{sid}: final output artifact SHA-256 checks require eval_run "
+            "metadata with work_dir"
+        ]
+    try:
+        resolved_base = base.resolve(strict=True)
+    except OSError as exc:
+        return [f"{sid}: could not resolve eval work dir {rel(root, base)}: {exc}"]
+
+    errors: list[str] = []
+    for path_value in paths:
+        if not isinstance(path_value, str) or not path_value:
+            errors.append(f"{sid}: final output artifact SHA-256 path is invalid")
+            continue
+        target = base / path_value
+        try:
+            resolved_target = target.resolve(strict=True)
+            resolved_target.relative_to(resolved_base)
+        except (OSError, ValueError):
+            errors.append(
+                f"{sid}: digest-bound artifact is missing or escapes the eval work dir: "
+                f"{path_value}"
+            )
+            continue
+        if target.is_symlink() or not target.is_file():
+            errors.append(
+                f"{sid}: digest-bound artifact is not a regular non-symlink file: "
+                f"{path_value}"
+            )
+            continue
+        try:
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        except OSError as exc:
+            errors.append(
+                f"{sid}: could not read digest-bound artifact {path_value}: {exc}"
+            )
+            continue
+        receipt = re.compile(
+            rf"{re.escape(path_value)}[^\r\n]{{0,120}}"
+            rf"SHA-256[^\r\n]{{0,40}}{digest}",
+            re.IGNORECASE,
+        )
+        if not receipt.search(final_text):
+            errors.append(
+                f"{sid}: final output does not bind {path_value} to its exact "
+                f"SHA-256 {digest}"
+            )
     return errors
 
 
@@ -1143,6 +1632,48 @@ def grade_artifact_target(
             artifact_repo_root,
             f"artifact {rel(root, path)}",
         )
+
+    if ctype == "architecture_options_lint":
+        if not path.is_file():
+            return [
+                f"{sid}: artifact architecture options report missing: "
+                f"{rel(root, path)}"
+            ]
+        if artifact_repo_root is None:
+            return [
+                f"{sid}: architecture_options_lint artifact requires an eval work root"
+            ]
+        return run_architecture_options_lint(
+            root,
+            sid,
+            path,
+            artifact_repo_root,
+            f"artifact {rel(root, path)}",
+        )
+
+    if ctype == "architecture_selection_lint":
+        if not path.is_file():
+            return [
+                f"{sid}: artifact architecture selection missing: "
+                f"{rel(root, path)}"
+            ]
+        if artifact_repo_root is None:
+            return [
+                f"{sid}: architecture_selection_lint artifact requires an "
+                "eval work root"
+            ]
+        return run_architecture_selection_lint(
+            root,
+            sid,
+            path,
+            artifact_repo_root,
+            f"artifact {rel(root, path)}",
+        )
+
+    if ctype == "plan_lint":
+        if not path.is_dir():
+            return [f"{sid}: artifact plan dir missing: {rel(root, path)}"]
+        return run_plan_lint(root, sid, path, f"artifact {rel(root, path)}")
 
     if ctype == "spec_lint":
         if not path.is_dir():

@@ -17,13 +17,13 @@ other relevant ADRs.
 Run the structural gate before any spawn:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --require-architecture-direction --json
+python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" docs/plans/<slug> --json
 ```
 
 - `exit 0`: continue with the lint-validated manifest and human-bound direction.
 - `exit 1`: stop and route the reported hard planning defects to
-  `/core-engineering:ce-plan`. A malformed *present* disposition is one such
-  defect; legacy `A12`/`A13` gaps are also blocking in this consumer mode.
+  `/core-engineering:ce-plan`. Missing or malformed current plan authority,
+  disposition, direction, or selection evidence is blocking.
 - `exit 2`: stop because auto-build cannot establish a trustworthy plan. A human
   may choose an interactive workflow instead.
 
@@ -32,7 +32,7 @@ Before resolving the run baseline, run:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/<slug>/architecture-selection.json \
-  --require-current-schema --json
+  --json
 ```
 
 Exit 1 or 2 stops at `/core-engineering:ce-plan` Stage R. Never spawn from a

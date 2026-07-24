@@ -41,10 +41,11 @@ HARD checks (a FAIL -> exit 1; facts derivable from plan.json + the filesystem):
       or empty file is the silent omission the re-projection discipline forbids.
       Single-feature plans use the same manifest shape; H8 is simply not
       applicable when no cross-feature re-projection exists.
-  H9  A present `architecture_disposition` records a structurally valid applicability
-      decision and internally consistent architecture-plan convergence evidence.
-  H10 A present architecture-direction summary is human-bound, status-consistent,
-      and matches a fresh, fully valid plan-root `architecture-selection.json`.
+  H9  The current plan authority fields are present and valid: `project_slug`,
+      `status`, `plan_revision`, `plan_tier`, `relates_to`, and a complete
+      `architecture_disposition` with internally consistent convergence evidence.
+  H10 The required architecture-direction summary is human-bound, status-consistent,
+      and matches a fresh, current-schema plan-root `architecture-selection.json`.
   H11 Every feature declares exactly one `specification_route` machine authority
       (`compact` or `explicit`), its Markdown carries one matching projection,
       and a feature already classified `Complex` cannot take the compact route.
@@ -65,16 +66,10 @@ markdown-derived, best-effort):
       `owned-by:<id>` / `bridge:…` / `excluded:<reason>`, never blank.
   A11 Surface-Removal Closure (feature-plan.md §8) — each `continuity` cell is
       dispositioned `deprecate:…` / `shim:…` / `hard-break:…`, never blank.
-  A12 `architecture_disposition` is absent on a legacy plan. Compatibility mode
-      remains non-blocking until the next explicit plan revision records the posture.
-  A13 `architecture_disposition.direction` is absent on a legacy plan. Compatibility
-      mode remains non-blocking unless `--require-architecture-direction` is set.
-
 Usage:
     plan-lint.py <plan-dir>                 # dir holding plan.json + features/
     plan-lint.py --plan-json path/plan.json # explicit manifest
     plan-lint.py <plan-dir> --json          # machine-readable result
-    plan-lint.py <plan-dir> --require-architecture-direction
 
 Exit codes:
     0  PASS  — no hard failures (advisory warnings may still be printed)
@@ -105,9 +100,8 @@ ARCHITECTURE_CONVERGENCE_STATES = {
     "converged", "deferred", "not-applicable",
 }
 ARCHITECTURE_DISPOSITION_REQUIRED_KEYS = {
-    "decision", "triggers", "rationale", "decided_by", "convergence",
+    "decision", "triggers", "rationale", "decided_by", "direction", "convergence",
 }
-ARCHITECTURE_DISPOSITION_OPTIONAL_KEYS = {"direction"}
 ARCHITECTURE_CONVERGENCE_KEYS = {
     "status", "iteration_count", "summary", "decision_refs",
 }
@@ -140,7 +134,7 @@ ARCHITECTURE_DIRECTION_KEYS = {
     "decided_by",
     "summary",
 }
-ARCHITECTURE_DIRECTION_SELECTED = {"direction-selected", "adopted-existing"}
+ARCHITECTURE_DIRECTION_SELECTED = {"direction-selected"}
 ARCHITECTURE_DIRECTION_UNSELECTED = {"not-applicable", "deferred"}
 ARCHITECTURE_DIRECTION_STATUSES = (
     ARCHITECTURE_DIRECTION_SELECTED | ARCHITECTURE_DIRECTION_UNSELECTED
@@ -397,23 +391,14 @@ def validate_architecture_direction(
     posture: dict | None,
     plan_dir: Path,
     hard: list,
-    advisory: list,
-    *,
-    require_direction: bool,
 ) -> None:
     """Validate the plan summary and its exact selection-artifact binding."""
     direction = posture.get("direction") if isinstance(posture, dict) else None
     if direction is None:
-        if require_direction:
-            hard.append(
-                "H10: `architecture_disposition.direction` is required by "
-                "--require-architecture-direction"
-            )
-        else:
-            advisory.append(
-                "A13: `architecture_disposition.direction` is absent — legacy plan; "
-                "compatibility mode applies until direction selection is required"
-            )
+        hard.append(
+            "H10: current plan authority requires "
+            "`architecture_disposition.direction`"
+        )
         return
     if not isinstance(direction, dict):
         hard.append("H10: `architecture_disposition.direction` must be an object")
@@ -505,7 +490,6 @@ def validate_architecture_direction(
             artifact,
             repo_root=repo_root,
             allow_incomplete=False,
-            require_current_schema=require_direction,
             expected_project_slug=(
                 manifest.get("project_slug")
                 if isinstance(manifest.get("project_slug"), str)
@@ -547,33 +531,43 @@ def validate_architecture_disposition(
     manifest: dict,
     plan_dir: Path,
     hard: list,
-    advisory: list,
-    *,
-    require_direction: bool = False,
 ) -> None:
-    """Validate the plan's architecture applicability and convergence posture.
+    """Validate current plan authority and architecture convergence posture."""
+    project_slug = manifest.get("project_slug")
+    if not isinstance(project_slug, str) or not project_slug.strip():
+        hard.append("H9: `project_slug` must be a non-empty string")
 
-    Absence is a deliberate legacy-compatibility path. Once the field is present,
-    malformed or internally contradictory evidence is a hard structural failure.
-    """
-    plan_tier = manifest.get("plan_tier")
-    if "plan_tier" in manifest and (
-        not isinstance(plan_tier, str) or plan_tier not in {"standard", "light"}
+    if manifest.get("status") != "planned":
+        hard.append("H9: `status` must equal `planned`")
+
+    plan_revision = manifest.get("plan_revision")
+    if (
+        not isinstance(plan_revision, int)
+        or isinstance(plan_revision, bool)
+        or plan_revision < 1
     ):
-        hard.append("H9: `plan_tier`, when present, must be `standard` or `light`")
+        hard.append("H9: `plan_revision` must be an integer >= 1")
+
+    plan_tier = manifest.get("plan_tier")
+    if not isinstance(plan_tier, str) or plan_tier not in {"standard", "light"}:
+        hard.append("H9: `plan_tier` must be `standard` or `light`")
+
+    relates_to = manifest.get("relates_to")
+    if not (
+        isinstance(relates_to, list)
+        and all(isinstance(item, str) and item.strip() for item in relates_to)
+    ):
+        hard.append("H9: `relates_to` must be a list of non-empty plan slugs")
+    elif len(relates_to) != len(set(relates_to)):
+        hard.append("H9: `relates_to` must not contain duplicate plan slugs")
 
     if "architecture_disposition" not in manifest:
-        advisory.append(
-            "A12: `architecture_disposition` is absent — legacy plan; "
-            "compatibility mode applies until the next Stage R revision"
-        )
+        hard.append("H9: current plan authority requires `architecture_disposition`")
         validate_architecture_direction(
             manifest,
             None,
             plan_dir,
             hard,
-            advisory,
-            require_direction=require_direction,
         )
         return
 
@@ -585,16 +579,11 @@ def validate_architecture_disposition(
             None,
             plan_dir,
             hard,
-            advisory,
-            require_direction=require_direction,
         )
         return
 
     missing = sorted(ARCHITECTURE_DISPOSITION_REQUIRED_KEYS - set(posture))
-    allowed_posture_keys = (
-        ARCHITECTURE_DISPOSITION_REQUIRED_KEYS | ARCHITECTURE_DISPOSITION_OPTIONAL_KEYS
-    )
-    extra = sorted(set(posture) - allowed_posture_keys)
+    extra = sorted(set(posture) - ARCHITECTURE_DISPOSITION_REQUIRED_KEYS)
     if missing:
         hard.append(
             "H9: `architecture_disposition` is missing key(s): " + ", ".join(missing)
@@ -647,8 +636,6 @@ def validate_architecture_disposition(
         posture,
         plan_dir,
         hard,
-        advisory,
-        require_direction=require_direction,
     )
 
     convergence = posture.get("convergence")
@@ -802,8 +789,6 @@ def run_checks(
     manifest: dict,
     plan_dir: Path,
     registry: set[str] | None,
-    *,
-    require_architecture_direction: bool = False,
 ) -> tuple[list, list]:
     hard, advisory = [], []
     features = manifest["features"]
@@ -1006,8 +991,6 @@ def run_checks(
         manifest,
         plan_dir,
         hard,
-        advisory,
-        require_direction=require_architecture_direction,
     )
 
     # --- advisory: per-feature completeness + enum sanity ---
@@ -1098,14 +1081,6 @@ def main(argv=None) -> int:
     p.add_argument("plan_dir", nargs="?", help="directory containing plan.json + features/")
     p.add_argument("--plan-json", help="explicit path to plan.json")
     p.add_argument("--json", action="store_true", help="emit a machine-readable JSON result")
-    p.add_argument(
-        "--require-architecture-direction",
-        action="store_true",
-        help=(
-            "require a direction and its current-schema, report-bound selection "
-            "artifact for active consumption"
-        ),
-    )
     args = p.parse_args(argv)
 
     try:
@@ -1116,7 +1091,6 @@ def main(argv=None) -> int:
             manifest,
             plan_dir,
             registry,
-            require_architecture_direction=args.require_architecture_direction,
         )
     except PlanLintError as e:
         if args.json:

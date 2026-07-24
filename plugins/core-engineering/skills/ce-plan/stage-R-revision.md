@@ -18,9 +18,9 @@ Run:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/<slug>/architecture-selection.json \
-  --repo-root . --require-current-schema --json
+  --repo-root . --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 ```
 
 Exit 1 or 2 is a baseline defect/coverage gap. Diagnose and route it; do not
@@ -96,10 +96,10 @@ Before asking for approval, run:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/.plan-revision-candidate-<slug>-<run-id>/architecture-selection.json \
-  --repo-root . --require-current-schema --json
+  --repo-root . --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
   docs/plans/.plan-revision-candidate-<slug>-<run-id>/ \
-  --require-architecture-direction --json
+  --json
 ```
 
 Exit 1 requires candidate repair and another lint run; if meaning changes,
@@ -146,8 +146,8 @@ After approval:
 3. publish refreshed selection/options bytes without regeneration;
 4. apply the approved registry delta last;
 5. require final file hashes to equal the candidate manifest;
-6. rerun selection lint with `--require-current-schema` and plan lint with
-   `--require-architecture-direction` as post-publication drift checks; and
+6. rerun selection lint and the current-contract plan lint as
+   post-publication drift checks; and
 7. treat exit 1 or 2 as a publication-integrity stop, never as a prompt to
    silently change approved meaning.
 

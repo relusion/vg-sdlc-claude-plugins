@@ -69,6 +69,10 @@ Evidence
 Do not ask for a fact that this inspection resolves. Do not present an inference
 as observed behavior.
 
+Keep the complete ledger in scratch. In conversation, cite only the evidence
+that changes the pending decision. Do not precede a gate with a repository tour
+and then repeat the same facts inside the gate.
+
 ## 1.1 Draft the planning frame
 
 Record:
@@ -97,9 +101,12 @@ Ask a question only when its answer could materially change:
 - security/risk acceptance;
 - ownership, priority, or a hard dependency.
 
-Use at most four options per question, at most four questions per call, and at
+Use at most four options per question, at most three questions per call, and at
 most two question rounds unless the human explicitly chooses to continue
-discovery. Prefer a recommendation with consequence over a blank questionnaire.
+discovery. Ask the highest-impact unresolved questions first. Phrase them as
+required outcomes or constraints—such as whether state must survive restart—not
+as premature implementation choices such as in-memory versus SQLite. Prefer a
+recommendation with consequence over a blank questionnaire.
 
 When questions are needed, use:
 
@@ -115,6 +122,20 @@ If wrong: <consequence>
 Always include **Need evidence / route to owner** and **Park** when evidence or
 authority may be missing. Continue without this gate when the outcome and Scope
 Lock are already decision-ready.
+
+The chat projection is decision-only and must be no more than 450 words. If
+more decision context is material, keep it in scratch and use a later bounded
+question round rather than expanding this gate:
+
+- no preliminary repository summary;
+- one compact evidence line with paths and states;
+- one recommendation and cost-if-wrong per question;
+- no unrelated test-runner, implementation-mechanism, or clean-check detail.
+
+Use an exact numeric `Gate N of M` locator. Never say `up to M`, `about M`, or
+otherwise leave the current gate count unresolved. Use the current
+evidence-based gate forecast; if this answer changes which later material
+decisions exist, explain the numeric reforecast before the next gate.
 
 ## 1.3 Checkpoint
 

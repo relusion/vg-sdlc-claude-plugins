@@ -11,6 +11,8 @@
 - **Recommendation basis:** A02 fails the authorization-before-persistence constraint, leaving A01 as the sole eligible direction.
 - **Confidence / sensitivity:** medium / not-applicable
 - **Decision owner / authority:** Repository Product and Architecture Owner — This repository owner may bind product scope, the planning architecture direction, and final plan publication for this isolated evaluation.
+- **Current constraints:** Authorization must execute before invitation or membership persistence; the existing application runtime remains in scope.
+- **Key trade-off:** A01 keeps authorization ahead of every protected write, while A02 simplifies invitation capture by violating that non-compensatory constraint.
 - **Cost if wrong:** Rework boundaries, migration tasks, and operational controls.
 - **Material gaps and inferences:** None — the approved evidence covers this comparison.
 

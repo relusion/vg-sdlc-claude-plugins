@@ -678,16 +678,12 @@ def _validate_source_architecture_disposition(
         plan_lint = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plan_lint)
         direction_hard: list[str] = []
-        direction_advisory: list[str] = []
         plan_lint.validate_architecture_disposition(
             plan,
             plan_dir,
             direction_hard,
-            direction_advisory,
-            require_direction=True,
         )
         hard.extend(f"source plan {item}" for item in direction_hard)
-        advisory.extend(f"source plan {item}" for item in direction_advisory)
     except Exception as exc:  # a missing canonical validator is never a pass
         hard.append(
             "H10 source plan direction validation could not run: "
@@ -695,10 +691,6 @@ def _validate_source_architecture_disposition(
         )
 
     if "architecture_disposition" not in plan:
-        advisory.append(
-            "A12: source plan `architecture_disposition` is absent — legacy plan; "
-            "compatibility mode applies until the next Stage R revision"
-        )
         return
 
     plan_tier = plan.get("plan_tier")

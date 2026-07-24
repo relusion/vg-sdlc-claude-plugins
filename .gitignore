@@ -83,3 +83,4 @@ MEMORY.md
 .claude/ce-guard-log.jsonl
 .claude/ce-session-model.json
 .claude/ce-net-policy.json
+**/.architecture-frame-change-receipt.json

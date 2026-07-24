@@ -25,19 +25,17 @@ Hash scopes:
 * ``option_sha256`` hashes its option object with only that field removed.
 * ``option_set_sha256`` hashes an object containing ordered option id/hash
   bindings plus the complete, ordered ``eliminated_options`` ledger.
-* schema v2 ``architecture_options_report.sha256`` binds the exact sibling
+* ``architecture_options_report.sha256`` binds the exact sibling
   ``architecture-options.md`` bytes the human reviewed before selection.
 
 By default only durable plan-artifact statuses are accepted.  The explicit
 ``--allow-incomplete`` mode additionally accepts bounded exploration results
-that stopped before selection (requires-evidence / requires-decision / blocked /
-human-aborted).  Those transient results may omit evaluation sections and can
-never claim a selected option or human decision.
+that stopped before selection, including a complete but non-selectable
+``frame-change-pending`` comparison checkpoint.  Transient results can never
+claim a selected option or human decision.
 
-Legacy schemas and the one-option reportless adoption shape remain readable only
-for explicit migration diagnostics. Active plan and consumer paths use
-``--require-current-schema``, which requires schema v2 and a present hash-bound
-comparison report for every selected direction.
+Schema v2 is the only accepted architecture-selection contract. Every selected
+direction requires a present, hash-bound comparison report.
 
 Exit codes:
   0  PASS  — the artifact is structurally valid and fresh
@@ -49,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import math
 import re
@@ -57,7 +56,6 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 
-SCHEMA_VERSIONS = {1, 2}
 CURRENT_SCHEMA_VERSION = 2
 EXPLORATION_INPUT_SCHEMA_VERSION = 1
 REPORT_SCHEMA_VERSION = 1
@@ -97,14 +95,16 @@ CONSTRAINT_VERDICTS = {"pass", "fail", "unknown"}
 CONFIDENCE_STATES = {"high", "medium", "low"}
 OPTION_CONFIDENCE_STATES = CONFIDENCE_STATES | {"not-applicable"}
 SENSITIVITY_STATES = {"stable", "unstable", "not-applicable"}
-SELECTED_STATUSES = {"direction-selected", "adopted-existing"}
+SELECTED_STATUSES = {"direction-selected"}
 UNSELECTED_STATUSES = {"not-applicable", "deferred"}
 FINAL_STATUSES = SELECTED_STATUSES | UNSELECTED_STATUSES
 TRANSIENT_STATUSES = {
+    "awaiting-selection",
+    "frame-change-pending",
     "requires-evidence", "requires-decision", "blocked", "human-aborted",
 }
 
-TOP_KEYS_V1 = {
+TOP_KEYS = {
     "schema_version",
     "project_slug",
     "exploration_id",
@@ -123,8 +123,8 @@ TOP_KEYS_V1 = {
     "recommendation",
     "selection",
     "next_owner",
+    "architecture_options_report",
 }
-TOP_KEYS_V2 = TOP_KEYS_V1 | {"architecture_options_report"}
 TRANSIENT_REQUIRED_TOP_KEYS = {
     "schema_version",
     "project_slug",
@@ -137,6 +137,7 @@ TRANSIENT_REQUIRED_TOP_KEYS = {
     "evidence_fingerprint",
     "selection",
     "next_owner",
+    "architecture_options_report",
 }
 SOURCE_KEYS = {"path", "sha256", "kind"}
 SOURCE_KINDS = {"brief", "brief-sidecar", "adr", "repository", "planning-input"}
@@ -239,6 +240,8 @@ REPORT_DECISION_FIELDS = (
     "Recommendation basis",
     "Confidence / sensitivity",
     "Decision owner / authority",
+    "Current constraints",
+    "Key trade-off",
     "Cost if wrong",
     "Material gaps and inferences",
 )
@@ -251,11 +254,54 @@ REPORT_AUDIT_HEADER = (
 )
 REPORT_AUDIT_EVENTS = {
     "question",
+    "frame-change-pending",
     "frame-change-requested",
     "frame-change",
     "option-change",
     "alternative-added",
 }
+FRAME_CHANGE_LIST_KEYS = (
+    "requirements",
+    "criterion_weights",
+    "hard_constraints",
+    "driver_screen",
+    "sources",
+    "quality_attribute_scenarios",
+)
+FRAME_CHANGE_DELTA_KEYS = set(FRAME_CHANGE_LIST_KEYS) | {
+    "decision_owner",
+    "human_reason",
+}
+FRAME_CHANGE_REQUIREMENT_FIELDS = {
+    "project_intent": str,
+    "non_goals": list,
+    "architecture_applicability": str,
+    "accepted_decisions": list,
+    "material_gaps": list,
+    "capabilities": list,
+    "journeys": list,
+}
+FRAME_CHANGE_COLLECTION_IDENTITIES = {
+    "hard_constraints": ("constraint_id", "id"),
+    "driver_screen": ("driver_id", "id"),
+    "sources": ("path", "path"),
+    "quality_attribute_scenarios": ("scenario_id", "id"),
+}
+FRAME_CHANGE_OWNER_KEYS = {"identity_or_role", "authority_basis"}
+PENDING_FRAME_CHANGE_KEYS = {
+    "schema_version",
+    "pending_id",
+    "request",
+    "request_sha256",
+    "delta",
+    "delta_sha256",
+    "prior_report_sha256",
+    "resume_locator",
+}
+PENDING_FRAME_CHANGE_PATTERN = re.compile(
+    r"## Pending Decision-Frame Change\s+```json\s*\n(.*?)\n```",
+    re.DOTALL,
+)
 REPORT_HIDDEN_HTML_PATTERNS = (
     (
         "collapsed or non-rendered HTML container",
@@ -483,6 +529,27 @@ PLACEHOLDER_VALUES = {
 PLACEHOLDER_PATTERN = re.compile(
     r"(?:<[^>\n]+>|\{\{[^}\n]+\}\}|\$\{[^}\n]+\})"
 )
+DECISION_PLACEHOLDER_VALUES = {
+    "placeholder",
+    "tbc",
+    "tbd",
+    "template",
+    "to be confirmed",
+    "to be determined",
+    "todo",
+    "unknown",
+}
+DECISION_TEMPLATE_PATTERN = re.compile(
+    r"(?:"
+    r"<\s*[A-Za-z][A-Za-z0-9 _-]{0,80}\s*>"
+    r"|\{\{[^}\n]+\}\}"
+    r"|\$\{[^}\n]+\}"
+    r"|\[\s*(?:insert|placeholder|replace|tbc|tbd|template|todo|unknown)"
+    r"\b[^\]\n]*\]"
+    r")",
+    re.IGNORECASE,
+)
+MARKDOWN_ESCAPE_PATTERN = re.compile(r"\\([\\`*_\[\]{}()#+!|>~.-])")
 
 
 def _substantive(value: object) -> bool:
@@ -493,6 +560,20 @@ def _substantive(value: object) -> bool:
     return (
         text.casefold() not in PLACEHOLDER_VALUES
         and PLACEHOLDER_PATTERN.search(text) is None
+    )
+
+
+def _decision_surface_placeholder(value: object) -> bool:
+    """Match the preselection linter's decision-surface placeholder rule."""
+    if not isinstance(value, str):
+        return False
+    visible = html.unescape(value)
+    visible = MARKDOWN_ESCAPE_PATTERN.sub(r"\1", visible)
+    visible = re.sub(r"\s+", " ", visible).strip()
+    token = visible.casefold().strip(" \t\r\n.!?;:")
+    return (
+        token in DECISION_PLACEHOLDER_VALUES
+        or DECISION_TEMPLATE_PATTERN.search(visible) is not None
     )
 
 
@@ -525,6 +606,8 @@ def _validate_sources(
     value: object,
     repo_root: Path,
     failures: list[str],
+    *,
+    check_filesystem_freshness: bool = True,
 ) -> list[dict]:
     if not isinstance(value, list) or not value:
         failures.append("sources must be a non-empty array")
@@ -560,20 +643,24 @@ def _validate_sources(
             failures.append(
                 f"{label}.kind must be one of {sorted(SOURCE_KINDS)}"
             )
-        candidate = repo_root / rel
-        symlinks = _symlink_components(repo_root, candidate)
-        if not _inside(repo_root, candidate) or symlinks:
-            failures.append(
-                f"{label}.path must resolve beneath the repository without symlinks"
-            )
-        elif not candidate.is_file():
-            failures.append(f"{label}.path does not resolve to a regular file: {rel_text}")
-        elif _sha(expected_hash):
-            actual = file_sha256(candidate)
-            if actual != expected_hash:
+        if check_filesystem_freshness:
+            candidate = repo_root / rel
+            symlinks = _symlink_components(repo_root, candidate)
+            if not _inside(repo_root, candidate) or symlinks:
                 failures.append(
-                    f"{label}.sha256 is stale for {rel_text}: expected {expected_hash}, actual {actual}"
+                    f"{label}.path must resolve beneath the repository without symlinks"
                 )
+            elif not candidate.is_file():
+                failures.append(
+                    f"{label}.path does not resolve to a regular file: {rel_text}"
+                )
+            elif _sha(expected_hash):
+                actual = file_sha256(candidate)
+                if actual != expected_hash:
+                    failures.append(
+                        f"{label}.sha256 is stale for {rel_text}: expected "
+                        f"{expected_hash}, actual {actual}"
+                    )
         sources.append(row)
     if paths != sorted(paths):
         failures.append("sources must be sorted lexicographically by path")
@@ -1077,9 +1164,7 @@ def _validate_options(
         failures.append("options must be an array")
         return [], {}, {}, {}, {}
     selected = selection_status in SELECTED_STATUSES
-    if selected and not 1 <= len(value) <= 4:
-        failures.append("selected direction artifacts must contain between 1 and 4 options")
-    if selection_status == "direction-selected" and len(value) == 1:
+    if selected and len(value) < 2:
         failures.append(
             "direction-selected exploration must retain at least two genuine "
             "directions; hard-constraint eliminations remain explicit options"
@@ -1169,6 +1254,15 @@ def _validate_options(
             failures.append(
                 f"{oid_label}.confidence must be not-applicable when hard-constraint "
                 "gating made the option ineligible"
+            )
+        elif (
+            eligible_for_weighting
+            and any(state == "unknown" for state in evidence_states.values())
+            and confidence != "low"
+        ):
+            failures.append(
+                f"{oid_label}.confidence must be low when any scoring evidence "
+                "state is unknown"
             )
         elif confidence == "high" and any(
             state in {"inferred", "unknown"} for state in evidence_states.values()
@@ -1757,7 +1851,23 @@ def _report_scalar_values(value: object) -> list[str]:
 
 
 def _normalized_report_text(value: str) -> str:
-    return re.sub(r"\s+", " ", value.replace(r"\|", "|")).strip()
+    rendered = html.unescape(value)
+    rendered = re.sub(
+        r"\\([\\`*_\[\]{}()#+\-.!|>~])",
+        r"\1",
+        rendered,
+    )
+    return re.sub(r"\s+", " ", rendered).strip()
+
+
+def _exact_report_text(value: str) -> str:
+    """Reverse the report renderer's scalar escaping without normalizing it."""
+    rendered = html.unescape(value)
+    return re.sub(
+        r"\\([\\`*_\[\]{}()#+.!|>~])",
+        r"\1",
+        rendered,
+    )
 
 
 def _report_section_body(text: str, heading: str) -> str | None:
@@ -1801,11 +1911,11 @@ def _validate_workbench_audit(
     *,
     workbench_revision: int | None,
     failures: list[str],
-) -> None:
+) -> list[list[str]]:
     """Validate the durable question/adjustment history in the review report."""
     body = _report_section_body(text, "## Decision Workbench Audit")
     if body is None:
-        return  # the exact-heading check emits the structural failure
+        return []  # the exact-heading check emits the structural failure
     lines = body.splitlines()
     header_indexes = [
         index
@@ -1817,7 +1927,7 @@ def _validate_workbench_audit(
             "architecture options report Decision Workbench Audit must contain "
             "exactly one canonical audit table header"
         )
-        return
+        return []
 
     header_index = header_indexes[0]
     separator_index = header_index + 1
@@ -1837,7 +1947,7 @@ def _validate_workbench_audit(
             "architecture options report Decision Workbench Audit must use a "
             "five-column Markdown separator row"
         )
-        return
+        return []
 
     raw_rows: list[list[str]] = []
     for line in lines[separator_index + 1 :]:
@@ -1856,7 +1966,7 @@ def _validate_workbench_audit(
             "architecture options report Decision Workbench Audit must contain "
             "at least the initial-synthesis row"
         )
-        return
+        return []
 
     revisions: list[int] = []
     for row_index, row in enumerate(raw_rows, start=1):
@@ -1908,6 +2018,338 @@ def _validate_workbench_audit(
                 f"must be contiguous 1..{workbench_revision} and end at the "
                 "declared Workbench revision"
             )
+    return raw_rows
+
+
+def _validate_typed_frame_change_delta(
+    delta: object,
+    failures: list[str],
+    *,
+    prior_input: dict | None = None,
+) -> None:
+    label = "Pending Decision-Frame Change delta"
+    if not isinstance(delta, dict):
+        failures.append(f"{label} must be an object")
+        return
+    _exact_keys(delta, FRAME_CHANGE_DELTA_KEYS, label, failures)
+    has_change = False
+
+    requirements = delta.get("requirements")
+    if not isinstance(requirements, list):
+        failures.append(f"{label}.requirements must be an array")
+        requirements = []
+    elif len(requirements) > 12:
+        failures.append(f"{label}.requirements may contain at most 12 entries")
+    fields: list[str] = []
+    for index, row in enumerate(requirements):
+        row_label = f"{label}.requirements[{index}]"
+        if not isinstance(row, dict):
+            failures.append(f"{row_label} must be an object")
+            continue
+        _exact_keys(row, {"field", "before", "after"}, row_label, failures)
+        field = row.get("field")
+        if field not in FRAME_CHANGE_REQUIREMENT_FIELDS:
+            failures.append(
+                f"{row_label}.field must be one of "
+                + ", ".join(sorted(FRAME_CHANGE_REQUIREMENT_FIELDS))
+            )
+            continue
+        fields.append(field)
+        expected_type = FRAME_CHANGE_REQUIREMENT_FIELDS[field]
+        before = row.get("before")
+        after = row.get("after")
+        if not isinstance(before, expected_type):
+            failures.append(
+                f"{row_label}.before must be a {expected_type.__name__}"
+            )
+        if not isinstance(after, expected_type):
+            failures.append(
+                f"{row_label}.after must be a {expected_type.__name__}"
+            )
+        if before == after:
+            failures.append(f"{row_label} must change the authoritative value")
+        if prior_input is not None and before != prior_input.get(field):
+            failures.append(
+                f"{row_label}.before does not match the report-bound H1 frame"
+            )
+    duplicate_fields = sorted(
+        {field for field in fields if fields.count(field) > 1}
+    )
+    if duplicate_fields:
+        failures.append(
+            f"{label}.requirements contains duplicate field(s): "
+            + ", ".join(duplicate_fields)
+        )
+    has_change = has_change or bool(requirements)
+
+    weights = delta.get("criterion_weights")
+    if not isinstance(weights, list):
+        failures.append(f"{label}.criterion_weights must be an array")
+        weights = []
+    elif len(weights) > 12:
+        failures.append(
+            f"{label}.criterion_weights may contain at most 12 entries"
+        )
+    prior_weights = {
+        row.get("id"): row.get("weight")
+        for row in (prior_input or {}).get("criteria", [])
+        if isinstance(row, dict)
+    }
+    criterion_ids: list[str] = []
+    for index, row in enumerate(weights):
+        row_label = f"{label}.criterion_weights[{index}]"
+        if not isinstance(row, dict):
+            failures.append(f"{row_label} must be an object")
+            continue
+        _exact_keys(
+            row,
+            {"criterion_id", "before", "after"},
+            row_label,
+            failures,
+        )
+        criterion_id = row.get("criterion_id")
+        if criterion_id not in CRITERIA:
+            failures.append(
+                f"{row_label}.criterion_id must be one of {list(CRITERIA)}"
+            )
+        elif isinstance(criterion_id, str):
+            criterion_ids.append(criterion_id)
+        before = row.get("before")
+        after = row.get("after")
+        for side, value in (("before", before), ("after", after)):
+            number = _decimal(value)
+            if number is None or number < 0 or number > 1:
+                failures.append(
+                    f"{row_label}.{side} must be a finite number from 0 through 1"
+                )
+        if before == after:
+            failures.append(f"{row_label} must change the criterion weight")
+        if (
+            prior_input is not None
+            and criterion_id in CRITERIA
+            and before != prior_weights.get(criterion_id)
+        ):
+            failures.append(
+                f"{row_label}.before does not match the report-bound H1 weight"
+            )
+    duplicate_criteria = sorted(
+        {
+            criterion_id
+            for criterion_id in criterion_ids
+            if criterion_ids.count(criterion_id) > 1
+        }
+    )
+    if duplicate_criteria:
+        failures.append(
+            f"{label}.criterion_weights contains duplicate criterion_id(s): "
+            + ", ".join(duplicate_criteria)
+        )
+    has_change = has_change or bool(weights)
+
+    for delta_key, (identity_key, object_identity_key) in (
+        FRAME_CHANGE_COLLECTION_IDENTITIES.items()
+    ):
+        rows = delta.get(delta_key)
+        if not isinstance(rows, list):
+            failures.append(f"{label}.{delta_key} must be an array")
+            rows = []
+        elif len(rows) > 12:
+            failures.append(
+                f"{label}.{delta_key} may contain at most 12 entries"
+            )
+        prior_by_id = {
+            row.get(object_identity_key): row
+            for row in (prior_input or {}).get(delta_key, [])
+            if isinstance(row, dict)
+        }
+        identities: list[str] = []
+        for index, row in enumerate(rows):
+            row_label = f"{label}.{delta_key}[{index}]"
+            if not isinstance(row, dict):
+                failures.append(f"{row_label} must be an object")
+                continue
+            _exact_keys(
+                row,
+                {identity_key, "before", "after"},
+                row_label,
+                failures,
+            )
+            identity = row.get(identity_key)
+            if not _nonempty(identity):
+                failures.append(f"{row_label}.{identity_key} must be non-empty")
+                continue
+            identity = identity.strip()
+            identities.append(identity)
+            before = row.get("before")
+            after = row.get("after")
+            if before is not None and not isinstance(before, dict):
+                failures.append(f"{row_label}.before must be an object or null")
+            if after is not None and not isinstance(after, dict):
+                failures.append(f"{row_label}.after must be an object or null")
+            if before is None and after is None:
+                failures.append(
+                    f"{row_label} must add, remove, or replace one row"
+                )
+            if before == after:
+                failures.append(
+                    f"{row_label} must change the authoritative row"
+                )
+            for side, value in (("before", before), ("after", after)):
+                if (
+                    isinstance(value, dict)
+                    and value.get(object_identity_key) != identity
+                ):
+                    failures.append(
+                        f"{row_label}.{side}.{object_identity_key} must equal "
+                        f"{identity!r}"
+                    )
+            if (
+                prior_input is not None
+                and before != prior_by_id.get(identity)
+            ):
+                failures.append(
+                    f"{row_label}.before does not match the report-bound H1 row"
+                )
+        duplicate_identities = sorted(
+            {
+                identity
+                for identity in identities
+                if identities.count(identity) > 1
+            }
+        )
+        if duplicate_identities:
+            failures.append(
+                f"{label}.{delta_key} contains duplicate {identity_key}(s): "
+                + ", ".join(duplicate_identities)
+            )
+        has_change = has_change or bool(rows)
+
+    owner = delta.get("decision_owner")
+    if owner is not None:
+        has_change = True
+        if not isinstance(owner, dict):
+            failures.append(
+                f"{label}.decision_owner must be null or an object with before and after"
+            )
+        else:
+            _exact_keys(owner, {"before", "after"}, f"{label}.decision_owner", failures)
+            before = owner.get("before")
+            after = owner.get("after")
+            for side, value in (("before", before), ("after", after)):
+                side_label = f"{label}.decision_owner.{side}"
+                if not isinstance(value, dict):
+                    failures.append(f"{side_label} must be an object")
+                    continue
+                _exact_keys(value, FRAME_CHANGE_OWNER_KEYS, side_label, failures)
+                for key in FRAME_CHANGE_OWNER_KEYS:
+                    if not _substantive(value.get(key)):
+                        failures.append(
+                            f"{side_label}.{key} must be a non-placeholder value"
+                        )
+            if before == after:
+                failures.append(
+                    f"{label}.decision_owner must change the authoritative owner"
+                )
+            if (
+                prior_input is not None
+                and before != prior_input.get("decision_owner")
+            ):
+                failures.append(
+                    f"{label}.decision_owner.before does not match the "
+                    "report-bound H1 owner"
+                )
+
+    if not _substantive(delta.get("human_reason")):
+        failures.append(f"{label}.human_reason must be substantive")
+    if not has_change:
+        failures.append(f"{label} must contain at least one change")
+
+
+def pending_frame_change_from_report(
+    text: str,
+    failures: list[str],
+) -> dict | None:
+    """Parse and validate the exact non-selectable decision-frame delta."""
+    matches = PENDING_FRAME_CHANGE_PATTERN.findall(text)
+    if len(matches) != 1:
+        failures.append(
+            "frame-change-pending report must contain exactly one fenced JSON "
+            "Pending Decision-Frame Change section"
+        )
+        return None
+    try:
+        value = json.loads(matches[0], parse_constant=_reject_constant)
+    except (ValueError, json.JSONDecodeError) as exc:
+        failures.append(f"Pending Decision-Frame Change is invalid JSON: {exc}")
+        return None
+    if not isinstance(value, dict):
+        failures.append("Pending Decision-Frame Change must be a JSON object")
+        return None
+    _exact_keys(
+        value,
+        PENDING_FRAME_CHANGE_KEYS,
+        "Pending Decision-Frame Change",
+        failures,
+    )
+    if value.get("schema_version") != 1:
+        failures.append("Pending Decision-Frame Change schema_version must equal 1")
+
+    request = value.get("request")
+    if not _substantive(request):
+        failures.append("Pending Decision-Frame Change request must be substantive")
+    expected_request_hash = (
+        hashlib.sha256(request.encode("utf-8")).hexdigest()
+        if isinstance(request, str)
+        else None
+    )
+    if value.get("request_sha256") != expected_request_hash:
+        failures.append(
+            "Pending Decision-Frame Change request_sha256 does not match request"
+        )
+
+    delta = value.get("delta")
+    _validate_typed_frame_change_delta(delta, failures)
+
+    expected_delta_hash = canonical_sha256(delta) if isinstance(delta, dict) else None
+    if value.get("delta_sha256") != expected_delta_hash:
+        failures.append(
+            "Pending Decision-Frame Change delta_sha256 does not match delta"
+        )
+    prior_hash = value.get("prior_report_sha256")
+    if not _sha(prior_hash):
+        failures.append(
+            "Pending Decision-Frame Change prior_report_sha256 must be "
+            "64 lowercase hex characters"
+        )
+    resume_locator = value.get("resume_locator")
+    if (
+        not isinstance(resume_locator, str)
+        or re.fullmatch(
+            r"Gate [1-9][0-9]* of [1-9][0-9]* — Architecture Direction Selection",
+            resume_locator,
+        )
+        is None
+    ):
+        failures.append(
+            "Pending Decision-Frame Change resume_locator must be the exact "
+            "Architecture Direction Selection gate"
+        )
+    expected_pending_id = (
+        "FCP-"
+        + canonical_sha256(
+            {
+                "request_sha256": expected_request_hash,
+                "delta_sha256": expected_delta_hash,
+                "prior_report_sha256": prior_hash,
+            }
+        )[:12]
+    )
+    if value.get("pending_id") != expected_pending_id:
+        failures.append(
+            "Pending Decision-Frame Change pending_id does not match its "
+            "request/delta/prior-report binding"
+        )
+    return value
 
 
 def _require_section_projection(
@@ -1982,40 +2424,6 @@ def _report_rendering_surface(value: str) -> str:
     return re.sub(r"`+[^`\n]*`+", " ", surface)
 
 
-def _is_one_option_legacy_adoption(data: dict) -> bool:
-    """Return whether report omission has the sole supported migration shape.
-
-    Schema v2 may preserve a schema-v1 adopted-existing result without
-    fabricating a report only when there was no comparison: one option is both
-    selected and recommended, both hashes bind that sole option, and no
-    eliminated direction is recorded.
-    """
-    selection = data.get("selection")
-    options = data.get("options")
-    recommendation = data.get("recommendation")
-    eliminated = data.get("eliminated_options")
-    if (
-        not isinstance(selection, dict)
-        or selection.get("status") != "adopted-existing"
-        or not isinstance(options, list)
-        or len(options) != 1
-        or not isinstance(options[0], dict)
-        or not isinstance(recommendation, dict)
-        or eliminated != []
-    ):
-        return False
-    option = options[0]
-    option_id = option.get("option_id")
-    option_sha = option.get("option_sha256")
-    return (
-        isinstance(option_id, str)
-        and _sha(option_sha)
-        and selection.get("option_id") == option_id
-        and selection.get("option_sha256") == option_sha
-        and recommendation.get("option_id") == option_id
-    )
-
-
 def options_report_projection(data: dict) -> dict:
     """Return the exact selection-independent object embedded in the report."""
     return {
@@ -2045,12 +2453,11 @@ def _validate_options_report_binding(
     artifact_path: Path,
     repo_root: Path,
     selection_status: object,
-    allow_reportless_legacy: bool,
     failures: list[str],
 ) -> None:
-    """Validate schema-v2's exact human-readable sibling report binding."""
+    """Validate the exact human-readable sibling report binding."""
     if not isinstance(value, dict):
-        failures.append("architecture_options_report must be an object in schema v2")
+        failures.append("architecture_options_report must be an object")
         return
     _exact_keys(
         value,
@@ -2084,21 +2491,13 @@ def _validate_options_report_binding(
             )
         if selection_status == "direction-selected":
             failures.append(
-                "schema-v2 direction-selected requires a present architecture options report"
+                "direction-selected requires a present architecture options report"
             )
-        elif selection_status == "adopted-existing":
-            if not allow_reportless_legacy:
-                failures.append(
-                    "current selected architecture requires a present, hash-bound "
-                    "architecture options report; reportless legacy adoption is "
-                    "diagnostic-only"
-                )
-            elif not _is_one_option_legacy_adoption(data):
-                failures.append(
-                    "schema-v2 adopted-existing without a report is limited to the "
-                    "one-option legacy migration shape: the sole option must be selected "
-                    "and recommended with matching hashes and no eliminated directions"
-                )
+        elif selection_status in {"awaiting-selection", "frame-change-pending"}:
+            failures.append(
+                f"{selection_status} requires a present "
+                "architecture options report"
+            )
         return
 
     if report_path_value != "architecture-options.md":
@@ -2162,10 +2561,19 @@ def _validate_options_report_binding(
             failures.append(
                 "architecture options report must contain its exact project title once"
             )
-    status_marker = "> Decision status: awaiting-selection"
-    if visible_report.count(status_marker) != 1:
+    pending_report = selection_status == "frame-change-pending"
+    expected_report_status = (
+        "frame-change-pending" if pending_report else "awaiting-selection"
+    )
+    status_matches = re.findall(
+        r"^>\s*Decision status:\s*(\S+)\s*$",
+        visible_report,
+        flags=re.MULTILINE,
+    )
+    if status_matches != [expected_report_status]:
         failures.append(
-            "architecture options report must remain the immutable awaiting-selection snapshot"
+            "architecture options report Decision status must equal "
+            f"`{expected_report_status}` exactly once"
         )
     for heading in REPORT_REQUIRED_HEADINGS:
         if visible_report.count(heading) != 1:
@@ -2186,11 +2594,43 @@ def _validate_options_report_binding(
         )
     else:
         workbench_revision = int(workbench_matches[0])
-    _validate_workbench_audit(
+    audit_rows = _validate_workbench_audit(
         visible_report,
         workbench_revision=workbench_revision,
         failures=failures,
     )
+    pending_matches = PENDING_FRAME_CHANGE_PATTERN.findall(visible_report)
+    if pending_report:
+        pending = pending_frame_change_from_report(visible_report, failures)
+        if pending is not None:
+            _validate_typed_frame_change_delta(
+                pending.get("delta"),
+                failures,
+                prior_input=source_input_payload(data),
+            )
+        if pending is not None and audit_rows:
+            last = audit_rows[-1]
+            if len(last) == len(REPORT_AUDIT_HEADER):
+                if last[1].strip("` ") != "frame-change-pending":
+                    failures.append(
+                        "frame-change-pending report must end with a "
+                        "frame-change-pending audit event"
+                    )
+                if _exact_report_text(last[2]) != pending.get("request"):
+                    failures.append(
+                        "frame-change-pending audit human input must exactly match "
+                        "the pending request"
+                    )
+                if last[4].strip("` ") != pending.get("prior_report_sha256"):
+                    failures.append(
+                        "frame-change-pending audit prior hash must exactly match "
+                        "Pending Decision-Frame Change prior_report_sha256"
+                    )
+    elif pending_matches:
+        failures.append(
+            "selectable architecture options report must not contain a pending "
+            "decision-frame change"
+        )
 
     decision_section_match = re.search(
         r"^## What Needs Your Decision\s*$\n(.*?)(?=^##\s)",
@@ -2217,6 +2657,11 @@ def _validate_options_report_binding(
             failures.append(
                 "architecture options report What Needs Your Decision field "
                 f"{label!r} must have a non-empty visible value"
+            )
+        elif _decision_surface_placeholder(rendered_value):
+            failures.append(
+                "architecture options report What Needs Your Decision field "
+                f"{label!r} contains an unfilled placeholder"
             )
         else:
             decision_values[label] = rendered_value
@@ -2365,13 +2810,23 @@ def _validate_options_report_binding(
         option_sha = option.get("option_sha256")
         if not isinstance(oid, str) or not isinstance(title, str):
             continue
-        heading = f"## Direction {oid} — {title}"
-        if visible_report.count(heading) != 1:
+        heading_matches = list(
+            re.finditer(
+                rf"^## Direction {re.escape(oid)} — (.*?)\s*$",
+                visible_report,
+                flags=re.MULTILINE,
+            )
+        )
+        if (
+            len(heading_matches) != 1
+            or _normalized_report_text(heading_matches[0].group(1))
+            != _normalized_report_text(title)
+        ):
             failures.append(
                 f"architecture options report must contain exact direction heading {oid}"
             )
             continue
-        direction_positions.append((visible_report.index(heading), option))
+        direction_positions.append((heading_matches[0].start(), option))
         if isinstance(option_sha, str) and visible_report.count(
             f"**Option hash:** `{option_sha}`"
         ) != 1:
@@ -2411,28 +2866,6 @@ def _validate_options_report_binding(
             failures.append(
                 f"architecture options report direction {oid} must state confidence"
             )
-        option_projection = {
-            key: option.get(key)
-            for key in (
-                *OPTION_ARRAY_KEYS,
-                "constraint_verdicts",
-                "scores",
-                "weighted_score",
-                "confidence",
-            )
-        }
-        missing_option_values = [
-            scalar
-            for scalar in _report_scalar_values(option_projection)
-            if _normalized_report_text(scalar) not in normalized_section
-        ]
-        if missing_option_values:
-            preview = ", ".join(repr(item) for item in missing_option_values[:6])
-            suffix = " ..." if len(missing_option_values) > 6 else ""
-            failures.append(
-                f"architecture options report direction {oid} omits option detail(s): "
-                f"{preview}{suffix}"
-            )
 
     integrity_values = {
         "Report schema": str(REPORT_SCHEMA_VERSION),
@@ -2458,7 +2891,7 @@ def _validate_options_report_binding(
             )
 
     awaiting_rows = {
-        "Status": "awaiting-selection",
+        "Status": expected_report_status,
         "Selected direction": "Not selected",
         "Selected option hash": "Not selected",
         "Decided by": "Not selected",
@@ -2479,27 +2912,31 @@ def validate_document(
     repo_root: Path,
     allow_incomplete: bool = False,
     expected_project_slug: str | None = None,
-    require_current_schema: bool = False,
+    check_source_freshness: bool = True,
 ) -> list[str]:
     failures: list[str] = []
     selection_value = data.get("selection")
     raw_status = selection_value.get("status") if isinstance(selection_value, dict) else None
     transient = allow_incomplete and raw_status in TRANSIENT_STATUSES
+    awaiting_selection = transient and raw_status == "awaiting-selection"
+    frame_change_pending = transient and raw_status == "frame-change-pending"
+    comparison_checkpoint = awaiting_selection or frame_change_pending
 
     schema_version = data.get("schema_version")
-    top_keys = TOP_KEYS_V2 if schema_version == 2 else TOP_KEYS_V1
-    required_keys = TRANSIENT_REQUIRED_TOP_KEYS if transient else set(top_keys)
-    if transient and schema_version == 2:
-        required_keys = set(required_keys) | {"architecture_options_report"}
+    required_keys = (
+        TRANSIENT_REQUIRED_TOP_KEYS
+        if transient and not comparison_checkpoint
+        else TOP_KEYS
+    )
     missing = sorted(required_keys - set(data))
-    extra = sorted(set(data) - top_keys)
+    extra = sorted(set(data) - TOP_KEYS)
     if missing:
         failures.append("artifact missing key(s): " + ", ".join(missing))
     if extra:
         failures.append("artifact has unknown key(s): " + ", ".join(extra))
 
-    if schema_version not in SCHEMA_VERSIONS:
-        failures.append(f"schema_version must be one of {sorted(SCHEMA_VERSIONS)}")
+    if schema_version != CURRENT_SCHEMA_VERSION:
+        failures.append(f"schema_version must equal {CURRENT_SCHEMA_VERSION}")
     slug = data.get("project_slug")
     if not isinstance(slug, str) or PROJECT_SLUG_RE.fullmatch(slug) is None:
         failures.append("project_slug must be canonical lowercase kebab-case")
@@ -2518,7 +2955,12 @@ def validate_document(
     if not _sha(data.get("source_input_sha256")):
         failures.append("source_input_sha256 must be 64 lowercase hex characters")
     raw_sources = data.get("sources")
-    _validate_sources(raw_sources, repo_root, failures)
+    _validate_sources(
+        raw_sources,
+        repo_root,
+        failures,
+        check_filesystem_freshness=check_source_freshness,
+    )
     source_paths = {
         row.get("path")
         for row in raw_sources
@@ -2536,18 +2978,16 @@ def validate_document(
         data.get("blocking_decision"), status=raw_status, failures=failures
     )
 
-    if schema_version == 2:
-        _validate_options_report_binding(
-            data.get("architecture_options_report"),
-            data=data,
-            artifact_path=artifact_path,
-            repo_root=repo_root,
-            selection_status=raw_status,
-            allow_reportless_legacy=not require_current_schema,
-            failures=failures,
-        )
+    _validate_options_report_binding(
+        data.get("architecture_options_report"),
+        data=data,
+        artifact_path=artifact_path,
+        repo_root=repo_root,
+        selection_status=raw_status,
+        failures=failures,
+    )
 
-    if transient:
+    if transient and not comparison_checkpoint:
         _validate_selection(
             selection_value,
             {},
@@ -2559,6 +2999,7 @@ def validate_document(
 
     status = raw_status if isinstance(raw_status, str) else None
     selected = status in SELECTED_STATUSES
+    comparison_ready = selected or comparison_checkpoint
     evaluation_frame = _validate_evaluation_frame(
         data.get("evaluation_frame"),
         source_paths=source_paths,
@@ -2576,9 +3017,9 @@ def validate_document(
             "selection.status `deferred` requires evaluation-frame "
             "architecture_applicability `recommended`"
         )
-    elif selected and applicability == "not-required":
+    elif comparison_ready and applicability == "not-required":
         failures.append(
-            "a selected direction requires evaluation-frame applicability "
+            "a decision-ready direction comparison requires evaluation-frame applicability "
             "`required` or `recommended`"
         )
     # Every durable terminal artifact comes from a human-confirmed evaluation
@@ -2607,13 +3048,17 @@ def validate_document(
         evidence_states_by_id,
     ) = _validate_options(
         data.get("options"), constraint_ids, weights, source_paths, failures,
-        selection_status=status,
+        selection_status=("direction-selected" if comparison_checkpoint else status),
     )
     eliminated = _validate_eliminated(
         data.get("eliminated_options"), by_id, verdicts_by_id, failures
     )
     recommendation = _validate_recommendation(
-        data.get("recommendation"), by_id, verdicts_by_id, failures, selected=selected
+        data.get("recommendation"),
+        by_id,
+        verdicts_by_id,
+        failures,
+        selected=comparison_ready,
     )
     if isinstance(recommendation.get("option_id"), str):
         _validate_ranking_integrity(
@@ -2661,11 +3106,18 @@ def validate_document(
         expected = option_set_hash(options, eliminated)
         if supplied_set_hash != expected:
             failures.append(f"option_set_sha256 mismatch: expected {expected}")
-        elif selected:
+        elif comparison_ready:
             expected_exploration_id = f"AEX-{supplied_set_hash[:12]}"
             if data.get("exploration_id") != expected_exploration_id:
+                state = (
+                    "selected"
+                    if selected
+                    else "frame-change-pending"
+                    if frame_change_pending
+                    else "awaiting-selection"
+                )
                 failures.append(
-                    "selected exploration_id must be content-addressed as "
+                    f"{state} exploration_id must be content-addressed as "
                     f"{expected_exploration_id}"
                 )
     return failures
@@ -2677,7 +3129,6 @@ def validate_file(
     repo_root: Path | None = None,
     allow_incomplete: bool = False,
     expected_project_slug: str | None = None,
-    require_current_schema: bool = False,
 ) -> tuple[dict, list[str]]:
     if artifact_path.is_dir():
         artifact_path = artifact_path / "architecture-selection.json"
@@ -2698,14 +3149,7 @@ def validate_file(
         repo_root=root,
         allow_incomplete=allow_incomplete,
         expected_project_slug=expected_project_slug,
-        require_current_schema=require_current_schema,
     )
-    if require_current_schema and data.get("schema_version") != CURRENT_SCHEMA_VERSION:
-        failures.insert(
-            0,
-            "fresh exploration output must use current schema_version "
-            f"{CURRENT_SCHEMA_VERSION}",
-        )
     return data, failures
 
 
@@ -2728,14 +3172,6 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="accept explicitly unselected transient exploration-result statuses",
     )
-    parser.add_argument(
-        "--require-current-schema",
-        action="store_true",
-        help=(
-            "require schema v2 and a present hash-bound comparison report for "
-            "selected directions (fresh output and active consumers)"
-        ),
-    )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args(argv)
 
@@ -2747,7 +3183,6 @@ def main(argv: list[str] | None = None) -> int:
             artifact_path,
             repo_root=args.repo_root,
             allow_incomplete=args.allow_incomplete,
-            require_current_schema=args.require_current_schema,
         )
     except SelectionLintError as exc:
         if args.json:

@@ -34,7 +34,7 @@
     },
     {
       "path": "docs/plans/team-invitations-rbac/architecture-selection.json",
-      "sha256": "888ecbc6000c511eafdea7bd036828868498cbe0b368dfec01297fb4461945a2",
+      "sha256": "0aec0db7c2545b008348182ca6854f461148a91a1bd0de3d40484e61215d7ee9",
       "kind": "plan"
     },
     {
@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/plans/team-invitations-rbac/plan.json",
-      "sha256": "bb1b13a38653a3c248d4a6ccf79a65a7788e578fc4c818bea9bc412985624be2",
+      "sha256": "81ef9107508dd29e7c65095e4136e1c091b07cf3241f1cb1456ab5525bee449c",
       "kind": "plan"
     },
     {
@@ -2380,8 +2380,8 @@
     "authority": "Core Engineering evaluation fixture owner",
     "reference": "EVAL-020 schema-v2 corrective review revision 3",
     "gate": "Final Architecture Approval",
-    "review_payload_sha256": "78b12fd5a3d84fb60a858f4e0171527b89509164a99d956f22582b6fbdf79aa3",
-    "receipt_sha256": "7b1d28a6f9eed3d75fc568be092b1eb3e7e0f0f1c47180d2b0671f80e853d1ee"
+    "review_payload_sha256": "1e4189b39d8832f3a95daba68aa0007065b1d6f6de28a76ea2a273e9ab8e585e",
+    "receipt_sha256": "d77ccbc09c8770d2fe5553f8346a2befac9d77b428815a480cf08251777793e8"
   },
   "extensions": {}
 }

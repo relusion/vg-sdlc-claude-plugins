@@ -107,10 +107,16 @@ A `scripted_turns` entry contains a scenario-scoped `event_id`, the answer to
 send, and `required_previous_output` anchors. The runner first captures one
 Claude JSON response, refuses to send the answer unless every declared gate and
 context anchor is visible in that immediately preceding response, then resumes
-the same session. The transcript and metadata bind each answer to the prior
-response with SHA-256 hashes. This proves the harness supplied a decision only
-after the expected decision surface appeared; it does not claim that the model
-or a human chose the answer autonomously.
+the same session. A turn may set `max_previous_output_words` and may require an
+exact pre-selection architecture report through
+`required_previous_artifacts`; both are checked before the answer is sent.
+The transcript and metadata bind each answer to the prior response with
+SHA-256 hashes. Passing artifact preconditions also record the SHA-256 of the
+exact report bytes that were linted, so an earlier decision event remains
+correlatable after a later turn revises the same path. This proves the harness
+supplied a decision only after the expected decision surface and required
+durable evidence appeared; it does not claim that the model or a human chose
+the answer autonomously.
 
 To grade saved outputs, name them `<scenario-id>.md` in one directory:
 
@@ -129,6 +135,29 @@ the exact files that must appear with `file:line` anchors. Output substrings are
 case-sensitive by default so identifiers remain exact; natural-language anchors
 may opt into `required_substrings_case_insensitive` or
 `forbidden_substrings_case_insensitive` individually.
+
+`output_checks` grade the complete `<scenario-id>.md` transcript. For
+assertions about only the last assistant response, use `final_output_checks`.
+The runner writes the exact result bytes to `<scenario-id>.final.md` and binds
+that fixed sidecar name, its SHA-256, byte count, and whitespace-delimited word
+count in `metadata.json`. The grader verifies that receipt before applying the
+normal output-check keys plus an optional positive `max_words`.
+`required_artifact_sha256` may name an exact worktree-relative file that also
+has a non-absence `artifact_checks` entry. The final response must show one
+same-line receipt containing that exact path, the `SHA-256` label, and the
+digest of the final file bytes. The ordinary artifact check then validates the
+same path independently; for `architecture_options_lint`, this correlates the
+displayed digest with the report actually linted. This prevents a scripted
+answer embedded in the transcript from satisfying a final-response assertion,
+makes later sidecar edits detectable, and prevents an unrelated digest from
+standing in for the checked artifact.
+
+Live artifact checks include `architecture_selection_lint`, `plan_lint`, and
+`architecture_options_lint` in addition to the content/schema checks. They
+replay deterministic validators against the isolated worktree's final state.
+They prove those final bytes pass; a response anchor such as `plan PASS`
+confirms what the workflow reported, but does not by itself constitute a
+command-execution trace.
 
 Scenarios that constrain write or version-control authority use `git_checks`.
 The runner records pre/post snapshots, and the grader re-inspects the worktree
@@ -156,8 +185,11 @@ python3 scripts/eval_run.py \
 
 Select one or more `--scenario` or `--profile` values from the catalog; use
 `--all` only for an intentional full-corpus run. Each scenario carries a
-`recommended_budget_usd`. The runner rejects an executed selection whose cap
-is below its recommendation unless `--allow-low-budget` is supplied
+finite, positive `recommended_budget_usd`. Before scenario selection, CLI
+provenance, fixture setup, or model calls, the runner validates the complete
+catalog and rejects a non-finite or non-positive CLI cap. It also rejects an
+executed selection
+whose cap is below its recommendation unless `--allow-low-budget` is supplied
 deliberately. `--max-budget-usd` is passed to each selected scenario, so the
 maximum batch exposure is the cap multiplied by the scenario count. For a
 scripted multi-turn scenario the cap is **aggregate across its resumed turns**:

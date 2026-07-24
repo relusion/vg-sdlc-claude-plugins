@@ -28,8 +28,10 @@ file and stop at its result:
 
 - `explore` → `${CLAUDE_SKILL_DIR}/exploration-mode.md`. Its validated
   `architecture-options.md` is the sole permitted domain write and requires
-  `architecture-options-lint.py` to pass before a selectable workbench
-  revision is shown.
+  the deterministic `architecture-workbench.py` renderer plus an independent
+  `architecture-options-lint.py` pass before a selectable revision is shown.
+  The model authors semantic directions and reasoning only; it never
+  reverse-engineers validators or hand-builds report projections and hashes.
 - `shape` → `${CLAUDE_SKILL_DIR}/shaping-mode.md`. It is repository-read-only.
   A valid handoff proves `/core-engineering:ce-plan` already elected shaping;
   do not add a nested scope or consent gate.
@@ -79,8 +81,8 @@ Before synthesis:
    plan directory. Never interpolate an unvalidated value into a command.
 2. Run `architecture-selection-lint.py
    docs/plans/<slug>/architecture-selection.json --repo-root .
-   --require-current-schema --json`, then `plan-lint.py docs/plans/<slug>
-   --require-architecture-direction --json`. Exit 1 or 2 routes to planning and
+   --json`, then `plan-lint.py docs/plans/<slug>
+   --json`. Exit 1 or 2 routes to planning and
    stops. A missing command is a visible degraded preflight, never a silent
    pass.
 3. Freeze the selected direction, features, journeys, dependencies, data

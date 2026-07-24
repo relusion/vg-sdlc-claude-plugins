@@ -59,7 +59,8 @@ Restart Claude Code, then:
 3. plan and build one compact and one explicit feature on a disposable branch;
 4. verify architecture selection and adjustment on genuinely load-bearing work;
 5. run independent review and verification;
-6. generate docs, conditionally audit them, then prepare the release package;
+6. when documentation is impacted, generate and conditionally audit it, then
+   prepare the release package;
 7. rerun normal build/test/security CI and the merge bar.
 
 Promote only after outputs, hooks, receipts, and Git-host controls behave as

@@ -15,8 +15,8 @@ The default is the shortest safe path, not the longest artifact chain:
 
 ```text
 [optional ce-brief] → ce-plan
-  ├─ direct planning when architecture is not load-bearing
-  └─ evidence-rich architecture workbench when it is
+  ├─ direct planning when architecture is neither load-bearing nor requested
+  └─ evidence-rich architecture workbench when load-bearing or explicitly opted in
        explore ↔ question / inspect / adjust → human selection
        → decompose ⇄ read-only shape
        → governed baseline only when required or deliberately chosen
@@ -40,18 +40,54 @@ repository work.
 It adapts its questions and architecture work to repository evidence, risk, and
 unresolved decisions.
 
-### Architecture only when load-bearing
+Plan validation has one current contract and no legacy mode. Every `plan.json`
+must carry its project identity, planned status, revision, tier, relationships,
+complete human-owned architecture disposition/direction, and a fresh
+current-schema `architecture-selection.json` binding. Missing, stale, or older
+authority is a hard planning defect on every plan-lint invocation; downstream
+work routes it to Plan Stage R rather than selecting a looser consumer mode.
+
+### Architecture only when load-bearing or explicitly requested
 
 Architecture is load-bearing when the work changes shared boundaries, public
 contracts, durable data, cross-feature flows, deployment/trust topology,
 material quality attributes, or an accepted technical direction.
 
-In that case plan composes `/core-engineering:ce-architecture
-explore:<draft-slug>` to **generate and score complete solution directions
-before decomposition**. The workbench persists two to four complete viable
-options when available, eliminated and unresolved alternatives, explicit
-criteria and weights, repository evidence, assumptions, trade-offs,
-recommendation, confidence, and sensitivity.
+In that case—or when repository policy or the accountable human explicitly
+requests a comparison now—plan invokes
+`/core-engineering:ce-architecture explore:<draft-slug>` to **generate and
+score complete solution directions before decomposition**. The workbench
+persists two to four complete viable options when available, eliminated and
+unresolved alternatives, explicit criteria and weights, repository evidence,
+assumptions, trade-offs, recommendation, confidence, and sensitivity.
+
+Generic future reuse, a baseline preference inferred by the model, or the mere
+availability of the workflow does not trigger architecture work.
+
+The complete comparison lives in the linted report. Chat shows a compact
+decision projection—one row per direction, decisive trade-offs, recommendation,
+uncertainty, cost if wrong, and the report path/hash—rather than repeating the
+evidence ledger and every score basis. No selectable gate exists until the
+report has been persisted, re-read, and validated; an interrupted or
+budget-exhausted synthesis remains visibly incomplete.
+
+A deterministic workbench renderer turns the model's semantic direction
+judgments into the report, derives weighted totals and content bindings, preserves a
+hash-chained question/revision audit, and emits the complete preselection
+checkpoint. The model does not hand-build projections or reverse-engineer
+validators. This keeps the human evidence surface complete while removing
+mechanical authoring from the expensive conversational path.
+
+Questions, option edits, and decision-frame changes return to the same gate.
+Every revision must match the last displayed report hash; changed or removed
+directions remain archived as considered alternatives. Before returning a
+frame delta, the workbench rewrites that same report as a durable
+`frame-change-pending` checkpoint. Its envelope binds the last selectable hash
+H1, while the pending report itself has a distinct hash H2 and is rejected by
+the default selectable-report lint. Planning can safely resume after an
+interruption by validating and extracting the pending delta from H2, then
+applies only that delta. Recomputed architecture must revise H2—not H1—and
+carries both prior hashes in the audit before selection is enabled again.
 
 The architecture decision remains human-owned. At the stable `Architecture
 Direction Selection` gate the decision owner can:
@@ -61,11 +97,13 @@ Direction Selection` gate the decision owner can:
 3. adjust requirements, weights, constraints, an option, or add an alternative;
 4. park or abort.
 
-A frame adjustment first records a non-selectable audit revision and returns its
-delta to plan so the authoritative frame can be rewritten. Option-only changes
-recompute inside the workbench. Both return to the same locator. Each revision
-records a compact delta and prior hash; only the final selected snapshot becomes
-immutable and hash-bound.
+A frame adjustment first persists a hash-bound, non-selectable pending delta
+so plan can rewrite the authoritative frame without relying on chat state. The
+workbench then recomputes against that frame and records the applied change in
+the next linted, non-selected revision.
+Option-only changes recompute directly inside the workbench. Both return to the
+same locator. Each persisted revision records a compact delta and prior hash;
+only the final selected snapshot becomes immutable and hash-bound.
 
 The decision frame hash-binds the owner's identity or role and authority basis.
 The recorded `approved_by` must match that owner exactly; delegation first
@@ -79,12 +117,14 @@ requires-decision, or blocked. It does not ask for another consent gate.
 
 Normal architecture mode publishes the strict five-file baseline only when
 `plan.json` records it as required, or a human deliberately accepts a
-recommended baseline. **Required missing or stale architecture blocks**
-specification and implementation. The package is specification context, not
-security acceptance, deployment permission, or release approval.
-A recommended baseline may be deferred from the same workbench with human
-rationale; a required baseline may not.
-The downstream invariant is “required missing or stale architecture blocks.”
+recommended baseline. **A selected and converged required or recommended
+direction blocks specification and implementation until its governed package
+is current.** The package is specification context, not security acceptance,
+deployment permission, or release approval. A recommended baseline may instead
+be explicitly deferred from the same workbench with human rationale; a
+required baseline may not. The downstream invariant is “selected and converged
+architecture requires a current package; explicitly deferred recommended
+architecture remains a visible coverage gap.”
 Baseline synthesis does not ask the human to re-confirm the already approved
 plan. An Evidence Boundary Resolution gate appears only when candidate sources
 conflict, a missing source could materially change the model, or the human asks

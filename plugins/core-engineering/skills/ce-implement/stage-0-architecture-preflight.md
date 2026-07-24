@@ -12,15 +12,15 @@ Require regular, non-symlink `plan.json`, `architecture-selection.json`,
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/<slug>/architecture-selection.json \
-  --require-current-schema --json
+  --json
 ```
 
 Exit 1 routes every hard or malformed-plan defect to Stage R. Exit 2 routes to
-Stage R because no trustworthy contract was established. A missing required
-disposition/direction (`A12`/`A13`) is a hard stop.
+Stage R because no trustworthy contract was established. Missing current plan
+authority or architecture disposition/direction is a hard stop.
 
 From the lint-validated disposition, load every
 `convergence.decision_refs` entry. It must be repository-relative, remain

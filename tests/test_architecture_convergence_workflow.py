@@ -40,6 +40,8 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
         ):
             self.assertIn(marker, skill)
         self.assertIn("sole permitted domain write", skill)
+        self.assertIn("deterministic `architecture-workbench.py` renderer", skill)
+        self.assertIn("never\n  reverse-engineers validators", skill)
         self.assertIn("do not add a nested scope or consent gate", skill)
         self.assertIn("Final Architecture Approval", skill)
 
@@ -75,7 +77,7 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             "delivery-feasibility",
         ):
             self.assertIn(f"`{criterion}`", direction)
-            self.assertIn(f'"id": "{criterion}"', exploration)
+            self.assertIn(f"`{criterion}`", exploration)
         for field in (
             "capability_revision",
             "exploration_attempt",
@@ -116,12 +118,13 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             with self.subTest(concept=concept):
                 self.assertIn(concept, plan_skill)
 
-        self.assertIn("all considered directions", exploration)
+        self.assertIn("every considered/failed/uncarried direction", exploration)
         self.assertIn("current constraints", exploration)
         self.assertIn("cost-if-wrong", exploration)
         self.assertIn("irreversible_commitments", exploration)
         self.assertIn("sensitivity", exploration)
-        self.assertIn("Before any selection it must show", direction)
+        self.assertIn("Before any selection the complete artifact must show", direction)
+        self.assertIn("Conversation is a compact projection", direction)
 
     def test_workbench_primary_and_revision_dialogs_have_four_choices(self):
         exploration = read(ARCH / "exploration-mode.md")
@@ -142,7 +145,7 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             "Select a direction",
             "Ask questions / inspect evidence",
             "Revise the decision frame or options",
-            "Defer (recommended only), park, or abort",
+            "Gather evidence / defer (recommended only), park, or abort",
         ):
             self.assertIn(choice, primary)
         for choice in (
@@ -157,12 +160,12 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
     def test_questions_and_revisions_return_to_the_same_locator(self):
         direction = read(PLAN / "stage-1a-architecture-direction.md")
         exploration = read(ARCH / "exploration-mode.md")
-        report = read(ARCH / "architecture-options-template.md")
+        renderer = read(ARCH / "scripts/architecture-workbench.py")
 
         locator = "Architecture Direction Selection"
         self.assertIn(locator, direction)
         self.assertIn(locator, exploration)
-        self.assertIn(locator, report)
+        self.assertIn(locator, renderer)
         self.assertIn("same locator", direction)
         self.assertIn("same locator", exploration)
         self.assertIn("decision-frame-delta", direction)
@@ -175,66 +178,145 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             "decision_owner",
         ):
             self.assertIn(delta_field, exploration)
-        self.assertIn("increments\n`capability_revision` and `exploration_attempt`", exploration)
-        self.assertIn("Option-only changes remain in this mode", exploration)
-        self.assertIn("Every answered question creates a new\npersisted workbench revision", exploration)
+        self.assertRegex(
+            exploration,
+            r"increments\s+`capability_revision` and\s+`exploration_attempt`",
+        )
+        self.assertIn("Option-only changes stay here", exploration)
+        self.assertIn(
+            "keep it conversational and return to the same locator",
+            exploration,
+        )
+        self.assertIn(
+            "explicitly adopts it as decision\nbasis",
+            exploration,
+        )
 
     def test_report_revisions_preserve_an_audit_chain(self):
         exploration = read(ARCH / "exploration-mode.md")
-        report = read(ARCH / "architecture-options-template.md")
+        renderer = read(ARCH / "scripts/architecture-workbench.py")
 
         for marker in (
             "workbench_revision",
-            "prior report SHA-256",
-            "human question/request",
-            "Carry forward every audit row",
+            "hash chaining",
+            "audit event's exact human input",
+            "`inherit_comparison` revision",
         ):
             self.assertIn(marker, exploration)
+        self.assertRegex(exploration, r"audit\s+carry-forward")
         for marker in (
             "Workbench revision",
             "## Decision Workbench Audit",
             "Human input / question",
             "Prior report SHA-256",
-            "frame-change",
-            "option-change",
-            "alternative-added",
+            "audit_rows",
+            "previous_hash",
         ):
-            self.assertIn(marker, report)
-        self.assertIn("Before explicit selection", exploration)
-        self.assertIn("final snapshot is immutable", exploration)
-        self.assertIn("non-selectable audit revision", exploration)
-        self.assertIn("frame-change-requested", exploration)
+            self.assertIn(marker, renderer)
+        self.assertIn("selected snapshot becomes\nimmutable", exploration)
+        self.assertIn("prior_report_sha256", exploration)
+        self.assertIn("frame-change-pending", exploration)
+        self.assertIn("resume-frame-change", exploration)
+        self.assertIn("selectable_prior_report_sha256: H1", exploration)
+        self.assertIn("pending_report_sha256: H2", exploration)
+        self.assertIn("--expected-previous-sha256 <H2>", exploration)
+        self.assertIn("--recover-persisted", exploration)
+        self.assertIn("independently persisted receipt", exploration)
+        self.assertIn("never H1", exploration)
+        self.assertIn("default `architecture-options-lint.py` must reject", exploration)
 
     def test_comparison_is_written_linted_and_reread_before_choice(self):
         exploration = read(ARCH / "exploration-mode.md")
         skill = read(ARCH / "SKILL.md")
 
         persist = exploration.index("## Persist the Pre-Approval Comparison")
+        template = exploration.index("architecture-workbench.py\" template", persist)
+        render = exploration.index("architecture-workbench.py\" render", template)
         lint = exploration.index("architecture-options-lint.py", persist)
         gate = exploration.index("## Architecture Direction Selection Gate")
         prompt = exploration.index("Ask one direction decision", gate)
+        self.assertLess(persist, template)
+        self.assertLess(template, render)
+        self.assertLess(render, lint)
         self.assertLess(persist, lint)
         self.assertLess(lint, gate)
         self.assertLess(gate, prompt)
-        self.assertIn("re-read the entire file", exploration)
+        self.assertIn("re-read the report", exploration)
         self.assertIn("--repo-root . --json", exploration)
         self.assertIn("Require exit 0", exploration)
-        self.assertIn("Do not call `AskUserQuestion` unless", exploration)
+        self.assertIn("--draft -", exploration)
+        self.assertIn("--previous-report", exploration)
+        self.assertIn("--expected-previous-sha256", exploration)
+        self.assertIn("--restore-baseline", exploration)
+        self.assertIn("Make at most one\nsemantic correction", exploration)
+        self.assertIn("Never reverse-engineer a", exploration)
+        self.assertIn("Never inspect helper or\nvalidator source", exploration)
+        self.assertIn("`AskUserQuestion` is forbidden", exploration)
+        self.assertIn("never show a prose substitute", exploration)
+        self.assertIn("budget exhaustion", exploration)
+        self.assertIn("expose a selectable gate", exploration)
         self.assertIn(
             "--allow 'docs/plans/.drafts/<slug>/architecture-options.md'",
             exploration,
         )
-        self.assertIn("requires\n  `architecture-options-lint.py`", skill)
+        self.assertIn("renderer plus an independent\n  `architecture-options-lint.py`", skill)
 
-    def test_report_template_preserves_visible_comparison_and_hashes(self):
-        report = read(ARCH / "architecture-options-template.md")
+    def test_chat_is_a_projection_of_the_complete_linted_report(self):
+        direction = read(PLAN / "stage-1a-architecture-direction.md")
+        exploration = read(ARCH / "exploration-mode.md")
+
+        self.assertIn("Conversation is a compact projection", direction)
+        self.assertIn("artifact path/hash", direction)
+        self.assertIn("decision-only comparison summary", exploration)
+        self.assertIn("linted report path/hash", exploration)
+        self.assertIn("Do not\nrepeat the full evidence ledger", exploration)
+        self.assertIn("passes `architecture-options-lint.py`", direction)
+        self.assertIn(
+            "no more\nthan 650 whitespace-delimited words",
+            exploration,
+        )
+
+    def test_uncertainty_policy_blocks_eligibility_but_keeps_visible_ranking_choices(self):
+        direction = read(PLAN / "stage-1a-architecture-direction.md")
+        exploration = read(ARCH / "exploration-mode.md")
+        linter = read(
+            ARCH / "scripts/architecture-selection-lint.py"
+        )
+
+        self.assertIn(
+            "A hard-constraint or eligibility unknown\nreturns `requires-evidence`",
+            exploration,
+        )
+        self.assertIn(
+            "Ranking uncertainty may remain selectable only",
+            exploration,
+        )
+        for marker in (
+            "low-confidence",
+            "sensitivity is `unstable`",
+            "concrete witness",
+            "cost-if-wrong",
+            "gather evidence or park",
+        ):
+            self.assertIn(marker, exploration)
+        self.assertIn(
+            "confidence must be low when any scoring evidence",
+            linter,
+        )
+        self.assertIn(
+            "default\n`architecture-options-lint.py` rejects the pending report",
+            direction,
+        )
+
+    def test_report_renderer_preserves_visible_comparison_and_hashes(self):
+        report = read(ARCH / "scripts/architecture-workbench.py")
 
         for section in (
             "## What Needs Your Decision",
             "## Evaluation Frame",
             "## Hard-Constraint Screen",
             "## Weighted Comparison",
-            "## Direction A01 — <title>",
+            "## Direction",
             "## Eliminated, Unresolved, and Uncarried Directions",
             "## Evidence Sources",
             "## Decision Workbench Audit",
@@ -251,13 +333,14 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             "awaiting-selection",
             "Decision owner / authority",
             "Approved by",
-            "score basis",
+            "SCORE_KEYS",
         ):
             self.assertIn(binding, report)
 
     def test_terminal_selection_is_human_and_deterministically_bound(self):
         direction = read(PLAN / "stage-1a-architecture-direction.md")
         exploration = read(ARCH / "exploration-mode.md")
+        renderer = read(ARCH / "scripts/architecture-workbench.py")
 
         for marker in (
             "selection.decided_by",
@@ -266,9 +349,9 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             "non-empty rationale",
             "architecture-options.md",
             "architecture-selection-lint.py",
-            "--require-current-schema",
         ):
             self.assertIn(marker, direction)
+        self.assertNotIn("--require-current-schema", direction)
         self.assertRegex(direction, r"selected option is\s+eligible")
         for marker in (
             "architecture_options_report",
@@ -278,11 +361,14 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             "source_input_sha256",
             "next_owner",
         ):
-            self.assertIn(marker, exploration)
-        self.assertIn("decided_by` is `human`", exploration)
-        self.assertIn("approved_by` exactly matches", exploration)
-        self.assertIn("Delegation is out of scope", exploration)
-        self.assertIn("Even a sole viable direction requires an affirmative selection", exploration)
+            self.assertIn(marker, exploration + renderer)
+        self.assertIn("decided_by: human", exploration)
+        self.assertIn("approved_by` equal", exploration)
+        self.assertIn(
+            "different approver requires a\nplanning-owned frame revision",
+            exploration,
+        )
+        self.assertIn("sole viable direction,\n  or conversational participation is not approval", exploration)
 
     def test_shape_runs_read_only_without_a_nested_consent_gate(self):
         convergence = read(PLAN / "stage-5a-architecture-convergence.md")
@@ -336,7 +422,7 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
             self.assertIn(result_field, shaping)
         self.assertIn("shaping-input-changed", shaping)
         self.assertIn("selected-direction-changed-during-shaping", shaping)
-        self.assertIn("--require-current-schema", shaping)
+        self.assertNotIn("--require-current-schema", shaping)
 
     def test_shape_has_four_bounded_outcomes_and_preserves_ownership(self):
         convergence = read(PLAN / "stage-5a-architecture-convergence.md")
@@ -424,8 +510,9 @@ class ArchitectureConvergenceWorkflow(unittest.TestCase):
         self.assertLess(floor, evidence)
         self.assertLess(evidence, evidence_resolution)
         self.assertIn("architecture-selection-lint.py", stage[floor:evidence])
-        self.assertIn("--require-current-schema", stage[floor:evidence])
-        self.assertIn("--require-architecture-direction --json", stage[floor:evidence])
+        self.assertNotIn("--require-current-schema", stage[floor:evidence])
+        self.assertIn("docs/plans/<slug> --json", stage[floor:evidence])
+        self.assertNotIn("--require-architecture-direction", stage[floor:evidence])
         self.assertIn("Only the current receipt-bound architecture schema", stage)
         self.assertIn("continues to Stage 1", stage[evidence_resolution:])
         self.assertIn("Do not ask the human to re-confirm", stage[evidence_resolution:])

@@ -55,9 +55,9 @@ finding, not an alternate plan mode. Raw intent or an unwritten plan routes to
    ```bash
    python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
      docs/plans/<slug>/architecture-selection.json \
-     --repo-root . --require-current-schema --json
+     --repo-root . --json
    python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-     docs/plans/<slug> --require-architecture-direction --json
+     docs/plans/<slug> --json
    ```
 
    Exit 0 is PASS. Exit 1 is a confirmed structural finding. Exit 2, a missing

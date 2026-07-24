@@ -1,6 +1,8 @@
 {
   "project_slug": "snippet-vault",
   "status": "planned",
+  "plan_revision": 1,
+  "plan_tier": "standard",
   "architecture_disposition": {
     "decision": "not-required",
     "triggers": [],

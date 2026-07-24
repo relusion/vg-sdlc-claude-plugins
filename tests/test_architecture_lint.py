@@ -389,6 +389,7 @@ def _make_repo(root: Path) -> tuple[Path, dict]:
     plan_dir = root / "docs/plans/team-invitations"
     plan = {
         "project_slug": "team-invitations",
+        "status": "planned",
         "plan_revision": 2,
         "plan_tier": "standard",
         "architecture_disposition": {
@@ -406,6 +407,7 @@ def _make_repo(root: Path) -> tuple[Path, dict]:
                 "decision_refs": ["docs/adr/0001-existing-runtime.md"],
             },
         },
+        "relates_to": [],
         "features": [
             {
                 "id": "01-roles-authz-foundation",
@@ -767,7 +769,7 @@ class ArchitectureLintGreen(unittest.TestCase):
             self.assertEqual(hard, [])
             self.assertTrue(any(item.startswith("A2 legacy schema v1") for item in advisory))
 
-    def test_legacy_source_plan_is_advisory_but_cannot_seed_new_baseline(self):
+    def test_incomplete_source_plan_cannot_seed_new_baseline(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             arch_dir, manifest = _make_repo(root)
@@ -783,13 +785,13 @@ class ArchitectureLintGreen(unittest.TestCase):
             hard, advisory = _legacy_check(arch_dir, root, manifest)
             self.assertTrue(
                 any(
-                    item.startswith("source plan H10")
-                    and "--require-architecture-direction" in item
+                    item.startswith("source plan H9")
+                    and "requires `architecture_disposition`" in item
                     for item in hard
                 ),
                 hard,
             )
-            self.assertTrue(any(item.startswith("A12") for item in advisory), advisory)
+            self.assertFalse(any(item.startswith("A12") for item in advisory), advisory)
 
     def test_proposed_scratch_requires_explicit_flag(self):
         with tempfile.TemporaryDirectory() as td:
@@ -2043,7 +2045,6 @@ class ArchitectureLintV2(unittest.TestCase):
             _, selection_failures = sl.validate_file(
                 selection_path,
                 repo_root=root,
-                require_current_schema=True,
             )
             self.assertEqual(selection_failures, [])
             hard, advisory = al.check_package(

@@ -132,8 +132,9 @@ When writes are permitted, write missing artifacts under `docs/plans/`:
   policy may be active; report it and leave it. Ensure the target repo
   gitignores `.claude/ce-write-scope.json`,
   `.claude/ce-write-scope.session.json`, `.claude/ce-guard-log.jsonl`, and
-  `.claude/ce-session-model.json` (append if missing — runtime guard/session
-  state, not repo content).
+  `.claude/ce-session-model.json`, plus
+  `**/.architecture-frame-change-receipt.json` (append if missing — runtime
+  guard/session and architecture crash-recovery state, not repo content).
 
 - `.claude/ce-net-policy.json`: the egress checkpoint's allowlist — `net-guard.py`
   ASK-tiers outbound network to non-allowlisted hosts and confirms/denies upload

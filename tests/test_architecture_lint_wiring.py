@@ -76,7 +76,8 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("scripts/plan-lint.py", stage)
         self.assertIn("scripts/architecture-selection-lint.py", stage)
         self.assertIn("scripts/architecture-lint.py", stage)
-        self.assertIn("--require-architecture-direction --json", stage)
+        self.assertIn("docs/plans/<slug> --json", stage)
+        self.assertNotIn("--require-architecture-direction", stage)
         self.assertIn("--consumer --json", stage)
         self.assertIn("architecture_disposition", stage)
         self.assertIn("`required` + convergence `converged`", stage)
@@ -113,7 +114,7 @@ class ArchitectureLintWiring(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
                 command_start = text.index("scripts/architecture-selection-lint.py")
                 command_end = text.index("--json", command_start)
-                self.assertIn(
+                self.assertNotIn(
                     "--require-current-schema",
                     text[command_start:command_end],
                 )
@@ -124,13 +125,16 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertIn("scripts/plan-lint.py", stage)
         self.assertIn("scripts/architecture-selection-lint.py", stage)
         self.assertIn("scripts/architecture-lint.py", stage)
-        self.assertIn("--require-architecture-direction --json", stage)
+        self.assertIn("docs/plans/<slug> --json", stage)
+        self.assertNotIn("--require-architecture-direction", stage)
         self.assertIn("--consumer --json", stage)
         self.assertIn("recommended architecture package explicitly deferred", stage)
         self.assertIn("N/A — plan disposition not-required", stage)
         self.assertIn("selected direction requires its governed package", stage)
         self.assertNotIn("| `waived` |", stage)
-        self.assertIn("legacy `A12`/`A13` gaps are also blocking", stage)
+        self.assertIn(
+            "Missing or malformed current plan authority", stage
+        )
         self.assertIn("both a fresh\nrun and `--resume`", stage)
         self.assertLess(
             stage.index("scripts/plan-lint.py"),
@@ -152,11 +156,11 @@ class ArchitectureLintWiring(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "docs/plans/<slug> --require-architecture-direction --json",
+            "docs/plans/<slug> --json",
             skill,
         )
         self.assertIn(
-            "exit 0 plus `required`/selected/converged",
+            "`recommended`/selected/converged",
             skill,
         )
         self.assertIn("lstat-confirmed absent", skill)
@@ -176,7 +180,7 @@ class ArchitectureLintWiring(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "docs/plans/<slug> --require-architecture-direction --json",
+            "docs/plans/<slug> --json",
             skill,
         )
         self.assertIn(
@@ -210,8 +214,11 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertLess(lint, selection_lint)
         self.assertLess(selection_lint, architecture_lint)
         self.assertLess(architecture_lint, context_check)
-        self.assertIn("missing required\ndisposition/direction (`A12`/`A13`)", companion)
-        self.assertIn("--require-architecture-direction --json", companion)
+        self.assertIn(
+            "Missing current plan\nauthority or architecture disposition/direction",
+            companion,
+        )
+        self.assertNotIn("--require-architecture-direction", companion)
         self.assertIn("--consumer --json", companion)
         self.assertIn("`convergence.decision_refs` entry", companion)
         self.assertIn("readable regular ADR recorded as\n`Status: accepted`", companion)
@@ -259,7 +266,8 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertNotIn("architecture-retire.py", stage)
         self.assertNotIn("Single-Feature Architecture Disposition", stage)
         self.assertIn("Missing `plan.json`", audit)
-        self.assertIn("--require-architecture-direction --json", audit)
+        self.assertIn("docs/plans/<slug> --json", audit)
+        self.assertNotIn("--require-architecture-direction", audit)
         self.assertNotIn("single-feature minimal", audit)
         self.assertNotIn("minimal-output", audit)
         self.assertNotIn("Confirm scope with the human", audit)
@@ -273,8 +281,9 @@ class ArchitectureLintWiring(unittest.TestCase):
         self.assertLess(floor, selection_lint)
         self.assertLess(selection_lint, plan_lint)
         self.assertLess(plan_lint, synthesis)
-        self.assertIn("--require-current-schema", stage[selection_lint:plan_lint])
-        self.assertIn("--require-architecture-direction --json", stage[plan_lint:synthesis])
+        self.assertNotIn("--require-current-schema", stage[selection_lint:plan_lint])
+        self.assertIn("docs/plans/<slug> --json", stage[plan_lint:synthesis])
+        self.assertNotIn("--require-architecture-direction", stage[plan_lint:synthesis])
         self.assertIn("either exit 1", stage[selection_lint:synthesis])
         self.assertIn("either exit 2", stage[selection_lint:synthesis])
         self.assertIn("route to `/core-engineering:ce-plan` Stage R", stage[selection_lint:synthesis])

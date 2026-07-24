@@ -15,16 +15,16 @@ evidence, validate the resolved plan and architecture authority:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/<slug> --repo-root . --require-current-schema --json
+  docs/plans/<slug> --repo-root . --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 ```
 
 Both commands must return valid JSON and exit 0. Exit 1 means the plan or
 architecture direction is semantically invalid; exit 2 means current authority
 could not be established. Both block release and route to
-`/core-engineering:ce-plan`. Legacy/reportless architecture selections are
-diagnostic-only and cannot authorize release.
+`/core-engineering:ce-plan`. Non-current or reportless architecture selections
+cannot authorize release.
 
 Identify in-range features from the validated plan evidence and git history.
 For each in-range feature:

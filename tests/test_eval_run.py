@@ -1,5 +1,6 @@
 """Tests for scripts/eval_run.py, the Claude Code eval runner wrapper."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -7,10 +8,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "eval_run.py"
+sys.path.insert(0, str(REPO / "scripts"))
+
+import eval_run  # noqa: E402
 
 
 def run(*args):
@@ -109,6 +114,35 @@ class EvalRun(unittest.TestCase):
         self.assertEqual(res.returncode, 2)
         self.assertIn("below the selected scenario recommendation", res.stderr)
         self.assertIn("--max-budget-usd 3", res.stderr)
+
+    def test_execute_rejects_nonfinite_budget_before_calling_claude(self):
+        for value in ("nan", "inf", "-inf"):
+            with self.subTest(value=value):
+                res = run(
+                    "--scenario",
+                    "EVAL-003",
+                    "--execute",
+                    f"--max-budget-usd={value}",
+                    "--claude-bin",
+                    "definitely-not-claude",
+                )
+                self.assertEqual(res.returncode, 2)
+                self.assertIn(
+                    "--max-budget-usd must be a finite positive number",
+                    res.stderr,
+                )
+                self.assertNotIn("executable not found", res.stderr)
+
+        dry_run = run(
+            "--scenario",
+            "EVAL-003",
+            "--max-budget-usd=nan",
+        )
+        self.assertEqual(dry_run.returncode, 2)
+        self.assertIn(
+            "--max-budget-usd must be a finite positive number",
+            dry_run.stderr,
+        )
 
     def test_profile_smoke_selects_read_only_smoke_batch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -232,6 +266,19 @@ class EvalRun(unittest.TestCase):
             })
             self.assertEqual(metadata["plugin_manifests"][0]["status"], "resolved")
             self.assertEqual(metadata["plugin_manifests"][0]["name"], "core-engineering")
+            final_text = "Not analyzable yet — too thin to ground\n"
+            self.assertEqual(
+                (out / "EVAL-003.final.md").read_text(encoding="utf-8"),
+                final_text,
+            )
+            self.assertEqual(
+                metadata["records"][0]["final_output"]["sha256"],
+                hashlib.sha256(final_text.encode("utf-8")).hexdigest(),
+            )
+            self.assertEqual(
+                metadata["records"][0]["final_output"]["word_count"],
+                len(final_text.split()),
+            )
             self.assertEqual(
                 json.loads((out / "summary.json").read_text())["claude_cli"],
                 metadata["claude_cli"],
@@ -246,18 +293,35 @@ class EvalRun(unittest.TestCase):
             scenario["scripted_turns"] = [{
                 "event_id": "EVAL-003-D01",
                 "answer": "Proceed with the supplied project facts, then stop at the next gate.",
+                "max_previous_output_words": 20,
+                "required_previous_artifacts": [{
+                    "type": "architecture_options_lint",
+                    "path": "docs/plans/.drafts/smoke/architecture-options.md",
+                }],
                 "required_previous_output": [
                     "Gate 1 of 2",
                     "Intent and Scope",
                 ],
             }]
             scenarios.write_text(json.dumps(data), encoding="utf-8")
+            linter = (
+                root
+                / "plugins/core-engineering/skills/ce-architecture/scripts/"
+                "architecture-options-lint.py"
+            )
+            linter.write_text(
+                "#!/usr/bin/env python3\n"
+                "print('{\"status\":\"pass\"}')\n",
+                encoding="utf-8",
+            )
 
             out = Path(tmp) / "run"
             fake = Path(tmp) / "fake-claude"
             fake.write_text(
                 "#!/bin/sh\n"
                 "if [ \"$1\" = \"--version\" ]; then echo '9.9.9'; exit 0; fi\n"
+                "mkdir -p docs/plans/.drafts/smoke\n"
+                "printf '%s\\n' '# linted decision report' > docs/plans/.drafts/smoke/architecture-options.md\n"
                 "resume=0\n"
                 "for arg in \"$@\"; do [ \"$arg\" = \"--resume\" ] && resume=1; done\n"
                 "if [ \"$resume\" -eq 1 ]; then\n"
@@ -296,8 +360,105 @@ class EvalRun(unittest.TestCase):
                 record["scripted_decisions"][0]["event_id"],
                 "EVAL-003-D01",
             )
+            self.assertEqual(
+                record["scripted_decisions"][0]["previous_output_word_count"],
+                8,
+            )
+            self.assertEqual(
+                record["scripted_decisions"][0]["required_previous_artifacts"],
+                [{
+                    "type": "architecture_options_lint",
+                    "path": "docs/plans/.drafts/smoke/architecture-options.md",
+                    "status": "pass",
+                    "sha256": hashlib.sha256(
+                        b"# linted decision report\n"
+                    ).hexdigest(),
+                }],
+            )
             self.assertEqual(len(record["scripted_decisions"][0]["context_sha256"]), 64)
             self.assertEqual(len(record["scripted_decisions"][0]["answer_sha256"]), 64)
+            final_text = "Gate 2 of 2 — Architecture Direction Selection"
+            self.assertEqual(
+                (out / "EVAL-003.final.md").read_text(encoding="utf-8"),
+                final_text,
+            )
+            self.assertEqual(record["final_output"], {
+                "file": "EVAL-003.final.md",
+                "sha256": hashlib.sha256(final_text.encode("utf-8")).hexdigest(),
+                "word_count": 8,
+                "byte_count": len(final_text.encode("utf-8")),
+            })
+            self.assertIn("Previous output words: 8 / 20 maximum", output)
+            self.assertIn(
+                "architecture_options_lint:docs/plans/.drafts/smoke/"
+                "architecture-options.md",
+                output,
+            )
+            self.assertIn(
+                hashlib.sha256(b"# linted decision report\n").hexdigest(),
+                output,
+            )
+
+    def test_prior_artifact_receipts_remain_correlatable_after_overwrite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            relative_path = "docs/plans/.drafts/example/architecture-options.md"
+            report = work_dir / relative_path
+            report.parent.mkdir(parents=True)
+            check = {
+                "type": "architecture_options_lint",
+                "path": relative_path,
+            }
+            with mock.patch.object(
+                eval_run,
+                "grade_artifact_target",
+                return_value=[],
+            ):
+                report.write_text("revision one\n", encoding="utf-8")
+                first, first_failures = eval_run.check_required_previous_artifacts(
+                    REPO, "EVAL-004", work_dir, [check]
+                )
+                report.write_text("revision two\n", encoding="utf-8")
+                second, second_failures = eval_run.check_required_previous_artifacts(
+                    REPO, "EVAL-004", work_dir, [check]
+                )
+
+            self.assertEqual(first_failures, [])
+            self.assertEqual(second_failures, [])
+            self.assertEqual(
+                first[0]["sha256"],
+                hashlib.sha256(b"revision one\n").hexdigest(),
+            )
+            self.assertEqual(
+                second[0]["sha256"],
+                hashlib.sha256(b"revision two\n").hexdigest(),
+            )
+            self.assertNotEqual(first[0]["sha256"], second[0]["sha256"])
+
+    def test_prior_artifact_lint_exception_becomes_structured_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            relative_path = "docs/plans/.drafts/example/architecture-options.md"
+            report = work_dir / relative_path
+            report.parent.mkdir(parents=True)
+            report.write_text("revision\n", encoding="utf-8")
+            check = {
+                "type": "architecture_options_lint",
+                "path": relative_path,
+            }
+            with mock.patch.object(
+                eval_run,
+                "grade_artifact_target",
+                side_effect=subprocess.TimeoutExpired(cmd=["lint"], timeout=30),
+            ):
+                receipts, failures = eval_run.check_required_previous_artifacts(
+                    REPO, "EVAL-004", work_dir, [check]
+                )
+
+            self.assertEqual(receipts, [])
+            self.assertEqual(len(failures), 1)
+            self.assertIn("artifact validation could not run", failures[0])
+            self.assertIn("timed out after 30 seconds", failures[0])
 
     def test_scripted_turn_refuses_answer_when_gate_context_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -336,6 +497,143 @@ class EvalRun(unittest.TestCase):
             self.assertEqual(record["failure_kind"], "scripted-context-mismatch")
             self.assertEqual(len(record["claude_commands"]), 1)
 
+    def test_scripted_turn_refuses_answer_over_previous_output_word_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_eval_repo(Path(tmp))
+            scenarios = root / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["scripted_turns"] = [{
+                "event_id": "EVAL-003-D01",
+                "answer": "Proceed",
+                "max_previous_output_words": 4,
+                "required_previous_output": ["Intent and Scope"],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "run"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then echo '9.9.9'; exit 0; fi\n"
+                "printf '%s\\n' '{\"result\":\"Gate 1 — Intent and Scope needs a decision\",\"session_id\":\"sess-limit\",\"total_cost_usd\":0.1}'\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            res = run(
+                "--root", str(root),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("exceeding max_previous_output_words=4", res.stderr)
+            record = json.loads((out / "metadata.json").read_text())["records"][0]
+            self.assertEqual(record["failure_kind"], "scripted-output-limit")
+            self.assertEqual(record["reported_cost_usd"], 0.1)
+            self.assertEqual(record["scripted_decisions"], [])
+            self.assertEqual(len(record["claude_commands"]), 1)
+
+    def test_scripted_turn_refuses_answer_when_required_artifact_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_eval_repo(Path(tmp))
+            scenarios = root / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["scripted_turns"] = [{
+                "event_id": "EVAL-003-D01",
+                "answer": "Select the displayed direction.",
+                "required_previous_artifacts": [{
+                    "type": "architecture_options_lint",
+                    "path": "docs/plans/.drafts/smoke/architecture-options.md",
+                }],
+                "required_previous_output": ["Architecture Direction Selection"],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "run"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then echo '9.9.9'; exit 0; fi\n"
+                "printf '%s\\n' '{\"result\":\"Gate 1 of 1 — Architecture Direction Selection\",\"session_id\":\"sess-artifact\",\"total_cost_usd\":0.1}'\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            res = run(
+                "--root", str(root),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("prior turn artifact precondition failed", res.stderr)
+            record = json.loads((out / "metadata.json").read_text())["records"][0]
+            self.assertEqual(
+                record["failure_kind"],
+                "scripted-artifact-precondition",
+            )
+            self.assertEqual(record["reported_cost_usd"], 0.1)
+            self.assertEqual(record["scripted_decisions"], [])
+            self.assertEqual(len(record["claude_commands"]), 1)
+
+    def test_scripted_budget_error_aggregates_failed_turn_reported_cost(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_eval_repo(Path(tmp))
+            scenarios = root / "evals/scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["scripted_turns"] = [{
+                "event_id": "EVAL-003-D01",
+                "answer": "Proceed to the next gate.",
+                "required_previous_output": ["Intent and Scope"],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            out = Path(tmp) / "run"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"--version\" ]; then echo '9.9.9'; exit 0; fi\n"
+                "resume=0\n"
+                "for arg in \"$@\"; do [ \"$arg\" = \"--resume\" ] && resume=1; done\n"
+                "if [ \"$resume\" -eq 1 ]; then\n"
+                "  printf '%s\\n' '{\"type\":\"result\",\"subtype\":\"error_max_budget_usd\",\"terminal_reason\":\"budget_exhausted\",\"total_cost_usd\":0.7,\"errors\":[\"Reached maximum budget ($1.60)\"]}'\n"
+                "  exit 1\n"
+                "fi\n"
+                "printf '%s\\n' '{\"result\":\"Gate 1 of 2 — Intent and Scope\",\"session_id\":\"sess-budget\",\"total_cost_usd\":0.4}'\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+
+            res = run(
+                "--root", str(root),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "2.00",
+                "--claude-bin", str(fake),
+                "--skip-check",
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 1)
+            record = json.loads((out / "metadata.json").read_text())["records"][0]
+            self.assertEqual(record["failure_kind"], "budget-exceeded")
+            self.assertAlmostEqual(record["reported_cost_usd"], 1.1)
+            self.assertEqual(record["failed_turn_reported_cost_usd"], 0.7)
+            self.assertEqual(len(record["claude_commands"]), 2)
+            self.assertEqual(
+                record["claude_commands"][1][
+                    record["claude_commands"][1].index("--max-budget-usd") + 1
+                ],
+                "1.6",
+            )
+
     def test_live_receipt_labels_unavailable_cli_version_without_guessing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -363,18 +661,9 @@ class EvalRun(unittest.TestCase):
 
     def test_receipt_labels_missing_plugin_manifest_without_guessing(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_eval_repo(Path(tmp))
-            (repo / "plugins/core-engineering/.claude-plugin/plugin.json").unlink()
-            out = Path(tmp) / "run"
-            res = run(
-                "--root", str(repo),
-                "--scenario", "EVAL-003",
-                "--out-dir", str(out),
-            )
-            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
-            manifest = json.loads(
-                (out / "metadata.json").read_text(encoding="utf-8")
-            )["plugin_manifests"][0]
+            root = Path(tmp)
+            (root / "plugins/core-engineering").mkdir(parents=True)
+            manifest = eval_run.capture_plugin_manifest_provenance(root)[0]
             self.assertEqual(manifest["status"], "unavailable")
             self.assertIsNone(manifest["name"])
             self.assertIsNone(manifest["version"])
@@ -484,12 +773,99 @@ class EvalRun(unittest.TestCase):
             self.assertEqual(res.returncode, 2)
             self.assertIn("fixture not found", res.stderr)
 
+    def test_malformed_scripted_artifact_check_stops_before_cli_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            scenario = next(s for s in data["scenarios"] if s["id"] == "EVAL-003")
+            scenario["scripted_turns"] = [{
+                "event_id": "EVAL-003-D01",
+                "answer": "Proceed",
+                "required_previous_output": ["Gate 1 of 2"],
+                "required_previous_artifacts": [{
+                    "type": "spec_lint",
+                    "path": "../outside",
+                }],
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            invoked = Path(tmp) / "claude-invoked"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                f"touch {invoked}\n"
+                "exit 99\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            out = Path(tmp) / "run"
+            res = run(
+                "--root", str(repo),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--out-dir", str(out),
+            )
+            self.assertEqual(res.returncode, 2)
+            self.assertIn("eval catalog validation failed", res.stderr)
+            self.assertIn("required_previous_artifacts.0.type", res.stderr)
+            self.assertIn("required_previous_artifacts.0.path", res.stderr)
+            self.assertFalse(invoked.exists())
+            self.assertFalse(out.exists())
+
+    def test_malformed_unselected_scenario_stops_before_cli_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_eval_repo(Path(tmp))
+            scenarios = repo / "evals" / "scenarios.json"
+            data = json.loads(scenarios.read_text(encoding="utf-8"))
+            unselected = next(
+                scenario
+                for scenario in data["scenarios"]
+                if scenario["id"] == "EVAL-004"
+            )
+            unselected["scripted_turns"][0]["required_previous_artifacts"] = [{
+                "type": "spec_lint",
+                "path": "../outside",
+            }]
+            scenarios.write_text(json.dumps(data), encoding="utf-8")
+
+            invoked = Path(tmp) / "claude-invoked"
+            fake = Path(tmp) / "fake-claude"
+            fake.write_text(
+                "#!/bin/sh\n"
+                f"touch {invoked}\n"
+                "exit 99\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            out = Path(tmp) / "run"
+            res = run(
+                "--root", str(repo),
+                "--scenario", "EVAL-003",
+                "--execute",
+                "--max-budget-usd", "1.00",
+                "--claude-bin", str(fake),
+                "--out-dir", str(out),
+            )
+
+            self.assertEqual(res.returncode, 2)
+            self.assertIn("eval catalog validation failed", res.stderr)
+            self.assertIn("EVAL-004", res.stderr)
+            self.assertFalse(invoked.exists())
+            self.assertFalse(out.exists())
+
     def test_budget_exceeded_failure_is_labeled(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             out = root / "run"
             fake = root / "fake-claude"
-            fake.write_text("#!/bin/sh\necho 'Error: Exceeded USD budget (0.25)'\nexit 1\n")
+            fake.write_text(
+                "#!/bin/sh\n"
+                "printf '%s\\n' '{\"type\":\"result\",\"subtype\":\"error_max_budget_usd\",\"terminal_reason\":\"budget_exhausted\",\"total_cost_usd\":0.27,\"errors\":[\"Reached maximum budget ($0.25)\"]}'\n"
+                "exit 1\n"
+            )
             fake.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = f"{root}:{env.get('PATH', '')}"
@@ -517,7 +893,15 @@ class EvalRun(unittest.TestCase):
             self.assertIn("budget exceeded", res.stderr)
             metadata = json.loads((out / "metadata.json").read_text())
             self.assertEqual(metadata["records"][0]["failure_kind"], "budget-exceeded")
-            self.assertIn("Exceeded USD budget", metadata["records"][0]["failure_message"])
+            self.assertIn(
+                "error_max_budget_usd",
+                metadata["records"][0]["failure_message"],
+            )
+            self.assertEqual(metadata["records"][0]["reported_cost_usd"], 0.27)
+            self.assertEqual(
+                metadata["records"][0]["failed_turn_reported_cost_usd"],
+                0.27,
+            )
 
     def test_auth_failure_is_labeled(self):
         with tempfile.TemporaryDirectory() as tmp:

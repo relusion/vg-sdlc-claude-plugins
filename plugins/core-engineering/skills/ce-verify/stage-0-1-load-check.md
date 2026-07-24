@@ -20,17 +20,17 @@ Before interpreting feature state, run both validators against the resolved plan
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
-  docs/plans/<slug> --repo-root . --require-current-schema --json
+  docs/plans/<slug> --repo-root . --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 ```
 
 Both commands must return valid JSON and exit 0. Exit 1 means the current plan
 or architecture direction is semantically invalid; exit 2 means it could not be
 validated safely. Stop either way and route to `/core-engineering:ce-plan`.
-Legacy or reportless architecture authority, a selected direction without its
-hash-bound comparison report, and a missing/malformed `plan.json` all block
-verification.
+Non-current or reportless architecture authority, a selected direction without
+its hash-bound comparison report, and an incomplete/malformed `plan.json` all
+block verification.
 
 ### 0.3 Derive Feature State
 

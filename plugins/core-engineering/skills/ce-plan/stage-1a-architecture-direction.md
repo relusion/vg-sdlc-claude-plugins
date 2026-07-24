@@ -1,8 +1,8 @@
 # Stage 1A — Architecture direction
 
 Run this stage before feature decomposition. It decides whether a direction is
-load-bearing and, when it is, delegates comparison and human selection to
-`/core-engineering:ce-architecture`.
+load-bearing or explicitly requested and, when either is true, delegates
+comparison and human selection to `/core-engineering:ce-architecture`.
 
 Planning owns the decision frame and later feature cut. Architecture owns option
 generation, comparison, recommendation, and the iterative direction workbench.
@@ -53,14 +53,20 @@ When every load-bearing driver is negative, also evaluate
 `team-policy-recommendation`, `planned-reuse-recommendation`, and
 `baseline-preference`.
 
+A recommendation driver is positive only when repository policy or the
+accountable human explicitly requests an architecture comparison now. Planned
+reuse counts only when a named, evidenced consumer creates a present comparison
+need. A generic possibility of future reuse, a model preference for producing a
+baseline, or the mere availability of the architecture workflow is negative.
+
 Classify:
 
 - `required` when a load-bearing driver is positive or a material driver cannot
   yet be classified safely;
-- `recommended` when all load-bearing drivers are negative and a recommendation
-  driver is positive;
+- `recommended` when all load-bearing drivers are negative and an explicit
+  repository-policy or human opt-in makes a recommendation driver positive;
 - `not-required` when every load-bearing driver is evidenced negative and no
-  material architecture uncertainty remains.
+  explicit opt-in or material architecture uncertainty remains.
 
 An unknown that can be cheaply resolved should be investigated first. A
 load-bearing unknown that cannot be resolved routes to the evidence owner or
@@ -144,8 +150,7 @@ write and lint the complete comparison at:
 docs/plans/.drafts/<slug>/architecture-options.md
 ```
 
-Before any selection it must show, both in that artifact and in the
-conversation:
+Before any selection the complete artifact must show:
 
 - what needs a decision and why now;
 - a comparison summary;
@@ -159,11 +164,24 @@ conversation:
 - recommendation, confidence, and sensitivity to weights or uncertain
   evidence.
 
+Conversation is a compact projection, not a second copy of the report. Show
+only the decision and owner, an option comparison, decisive trade-offs and
+eliminations, recommendation/confidence/sensitivity, material unknowns,
+cost-if-wrong, and the artifact path/hash. The human can inspect the complete
+reasoning, scores, evidence, and assumptions through the report or ask about
+them at the same locator.
+
 Use one plan locator:
 
 ```text
 Gate N of M — Architecture Direction Selection
 ```
+
+Never print that locator, label a comparison `awaiting-selection`, or imply a
+direction can be selected until the complete report exists, has been re-read,
+and passes `architecture-options-lint.py`. An interrupted or budget-exhausted
+attempt remains `in-progress` or `blocked`; it may not promise to persist or
+lint evidence after the human answers.
 
 The workbench is conversational, not one-shot. Under the same locator the human
 may:
@@ -177,15 +195,43 @@ may:
 - route to an evidence/decision owner, defer a `recommended` route, park, or
   abort.
 
-Every answered question and every option-only revision remains inside
-architecture and appends a new persisted workbench revision containing the
-prior report hash, request or question, and result—even when no score changes.
-A requirement, hard-constraint, criterion-weight, driver, source, quality
-scenario, or decision-owner change returns a structured
-`decision-frame-delta` to this stage. Apply only the recorded human-requested
-delta, increment `capability_revision`, always increment
-`exploration_attempt`, rewrite the input, reinvoke exploration, and resume the
-same gate locator.
+An ordinary answer that changes no evidence, reasoning, confidence, option, or
+other decision-surface value stays conversational at the same gate. Persist and
+re-lint a new audit-linked workbench revision only when an answer changes that
+surface or the human explicitly adopts it as decision basis. Option-only
+revisions remain inside architecture. A requirement, hard-constraint,
+criterion-weight, driver, source, quality scenario, or decision-owner change
+returns a typed, exact-before/after
+`decision-frame-delta` to this stage only after architecture has rewritten the
+same report as a validated, non-selectable `frame-change-pending` checkpoint.
+The pending envelope binds `prior_report_sha256` to the last selectable report
+H1; the current pending report has a distinct hash H2. A hidden draft-local
+control receipt is exclusively persisted before H1 is replaced and binds the
+target, H1, precomputed H2, pending id, and request/delta hashes. It is recovery
+control state, not a second decision artifact.
+
+On a continuation or interrupted run, do not reconstruct the delta from chat.
+Run `architecture-workbench.py resume-frame-change` against the report with
+`--expected-report-sha256 <H2>`. Require exit 0 and verify its
+`selectable_prior_report_sha256` equals H1 while both
+`pending_report_sha256` and `next_expected_previous_sha256` equal H2. Apply
+only the extracted human-requested delta. When H2 was not retained because
+stdout was lost, use `--recover-persisted`; it must validate the independent
+receipt and report before returning H1, H2, and the typed delta. A
+receipt-before-report interruption validates unchanged H1 and discards the
+unactivated receipt; a stale receipt after validated H3 is consumed only after
+the H2→H3 audit binding is proven.
+
+Increment `capability_revision`, always increment `exploration_attempt`, rewrite
+the input, and reinvoke exploration. The complete recomputation must revise the
+pending report with `--expected-previous-sha256 <H2>`—never H1—and carry the
+exact request in a `frame-change` audit event. The helper requires the new
+canonical frame to equal H1 plus every typed `after` and the two increased
+counters; missing members and unrelated mutations fail. Failed recomputation
+restores H2 and retains the receipt. Validated H3 consumes it before resuming
+the same gate locator. By default
+`architecture-options-lint.py` rejects the pending report until recomputation
+restores `awaiting-selection`.
 
 No question or adjustment counts as approval. Required architecture cannot be
 deferred. Recommended architecture may be explicitly deferred with rationale;
@@ -227,7 +273,7 @@ Then run:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/.drafts/<slug>/architecture-selection.json \
-  --repo-root . --require-current-schema --json
+  --repo-root . --json
 ```
 
 - exit 0: checkpoint the selected/deferred state and continue;

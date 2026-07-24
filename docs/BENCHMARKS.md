@@ -76,7 +76,7 @@ failing the behavioral-evidence health check.
 | EVAL-001 | `/core-engineering:ce-ask` | grounded, `file:line`-cited answer, no writes | $1.00 | design-verified, not live-run |
 | EVAL-002 | `/core-engineering:ce-impact` | grounded blast-radius read with citations + unknowns | $1.00 | design-verified, not live-run |
 | EVAL-003 | `/core-engineering:ce-impact` | refuses a too-thin work item instead of guessing | $1.00 | design-verified, not live-run |
-| EVAL-004 | `/core-engineering:ce-plan` | asks a material architecture-option question, persists a hash-chained workbench revision, records an explicit human direction with rationale, then separately binds final approval to the exact linted plan bytes | $8.00 aggregate | design-verified, not live-run |
+| EVAL-004 | `/core-engineering:ce-plan` | asks a material architecture-option question, persists a hash-chained workbench revision, records an explicit human direction with rationale, then separately binds final approval to the exact linted plan bytes | $8.00 aggregate | design-verified; 2026-07-23 live attempt exhausted the cap and was not graded |
 | EVAL-005 | `/core-engineering:ce-spec` | `ce-spec.md` + `tasks.json` that pass `spec-lint.py` with full traceability | $4.00 | design-verified, not live-run |
 | EVAL-006 | `/core-engineering:ce-implement` | test-first implementation: tasks done, tests green, `verification.md` | $3.00 | design-verified, not live-run |
 | EVAL-007 | `/core-engineering:ce-review` | finds the seeded high-severity IDOR, `blocking_high: 1`, validated `blocking_route`, machine summary | $2.00 | design-verified, not live-run |
@@ -92,8 +92,8 @@ failing the behavioral-evidence health check.
 | EVAL-017 | `/core-engineering:ce-auto-build` | fixed sequential three-feature run: success, product park, retry exhaustion, schema-v2 state, and final human-review gate | $20.00 | design-verified, not live-run |
 | EVAL-018 | `/core-engineering:ce-humanize` | rewrites generic prose while preserving facts, links, and structure | $1.00 | design-verified, not live-run |
 | EVAL-019 | `/core-engineering:ce-go` | routes a bounded low-risk change to direct-only `/core-engineering:ce-patch`, then stops without writes | $1.00 | design-verified, not live-run |
-| EVAL-020 | `/core-engineering:ce-architecture` | loads and lints the written plan, renders the conditional Evidence Boundary Resolution gate for a requested boundary question, and stops without publishing before human approval; its frozen schema-v2 package separately proves strict structure, deterministic projections, typed trigger coverage, and a digest-bound acceptance receipt | $3.00 | design-verified, not live-run |
-| EVAL-021 | `/core-engineering:ce-plan` | renders Intent and Scope, verifies its context anchors before sending one scenario-scoped decision event, resumes the same session, and stops at the decision-ready Architecture Direction Selection workbench without selecting or writing a final plan | $3.00 aggregate | design-verified, not live-run |
+| EVAL-020 | `/core-engineering:ce-architecture` | requires output anchors for `Gate 1 of 2` and the Evidence Boundary Resolution surface, including named candidate paths, authority wording, a consequence marker, and choices; live artifact grading independently replays both canonical preflight lints and proves no architecture package was published, while the frozen schema-v2 package separately proves strict structure, deterministic projections, typed trigger coverage, and a digest-bound acceptance receipt | $3.00 | design-verified, not live-run |
+| EVAL-021 | `/core-engineering:ce-plan` | checks bounded Intent and Scope output anchors before sending one scenario-scoped decision event, then requires architecture decision-surface keyword anchors plus a displayed SHA-256 bound to the exact independently linted architecture-options report; draft selection and final-plan paths must remain absent | $4.00 aggregate | design-verified; 2026-07-23 live attempt exhausted the prior $3 cap and was not graded |
 
 Honest failure log from the same batch — kept because it calibrated the
 budgets and the runner behavior:
@@ -101,6 +101,8 @@ budgets and the runner behavior:
 | Run | Result | What it taught |
 |---|---|---|
 | EVAL-003 @ $0.25, EVAL-008 @ $1.00, EVAL-005 @ $2.00, EVAL-009 @ $2.00 | budget exceeded | the recommended budgets above; the runner now fails fast below a scenario's recommendation |
+| EVAL-004 run `20260723-164352-089185Z` @ $8.00 on 2026-07-23 | the CLI reported $8.151248 after 33 turns; no options report or human gate was produced, so the run was not graded or promoted | free-form report construction spent the budget reading validators and drafting an ad hoc generator; use a deterministic workbench renderer and keep model work to the semantic comparison |
+| EVAL-021 run `20260723-164352-096919Z` @ $3.00 on 2026-07-23 | the resumed architecture turn exhausted the aggregate cap; the two invocations reported at least $3.075870, so the run was not graded or promoted | calibrate the recommendation to $4.00, cap the intake response at 450 words, account for cost in current structured error envelopes, and require the architecture-options artifact to exist and pass its deterministic lint before the gate is considered decision-ready |
 | EVAL-003 `--bare` | failed before plugin execution (`Not logged in`) | `--bare` is for API-key/CI auth contexts, not subscription-keychain local runs |
 
 ## Historical successful-run budget caps

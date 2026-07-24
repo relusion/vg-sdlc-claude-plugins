@@ -148,7 +148,7 @@ def build_artifact(root: Path, *, option_count: int = 2) -> tuple[Path, dict]:
         ],
     }
     data = {
-        "schema_version": 1,
+        "schema_version": 2,
         "project_slug": "smoke",
         "exploration_id": f"AEX-{option_set_sha256[:12]}",
         "source_capability_revision": 1,
@@ -183,7 +183,7 @@ def build_artifact(root: Path, *, option_count: int = 2) -> tuple[Path, dict]:
     data["source_input_sha256"] = sl.source_input_hash(data)
     artifact = root / "docs/plans/smoke/architecture-selection.json"
     artifact.parent.mkdir(parents=True, exist_ok=True)
-    artifact.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    bind_current_report(artifact, data)
     return artifact, data
 
 
@@ -214,6 +214,8 @@ def render_options_report(data: dict) -> str:
             f"{data['evaluation_frame']['decision_owner']['identity_or_role']} — "
             f"{data['evaluation_frame']['decision_owner']['authority_basis']}"
         ),
+        "- **Current constraints:** Personal data remains in-region and invalid tokens fail closed.",
+        "- **Key trade-off:** Repository fit versus future runtime extraction.",
         "- **Cost if wrong:** Rework boundaries, migration tasks, and operational controls.",
         "- **Material gaps and inferences:** None — the approved evidence covers this comparison.",
         "",
@@ -377,11 +379,7 @@ def render_options_report(data: dict) -> str:
     return "\n".join(lines)
 
 
-def upgrade_to_v2(artifact: Path, data: dict) -> Path:
-    original_source_hash = data["source_input_sha256"]
-    data["schema_version"] = 2
-    rehash(data)
-    assert data["source_input_sha256"] == original_source_hash
+def bind_current_report(artifact: Path, data: dict) -> Path:
     report = artifact.with_name("architecture-options.md")
     report.write_text(render_options_report(data), encoding="utf-8")
     data["architecture_options_report"] = {
@@ -393,6 +391,21 @@ def upgrade_to_v2(artifact: Path, data: dict) -> Path:
     }
     write_artifact(artifact, data)
     return report
+
+
+def refresh_current_artifact(artifact: Path, data: dict) -> Path:
+    rehash(data)
+    return bind_current_report(artifact, data)
+
+
+def mark_report_not_produced(data: dict, reason: str) -> None:
+    data["architecture_options_report"] = {
+        "schema_version": 1,
+        "status": "not-produced",
+        "path": None,
+        "sha256": None,
+        "reason": reason,
+    }
 
 
 def refresh_report_binding(artifact: Path, data: dict, report: Path, text: str) -> None:
@@ -443,7 +456,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_binds_the_immutable_human_options_report(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         self.assertEqual(self.lint(artifact), [])
 
         report.write_text(report.read_text(encoding="utf-8") + "mutated\n", encoding="utf-8")
@@ -452,7 +465,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_requires_a_contiguous_workbench_audit_chain(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         original = report.read_text(encoding="utf-8")
 
         without_audit = re.sub(
@@ -512,7 +525,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_requires_a_safe_complete_report_for_selected_direction(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         runtime_row = (
             "| Runtime and deployment | "
             + "; ".join(data["options"][0]["runtime_and_deployment"])
@@ -535,7 +548,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_report_path_rejects_symlinks_and_hardlinks(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         report_bytes = report.read_bytes()
         target = self.root / "outside-report.md"
         target.write_bytes(report_bytes)
@@ -556,7 +569,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_selection_and_report_relocate_as_an_unchanged_pair(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         selection_bytes = artifact.read_bytes()
         report_bytes = report.read_bytes()
         final_dir = self.root / "docs/plans/published"
@@ -572,32 +585,55 @@ class SelectionContract(unittest.TestCase):
         self.assertEqual(final_artifact.read_bytes(), selection_bytes)
         self.assertEqual(final_report.read_bytes(), report_bytes)
 
-    def test_schema_v2_report_must_show_option_scores_and_constraint_verdicts(self):
+    def test_schema_v2_report_must_show_scores_and_constraint_reasoning_in_comparison_tables(
+        self,
+    ):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
+        original = report.read_text(encoding="utf-8")
         option = data["options"][0]
-        detail = json.dumps(
-            {
-                "constraint_verdicts": option["constraint_verdicts"],
-                "scores": option["scores"],
-                "weighted_score": option["weighted_score"],
-                "confidence": option["confidence"],
-            },
-            ensure_ascii=False,
-            sort_keys=True,
+        cases = (
+            (
+                "## Hard-Constraint Screen",
+                "## Weighted Comparison",
+                option["constraint_verdicts"][0]["basis"],
+            ),
+            (
+                "## Weighted Comparison",
+                "## Direction A01",
+                option["scores"][0]["basis"],
+            ),
         )
-        text = report.read_text(encoding="utf-8").replace(detail, "{}", 1)
-        report.write_text(text, encoding="utf-8")
-        data["architecture_options_report"]["sha256"] = hashlib.sha256(
-            report.read_bytes()
-        ).hexdigest()
-        write_artifact(artifact, data)
-        failures = self.lint(artifact)
-        self.assertTrue(any("omits option detail" in item for item in failures), failures)
+        for heading, next_heading, basis in cases:
+            with self.subTest(heading=heading):
+                start = original.index(heading)
+                end = original.index(next_heading, start)
+                section = original[start:end]
+                self.assertIn(basis, section)
+                report.write_text(
+                    original[:start]
+                    + section.replace(basis, "redacted comparison basis", 1)
+                    + original[end:],
+                    encoding="utf-8",
+                )
+                data["architecture_options_report"]["sha256"] = hashlib.sha256(
+                    report.read_bytes()
+                ).hexdigest()
+                write_artifact(artifact, data)
+                failures = self.lint(artifact)
+                self.assertTrue(
+                    any(
+                        heading in item
+                        and "omits comparison value" in item
+                        and basis in item
+                        for item in failures
+                    ),
+                    failures,
+                )
 
     def test_schema_v2_machine_projection_must_exactly_match_selection_json(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         original = json.dumps(
             sl.options_report_projection(data),
             ensure_ascii=False,
@@ -628,7 +664,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_report_requires_each_visible_decision_triage_field(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         original = report.read_text(encoding="utf-8")
 
         for label in sl.REPORT_DECISION_FIELDS:
@@ -665,9 +701,37 @@ class SelectionContract(unittest.TestCase):
                     failures,
                 )
 
+    def test_current_selection_revalidation_rejects_decision_placeholders(self):
+        artifact, data = build_artifact(self.root)
+        report = artifact.with_name("architecture-options.md")
+        original = report.read_text(encoding="utf-8")
+        for label, placeholder in (
+            ("Current constraints", "TBD"),
+            ("Key trade-off", "Unknown."),
+            ("Cost if wrong", "[insert consequence]"),
+            ("Material gaps and inferences", "{{ template_gap }}"),
+        ):
+            with self.subTest(label=label):
+                text = re.sub(
+                    rf"^- \*\*{re.escape(label)}:\*\*.*$",
+                    f"- **{label}:** {placeholder}",
+                    original,
+                    count=1,
+                    flags=re.MULTILINE,
+                )
+                refresh_report_binding(artifact, data, report, text)
+                failures = self.lint(artifact)
+                self.assertTrue(
+                    any(
+                        label in item and "unfilled placeholder" in item
+                        for item in failures
+                    ),
+                    failures,
+                )
+
     def test_schema_v2_report_rejects_common_html_hiding_constructs(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         original = report.read_text(encoding="utf-8")
         decision_line = (
             "- **Decision:** Choose the whole-solution direction that will bind decomposition."
@@ -694,7 +758,7 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_report_requires_section_local_human_comparison_content(self):
         artifact, data = build_artifact(self.root)
-        report = upgrade_to_v2(artifact, data)
+        report = artifact.with_name("architecture-options.md")
         original = report.read_text(encoding="utf-8")
         headings = (
             "## Evaluation Frame",
@@ -722,7 +786,6 @@ class SelectionContract(unittest.TestCase):
 
     def test_schema_v2_not_produced_is_valid_for_an_early_block_only(self):
         artifact, data = build_artifact(self.root)
-        data["schema_version"] = 2
         data["selection"] = {
             "status": "blocked",
             "option_id": None,
@@ -731,39 +794,32 @@ class SelectionContract(unittest.TestCase):
             "approved_by": None,
             "rationale": "Unsafe input prevented a reviewable comparison.",
         }
-        data["architecture_options_report"] = {
-            "schema_version": 1,
-            "status": "not-produced",
-            "path": None,
-            "sha256": None,
-            "reason": "Unsafe input prevented a reviewable comparison.",
-        }
+        mark_report_not_produced(
+            data, "Unsafe input prevented a reviewable comparison."
+        )
         rehash(data)
         write_artifact(artifact, data)
         failures = sl.validate_file(
             artifact,
             repo_root=self.root,
             allow_incomplete=True,
-            require_current_schema=True,
         )[1]
         self.assertEqual(failures, [])
 
-    def test_schema_v1_is_explicitly_legacy_and_v2_cannot_select_without_report(self):
+    def test_schema_v1_and_reportless_selection_are_rejected(self):
         artifact, data = build_artifact(self.root)
-        self.assertEqual(self.lint(artifact), [])
-        failures = sl.validate_file(
-            artifact, repo_root=self.root, require_current_schema=True
-        )[1]
-        self.assertTrue(any("fresh exploration output" in item for item in failures))
+        data["schema_version"] = 1
+        write_artifact(artifact, data)
+        failures = self.lint(artifact)
+        self.assertTrue(
+            any("schema_version must equal 2" in item for item in failures),
+            failures,
+        )
 
         data["schema_version"] = 2
-        data["architecture_options_report"] = {
-            "schema_version": 1,
-            "status": "not-produced",
-            "path": None,
-            "sha256": None,
-            "reason": "Exploration stopped before a safe comparison was produced.",
-        }
+        mark_report_not_produced(
+            data, "Exploration stopped before a safe comparison was produced."
+        )
         rehash(data)
         write_artifact(artifact, data)
         failures = self.lint(artifact)
@@ -772,114 +828,28 @@ class SelectionContract(unittest.TestCase):
             failures,
         )
 
-    def test_reportless_legacy_adoption_is_diagnostic_only(self):
-        legacy_root = self.root / "legacy"
-        artifact, data = build_artifact(legacy_root, option_count=1)
+    def test_adopted_existing_is_rejected(self):
+        artifact, data = build_artifact(self.root)
         data["selection"]["status"] = "adopted-existing"
-        data["schema_version"] = 2
-        data["architecture_options_report"] = {
-            "schema_version": 1,
-            "status": "not-produced",
-            "path": None,
-            "sha256": None,
-            "reason": "Migrated legacy adoption had no pre-approval comparison report.",
-        }
-        rehash(data)
         write_artifact(artifact, data)
-        self.assertEqual(
-            sl.validate_file(artifact, repo_root=legacy_root)[1],
-            [],
-        )
-        failures = sl.validate_file(
-            artifact, repo_root=legacy_root, require_current_schema=True
-        )[1]
+        failures = self.lint(artifact)
         self.assertTrue(
-            any("reportless legacy adoption is diagnostic-only" in item for item in failures),
+            any("selection.status must be one of" in item for item in failures),
             failures,
-        )
-
-        original = copy.deepcopy(data)
-        invalid_mutations = {
-            "selected hash is not sole option hash": lambda value: value["selection"].update(
-                {"option_sha256": "0" * 64}
-            ),
-            "sole option is not recommended": lambda value: value["recommendation"].update(
-                {"option_id": None}
-            ),
-            "an eliminated direction is recorded": lambda value: value[
-                "eliminated_options"
-            ].append(
-                {
-                    "option_id": "A02",
-                    "constraint_ids": ["HC01"],
-                    "reason": "A comparison was attempted.",
-                }
-            ),
-        }
-        for case, mutate in invalid_mutations.items():
-            with self.subTest(case=case):
-                invalid = copy.deepcopy(original)
-                mutate(invalid)
-                write_artifact(artifact, invalid)
-                failures = sl.validate_file(artifact, repo_root=legacy_root)[1]
-                self.assertTrue(
-                    any("one-option legacy migration shape" in item for item in failures),
-                    failures,
-                )
-
-        comparison_root = self.root / "comparison"
-        artifact, data = build_artifact(comparison_root, option_count=2)
-        data["selection"]["status"] = "adopted-existing"
-        rehash(data)
-        write_artifact(artifact, data)
-        self.assertEqual(
-            sl.validate_file(artifact, repo_root=comparison_root)[1],
-            [],
-            "schema v1 compatibility must preserve a legacy multi-option adoption",
-        )
-
-        data["schema_version"] = 2
-        data["architecture_options_report"] = {
-            "schema_version": 1,
-            "status": "not-produced",
-            "path": None,
-            "sha256": None,
-            "reason": "No report was provided.",
-        }
-        write_artifact(artifact, data)
-        failures = sl.validate_file(artifact, repo_root=comparison_root)[1]
-        self.assertTrue(
-            any("one-option legacy migration shape" in item for item in failures),
-            failures,
-        )
-
-        report_root = self.root / "reported-comparison"
-        artifact, data = build_artifact(report_root, option_count=2)
-        upgrade_to_v2(artifact, data)
-        data["selection"]["status"] = "adopted-existing"
-        write_artifact(artifact, data)
-        self.assertEqual(
-            sl.validate_file(
-                artifact, repo_root=report_root, require_current_schema=True
-            )[1],
-            [],
-            "multi-option adopted-existing remains valid when the comparison report is bound",
         )
 
     def test_exploration_requires_two_to_four_options(self):
         artifact, _ = build_artifact(self.root, option_count=0)
         failures = self.lint(artifact)
-        self.assertTrue(any("between 1 and 4" in item for item in failures), failures)
+        self.assertTrue(
+            any("at least two genuine directions" in item for item in failures),
+            failures,
+        )
 
         one_root = self.root / "one"
         artifact, data = build_artifact(one_root, option_count=1)
         failures = sl.validate_file(artifact, repo_root=one_root)[1]
         self.assertTrue(any("at least two genuine directions" in item for item in failures), failures)
-
-        data["selection"]["status"] = "adopted-existing"
-        rehash(data)
-        write_artifact(artifact, data)
-        self.assertEqual(sl.validate_file(artifact, repo_root=one_root)[1], [])
 
         other_root = self.root / "five"
         artifact, _ = build_artifact(other_root, option_count=5)
@@ -919,8 +889,7 @@ class SelectionContract(unittest.TestCase):
         artifact, data = build_artifact(self.root)
         data["criteria"][0]["weight"] = 0
         data["criteria"][1]["weight"] = 0.45
-        rehash(data)
-        write_artifact(artifact, data)
+        refresh_current_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
 
     def test_deferred_disposition_preserves_frame_but_has_no_fake_options(self):
@@ -945,26 +914,13 @@ class SelectionContract(unittest.TestCase):
             "approved_by": None,
             "rationale": "Defer recommended exploration with the coverage gap visible.",
         }
+        mark_report_not_produced(
+            data,
+            "Recommended exploration was explicitly deferred before options ran.",
+        )
         rehash(data)
         write_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
-
-        data["schema_version"] = 2
-        data["architecture_options_report"] = {
-            "schema_version": 1,
-            "status": "not-produced",
-            "path": None,
-            "sha256": None,
-            "reason": "Recommended exploration was explicitly deferred before options ran.",
-        }
-        rehash(data)
-        write_artifact(artifact, data)
-        self.assertEqual(
-            sl.validate_file(
-                artifact, repo_root=self.root, require_current_schema=True
-            )[1],
-            [],
-        )
 
         data["criteria"] = []
         write_artifact(artifact, data)
@@ -1129,8 +1085,7 @@ class SelectionContract(unittest.TestCase):
             }
         ]
         data["recommendation"]["sensitivity"] = "not-applicable"
-        rehash(data)
-        write_artifact(artifact, data)
+        refresh_current_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
 
     def test_unknown_constraint_cannot_be_recommended_or_selected(self):
@@ -1181,7 +1136,7 @@ class SelectionContract(unittest.TestCase):
         write_artifact(artifact, data)
         failures = self.lint(artifact)
         joined = " ".join(failures)
-        self.assertIn("confidence cannot be high", joined)
+        self.assertIn("confidence must be low", joined)
         self.assertIn("expected unstable", joined)
         self.assertIn("recommendation.confidence must be low", joined)
 
@@ -1206,8 +1161,7 @@ class SelectionContract(unittest.TestCase):
                 "upper evidence bounds, A02 ties or exceeds A01."
             ),
         }
-        rehash(data)
-        write_artifact(artifact, data)
+        refresh_current_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
 
     def test_recommendation_must_reference_a_highest_scoring_option(self):
@@ -1255,8 +1209,7 @@ class SelectionContract(unittest.TestCase):
                 "A02 ties or exceeds A01."
             ),
         }
-        rehash(data)
-        write_artifact(artifact, data)
+        refresh_current_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
 
     def test_sensitivity_witness_must_name_the_deterministic_flip(self):
@@ -1335,8 +1288,7 @@ class SelectionContract(unittest.TestCase):
                 "exceeds A01."
             ),
         }
-        rehash(data)
-        write_artifact(artifact, data)
+        refresh_current_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
 
     def test_canonical_option_and_option_set_hashes_detect_tampering(self):
@@ -1415,12 +1367,18 @@ class SelectionContract(unittest.TestCase):
         data["evaluation_frame"]["architecture_applicability"] = "not-required"
         for row in data["evaluation_frame"]["driver_screen"]:
             row["verdict"] = "negative"
+        mark_report_not_produced(
+            data, "The admission screen found no architecture direction decision."
+        )
         rehash(data)
         write_artifact(artifact, data)
         self.assertEqual(self.lint(artifact), [])
 
     def test_transient_result_requires_allow_incomplete_and_cannot_claim_selection(self):
         artifact, data = build_artifact(self.root)
+        mark_report_not_produced(
+            data, "Required repository evidence is unavailable."
+        )
         keep = {
             "schema_version",
             "project_slug",
@@ -1433,6 +1391,7 @@ class SelectionContract(unittest.TestCase):
             "evidence_fingerprint",
             "selection",
             "next_owner",
+            "architecture_options_report",
         }
         data = {key: value for key, value in data.items() if key in keep}
         data["selection"] = {
@@ -1454,6 +1413,9 @@ class SelectionContract(unittest.TestCase):
 
     def test_requires_decision_carries_a_supplied_bounded_option_frame(self):
         artifact, data = build_artifact(self.root)
+        mark_report_not_produced(
+            data, "A bounded human decision is required before comparison."
+        )
         keep = set(sl.TRANSIENT_REQUIRED_TOP_KEYS)
         data = {key: value for key, value in data.items() if key in keep}
         data["selection"] = {

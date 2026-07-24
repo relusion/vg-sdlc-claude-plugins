@@ -106,20 +106,21 @@ Probes do not accept risk or fix findings.
 Use this order:
 
 1. finish independent review and verification;
-2. run `/core-engineering:ce-ship-document <plan>` from verified behavior;
+2. when documentation impact requires it, run
+   `/core-engineering:ce-ship-document <plan>` from verified behavior;
 3. run `/core-engineering:ce-doc-audit <doc>` when a quickstart, runbook,
    migration, safety procedure, or high-impact journey changed;
 4. optionally use `/core-engineering:ce-humanize <doc>` for tone, then recheck
    facts;
-5. incorporate the resulting documentation and audit artifacts into the
-   candidate HEAD;
-6. refresh `/core-engineering:ce-review` and `/core-engineering:ce-verify` so
-   their receipts bind that candidate;
+5. if documentation or its audit changed repository state, incorporate those
+   artifacts into the candidate HEAD;
+6. after such a change, refresh `/core-engineering:ce-review` and
+   `/core-engineering:ce-verify` so their receipts bind that candidate;
 7. run `/core-engineering:ce-ship-release <plan>` last.
 
-**Expected artifacts:** verified documentation, conditional reader-role audit,
-current review/verification receipts, rollback and supply-chain evidence, and a
-final GO/NO-GO package.
+**Expected artifacts:** documentation-impact disposition, verified
+documentation and reader-role audit when required, current review/verification
+receipts, rollback and supply-chain evidence, and a final GO/NO-GO package.
 
 **Stop or escalate:** release remains NO-GO when required evidence is missing or
 stale. The workflow never tags, publishes, or deploys.

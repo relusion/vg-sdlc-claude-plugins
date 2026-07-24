@@ -107,7 +107,7 @@ BINDING_KEYS = {
     "commit_sha",
 }
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-SELECTED_DIRECTION_STATUSES = {"direction-selected", "adopted-existing"}
+SELECTED_DIRECTION_STATUS = "direction-selected"
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 PROJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MARKDOWN_CONTEXT_RE = re.compile(
@@ -419,9 +419,10 @@ def _no_package_context(
 def _architecture_outcome(plan: dict) -> tuple[str, str]:
     """Return the only valid disposition outcome for downstream consumption.
 
-    Required and converged recommendations must carry a selected direction and
-    therefore require a governed package. A recommendation may omit the package
-    only when both convergence and direction are explicitly deferred.
+    Required and converged recommendations must carry direction status
+    ``direction-selected`` and therefore require a governed package. A
+    recommendation may omit the package only when both convergence and
+    direction are explicitly deferred.
     """
     posture = plan.get("architecture_disposition")
     if not isinstance(posture, dict):
@@ -441,24 +442,24 @@ def _architecture_outcome(plan: dict) -> tuple[str, str]:
     if decision == "required":
         if (
             convergence_status != "converged"
-            or direction_status not in SELECTED_DIRECTION_STATUSES
+            or direction_status != SELECTED_DIRECTION_STATUS
         ):
             raise ContextError(
-                "required architecture must have a selected direction and "
-                "convergence status `converged`"
+                "required architecture must have direction status "
+                "`direction-selected` and convergence status `converged`"
             )
         return decision, "selected"
     if decision == "recommended":
         if (
             convergence_status == "converged"
-            and direction_status in SELECTED_DIRECTION_STATUSES
+            and direction_status == SELECTED_DIRECTION_STATUS
         ):
             return decision, "selected"
         if convergence_status == "deferred" and direction_status == "deferred":
             return decision, "deferred"
         raise ContextError(
-            "recommended architecture must be selected and converged or "
-            "explicitly deferred"
+            "recommended architecture must be `direction-selected` and "
+            "converged or explicitly deferred"
         )
     if (
         convergence_status != "not-applicable"

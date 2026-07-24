@@ -39,11 +39,12 @@ reproducing its schema in this router:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/../ce-plan/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 ```
 
 - exit 1 or 2 routes to `/core-engineering:ce-plan` Stage R with the lint result;
-- exit 0 plus `required`/selected/converged and an lstat-confirmed absent
+- exit 0 plus either `required`/selected/converged or
+  `recommended`/selected/converged and an lstat-confirmed absent
   `docs/plans/<slug>/architecture/` routes to
   `/core-engineering:ce-architecture <slug>`;
 - otherwise continue to the requested downstream workflow and let that workflow
@@ -86,10 +87,10 @@ outside the markers — the parity lint reads only what is between them.
 |---|---|---|
 | a genuinely small, bounded change with no reviewer-trigger surface | `/core-engineering:ce-patch` | conservative direct patch workflow; uncertainty routes to planning |
 | a raw idea whose problem, users, scope, or outcome still need discovery | `/core-engineering:ce-brief` | optional intent brief with a bounded interview |
-| a clear project/feature outcome to decompose | `/core-engineering:ce-plan` | adaptive repository-grounded planning; architecture only when load-bearing |
+| a clear project/feature outcome to decompose | `/core-engineering:ce-plan` | adaptive repository-grounded planning; architecture only when load-bearing or explicitly requested |
 | complete solution-architecture alternatives must be generated from requirements before planning | `/core-engineering:ce-plan` | it prepares the pre-decomposition frame and composes `/core-engineering:ce-architecture explore:<slug>` safely |
 | a written plan fails its architecture disposition/direction lint, or says architecture is `required` but convergence is incomplete | `/core-engineering:ce-plan` | Stage R owns the plan correction before downstream work |
-| a request would specify or implement a planned feature, or auto-build a whole plan, and that plan says architecture is `required` + `converged` but its `architecture` namespace is absent | `/core-engineering:ce-architecture` | publish the required, governed, current solution baseline before specification or implementation starts |
+| a request would specify or implement a planned feature, or auto-build a whole plan, and that plan says architecture is selected + converged (`required` or `recommended`) but its `architecture` namespace is absent | `/core-engineering:ce-architecture` | publish the governed, current solution baseline before specification or implementation starts |
 | a plan with a selected direction that needs system/runtime/deployment/data/integration views | `/core-engineering:ce-architecture` | plan-backed solution baseline with source hashes, traceability, gaps, and human approval |
 | a planned feature marked `Specification route: explicit` to detail | `/core-engineering:ce-spec` | reviewed acceptance/design contract plus ordered `tasks.json` |
 | a compact-route feature, or a feature with a linted spec, to build | `/core-engineering:ce-implement` | composes compact spec when allowed, then executes under Scope Lock |

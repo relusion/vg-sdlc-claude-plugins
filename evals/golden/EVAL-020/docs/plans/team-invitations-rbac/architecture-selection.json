@@ -395,7 +395,7 @@
     "schema_version": 1,
     "status": "present",
     "path": "architecture-options.md",
-    "sha256": "081420953dd03e6d66f8cb890809de7ad80e1f3b2dc7f7b88bbad7dfa611a6c7",
+    "sha256": "5116e5e314dafd533e4f0db2d24517f42b8b046791ee711b169df7ed655024ed",
     "reason": null
   }
 }

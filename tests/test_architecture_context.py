@@ -323,6 +323,27 @@ class ContextDerivation(unittest.TestCase):
                     repo_root=root,
                 )
 
+    def test_adopted_existing_is_not_a_selected_direction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir = write_full_plan(root, "required")
+            plan_path = plan_dir / "plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            plan["architecture_disposition"]["direction"]["status"] = (
+                "adopted-existing"
+            )
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ac.ContextError,
+                "direction status `direction-selected`",
+            ):
+                ac.derive_context(
+                    plan_dir,
+                    "01-feature",
+                    repo_root=root,
+                )
+
     def test_required_absent_package_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

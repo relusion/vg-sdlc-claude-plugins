@@ -17,6 +17,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import html
 import importlib.util
 import json
 import re
@@ -59,9 +60,32 @@ TRIAGE_FIELDS = (
     "Recommendation basis",
     "Confidence / sensitivity",
     "Decision owner / authority",
+    "Current constraints",
+    "Key trade-off",
     "Cost if wrong",
     "Material gaps and inferences",
 )
+DECISION_PLACEHOLDER_VALUES = {
+    "placeholder",
+    "tbc",
+    "tbd",
+    "template",
+    "to be confirmed",
+    "to be determined",
+    "todo",
+    "unknown",
+}
+DECISION_TEMPLATE_PATTERN = re.compile(
+    r"(?:"
+    r"<\s*[A-Za-z][A-Za-z0-9 _-]{0,80}\s*>"
+    r"|\{\{[^}\n]+\}\}"
+    r"|\$\{[^}\n]+\}"
+    r"|\[\s*(?:insert|placeholder|replace|tbc|tbd|template|todo|unknown)"
+    r"\b[^\]\n]*\]"
+    r")",
+    re.IGNORECASE,
+)
+MARKDOWN_ESCAPE_PATTERN = re.compile(r"\\([\\`*_\[\]{}()#+!|>~.-])")
 HIDDEN_REPORT_PATTERNS = (
     (re.compile(r"<!--|-->", re.IGNORECASE), "HTML comments"),
     (
@@ -93,6 +117,24 @@ HIDDEN_REPORT_PATTERNS = (
         "a raw HTML element (escape it as Markdown text)",
     ),
 )
+
+
+def decision_surface_placeholder(value: object) -> bool:
+    """Return whether visible decision text is only a stub or has a template slot.
+
+    This is deliberately narrower than evidence validation. In particular,
+    ``unknown: <reason>`` is substantive evidence text and is not a placeholder.
+    """
+    if not isinstance(value, str):
+        return False
+    visible = html.unescape(value)
+    visible = MARKDOWN_ESCAPE_PATTERN.sub(r"\1", visible)
+    visible = re.sub(r"\s+", " ", visible).strip()
+    token = visible.casefold().strip(" \t\r\n.!?;:")
+    return (
+        token in DECISION_PLACEHOLDER_VALUES
+        or DECISION_TEMPLATE_PATTERN.search(visible) is not None
+    )
 
 
 def _reject_constant(value: str):
@@ -147,7 +189,7 @@ def _triage_values(report_text: str, failures: list[str]) -> dict[str, str]:
             )
             continue
         value = matches[0].strip()
-        if re.search(r"<[^>]+>", value):
+        if decision_surface_placeholder(value):
             failures.append(
                 f"What Needs Your Decision field {label!r} contains an unfilled placeholder"
             )
@@ -486,7 +528,6 @@ def validate_file(report_path: Path, *, repo_root: Path) -> tuple[dict | None, l
         artifact_path=report.with_name("architecture-selection.json"),
         repo_root=repo_root.resolve(),
         selection_status=None,
-        allow_reportless_legacy=False,
         failures=failures,
     )
 
@@ -507,7 +548,9 @@ def validate_file(report_path: Path, *, repo_root: Path) -> tuple[dict | None, l
                     "What Needs Your Decision recommendation must name the exact recommended option id"
                 )
             if isinstance(recommended, dict) and isinstance(recommended.get("title"), str):
-                if recommended["title"] not in recommendation_text:
+                if sl._normalized_report_text(
+                    recommended["title"]
+                ) not in sl._normalized_report_text(recommendation_text):
                     failures.append(
                         "What Needs Your Decision recommendation must name the exact option title"
                     )

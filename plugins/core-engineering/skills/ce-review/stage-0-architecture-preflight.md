@@ -9,10 +9,10 @@ Before trusting the spec, require the canonical plan authorities and run:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug> --require-architecture-direction --json
+  docs/plans/<slug> --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/<slug>/architecture-selection.json \
-  --require-current-schema --json
+  --json
 ```
 
 Exit 1 routes plan/selection defects to `/core-engineering:ce-plan`. Exit 2

@@ -23,10 +23,12 @@ that version and this file.
   re-attestation, while material architecture selection remains evidence-rich
   and human-owned. Selected directions require the current schema, a hash-bound
   human-readable options report, and a contiguous question/adjustment audit;
-  active delivery consumers reject legacy reportless selections. Release GO
+  plan validation unconditionally rejects incomplete, older-schema, or
+  reportless plan/selection authority; the former compatibility mode and
+  `--require-architecture-direction` switch are removed. Release GO
   proves review and verification evidence against the materialized candidate
-  commit, requires current plan and architecture-selection schemas plus current
-  review routing fields, and fails closed on stale post-documentation receipts;
+  commit, requires the current plan contract, architecture-selection schema,
+  and review routing fields, and fails closed on stale post-documentation receipts;
   standalone verification applies the same current-authority preflight, and
   verification receipt replacement is atomic.
   Authoring validation adds deterministic token-proxy ceilings for always-loaded
@@ -34,6 +36,18 @@ that version and this file.
   explicit evidence-produced receipt on every run, and main-health validates
   its identity and freshness so a successful skip cannot masquerade as current
   behavioral evidence.
+- **Live-calibrated planning workbench hardening.** Added a deterministic
+  architecture workbench renderer that accepts semantic direction judgments,
+  derives weighted totals and content bindings, renders and lints the
+  complete human report, replaces the manual report template, preserves
+  hash-chained question revisions, and emits a schema-v2 `awaiting-selection`
+  checkpoint that active delivery consumers still reject. Planning chat now
+  keeps intake and architecture gates compact,
+  omits duplicate repository tours, and fails closed if report construction is
+  interrupted. The live-eval runner recognizes current structured Claude
+  budget errors, accounts for failed-turn reported cost, enforces per-turn word
+  ceilings, and withholds scripted human answers until required architecture
+  artifacts pass deterministic lint.
 - **Composable solution architecture (`core-engineering` 0.10.3).** Added
   `/core-engineering:ce-architecture` as an optional seam between a written
   multi-feature plan and feature specification. It produces a human-approved,

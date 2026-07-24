@@ -16,6 +16,8 @@ JSON shape are what is asserted.
 from __future__ import annotations
 
 import copy
+import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -27,25 +29,139 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DRIFT_SCAN = REPO_ROOT / "scripts" / "drift_scan.py"
+SELECTION_LINT = (
+    REPO_ROOT
+    / "plugins/core-engineering/skills/ce-plan-audit/scripts"
+    / "architecture-selection-lint.py"
+)
+
+_selection_spec = importlib.util.spec_from_file_location(
+    "architecture_selection_lint_for_drift_tests",
+    SELECTION_LINT,
+)
+assert _selection_spec is not None and _selection_spec.loader is not None
+selection_lint = importlib.util.module_from_spec(_selection_spec)
+_selection_spec.loader.exec_module(selection_lint)
 
 
 # --- the clean fixture ------------------------------------------------------
 
+def not_applicable_selection(architecture_input: str) -> dict:
+    """Current-schema human disposition for a feature-local plan."""
+    source_path = "docs/plans/acme/architecture-input.md"
+    sources = [{
+        "path": source_path,
+        "sha256": hashlib.sha256(architecture_input.encode("utf-8")).hexdigest(),
+        "kind": "planning-input",
+    }]
+    criteria = [
+        {
+            "id": criterion,
+            "weight": weight,
+            "basis": f"Confirmed priority for {criterion}.",
+        }
+        for criterion, weight in zip(
+            selection_lint.CRITERIA,
+            (0.25, 0.20, 0.15, 0.15, 0.15, 0.10),
+        )
+    ]
+    data = {
+        "schema_version": 2,
+        "project_slug": "acme",
+        "exploration_id": "AEX-not-applicable-r1",
+        "source_capability_revision": 1,
+        "source_exploration_attempt": 1,
+        "source_input_sha256": "0" * 64,
+        "evaluation_frame": {
+            "project_intent": "Deliver the two bounded Acme features in the existing application.",
+            "non_goals": ["Introduce a new platform, runtime, or shared protocol."],
+            "decision_owner": {
+                "identity_or_role": "Repository Architecture Owner",
+                "authority_basis": (
+                    "This test fixture assigns architecture applicability "
+                    "approval to the repository architecture owner."
+                ),
+            },
+            "architecture_applicability": "not-required",
+            "driver_screen": [
+                {
+                    "id": driver_id,
+                    "verdict": "negative",
+                    "basis": f"No {driver_id} architecture driver applies to this fixture.",
+                    "evidence": [source_path],
+                }
+                for driver_id in selection_lint.DRIVER_IDS
+            ],
+            "accepted_decisions": [],
+            "material_gaps": [],
+            "capabilities": [
+                {
+                    "id": "C01",
+                    "outcome": "An administrator can invite a user.",
+                    "actors": ["administrator", "invitee"],
+                    "data": ["invitation"],
+                    "integrations": ["existing application"],
+                    "observable": "An invitation can be created.",
+                },
+                {
+                    "id": "C02",
+                    "outcome": "An administrator can list invitations.",
+                    "actors": ["administrator"],
+                    "data": ["invitation"],
+                    "integrations": ["existing application"],
+                    "observable": "Pending invitations are listed.",
+                },
+            ],
+            "journeys": [
+                {
+                    "id": "J01",
+                    "outcome": "An administrator manages team invitations.",
+                    "actors": ["administrator"],
+                    "capability_refs": ["C01", "C02"],
+                    "steps": ["Create an invitation.", "List pending invitations."],
+                    "observable": "The invitation is visible in the pending list.",
+                }
+            ],
+            "quality_attribute_scenarios": [],
+        },
+        "blocking_decision": None,
+        "sources": sources,
+        "evidence_fingerprint": selection_lint.canonical_sha256(sources),
+        "criteria": criteria,
+        "hard_constraints": [],
+        "options": [],
+        "eliminated_options": [],
+        "option_set_sha256": selection_lint.option_set_hash([], []),
+        "recommendation": {
+            "option_id": None,
+            "confidence": "high",
+            "sensitivity": "not-applicable",
+            "sensitivity_witness": None,
+            "basis": "Every canonical architecture driver is negative for this fixture.",
+        },
+        "architecture_options_report": {
+            "schema_version": 1,
+            "status": "not-produced",
+            "path": None,
+            "sha256": None,
+            "reason": "Architecture applicability is not-required.",
+        },
+        "selection": {
+            "status": "not-applicable",
+            "option_id": None,
+            "option_sha256": None,
+            "decided_by": "human",
+            "approved_by": None,
+            "rationale": "The human confirmed that feature-local planning is sufficient.",
+        },
+        "next_owner": "ce-plan",
+    }
+    data["source_input_sha256"] = selection_lint.source_input_hash(data)
+    return data
+
+
 def clean_fixture() -> dict[str, str]:
     """A well-formed, drift-free two-feature plan. drift_scan must PASS it."""
-    plan_json = {
-        "slug": "acme",
-        "features": [
-            {"id": "01-foo", "title": "Foo", "file": "features/01-foo.md",
-             "type": "foundation", "final_complexity": "Simple",
-             "specification_route": "explicit", "risk_profile": "low", "ship_order": 1,
-             "dependencies": {"hard": [], "soft": []}},
-            {"id": "02-bar", "title": "Bar", "file": "features/02-bar.md",
-             "type": "user-facing", "final_complexity": "Moderate",
-             "specification_route": "compact", "risk_profile": "low", "ship_order": 2,
-             "dependencies": {"hard": ["01-foo"], "soft": []}},
-        ],
-    }
     tasks_foo = {
         "feature_id": "01-foo",
         "tasks": [
@@ -100,6 +216,53 @@ def clean_fixture() -> dict[str, str]:
         "# Acme\n\n## Features\n\n"
         "| ID | Title |\n|---|---|\n| 01-foo | Foo |\n| 02-bar | Bar |\n"
     )
+    architecture_input = (
+        "# Architecture Applicability\n\n"
+        "Both features remain within the existing application boundary.\n"
+    )
+    selection = not_applicable_selection(architecture_input)
+    selection_json = json.dumps(selection, indent=2)
+    plan_json = {
+        "project_slug": "acme",
+        "status": "planned",
+        "plan_revision": 1,
+        "plan_tier": "standard",
+        "architecture_disposition": {
+            "decision": "not-required",
+            "triggers": [],
+            "rationale": "The bounded fixture introduces no architecture driver.",
+            "decided_by": "human",
+            "convergence": {
+                "status": "not-applicable",
+                "iteration_count": 0,
+                "summary": "Architecture shaping is not applicable to this fixture.",
+                "decision_refs": [],
+            },
+            "direction": {
+                "status": "not-applicable",
+                "artifact": "architecture-selection.json",
+                "artifact_sha256": hashlib.sha256(
+                    selection_json.encode("utf-8")
+                ).hexdigest(),
+                "exploration_id": selection["exploration_id"],
+                "selected_option_id": None,
+                "selected_option_sha256": None,
+                "decided_by": "human",
+                "summary": "The human confirmed that no direction selection is needed.",
+            },
+        },
+        "relates_to": [],
+        "features": [
+            {"id": "01-foo", "title": "Foo", "file": "features/01-foo.md",
+             "type": "foundation", "final_complexity": "Simple",
+             "specification_route": "explicit", "risk_profile": "low", "ship_order": 1,
+             "dependencies": {"hard": [], "soft": []}},
+            {"id": "02-bar", "title": "Bar", "file": "features/02-bar.md",
+             "type": "user-facing", "final_complexity": "Moderate",
+             "specification_route": "compact", "risk_profile": "low", "ship_order": 2,
+             "dependencies": {"hard": ["01-foo"], "soft": []}},
+        ],
+    }
     interaction = "# Interaction Contract\n\n## No Cross-Feature Protocol\n"
 
     return {
@@ -107,6 +270,8 @@ def clean_fixture() -> dict[str, str]:
             {"plans": [{"slug": "acme", "description": "Acme", "relates_to": []}]},
             indent=2),
         "docs/plans/acme/plan.json": json.dumps(plan_json, indent=2),
+        "docs/plans/acme/architecture-selection.json": selection_json,
+        "docs/plans/acme/architecture-input.md": architecture_input,
         "docs/plans/acme/feature-plan.md": feature_plan,
         "docs/plans/acme/threat-model.md": threat_model,
         "docs/plans/acme/interaction-contract.md": interaction,

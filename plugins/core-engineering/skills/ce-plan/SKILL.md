@@ -82,7 +82,10 @@ This skill is staged. Load only the file for the stage being executed.
 
 Interactive gates correspond to decisions, not stages. Print
 `Gate N of M — <name>` for every gate that actually fires and use the same
-locator in telemetry.
+locator in telemetry. `M` is the current evidence-based forecast, always
+including Final Plan Approval. If a human answer creates or removes a later
+material gate, announce the reason and new numeric total before the next gate;
+never hide uncertainty behind `up to M`.
 
 Normal runs have:
 

@@ -146,6 +146,7 @@ PRODUCT_DOCS = {
         ".claude/ce-write-scope.session.json",
         ".claude/ce-guard-log.jsonl",
         ".claude/ce-session-model.json",
+        "**/.architecture-frame-change-receipt.json",
     ],
 }
 
@@ -154,6 +155,7 @@ RUNTIME_STATE_IGNORES = (
     ".claude/ce-write-scope.session.json",
     ".claude/ce-guard-log.jsonl",
     ".claude/ce-session-model.json",
+    "**/.architecture-frame-change-receipt.json",
 )
 
 def rel(root: Path, path: Path) -> str:

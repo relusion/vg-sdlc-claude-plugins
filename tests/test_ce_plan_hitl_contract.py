@@ -28,11 +28,18 @@ class CePlanHitlContract(unittest.TestCase):
     def test_intake_inspects_first_and_bounds_questions(self):
         stage = read("stage-0-1-understand.md")
         self.assertLess(stage.index("## 1. Inspect before asking"), stage.index("## 1.2 Ask only"))
-        self.assertIn("at most four questions per call", stage)
+        self.assertIn("at most three questions per call", stage)
         self.assertIn("at\nmost two question rounds", stage)
         self.assertIn("Only exit 0 authorizes the skip map", stage)
         self.assertIn("Exit 1 or exit 2 authorize **no skips**", stage)
         self.assertIn("Gate N of M — Intent and Scope", stage)
+        self.assertIn("must be no more than 450 words", stage)
+        self.assertIn("Do not precede a gate with a repository tour", stage)
+        self.assertIn("required outcomes or constraints", stage)
+        self.assertIn("not\nas premature implementation choices", stage)
+        self.assertIn("Never say `up to M`", stage)
+        self.assertIn("evidence-based gate forecast", stage)
+        self.assertIn("numeric reforecast", stage)
 
     def test_clean_negative_architecture_screen_is_not_reattested(self):
         stage = read("stage-1a-architecture-direction.md")
@@ -43,6 +50,18 @@ class CePlanHitlContract(unittest.TestCase):
         self.assertIn("Final Plan\nApproval", negative)
         self.assertIn("deterministic\nnegative is evidence", negative)
         self.assertNotIn("Confirm not applicable", stage)
+
+    def test_non_load_bearing_architecture_requires_explicit_opt_in(self):
+        stage = read("stage-1a-architecture-direction.md")
+        screen = stage[
+            stage.index("## 1A.2 Screen architecture applicability") :
+            stage.index("## 1A.3")
+        ]
+        self.assertIn("accountable human explicitly requests", screen)
+        self.assertIn("repository-policy or human opt-in", screen)
+        self.assertIn("named, evidenced consumer", screen)
+        self.assertIn("generic possibility of future reuse", screen)
+        self.assertIn("model preference for producing a\nbaseline", screen)
 
     def test_architecture_workbench_is_decision_ready_and_revisable(self):
         stage = read("stage-1a-architecture-direction.md")
@@ -69,7 +88,16 @@ class CePlanHitlContract(unittest.TestCase):
             self.assertIn(anchor, workbench)
         self.assertIn("No question or adjustment counts as approval", workbench)
         self.assertIn("Required architecture cannot be\ndeferred", workbench)
-        self.assertIn("Every answered question", workbench)
+        self.assertIn("stays conversational at the same gate", workbench)
+        self.assertIn("explicitly adopts it as decision basis", workbench)
+        self.assertIn("Conversation is a compact projection", workbench)
+        self.assertIn("artifact path/hash", workbench)
+        self.assertIn("passes `architecture-options-lint.py`", workbench)
+        self.assertIn("frame-change-pending", workbench)
+        self.assertIn("resume-frame-change", workbench)
+        self.assertIn("--expected-previous-sha256 <H2>", workbench)
+        self.assertIn("budget-exhausted", workbench)
+        self.assertIn("may not promise to persist or\nlint evidence after", workbench)
         self.assertIn("selection.approved_by", read("stage-1a-architecture-direction.md"))
         self.assertIn(
             "evaluation_frame.decision_owner.identity_or_role",

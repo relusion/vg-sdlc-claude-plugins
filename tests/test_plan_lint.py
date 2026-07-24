@@ -13,8 +13,8 @@ happy path still passes) and, in depth, the three checks WS6-T3 adds:
   A10 Durable-State Closure reciprocals and A11 Surface-Removal Closure continuity
       are dispositioned — advisory (markdown-derived), never touching the exit code.
 
-It also covers H9 architecture-disposition/convergence structure, H10's exact
-architecture-selection binding, and the A12/A13 legacy-compatibility advisories.
+It also covers H9 current plan authority and architecture convergence, plus
+H10's exact current-schema architecture-selection binding.
 
 The suite also pins the exit-0/1/2 contract end-to-end via the CLI.
 """
@@ -54,7 +54,7 @@ selection_support = importlib.util.module_from_spec(_selection_support_spec)
 _selection_support_spec.loader.exec_module(selection_support)
 
 
-# --- Golden-shaped legacy three-feature plan (H1–H10 green; A13 expected) -----
+# --- Current three-feature plan (H1–H11 green) -------------------------------
 
 ARCHITECTURE_DISPOSITION = {
     "decision": "required",
@@ -72,7 +72,10 @@ ARCHITECTURE_DISPOSITION = {
 GOLDEN_MANIFEST = {
     "project_slug": "smoke",
     "status": "planned",
+    "plan_revision": 1,
+    "plan_tier": "standard",
     "architecture_disposition": ARCHITECTURE_DISPOSITION,
+    "relates_to": [],
     "features": [
         {
             "id": "01-auth", "title": "Auth", "type": "foundation",
@@ -119,7 +122,8 @@ INTERACTION_CONTRACT_MD = "## No Cross-Feature Protocol\nattested negative.\n"
 def build_plan(root: Path, manifest: dict, *,
                feature_plan: str | None = FEATURE_PLAN_MD,
                threat_model: str | None = THREAT_MODEL_MD,
-               interaction_contract: str | None = INTERACTION_CONTRACT_MD) -> Path:
+               interaction_contract: str | None = INTERACTION_CONTRACT_MD,
+               bind_direction: bool = True) -> Path:
     """Lay out a plan dir; return it. `None` for a doc file omits it entirely."""
     plan_dir = root / "docs/plans/smoke"
     (plan_dir / "features").mkdir(parents=True)
@@ -140,19 +144,21 @@ def build_plan(root: Path, manifest: dict, *,
         (plan_dir / "threat-model.md").write_text(threat_model, encoding="utf-8")
     if interaction_contract is not None:
         (plan_dir / "interaction-contract.md").write_text(interaction_contract, encoding="utf-8")
+    posture = manifest.get("architecture_disposition")
+    if (
+        bind_direction
+        and isinstance(posture, dict)
+        and "direction" not in posture
+    ):
+        attach_valid_direction(plan_dir)
     return plan_dir
 
 
-def lint(plan_dir: Path, *, require_architecture_direction=False):
+def lint(plan_dir: Path):
     """Run the checks in-process; return (hard, advisory)."""
     manifest, pdir = pl.load(plan_dir / "plan.json")
     registry = pl.load_registry(pdir)
-    return pl.run_checks(
-        manifest,
-        pdir,
-        registry,
-        require_architecture_direction=require_architecture_direction,
-    )
+    return pl.run_checks(manifest, pdir, registry)
 
 
 def attach_valid_direction(plan_dir: Path) -> dict:
@@ -356,7 +362,7 @@ class GoldenAndRegression(unittest.TestCase):
         pdir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
         hard, advisory = lint(pdir)
         self.assertEqual(hard, [], f"golden plan should have no hard failures: {hard}")
-        self.assertEqual(has(advisory, "A13"), advisory)
+        self.assertEqual(advisory, [])
 
     def test_h5_backward_hard_dep_still_fires(self):
         # Regression guard: an existing invariant is untouched by the new checks.
@@ -554,14 +560,51 @@ class ArchitectureDispositionH9(unittest.TestCase):
     def test_valid_required_posture_passes(self):
         hard, advisory = self._lint_posture(copy.deepcopy(ARCHITECTURE_DISPOSITION))
         self.assertEqual(has(hard, "H9"), [], hard)
-        self.assertEqual(has(advisory, "A12"), [], advisory)
+        self.assertEqual(advisory, [])
 
-    def test_legacy_absence_is_advisory_only(self):
+    def test_missing_architecture_disposition_is_hard_failure(self):
         manifest = copy.deepcopy(GOLDEN_MANIFEST)
         del manifest["architecture_disposition"]
         hard, advisory = lint(build_plan(self.root, manifest))
-        self.assertEqual(has(hard, "H9"), [], hard)
-        self.assertTrue(has(advisory, "A12"), advisory)
+        self.assertTrue(
+            any("requires `architecture_disposition`" in item for item in has(hard, "H9")),
+            hard,
+        )
+        self.assertEqual(advisory, [])
+
+    def test_current_plan_authority_fields_are_required(self):
+        cases = {
+            "project_slug": "`project_slug` must be a non-empty string",
+            "status": "`status` must equal `planned`",
+            "plan_revision": "`plan_revision` must be an integer >= 1",
+            "plan_tier": "`plan_tier` must be `standard` or `light`",
+            "relates_to": "`relates_to` must be a list of non-empty plan slugs",
+        }
+        for field, diagnostic in cases.items():
+            with self.subTest(field=field):
+                manifest = copy.deepcopy(GOLDEN_MANIFEST)
+                del manifest[field]
+                case_root = Path(tempfile.mkdtemp(dir=self.root))
+                hard, _ = lint(build_plan(case_root, manifest))
+                self.assertIn(diagnostic, " ".join(has(hard, "H9")))
+
+    def test_current_plan_authority_field_types_are_strict(self):
+        cases = (
+            ("project_slug", "", "`project_slug`"),
+            ("status", "draft", "`status`"),
+            ("plan_revision", True, "`plan_revision`"),
+            ("plan_revision", 0, "`plan_revision`"),
+            ("plan_tier", "minimal", "`plan_tier`"),
+            ("relates_to", ["other", ""], "`relates_to`"),
+            ("relates_to", ["other", "other"], "duplicate"),
+        )
+        for field, value, diagnostic in cases:
+            with self.subTest(field=field, value=value):
+                manifest = copy.deepcopy(GOLDEN_MANIFEST)
+                manifest[field] = value
+                case_root = Path(tempfile.mkdtemp(dir=self.root))
+                hard, _ = lint(build_plan(case_root, manifest))
+                self.assertIn(diagnostic, " ".join(has(hard, "H9")))
 
     def test_malformed_present_posture_is_hard_failure(self):
         hard, _ = self._lint_posture("required")
@@ -671,8 +714,8 @@ class ArchitectureDispositionH9(unittest.TestCase):
         hard, _ = lint(build_plan(self.root, manifest))
         self.assertIn("incompatible with `plan_tier: light`", " ".join(has(hard, "H9")))
 
-    def test_present_plan_tier_uses_known_vocabulary(self):
-        for tier in ("minimal", []):
+    def test_plan_tier_uses_known_vocabulary(self):
+        for tier in ("minimal", [], None):
             with self.subTest(tier=tier):
                 manifest = copy.deepcopy(GOLDEN_MANIFEST)
                 manifest["plan_tier"] = tier
@@ -696,7 +739,7 @@ class ArchitectureDispositionH9(unittest.TestCase):
         self.assertIn("decision_refs", joined)
 
 
-class ArchitectureDirectionH10A13(unittest.TestCase):
+class ArchitectureDirectionH10(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -706,7 +749,9 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
 
     def _plan_with_direction(self):
         plan_dir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
-        selection = attach_valid_direction(plan_dir)
+        selection = json.loads(
+            (plan_dir / "architecture-selection.json").read_text(encoding="utf-8")
+        )
         return plan_dir, selection
 
     @staticmethod
@@ -717,13 +762,13 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
     def _write_manifest(plan_dir: Path, manifest: dict) -> None:
         (plan_dir / "plan.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-    def test_valid_direction_binding_passes_without_legacy_advisory(self):
+    def test_valid_current_direction_binding_passes(self):
         plan_dir, _ = self._plan_with_direction()
-        hard, advisory = lint(plan_dir, require_architecture_direction=True)
+        hard, advisory = lint(plan_dir)
         self.assertEqual(has(hard, "H10"), [], hard)
-        self.assertEqual(has(advisory, "A13"), [], advisory)
+        self.assertEqual(advisory, [])
 
-    def test_active_direction_consumer_rejects_legacy_selection_schema(self):
+    def test_every_plan_lint_rejects_legacy_selection_schema(self):
         plan_dir, _ = self._plan_with_direction()
         artifact = plan_dir / "architecture-selection.json"
         selection = json.loads(artifact.read_text(encoding="utf-8"))
@@ -736,30 +781,31 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
         )
         self._write_manifest(plan_dir, manifest)
 
-        diagnostic_hard, _ = lint(plan_dir)
-        self.assertEqual(has(diagnostic_hard, "H10"), [], diagnostic_hard)
-
-        consumer_hard, _ = lint(
-            plan_dir,
-            require_architecture_direction=True,
-        )
+        hard, _ = lint(plan_dir)
         self.assertTrue(
             any(
-                "fresh exploration output must use current schema_version 2" in item
-                for item in has(consumer_hard, "H10")
+                "schema_version must equal 2" in item
+                for item in has(hard, "H10")
             ),
-            consumer_hard,
+            hard,
         )
 
-    def test_missing_direction_is_advisory_by_default_and_hard_when_required(self):
-        plan_dir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
+    def test_missing_direction_is_always_a_hard_failure(self):
+        plan_dir = build_plan(
+            self.root,
+            copy.deepcopy(GOLDEN_MANIFEST),
+            bind_direction=False,
+        )
         hard, advisory = lint(plan_dir)
-        self.assertEqual(has(hard, "H10"), [], hard)
-        self.assertTrue(has(advisory, "A13"), advisory)
-
-        hard, advisory = lint(plan_dir, require_architecture_direction=True)
-        self.assertTrue(has(hard, "H10"), hard)
-        self.assertEqual(has(advisory, "A13"), [], advisory)
+        self.assertTrue(
+            any("missing key(s): direction" in item for item in has(hard, "H9")),
+            hard,
+        )
+        self.assertTrue(
+            any("current plan authority requires" in item for item in has(hard, "H10")),
+            hard,
+        )
+        self.assertEqual(advisory, [])
 
     def test_summary_artifact_hash_is_byte_exact(self):
         plan_dir, _ = self._plan_with_direction()
@@ -804,6 +850,19 @@ class ArchitectureDirectionH10A13(unittest.TestCase):
         self.assertIn(
             "decision `not-required` requires direction status",
             " ".join(has(hard, "H10")),
+        )
+
+    def test_retired_adopted_existing_direction_is_rejected(self):
+        plan_dir, _ = self._plan_with_direction()
+        manifest = self._manifest(plan_dir)
+        manifest["architecture_disposition"]["direction"]["status"] = "adopted-existing"
+        self._write_manifest(plan_dir, manifest)
+        hard, _ = lint(plan_dir)
+        joined = " ".join(has(hard, "H10"))
+        self.assertIn("direction.status", joined)
+        self.assertNotIn(
+            "adopted-existing",
+            str(sorted(pl.ARCHITECTURE_DIRECTION_STATUSES)),
         )
 
     def test_retired_waiver_cannot_preserve_a_selected_direction(self):
@@ -921,13 +980,23 @@ class ExitCodeContract(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertEqual(json.loads(r.stdout)["status"], "error")
 
-    def test_require_architecture_direction_promotes_a13_to_hard_failure(self):
-        pdir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
-        r = self._run(pdir, "--require-architecture-direction")
+    def test_missing_direction_is_hard_failure_without_a_mode_flag(self):
+        pdir = build_plan(
+            self.root,
+            copy.deepcopy(GOLDEN_MANIFEST),
+            bind_direction=False,
+        )
+        r = self._run(pdir)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         out = json.loads(r.stdout)
         self.assertEqual(out["status"], "fail")
         self.assertTrue(any(item.startswith("H10") for item in out["hard_failures"]))
+
+    def test_removed_legacy_strictness_flag_is_rejected(self):
+        pdir = build_plan(self.root, copy.deepcopy(GOLDEN_MANIFEST))
+        r = self._run(pdir, "--require-architecture-direction")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("unrecognized arguments", r.stderr)
 
 
 if __name__ == "__main__":

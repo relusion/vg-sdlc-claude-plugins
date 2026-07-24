@@ -53,26 +53,33 @@ The path adapts to evidence:
 ```text
 [optional brief] → adaptive plan
   ├─ straightforward: plan directly
-  └─ load-bearing architecture:
+  └─ load-bearing or explicitly requested architecture:
        plan [architecture explore + human direction] → decompose ⇄ architecture shape
        questions / evidence inspection / adjustment loop at the same human gate
-       → governed baseline only when the plan requires it
+       → governed baseline when required or when a recommended direction is selected
 → specification route recorded by plan
   ├─ compact: implement composes + lints the canonical spec artifacts
   └─ explicit: ce-spec resolves non-build-ready decisions first
 → implement
 → review ∥ verify                 # independent evidence, one orchestrated handoff
-→ generate docs from verified behavior
+→ generate docs when documentation impact requires it
 → audit docs when reader risk warrants it
 → incorporate doc changes, then refresh review ∥ verify
 → release decision               # ce-ship-release is final; never deploys
 ```
 
-Architecture is not a ceremony for every feature. When it is load-bearing,
-`ce-architecture explore:` maintains an evidence-rich comparison of complete
-options. The human may inspect evidence, ask questions, adjust the frame or an
-option, select, or park; the workflow recomputes at the same gate and binds only
-the final selected snapshot.
+Architecture is not a ceremony for every feature. When it is load-bearing—or
+repository policy or the accountable human explicitly requests a comparison
+now—`ce-architecture explore:` maintains an evidence-rich comparison of
+complete options. Generic future reuse or a model preference for a baseline
+does not trigger it. The human may inspect evidence, ask questions, adjust the
+frame or an option, select, or park; the workflow recomputes at the same gate
+and binds only the final selected snapshot. Conversation stays decision-focused
+while the complete evidence remains in the linted report; a partial or
+unvalidated report can never present a selectable direction. A deterministic
+renderer owns report structure, weighted totals, hashes, and revision chaining
+so the model spends its effort on the architecture reasoning users actually
+review.
 
 Plan always writes the same canonical plan-directory shape. It records whether
 each feature is `compact` or `explicit`. Compact work still produces and lints
@@ -101,7 +108,7 @@ The optional discovery plugin adds three skills.
 | Assure and diagnose | `/core-engineering:ce-review`, `/core-engineering:ce-verify`, `/core-engineering:ce-debug`, `/core-engineering:ce-ux-audit`, `/core-engineering:ce-plan-audit`, `/core-engineering:ce-retro` | Produce independent findings, behavioral evidence, diagnosis, and process evidence. |
 | Learn and decide | `/core-engineering:ce-onboard`, `/core-engineering:ce-domain`, `/core-engineering:ce-decide` | Teach implementation/domain context or compare one bounded technical fork. |
 | Probe | `/core-engineering:ce-probe-sec`, `/core-engineering:ce-probe-perf`, `/core-engineering:ce-probe-infra`, `/core-engineering:ce-probe-deps` | Inspect a named security, performance, infrastructure, or dependency surface. |
-| Handoff | `/core-engineering:ce-ship-backlog`, `/core-engineering:ce-ship-document`, `/core-engineering:ce-doc-audit`, `/core-engineering:ce-humanize`, `/core-engineering:ce-ship-release` | Export work, create and optionally audit docs, improve prose, then make the final release decision. |
+| Handoff | `/core-engineering:ce-ship-backlog`, `/core-engineering:ce-ship-document`, `/core-engineering:ce-doc-audit`, `/core-engineering:ce-humanize`, `/core-engineering:ce-ship-release` | Export work, create docs when impacted, conditionally audit, improve prose, then make the final release decision. |
 | Optional product discovery | `/product-discovery:ce-idea-scout`, `/product-discovery:ce-idea-score`, `/product-discovery:ce-market-scan` | Generate, score, and research product directions before engineering planning. |
 <!-- skill-catalog:end -->
 

@@ -87,7 +87,7 @@ claude plugin install product-discovery@vg-coding
 | Build-ready compact feature | `/core-engineering:ce-implement <feature-id>` | Re-screened route; canonical spec/tasks composed and linted before code |
 | Non-build-ready feature | `/core-engineering:ce-spec <feature-id>` then `/core-engineering:ce-implement <feature-id>` | Explicit decisions, canonical spec/tasks, then code |
 | Pre-handoff confidence | `/core-engineering:ce-review` and `/core-engineering:ce-verify` | Independent code findings and behavior evidence |
-| Release preparation | `/core-engineering:ce-ship-document`, conditional `/core-engineering:ce-doc-audit`, refresh review/verification after incorporating doc changes, then `/core-engineering:ce-ship-release` | Verified docs, current exact-state receipts, final GO/NO-GO package |
+| Release preparation | Conditional `/core-engineering:ce-ship-document` and `/core-engineering:ce-doc-audit`; refresh review/verification after incorporating doc changes, then `/core-engineering:ce-ship-release` | Documentation-impact disposition, required verified docs, current exact-state receipts, final GO/NO-GO package |
 
 Architecture exploration is not mandatory for every plan. When it is
 load-bearing, the human may inspect evidence, ask questions, revise constraints

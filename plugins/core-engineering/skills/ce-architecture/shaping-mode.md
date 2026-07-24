@@ -97,7 +97,7 @@ Run the read-only integrity floor:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/.drafts/<slug>/architecture-selection.json \
-  --repo-root . --require-current-schema --json
+  --repo-root . --json
 ```
 
 Exit 1 returns the exact failure to planning; exit 2 or no result parks.

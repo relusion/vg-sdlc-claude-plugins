@@ -83,7 +83,7 @@ Run selection validation first:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/.plan-candidate-<slug>-<run-id>/architecture-selection.json \
-  --repo-root . --require-current-schema --json
+  --repo-root . --json
 ```
 
 Then run:
@@ -91,7 +91,7 @@ Then run:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
   docs/plans/.plan-candidate-<slug>-<run-id> \
-  --require-architecture-direction --json
+  --json
 ```
 
 For each command:
@@ -187,9 +187,9 @@ Then rerun:
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/architecture-selection-lint.py" \
   docs/plans/<slug>/architecture-selection.json \
-  --repo-root . --require-current-schema --json
+  --repo-root . --json
 python3 "${CLAUDE_SKILL_DIR}/scripts/plan-lint.py" \
-  docs/plans/<slug>/ --require-architecture-direction --json
+  docs/plans/<slug>/ --json
 ```
 
 These post-publication runs are drift checks, not the first validation:

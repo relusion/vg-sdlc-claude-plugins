@@ -20,7 +20,7 @@
     "direction": {
       "status": "direction-selected",
       "artifact": "architecture-selection.json",
-      "artifact_sha256": "d4ca3029761e959db4625db2f4833095f98666c4fd356019f0cdf9c0ff5b8eeb",
+      "artifact_sha256": "dfc5af8e5b4ffb643beb501aa21e8f5f29fed655798d0804c239e10bc4a6e13f",
       "exploration_id": "AEX-56c261bc2c2f",
       "selected_option_id": "A01",
       "selected_option_sha256": "8b0bd10b27be9ea1424298521d9317d8e1dc5ab8e1ae2c6c0f1214e92e8434ab",

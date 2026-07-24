@@ -1058,6 +1058,10 @@ run:
 `plan.json` is the machine-readable index of the plan. It lets a downstream
 skill resolve feature files, ship order, and the dependency graph without
 parsing Markdown.
+The shape below is the only accepted plan authority contract. `plan-lint.py`
+has no diagnostic compatibility mode: every listed authority field, the
+complete direction binding, and its current-schema selection artifact are
+required on every validation run.
 
 ```json
 {

@@ -102,8 +102,8 @@ Install `product-discovery` only for these upstream jobs.
   implementation → independent review and verify.
 - Load-bearing design: plan → iterative architecture selection → decomposition
   and shape → baseline when required → build.
-- Final handoff: review and verify → generate docs → conditional doc audit →
-  release decision.
+- Final handoff: review and verify → generate docs when documentation impact
+  requires it → conditional doc audit → release decision.
 - Unattended: plan audit → auto-build; inspect `STATUS.md`, use `--resume` only
   to continue deliberately.
 

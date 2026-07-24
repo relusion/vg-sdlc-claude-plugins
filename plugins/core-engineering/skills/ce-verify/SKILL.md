@@ -69,9 +69,8 @@ the cumulative `verification-report.md`, replace its derived
 3. **Grounded.** Scenarios come from the plan's traced journeys and the specs' EARS criteria and test cases — never from-scratch tests. The Stage 2.5 revisit walk is the reciprocal of the plan's Stage 6.3 closure rows, scripted off the feature's built write surfaces — not an invented test.
 4. **Derive state, don't trust claims.** A feature is `implemented` only if its `tasks.json` exists and every task is `done` and `verification.md` exists; anything less is in progress.
 5. **Current authority only.** Before deriving feature state, require the
-   current plan and architecture-selection schemas. Legacy/reportless
-   architecture selections are diagnostic inputs, never verification
-   authority.
+   current plan and architecture-selection contracts. Non-current, incomplete,
+   or reportless selections never become verification authority.
 6. **Evidence-first HITL.** Automated and tool-demonstrated Pass rows are
    reported without confirmation. Prompt only for a Fail needing disposition,
    uncertain evidence, `manual:judgment`, or stakeholder acceptance. Group

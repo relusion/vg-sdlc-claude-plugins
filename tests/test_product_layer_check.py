@@ -155,18 +155,43 @@ class ProductLayerCheck(unittest.TestCase):
             self.assertIn("missing umbrella validation step", res.stderr)
 
     def test_runtime_sidecars_must_be_gitignored_and_bootstrapped(self):
+        for runtime_entry in (
+            ".claude/ce-write-scope.session.json",
+            "**/.architecture-frame-change-receipt.json",
+        ):
+            with self.subTest(runtime_entry=runtime_entry):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    ignore = repo / ".gitignore"
+                    ignore.write_text(
+                        ignore.read_text(encoding="utf-8").replace(
+                            runtime_entry, ""
+                        ),
+                        encoding="utf-8",
+                    )
+                    res = run("--root", str(repo))
+                    self.assertEqual(res.returncode, 1)
+                    self.assertIn(runtime_entry, res.stderr)
+
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
-            ignore = repo / ".gitignore"
-            ignore.write_text(
-                ignore.read_text(encoding="utf-8").replace(
-                    ".claude/ce-write-scope.session.json", ""
+            init_skill = (
+                repo / "plugins/core-engineering/skills/ce-init/SKILL.md"
+            )
+            init_skill.write_text(
+                init_skill.read_text(encoding="utf-8").replace(
+                    "**/.architecture-frame-change-receipt.json", ""
                 ),
                 encoding="utf-8",
             )
             res = run("--root", str(repo))
             self.assertEqual(res.returncode, 1)
-            self.assertIn(".claude/ce-write-scope.session.json", res.stderr)
+            self.assertIn(
+                "plugins/core-engineering/skills/ce-init/SKILL.md", res.stderr
+            )
+            self.assertIn(
+                "**/.architecture-frame-change-receipt.json", res.stderr
+            )
 
 
 class Freshness(unittest.TestCase):

@@ -48,7 +48,7 @@ VERIFY_STAGE0 = REPO / "plugins/core-engineering/skills/ce-verify/stage-0-1-load
 RELEASE_STAGES = REPO / "plugins/core-engineering/skills/ce-ship-release/stages.md"
 
 PLAN_LINT_COMMAND = 'scripts/plan-lint.py"'
-REQUIRED_DIRECTION_FLAG = "--require-architecture-direction"
+REMOVED_DIRECTION_FLAG = "--require-architecture-direction"
 
 
 class PlanLintForkRegistration(unittest.TestCase):
@@ -147,7 +147,7 @@ class PlanWriteTimeGateWiring(unittest.TestCase):
         self.assertLess(first_lint, approval)
         self.assertLess(approval, publication)
         self.assertLess(publication, second_lint)
-        self.assertIn(REQUIRED_DIRECTION_FLAG, text[first_lint:approval])
+        self.assertNotIn(REMOVED_DIRECTION_FLAG, text)
         self.assertIn("docs/plans/<slug>", text[publication:])
         self.assertGreaterEqual(text.count(PLAN_LINT_COMMAND), 2)
 
@@ -177,7 +177,7 @@ class AutoBuildKickoffWiring(unittest.TestCase):
         text = AUTOBUILD_STAGE0.read_text(encoding="utf-8")
         lint = text.index(PLAN_LINT_COMMAND)
         self.assertIn("docs/plans/<slug>", text[lint:])
-        self.assertIn(REQUIRED_DIRECTION_FLAG, text[lint:])
+        self.assertNotIn(REMOVED_DIRECTION_FLAG, text)
         self.assertIn("before any spawn", text)
 
     def test_stage0_states_exit_code_disposition(self):
@@ -193,19 +193,20 @@ class AssuranceEntryPreflightWiring(unittest.TestCase):
         consumer = text.index(before, plan)
         self.assertLess(selection, plan)
         self.assertLess(plan, consumer)
-        self.assertIn("--require-current-schema", text[selection:plan])
-        self.assertIn("--require-architecture-direction", text[plan:consumer])
+        self.assertNotIn("--require-current-schema", text[selection:plan])
+        self.assertNotIn(REMOVED_DIRECTION_FLAG, text[plan:consumer])
+        self.assertIn("--json", text[plan:consumer])
         for needle in ("exit 0", "Exit 1", "exit 2"):
             self.assertIn(needle, text[selection:consumer])
-        self.assertIn("Legacy", text[selection:consumer])
+        self.assertIn("current", text[selection:consumer].lower())
 
-    def test_verify_rejects_legacy_authority_before_feature_state(self):
+    def test_verify_rejects_non_current_authority_before_feature_state(self):
         self._assert_current_authority_preflight(
             VERIFY_STAGE0.read_text(encoding="utf-8"),
             "### 0.3 Derive Feature State",
         )
 
-    def test_release_rejects_legacy_authority_before_feature_gates(self):
+    def test_release_rejects_non_current_authority_before_feature_gates(self):
         self._assert_current_authority_preflight(
             RELEASE_STAGES.read_text(encoding="utf-8"),
             "For each in-range feature",
