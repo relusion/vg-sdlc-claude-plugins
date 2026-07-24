@@ -68,3 +68,40 @@ the requested team.
 | AC-2 | TC-2 | T-1, T-2 |
 | AC-3 | TC-3 | T-1, T-2 |
 | AC-4 | TC-4 | T-1, T-3 |
+
+## Architecture Context
+
+```json architecture-context
+{
+  "architecture_revision": null,
+  "feature_id": "01-invite-user",
+  "feature_mapping_sha256": null,
+  "mapped_ids": {
+    "actors": [],
+    "components": [],
+    "contracts": [],
+    "data": [],
+    "decisions": [],
+    "deployments": [],
+    "drivers": [],
+    "dynamic": [],
+    "flows": [],
+    "gaps": [],
+    "operations": [],
+    "quality": [],
+    "questions": [],
+    "relationships": [],
+    "risks": [],
+    "security": [],
+    "transitions": []
+  },
+  "mode": "not-required",
+  "package_path": null,
+  "package_receipt_sha256": null,
+  "plan_contract_sha256": "ec23915b4b2c25ad5935892d7b3dacbe66dc370ed0f9883e16e84530ac5c5eff",
+  "plan_revision": 1,
+  "project_slug": "team-invitations",
+  "reason": "This one-feature fixture has no cross-feature architecture driver.",
+  "schema_version": 2
+}
+```

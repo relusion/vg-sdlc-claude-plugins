@@ -84,24 +84,6 @@ def _make_adopter_repo(tmpdir):
     repo = Path(tmpdir) / "repo"
     shutil.copytree(FIXTURE, repo,
                     ignore=shutil.ignore_patterns("__pycache__"))
-    plan_dir = repo / "docs/plans/team-invitations"
-    spec_dir = plan_dir / "specs/01-invite-user"
-    context = ac.derive_context(
-        plan_dir, "01-invite-user", repo_root=repo
-    )
-    tasks_path = spec_dir / "tasks.json"
-    tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
-    tasks["architecture_context"] = context
-    tasks_path.write_text(json.dumps(tasks, indent=2) + "\n", encoding="utf-8")
-    spec_path = spec_dir / "ce-spec.md"
-    spec_path.write_text(
-        spec_path.read_text(encoding="utf-8")
-        + "\n## Architecture Context\n\n"
-        + "```json architecture-context\n"
-        + json.dumps(context, indent=2, sort_keys=True)
-        + "\n```\n",
-        encoding="utf-8",
-    )
     test_file = repo / TEST_FILE_REL
     test_file.parent.mkdir(parents=True, exist_ok=True)
     test_file.write_text(TEST_FILE_BODY, encoding="utf-8")

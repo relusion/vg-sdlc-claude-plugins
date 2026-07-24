@@ -23,6 +23,12 @@ SELECTION_SCRIPT = (
 )
 V2_FIXTURE = REPO / "tests/architecture_v2_fixture.py"
 SELECTION_FIXTURE = REPO / "tests/test_architecture_selection_lint.py"
+PLUGIN_MANIFEST = (
+    REPO / "plugins/core-engineering/.claude-plugin/plugin.json"
+)
+ARTIFACT_TEMPLATE = (
+    REPO / "plugins/core-engineering/skills/ce-architecture/artifact-template.md"
+)
 
 _spec = importlib.util.spec_from_file_location("architecture_lint_mod", SCRIPT)
 al = importlib.util.module_from_spec(_spec)
@@ -1965,6 +1971,13 @@ class ArchitectureLintCli(unittest.TestCase):
 
 
 class ArchitectureLintV2(unittest.TestCase):
+    def test_authoring_template_uses_current_plugin_version(self):
+        plugin_version = json.loads(
+            PLUGIN_MANIFEST.read_text(encoding="utf-8")
+        )["version"]
+        template = ARTIFACT_TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn(f'"version": "{plugin_version}"', template)
+
     def _check(self, root: Path, arch_dir: Path, manifest: dict):
         _save(arch_dir, manifest)
         return al.check_package(

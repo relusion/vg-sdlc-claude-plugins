@@ -36,7 +36,8 @@ that version and this file.
   explicit evidence-produced receipt on every run, and main-health validates
   its identity and freshness so a successful skip cannot masquerade as current
   behavioral evidence.
-- **Live-calibrated planning workbench hardening.** Added a deterministic
+- **Live-calibrated planning workbench hardening (`core-engineering`
+  0.11.1).** Added a deterministic
   architecture workbench renderer that accepts semantic direction judgments,
   derives weighted totals and content bindings, renders and lints the
   complete human report, replaces the manual report template, preserves

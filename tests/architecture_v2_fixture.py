@@ -169,7 +169,7 @@ def make_v2_repo(
         "schema_version": 2,
         "generator": {
             "name": "/core-engineering:ce-architecture",
-            "version": "0.11.0",
+            "version": "0.11.1",
         },
         "project_slug": "team-invitations",
         "lifecycle_status": "proposed",

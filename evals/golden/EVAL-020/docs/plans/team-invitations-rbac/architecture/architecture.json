@@ -3,7 +3,7 @@
   "schema_version": 2,
   "generator": {
     "name": "/core-engineering:ce-architecture",
-    "version": "0.11.0"
+    "version": "0.11.1"
   },
   "project_slug": "team-invitations-rbac",
   "lifecycle_status": "published",
@@ -89,7 +89,7 @@
       "projection_type": "solution-architecture",
       "path": "solution-architecture.md",
       "required": true,
-      "sha256": "5eec2ace55c7cbbb5bc0692310b86b2508510e8370205a79d557ceca425fdd20"
+      "sha256": "f65c76b524d8f8a3d2b21bab9762b54f4125167bc802ee60082f2a070453f953"
     },
     {
       "id": "PROJ-002",
@@ -2380,8 +2380,8 @@
     "authority": "Core Engineering evaluation fixture owner",
     "reference": "EVAL-020 schema-v2 corrective review revision 3",
     "gate": "Final Architecture Approval",
-    "review_payload_sha256": "1e4189b39d8832f3a95daba68aa0007065b1d6f6de28a76ea2a273e9ab8e585e",
-    "receipt_sha256": "d77ccbc09c8770d2fe5553f8346a2befac9d77b428815a480cf08251777793e8"
+    "review_payload_sha256": "e6151511f1c141b1be2aee764561ccdef8b8025990b886652d8fed43c9323ee4",
+    "receipt_sha256": "a83ec21548ca455a851aa5459a400091d78063d4b816cfbb1d09ba0bd2442362"
   },
   "extensions": {}
 }

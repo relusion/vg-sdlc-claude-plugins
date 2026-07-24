@@ -85,6 +85,11 @@ class RealVerdictRoundTrip(unittest.TestCase):
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.verdict = build_real_verdict(Path(cls._tmp.name))
+        if cls.verdict["status"] != "pass":
+            raise AssertionError(
+                f"implementation-ready fixture produced a non-green verdict: "
+                f"{cls.verdict['hard_failures']}"
+            )
 
     @classmethod
     def tearDownClass(cls):

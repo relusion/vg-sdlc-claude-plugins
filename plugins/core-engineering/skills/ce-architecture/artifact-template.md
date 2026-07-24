@@ -115,7 +115,7 @@ Use this exact shape:
   "schema_version": 2,
   "generator": {
     "name": "/core-engineering:ce-architecture",
-    "version": "0.11.0"
+    "version": "0.11.1"
   },
   "project_slug": "customer-portal",
   "lifecycle_status": "proposed",
