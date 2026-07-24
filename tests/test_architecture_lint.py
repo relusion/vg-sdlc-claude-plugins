@@ -23,9 +23,6 @@ SELECTION_SCRIPT = (
 )
 V2_FIXTURE = REPO / "tests/architecture_v2_fixture.py"
 SELECTION_FIXTURE = REPO / "tests/test_architecture_selection_lint.py"
-PLUGIN_MANIFEST = (
-    REPO / "plugins/core-engineering/.claude-plugin/plugin.json"
-)
 ARTIFACT_TEMPLATE = (
     REPO / "plugins/core-engineering/skills/ce-architecture/artifact-template.md"
 )
@@ -1971,12 +1968,28 @@ class ArchitectureLintCli(unittest.TestCase):
 
 
 class ArchitectureLintV2(unittest.TestCase):
-    def test_authoring_template_uses_current_plugin_version(self):
-        plugin_version = json.loads(
-            PLUGIN_MANIFEST.read_text(encoding="utf-8")
-        )["version"]
+    def test_authoring_template_uses_generator_contract_version(self):
         template = ARTIFACT_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn(f'"version": "{plugin_version}"', template)
+        self.assertIn(f'"version": "{al.V2_GENERATOR_VERSION}"', template)
+        self.assertIn(
+            "not the plugin delivery version",
+            template,
+        )
+
+    def test_plugin_delivery_version_is_not_a_generator_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            arch_dir, manifest = v2.make_v2_repo(root)
+            manifest["generator"]["version"] = "0.11.3"
+            self._refinalize(arch_dir, manifest)
+
+            hard, _ = self._check(root, arch_dir, manifest)
+
+            self.assertIn(
+                "H2 generator.version must equal the architecture generator "
+                f"contract version {al.V2_GENERATOR_VERSION!r}",
+                hard,
+            )
 
     def _check(self, root: Path, arch_dir: Path, manifest: dict):
         _save(arch_dir, manifest)

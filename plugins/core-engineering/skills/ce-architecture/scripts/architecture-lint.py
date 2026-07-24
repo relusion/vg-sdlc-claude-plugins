@@ -35,6 +35,7 @@ SCHEMA_VERSION = 1
 V2_SCHEMA_VERSION = 2
 V2_SCHEMA_URN = "urn:vg-sdlc:ce-architecture:architecture:v2"
 V2_GENERATOR_NAME = "/core-engineering:ce-architecture"
+V2_GENERATOR_VERSION = "2.0.0"
 V2_BASELINE_STATUSES = {
     "accepted-for-specification",
     "accepted-for-specification-with-gaps",
@@ -195,7 +196,6 @@ V2_BASE_DIMENSIONS = {
     "containers",
     "requirements_traceability",
 }
-SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 RFC3339_UTC_RE = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
 )
@@ -2947,20 +2947,6 @@ def _v2_load_renderer():
     return module
 
 
-def _v2_plugin_version(hard: list[str]) -> str | None:
-    manifest = Path(__file__).resolve().parents[3] / ".claude-plugin" / "plugin.json"
-    try:
-        payload = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
-        hard.append(f"H2 cannot read core-engineering plugin manifest version: {exc}")
-        return None
-    version = payload.get("version") if isinstance(payload, dict) else None
-    if not isinstance(version, str) or not SEMVER_RE.fullmatch(version):
-        hard.append("H2 core-engineering plugin manifest version is not canonical semver")
-        return None
-    return version
-
-
 def _v2_collection(
     data: dict,
     name: str,
@@ -4490,9 +4476,11 @@ def _check_package_v2(
     )
     if generator.get("name") != V2_GENERATOR_NAME:
         hard.append(f"H2 generator.name must be {V2_GENERATOR_NAME!r}")
-    plugin_version = _v2_plugin_version(hard)
-    if generator.get("version") != plugin_version:
-        hard.append("H2 generator.version must equal the core-engineering plugin version")
+    if generator.get("version") != V2_GENERATOR_VERSION:
+        hard.append(
+            "H2 generator.version must equal the architecture generator "
+            f"contract version {V2_GENERATOR_VERSION!r}"
+        )
 
     slug = data.get("project_slug")
     if not isinstance(slug, str) or not PROJECT_SLUG_RE.fullmatch(slug):

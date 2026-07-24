@@ -7,6 +7,16 @@ that version and this file.
 
 ## Unreleased
 
+- **Stable architecture generator contract (`core-engineering` 0.11.3).**
+  Decoupled schema-v2 architecture package compatibility from the plugin
+  delivery version. Routine patch releases no longer invalidate accepted
+  architecture packages or their deterministic projections; the generator
+  contract advances only when schema-v2 generation semantics change. The new
+  contract version is `2.0.0`; packages generated with the former `0.11.x`
+  delivery-coupled value require regeneration and renewed human approval.
+  Current implementation-ready fixtures now carry their required architecture
+  context directly, so action self-tests exercise shipped bytes without hidden
+  setup.
 - **Breaking lean-core workflow redesign (`core-engineering` 0.11.0).** The default path is now adaptive:
   `/core-engineering:ce-brief` is optional; plan uses one canonical
   plan-directory shape, invokes an iterative evidence/question/adjust

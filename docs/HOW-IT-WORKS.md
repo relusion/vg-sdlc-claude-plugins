@@ -125,6 +125,9 @@ be explicitly deferred from the same workbench with human rationale; a
 required baseline may not. The downstream invariant is “selected and converged
 architecture requires a current package; explicitly deferred recommended
 architecture remains a visible coverage gap.”
+Architecture package compatibility follows its stable generator contract
+version, independent of routine plugin delivery-version bumps. A generator
+contract change requires package regeneration and renewed human approval.
 Baseline synthesis does not ask the human to re-confirm the already approved
 plan. An Evidence Boundary Resolution gate appears only when candidate sources
 conflict, a missing source could materially change the model, or the human asks

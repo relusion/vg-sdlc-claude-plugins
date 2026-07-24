@@ -31,6 +31,12 @@ This redesign intentionally changes the public workflow:
   the final release decision;
 - only actual human decisions are gates.
 
+Architecture schema-v2 packages now use generator contract version `2.0.0`,
+independent of the plugin delivery version. Packages carrying a former
+delivery-coupled `0.11.x` generator version are not current: regenerate them
+with the owning architecture workflow and obtain renewed human approval. Do
+not rewrite approval hashes or receipts as a migration shortcut.
+
 Do not preserve old artifact modes by weakening validators or fabricating
 receipts. Re-run the owning workflow on a representative branch and review the
 new canonical artifacts.

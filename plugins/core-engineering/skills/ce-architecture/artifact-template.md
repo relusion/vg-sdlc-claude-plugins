@@ -33,7 +33,7 @@ The document uses:
   "schema_version": 2,
   "generator": {
     "name": "/core-engineering:ce-architecture",
-    "version": "<core-engineering plugin manifest version>"
+    "version": "2.0.0"
   }
 }
 ```
@@ -115,7 +115,7 @@ Use this exact shape:
   "schema_version": 2,
   "generator": {
     "name": "/core-engineering:ce-architecture",
-    "version": "0.11.1"
+    "version": "2.0.0"
   },
   "project_slug": "customer-portal",
   "lifecycle_status": "proposed",
@@ -248,6 +248,11 @@ Use this exact shape:
   }
 }
 ```
+
+`generator.version` is the stable architecture generator contract version,
+not the plugin delivery version. Keep it at `2.0.0` until the schema-v2
+generation or projection contract changes; routine plugin patch releases do
+not invalidate an accepted architecture package.
 
 `lifecycle_status` is `proposed` in scratch and `published` after the publisher
 completes. `baseline_status` is the human decision the package is seeking or

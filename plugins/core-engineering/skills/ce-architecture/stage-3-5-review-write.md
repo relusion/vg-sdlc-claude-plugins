@@ -132,7 +132,9 @@ A nonzero check is a package failure; return to the semantic JSON and rerender.
 Set:
 
 - `$schema: urn:vg-sdlc:ce-architecture:architecture:v2`,
-  `schema_version: 2`, and the exact generator identity/version;
+  `schema_version: 2`, and the exact generator identity plus stable generator
+  contract version from `artifact-template.md` (not the plugin delivery
+  version);
 - `architecture_revision: 1`, or prior revision + 1;
 - `source_plan_revision` from the required current `plan.json`;
 - `lifecycle_status: proposed`;
